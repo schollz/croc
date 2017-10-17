@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,29 +35,21 @@ func runClient(connectionType string, codePhrase string) {
 			message := receiveMessage(connection)
 			logger.Infof("message: %s", message)
 			sendMessage(connectionType+"."+codePhrase, connection)
-			if connectionType == "s" {
+			if connectionType == "s" { // this is a sender
 				logger.Info("waiting for ok from relay")
 				message = receiveMessage(connection)
 				logger.Info("got ok from relay")
 				// wait for pipe to be made
 				time.Sleep(1 * time.Second)
-				// Send file name
-				logger.Info("sending filename")
-				sendMessage("filename", connection)
-				// Send file size
-				time.Sleep(3 * time.Second)
-				logger.Info("sending filesize")
-				sendMessage("filesize", connection)
-				// TODO: Write data from file
+
+				// Write data from file
+				sendFileToClient(id, connection)
 
 				// TODO: Release from connection pool
 				// POST /release
-			} else {
-				fileName := receiveMessage(connection)
-				fileSize := receiveMessage(connection)
-				logger.Infof("fileName: %s", fileName)
-				logger.Infof("fileSize: %s", fileSize)
-				// TODO: Pull data and write to file
+			} else { // this is a receiver
+				// receive file
+				receiveFile(id, connection)
 
 				// TODO: Release from connection pool
 				// POST /release
@@ -65,6 +58,36 @@ func runClient(connectionType string, codePhrase string) {
 		}(id)
 	}
 	wg.Wait()
+}
+
+func receiveFile(id int, connection net.Conn) {
+	bufferFileName := make([]byte, 64)
+	bufferFileSize := make([]byte, 10)
+
+	connection.Read(bufferFileSize)
+	fileSize, _ := strconv.ParseInt(strings.Trim(string(bufferFileSize), ":"), 10, 64)
+
+	connection.Read(bufferFileName)
+	fileName = strings.Trim(string(bufferFileName), ":")
+	os.Remove(fileName + "." + strconv.Itoa(id))
+	newFile, err := os.Create(fileName + "." + strconv.Itoa(id))
+	if err != nil {
+		panic(err)
+	}
+	defer newFile.Close()
+
+	var receivedBytes int64
+	for {
+		if (fileSize - receivedBytes) < BUFFERSIZE {
+			io.CopyN(newFile, connection, (fileSize - receivedBytes))
+			// Empty the remaining bytes that we don't need from the network buffer
+			connection.Read(make([]byte, (receivedBytes+BUFFERSIZE)-fileSize))
+			break
+		}
+		io.CopyN(newFile, connection, BUFFERSIZE)
+		//Increment the counter
+		receivedBytes += BUFFERSIZE
+	}
 }
 
 func sendFileToClient(id int, connection net.Conn) {
