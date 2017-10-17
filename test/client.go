@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// runClient spawns threads for parallel uplink/downlink via TCP
 func runClient(connectionType string, codePhrase string) {
 	var wg sync.WaitGroup
 	wg.Add(numberConnections)
@@ -27,17 +28,23 @@ func runClient(connectionType string, codePhrase string) {
 			if connectionType == "s" {
 				message = receiveMessage(connection)
 				fmt.Println(message)
-				// TODO: Write data from file
 				// Send file name
 				sendMessage("filename", connection)
 				// Send file size
 				time.Sleep(3 * time.Second)
 				sendMessage("filesize", connection)
+				// TODO: Write data from file
+
+				// TODO: Release from connection pool
+				// POST /release
 			} else {
-				// TODO: Pull data and write to file
 				fileName := receiveMessage(connection)
 				fileSize := receiveMessage(connection)
 				fmt.Println(fileName, fileSize)
+				// TODO: Pull data and write to file
+
+				// TODO: Release from connection pool
+				// POST /release
 			}
 
 		}(id)
