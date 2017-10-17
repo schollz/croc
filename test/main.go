@@ -15,8 +15,10 @@ var server, file string
 
 // Global varaibles
 var serverAddress, fileName, codePhraseFlag, connectionTypeFlag string
+var runAsRelay bool
 
 func main() {
+	flag.BoolVar(&runAsRelay, "relay", false, "run as relay")
 	flag.StringVar(&serverAddress, "server", "", "(run as client) server address to connect to")
 	flag.StringVar(&fileName, "file", "", "(run as server) file to serve")
 	flag.StringVar(&codePhraseFlag, "code", "", "(run as server) file to serve")
@@ -29,7 +31,7 @@ func main() {
 	if file != "" {
 		fileName = file
 	}
-	if len(fileName) != 0 {
+	if runAsRelay {
 		runServer()
 	} else if len(serverAddress) != 0 {
 		runClient(connectionTypeFlag, codePhraseFlag)

@@ -75,29 +75,35 @@ func listener(id int) (err error) {
 }
 
 func clientCommuncation(id int, connection net.Conn) {
+	logger := log.WithFields(log.Fields{
+		"id":         id,
+		"connection": connection.RemoteAddr().String(),
+	})
+	logger.Info("Asking who?")
 	sendMessage("who?", connection)
 	message := receiveMessage(connection)
 	connectionType := strings.Split(message, ".")[0]
 	codePhrase := strings.Split(message, ".")[1]
-	// If reciever
 
 	if connectionType == "s" {
-		fmt.Println("Got sender")
+		logger.Info("got sender")
 		connections.Lock()
 		connections.sender[codePhrase] = connection
 		connections.Unlock()
 		for {
-			fmt.Println("waiting for reciever")
+			logger.Info("waiting for reciever")
 			connections.RLock()
 			if _, ok := connections.reciever[codePhrase]; ok {
+				logger.Info("got reciever")
 				connections.RUnlock()
 				break
 			}
 			connections.RUnlock()
 			time.Sleep(100 * time.Millisecond)
 		}
+		logger.Info("telling sender ok")
 		sendMessage("ok", connection)
-		fmt.Println("preparing pipe")
+		logger.Info("preparing pipe")
 		connections.Lock()
 		con1 := connections.sender[codePhrase]
 		con2 := connections.reciever[codePhrase]
@@ -141,4 +147,53 @@ func fillString(retunString string, toLength int) string {
 		break
 	}
 	return retunString
+}
+
+// chanFromConn creates a channel from a Conn object, and sends everything it
+//  Read()s from the socket to the channel.
+func chanFromConn(conn net.Conn) chan []byte {
+	c := make(chan []byte)
+
+	go func() {
+		b := make([]byte, BUFFERSIZE)
+
+		for {
+			n, err := conn.Read(b)
+			if n > 0 {
+				res := make([]byte, n)
+				// Copy the buffer so it doesn't get changed while read by the recipient.
+				copy(res, b[:n])
+				c <- res
+			}
+			if err != nil {
+				c <- nil
+				break
+			}
+		}
+	}()
+
+	return c
+}
+
+// Pipe creates a full-duplex pipe between the two sockets and transfers data from one to the other.
+func Pipe(conn1 net.Conn, conn2 net.Conn) {
+	chan1 := chanFromConn(conn1)
+	chan2 := chanFromConn(conn2)
+
+	for {
+		select {
+		case b1 := <-chan1:
+			if b1 == nil {
+				return
+			} else {
+				conn2.Write(b1)
+			}
+		case b2 := <-chan2:
+			if b2 == nil {
+				return
+			} else {
+				conn1.Write(b2)
+			}
+		}
+	}
 }
