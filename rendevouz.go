@@ -1,25 +1,18 @@
 package main
 
 import (
-	"flag"
 	"io"
 	"log"
 	"net"
 )
 
-var from *string
-var to *string
+// also see : http://archive.is/4Um4u
 
-func init() {
-	from = flag.String("from", "0.0.0.0:443", "The address and port that wormhole should listen on.  Connections enter here.")
-	to = flag.String("to", "127.0.0.1:80", "Specifies the address and port that wormhole should redirect TCP connections to.  Connections exit here.")
-	flag.Parse()
-}
-
-func main() {
-
+func runRendevouz() {
 	// Listen on the specified TCP port on all interfaces.
-	l, err := net.Listen("tcp", *from)
+	from := "0.0.0.0:27001"
+	to := "0.0.0.0:27009"
+	l, err := net.Listen("tcp", to)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -32,15 +25,13 @@ func main() {
 		}
 
 		// handle the connection in a goroutine
-		go wormhole(c)
+		go wormhole(c, from)
 	}
 }
 
-// wormhole opens a wormhole from the client connection
-// to user the specified destination
-func wormhole(c net.Conn) {
+func relay(c net.Conn, from string) {
 	defer c.Close()
-	log.Println("Opening wormhole from", c.RemoteAddr())
+	log.Println("Opening relay to", c.RemoteAddr())
 
 	// connect to the destination tcp port
 	destConn, err := net.Dial("tcp", *to)
