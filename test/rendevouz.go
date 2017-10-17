@@ -53,7 +53,7 @@ func chanFromConn(conn net.Conn) chan []byte {
 	c := make(chan []byte)
 
 	go func() {
-		b := make([]byte, 1024)
+		b := make([]byte, BUFFERSIZE)
 
 		for {
 			n, err := conn.Read(b)

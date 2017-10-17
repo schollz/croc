@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 	"sync"
 )
 
-func runClient() {
+func runClient(connectionType string, codePhrase string) {
 	var wg sync.WaitGroup
 	wg.Add(numberConnections)
 	for id := 0; id < numberConnections; id++ {
@@ -21,14 +20,13 @@ func runClient() {
 			}
 			defer connection.Close()
 
-			var messageByte []byte
-			var message string
-			messageByte = make([]byte, 64)
-			connection.Read(messageByte)
-			message = strings.Replace(string(messageByte), ":", "", -1)
+			message := receiveMessage(connection)
 			fmt.Println(message)
-			message = fillString("r.1-2-3", 64)
-			connection.Write([]byte(message))
+			sendMessage(connectionType+"."+codePhrase, connection)
+			if connectionType == "s" {
+				message = receiveMessage(connection)
+				fmt.Println(message)
+			}
 
 		}(id)
 	}

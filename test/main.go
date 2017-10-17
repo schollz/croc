@@ -32,7 +32,7 @@ func main() {
 	if len(fileName) != 0 {
 		runServer()
 	} else if len(serverAddress) != 0 {
-		runClient()
+		runClient(connectionTypeFlag, codePhraseFlag)
 	} else {
 		fmt.Println("You must specify either -file (for running as a server) or -server (for running as a client)")
 	}

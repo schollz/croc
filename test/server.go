@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -79,26 +80,41 @@ func clientCommuncation(id int, connection net.Conn) {
 	connectionType := strings.Split(message, ".")[0]
 	codePhrase := strings.Split(message, ".")[1]
 	// If reciever
-	connections.Lock()
-	connections.reciever[codePhrase] = connection
-	connections.Unlock()
 
 	if connectionType == "s" {
-		// periodically check if the receiver has joined
-
+		fmt.Println("Got sender")
+		connections.Lock()
+		connections.sender[codePhrase] = connection
+		connections.Unlock()
+		for {
+			fmt.Println("waiting for reciever")
+			connections.RLock()
+			if _, ok := connections.reciever[codePhrase]; ok {
+				break
+			}
+			connections.RUnlock()
+			time.Sleep(100 * time.Millisecond)
+		}
+		sendMessage("ok", connection)
+	} else {
+		fmt.Println("Got reciever")
+		connections.Lock()
+		connections.reciever[codePhrase] = connection
+		connections.Unlock()
 	}
 	fmt.Println(message)
 	return
 }
 
 func sendMessage(message string, connection net.Conn) {
-	message = fillString(message, 64)
+	message = fillString(message, BUFFERSIZE)
 	connection.Write([]byte(message))
 }
 
 func receiveMessage(connection net.Conn) string {
-	messageByte := make([]byte, 64)
-	connection.Read(messageByte)
+	messageByte := make([]byte, BUFFERSIZE)
+	n, err := connection.Read(messageByte)
+	fmt.Println(n, err)
 	return strings.Replace(string(messageByte), ":", "", -1)
 }
 
