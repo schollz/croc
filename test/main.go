@@ -14,11 +14,13 @@ const numberConnections = 1
 var server, file string
 
 // Global varaibles
-var serverAddress, fileName string
+var serverAddress, fileName, codePhraseFlag, connectionTypeFlag string
 
 func main() {
 	flag.StringVar(&serverAddress, "server", "", "(run as client) server address to connect to")
 	flag.StringVar(&fileName, "file", "", "(run as server) file to serve")
+	flag.StringVar(&codePhraseFlag, "code", "", "(run as server) file to serve")
+	flag.StringVar(&connectionTypeFlag, "type", "", "(run as server) file to serve")
 	flag.Parse()
 	// Check build flags too, which take precedent
 	if server != "" {

@@ -27,7 +27,7 @@ func runClient() {
 			connection.Read(messageByte)
 			message = strings.Replace(string(messageByte), ":", "", -1)
 			fmt.Println(message)
-			message = fillString("reciever-123", 64)
+			message = fillString("r.1-2-3", 64)
 			connection.Write([]byte(message))
 
 		}(id)

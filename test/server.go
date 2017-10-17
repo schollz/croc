@@ -11,6 +11,21 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type connectionMap struct {
+	reciever map[string]net.Conn
+	sender   map[string]net.Conn
+	sync.RWMutex
+}
+
+var connections connectionMap
+
+func init() {
+	connections.Lock()
+	connections.reciever = make(map[string]net.Conn)
+	connections.sender = make(map[string]net.Conn)
+	connections.Unlock()
+}
+
 func runServer() {
 	logger := log.WithFields(log.Fields{
 		"function": "main",
@@ -59,10 +74,19 @@ func listener(id int) (err error) {
 }
 
 func clientCommuncation(id int, connection net.Conn) {
-	defer connection.Close()
 	sendMessage("who?", connection)
 	message := receiveMessage(connection)
-	// TODO: parse message for sender/reciever and the code phrase
+	connectionType := strings.Split(message, ".")[0]
+	codePhrase := strings.Split(message, ".")[1]
+	// If reciever
+	connections.Lock()
+	connections.reciever[codePhrase] = connection
+	connections.Unlock()
+
+	if connectionType == "s" {
+		// periodically check if the receiver has joined
+
+	}
 	fmt.Println(message)
 	return
 }
