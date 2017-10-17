@@ -90,19 +90,32 @@ func clientCommuncation(id int, connection net.Conn) {
 			fmt.Println("waiting for reciever")
 			connections.RLock()
 			if _, ok := connections.reciever[codePhrase]; ok {
+				connections.RUnlock()
 				break
 			}
 			connections.RUnlock()
 			time.Sleep(100 * time.Millisecond)
 		}
 		sendMessage("ok", connection)
+		fmt.Println("preparing pipe")
+		connections.Lock()
+		con1 := connections.sender[codePhrase]
+		con2 := connections.reciever[codePhrase]
+		connections.Unlock()
+		fmt.Println("piping connections")
+		Pipe(con1, con2)
+		fmt.Println("done piping")
+		connections.Lock()
+		delete(connections.sender, codePhrase)
+		delete(connections.reciever, codePhrase)
+		connections.Unlock()
+		fmt.Println("deleted " + codePhrase)
 	} else {
 		fmt.Println("Got reciever")
 		connections.Lock()
 		connections.reciever[codePhrase] = connection
 		connections.Unlock()
 	}
-	fmt.Println(message)
 	return
 }
 

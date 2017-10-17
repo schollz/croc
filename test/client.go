@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 )
 
 func runClient(connectionType string, codePhrase string) {
@@ -26,6 +27,17 @@ func runClient(connectionType string, codePhrase string) {
 			if connectionType == "s" {
 				message = receiveMessage(connection)
 				fmt.Println(message)
+				// TODO: Write data from file
+				// Send file name
+				sendMessage("filename", connection)
+				// Send file size
+				time.Sleep(3 * time.Second)
+				sendMessage("filesize", connection)
+			} else {
+				// TODO: Pull data and write to file
+				fileName := receiveMessage(connection)
+				fileSize := receiveMessage(connection)
+				fmt.Println(fileName, fileSize)
 			}
 
 		}(id)
