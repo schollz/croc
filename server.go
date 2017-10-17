@@ -56,7 +56,7 @@ func listener(id int) (err error) {
 		if err != nil {
 			return errors.Wrap(err, "problem accepting connection")
 		}
-		logger.Info("Client connected")
+		logger.Infof("Client %s connected", connection.RemoteAddr().String())
 		go sendFileToClient(id, connection)
 	}
 }
