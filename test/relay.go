@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"strconv"
 	"strings"
@@ -31,7 +30,7 @@ func runServer() {
 	logger := log.WithFields(log.Fields{
 		"function": "main",
 	})
-	logger.Info("Initializing")
+	logger.Debug("Initializing")
 	var wg sync.WaitGroup
 	wg.Add(numberConnections)
 	for id := 0; id < numberConnections; id++ {
@@ -62,62 +61,60 @@ func listener(id int) (err error) {
 		return errors.Wrap(err, "Error listening on "+serverAddress+":"+port)
 	}
 	defer server.Close()
-	logger.Info("waiting for connections")
+	logger.Debug("waiting for connections")
 	//Spawn a new goroutine whenever a client connects
 	for {
 		connection, err := server.Accept()
 		if err != nil {
 			return errors.Wrap(err, "problem accepting connection")
 		}
-		logger.Infof("Client %s connected", connection.RemoteAddr().String())
+		logger.Debugf("Client %s connected", connection.RemoteAddr().String())
 		go clientCommuncation(id, connection)
 	}
 }
 
 func clientCommuncation(id int, connection net.Conn) {
-	logger := log.WithFields(log.Fields{
-		"id":         id,
-		"connection": connection.RemoteAddr().String(),
-	})
-	logger.Info("Asking who?")
 	sendMessage("who?", connection)
 	message := receiveMessage(connection)
 	connectionType := strings.Split(message, ".")[0]
-	codePhrase := strings.Split(message, ".")[1]
+	codePhrase := strings.Split(message, ".")[1] + "-" + strconv.Itoa(id)
+	logger := log.WithFields(log.Fields{
+		"id":         id,
+		"codePhrase": codePhrase,
+	})
 
 	if connectionType == "s" {
-		logger.Info("got sender")
+		logger.Debug("got sender")
 		connections.Lock()
 		connections.sender[codePhrase] = connection
 		connections.Unlock()
 		for {
-			logger.Info("waiting for reciever")
 			connections.RLock()
 			if _, ok := connections.reciever[codePhrase]; ok {
-				logger.Info("got reciever")
+				logger.Debug("got reciever")
 				connections.RUnlock()
 				break
 			}
 			connections.RUnlock()
 			time.Sleep(100 * time.Millisecond)
 		}
-		logger.Info("telling sender ok")
+		logger.Debug("telling sender ok")
 		sendMessage("ok", connection)
-		logger.Info("preparing pipe")
+		logger.Debug("preparing pipe")
 		connections.Lock()
 		con1 := connections.sender[codePhrase]
 		con2 := connections.reciever[codePhrase]
 		connections.Unlock()
-		fmt.Println("piping connections")
+		logger.Debug("piping connections")
 		Pipe(con1, con2)
-		fmt.Println("done piping")
+		logger.Debug("done piping")
 		connections.Lock()
 		delete(connections.sender, codePhrase)
 		delete(connections.reciever, codePhrase)
 		connections.Unlock()
-		fmt.Println("deleted " + codePhrase)
+		logger.Debug("deleted sender and receiver")
 	} else {
-		fmt.Println("Got reciever")
+		logger.Debug("got reciever")
 		connections.Lock()
 		connections.reciever[codePhrase] = connection
 		connections.Unlock()
@@ -132,8 +129,7 @@ func sendMessage(message string, connection net.Conn) {
 
 func receiveMessage(connection net.Conn) string {
 	messageByte := make([]byte, BUFFERSIZE)
-	n, err := connection.Read(messageByte)
-	fmt.Println(n, err)
+	connection.Read(messageByte)
 	return strings.Replace(string(messageByte), ":", "", -1)
 }
 

@@ -11,8 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gosuri/uiprogress"
 	log "github.com/sirupsen/logrus"
 )
+
+var bars []*uiprogress.Bar
 
 // runClient spawns threads for parallel uplink/downlink via TCP
 func runClient(connectionType string, codePhrase string) {
@@ -22,6 +25,10 @@ func runClient(connectionType string, codePhrase string) {
 	})
 	var wg sync.WaitGroup
 	wg.Add(numberConnections)
+
+	uiprogress.Start()
+	bars = make([]*uiprogress.Bar, numberConnections)
+	fileNameToReceive := ""
 	for id := 0; id < numberConnections; id++ {
 		go func(id int) {
 			defer wg.Done()
@@ -33,66 +40,108 @@ func runClient(connectionType string, codePhrase string) {
 			defer connection.Close()
 
 			message := receiveMessage(connection)
-			logger.Infof("message: %s", message)
+			logger.Debugf("relay says: %s", message)
+			logger.Debugf("telling relay: %s", connectionType+"."+codePhrase)
 			sendMessage(connectionType+"."+codePhrase, connection)
 			if connectionType == "s" { // this is a sender
-				logger.Info("waiting for ok from relay")
+				logger.Debug("waiting for ok from relay")
 				message = receiveMessage(connection)
-				logger.Info("got ok from relay")
+				logger.Debug("got ok from relay")
 				// wait for pipe to be made
-				time.Sleep(1 * time.Second)
+				time.Sleep(100 * time.Millisecond)
 
 				// Write data from file
-				sendFileToClient(id, connection)
-
-				// TODO: Release from connection pool
-				// POST /release
+				logger.Debug("send file")
+				sendFile(id, connection)
 			} else { // this is a receiver
 				// receive file
-				receiveFile(id, connection)
-
-				// TODO: Release from connection pool
-				// POST /release
+				logger.Debug("receive file")
+				fileNameToReceive = receiveFile(id, connection)
 			}
 
 		}(id)
 	}
 	wg.Wait()
+
+	if connectionType == "r" {
+		catFile(fileNameToReceive)
+	}
 }
 
-func receiveFile(id int, connection net.Conn) {
+func catFile(fileNameToReceive string) {
+	// cat the file
+	os.Remove(fileNameToReceive)
+	finished, err := os.Create(fileNameToReceive)
+	defer finished.Close()
+	if err != nil {
+		log.Fatal(err)
+	}
+	for id := 0; id < numberConnections; id++ {
+		fh, err := os.Open(fileNameToReceive + "." + strconv.Itoa(id))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		_, err = io.Copy(finished, fh)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fh.Close()
+		os.Remove(fileNameToReceive + "." + strconv.Itoa(id))
+	}
+
+	fmt.Println("\n\n\nDownloaded " + fileNameToReceive + "!")
+}
+
+func receiveFile(id int, connection net.Conn) string {
+	logger := log.WithFields(log.Fields{
+		"function": "receiveFile #" + strconv.Itoa(id),
+	})
 	bufferFileName := make([]byte, 64)
 	bufferFileSize := make([]byte, 10)
 
+	logger.Debug("waiting for file size")
 	connection.Read(bufferFileSize)
 	fileSize, _ := strconv.ParseInt(strings.Trim(string(bufferFileSize), ":"), 10, 64)
+	logger.Debugf("filesize: %d", fileSize)
 
 	connection.Read(bufferFileName)
-	fileName = strings.Trim(string(bufferFileName), ":")
-	os.Remove(fileName + "." + strconv.Itoa(id))
-	newFile, err := os.Create(fileName + "." + strconv.Itoa(id))
+	fileNameToReceive := strings.Trim(string(bufferFileName), ":")
+	logger.Debugf("fileName: %v", fileNameToReceive)
+	os.Remove(fileNameToReceive + "." + strconv.Itoa(id))
+	newFile, err := os.Create(fileNameToReceive + "." + strconv.Itoa(id))
 	if err != nil {
 		panic(err)
 	}
 	defer newFile.Close()
 
+	bars[id] = uiprogress.AddBar(int(fileSize)/1024 + 1).AppendCompleted().PrependElapsed()
+
+	logger.Debug("waiting for file")
 	var receivedBytes int64
 	for {
+		bars[id].Incr()
 		if (fileSize - receivedBytes) < BUFFERSIZE {
+			logger.Debug("at the end")
 			io.CopyN(newFile, connection, (fileSize - receivedBytes))
 			// Empty the remaining bytes that we don't need from the network buffer
-			connection.Read(make([]byte, (receivedBytes+BUFFERSIZE)-fileSize))
+			if (receivedBytes+BUFFERSIZE)-fileSize < BUFFERSIZE {
+				logger.Debug("empty remaining bytes from network buffer")
+				connection.Read(make([]byte, (receivedBytes+BUFFERSIZE)-fileSize))
+			}
 			break
 		}
 		io.CopyN(newFile, connection, BUFFERSIZE)
 		//Increment the counter
 		receivedBytes += BUFFERSIZE
 	}
+	logger.Debug("received file")
+	return fileNameToReceive
 }
 
-func sendFileToClient(id int, connection net.Conn) {
+func sendFile(id int, connection net.Conn) {
 	logger := log.WithFields(log.Fields{
-		"function": "sendFileToClient #" + strconv.Itoa(id),
+		"function": "sendFile #" + strconv.Itoa(id),
 	})
 	defer connection.Close()
 	//Open the file that needs to be send to the client
@@ -118,18 +167,18 @@ func sendFileToClient(id int, connection net.Conn) {
 	}
 	fileSize := fillString(strconv.FormatInt(int64(bytesPerConnection), 10), 10)
 
-	fileName := fillString(fileInfo.Name(), 64)
+	fileNameToSend := fillString(fileInfo.Name(), 64)
 
 	if id == 0 || id == numberConnections-1 {
-		logger.Infof("numChunks: %v", numChunks)
-		logger.Infof("chunksPerWorker: %v", chunksPerWorker)
-		logger.Infof("bytesPerConnection: %v", bytesPerConnection)
-		logger.Infof("fileName: %v", fileInfo.Name())
+		logger.Debugf("numChunks: %v", numChunks)
+		logger.Debugf("chunksPerWorker: %v", chunksPerWorker)
+		logger.Debugf("bytesPerConnection: %v", bytesPerConnection)
+		logger.Debugf("fileNameToSend: %v", fileInfo.Name())
 	}
 
-	logger.Info("sending")
+	logger.Debugf("sending %s", fileSize)
 	connection.Write([]byte(fileSize))
-	connection.Write([]byte(fileName))
+	connection.Write([]byte(fileNameToSend))
 	sendBuffer := make([]byte, BUFFERSIZE)
 
 	chunkI := 0
@@ -137,7 +186,7 @@ func sendFileToClient(id int, connection net.Conn) {
 		_, err = file.Read(sendBuffer)
 		if err == io.EOF {
 			//End of file reached, break out of for loop
-			logger.Info("EOF")
+			logger.Debug("EOF")
 			break
 		}
 		if (chunkI >= chunksPerWorker*id && chunkI < chunksPerWorker*id+chunksPerWorker) || (id == numberConnections-1 && chunkI >= chunksPerWorker*id) {
@@ -145,6 +194,6 @@ func sendFileToClient(id int, connection net.Conn) {
 		}
 		chunkI++
 	}
-	fmt.Println("File has been sent, closing connection!")
+	logger.Debug("file is sent")
 	return
 }
