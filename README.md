@@ -46,3 +46,9 @@ $ croc -relay
 
 Now, when you use *croc* to send and receive you can add `-server your-server.com` to use your rendezvous server.
 
+
+# Known issues / To-Do list
+
+- [ ] Is it secure? not sure
+- [ ] Need to clear clients who disconnect before sending/receiving
+- [ ] Handle file sizes < BUFFERSIZE * numberOfConnections (currently 4096 bytes)
