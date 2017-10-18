@@ -30,7 +30,6 @@ func runClient(connectionType string, codePhrase string) {
 
 	uiprogress.Start()
 	bars = make([]*uiprogress.Bar, numberConnections)
-	var iv, salt, fileNameToReceive string
 	for id := 0; id < numberConnections; id++ {
 		go func(id int) {
 			defer wg.Done()
@@ -61,7 +60,7 @@ func runClient(connectionType string, codePhrase string) {
 			} else { // this is a receiver
 				// receive file
 				logger.Debug("receive file")
-				fileNameToReceive, iv, salt = receiveFile(id, connection, codePhrase)
+				fileName, fileIV, fileSalt, fileHash = receiveFile(id, connection, codePhrase)
 			}
 
 		}(id)
@@ -69,26 +68,31 @@ func runClient(connectionType string, codePhrase string) {
 	wg.Wait()
 
 	if connectionType == "r" {
-		catFile(fileNameToReceive)
-		encrypted, err := ioutil.ReadFile(fileNameToReceive + ".encrypted")
+		catFile(fileName)
+		encrypted, err := ioutil.ReadFile(fileName + ".encrypted")
 		if err != nil {
 			log.Error(err)
 			return
 		}
 		fmt.Println("\n\ndecrypting...")
-		decrypted, err := Decrypt(encrypted, codePhrase, salt, iv)
+		decrypted, err := Decrypt(encrypted, codePhrase, fileSalt, fileIV)
 		if err != nil {
 			log.Error(err)
 			return
 		}
-		ioutil.WriteFile(fileNameToReceive, decrypted, 0644)
-		os.Remove(fileNameToReceive + ".encrypted")
-		fmt.Println("\nDownloaded " + fileNameToReceive + "!")
+		ioutil.WriteFile(fileName, decrypted, 0644)
+		os.Remove(fileName + ".encrypted")
+		log.Debugf("\n\n\ndownloaded hash: %s", HashBytes(decrypted))
+		log.Debugf("\n\n\nrelayed hash: %s", fileHash)
+
+		if fileHash != HashBytes(decrypted) {
+			fmt.Printf("\nUh oh! %s is corrupted! Sorry, try again.\n", fileName)
+		} else {
+			fmt.Printf("\nDownloaded %s!", fileName)
+		}
 	} else {
 		log.Info("cleaning up")
 		os.Remove(fileName + ".encrypted")
-		os.Remove(fileName + ".iv")
-		os.Remove(fileName + ".salt")
 	}
 }
 
@@ -116,7 +120,7 @@ func catFile(fileNameToReceive string) {
 
 }
 
-func receiveFile(id int, connection net.Conn, codePhrase string) (fileNameToReceive string, iv string, salt string) {
+func receiveFile(id int, connection net.Conn, codePhrase string) (fileNameToReceive string, iv string, salt string, hashOfFile string) {
 	logger := log.WithFields(log.Fields{
 		"function": "receiveFile #" + strconv.Itoa(id),
 	})
@@ -136,12 +140,17 @@ func receiveFile(id int, connection net.Conn, codePhrase string) (fileNameToRece
 	ivHex := make([]byte, BUFFERSIZE)
 	connection.Read(ivHex)
 	iv = strings.Trim(string(ivHex), ":")
-	logger.Debugf("iv: %v", iv)
+	logger.Debugf("iv: %s", iv)
 
 	saltHex := make([]byte, BUFFERSIZE)
 	connection.Read(saltHex)
 	salt = strings.Trim(string(saltHex), ":")
-	logger.Debugf("salt: %v", salt)
+	logger.Debugf("salt: %s", salt)
+
+	hashOfFileBytes := make([]byte, BUFFERSIZE)
+	connection.Read(hashOfFileBytes)
+	hashOfFile = strings.Trim(string(hashOfFileBytes), ":")
+	logger.Debugf("hashOfFile: %s", hashOfFile)
 
 	os.Remove(fileNameToReceive + "." + strconv.Itoa(id))
 	newFile, err := os.Create(fileNameToReceive + "." + strconv.Itoa(id))
@@ -212,28 +221,25 @@ func sendFile(id int, connection net.Conn, codePhrase string) {
 		logger.Debugf("fileNameToSend: %v", path.Base(fileName))
 	}
 
+	// send file size
 	logger.Debugf("sending fileSize: %s", fileSize)
 	connection.Write([]byte(fileSize))
+
+	// send fileName
 	logger.Debugf("sending fileNameToSend: %s", fileNameToSend)
 	connection.Write([]byte(fileNameToSend))
 
 	// send iv
-	iv, err := ioutil.ReadFile(fileName + ".iv")
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	logger.Debugf("sending iv: %s", iv)
-	connection.Write([]byte(fillString(string(iv), BUFFERSIZE)))
+	logger.Debugf("sending iv: %s", fileIV)
+	connection.Write([]byte(fillString(fileIV, BUFFERSIZE)))
 
 	// send salt
-	salt, err := ioutil.ReadFile(fileName + ".salt")
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	logger.Debugf("sending salt: %s", salt)
-	connection.Write([]byte(fillString(string(salt), BUFFERSIZE)))
+	logger.Debugf("sending salt: %s", fileSalt)
+	connection.Write([]byte(fillString(fileSalt, BUFFERSIZE)))
+
+	// send sha256sum of file
+	logger.Debugf("sending sha256sum: %s", fileHash)
+	connection.Write([]byte(fillString(fileHash, BUFFERSIZE)))
 
 	sendBuffer := make([]byte, BUFFERSIZE)
 

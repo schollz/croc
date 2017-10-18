@@ -61,6 +61,10 @@ func deriveKey(passphrase string, salt []byte) ([]byte, []byte) {
 }
 
 func Hash(data string) string {
-	sum := sha256.Sum256([]byte(data))
+	return HashBytes([]byte(data))
+}
+
+func HashBytes(data []byte) string {
+	sum := sha256.Sum256(data)
 	return fmt.Sprintf("%x", sum)
 }
