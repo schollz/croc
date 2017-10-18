@@ -137,17 +137,17 @@ func receiveFile(id int, connection net.Conn, codePhrase string) (fileNameToRece
 
 	ivHex := make([]byte, BUFFERSIZE)
 	connection.Read(ivHex)
-	iv = strings.Trim(string(ivHex), ":")
+	iv = strings.Trim(strings.TrimSpace(string(ivHex)), ":")
 	logger.Debugf("iv: %s", iv)
 
 	saltHex := make([]byte, BUFFERSIZE)
 	connection.Read(saltHex)
-	salt = strings.Trim(string(saltHex), ":")
+	salt = strings.Trim(strings.TrimSpace(string(saltHex)), ":")
 	logger.Debugf("salt: %s", salt)
 
 	hashOfFileBytes := make([]byte, BUFFERSIZE)
 	connection.Read(hashOfFileBytes)
-	hashOfFile = strings.Trim(string(hashOfFileBytes), ":")
+	hashOfFile = strings.Trim(strings.TrimSpace(string(hashOfFileBytes)), ":")
 	logger.Debugf("hashOfFile: %s", hashOfFile)
 
 	os.Remove(fileNameToReceive + "." + strconv.Itoa(id))
