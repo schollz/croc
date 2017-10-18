@@ -20,6 +20,7 @@ var server, file string
 // Global varaibles
 var serverAddress, fileName, codePhraseFlag, connectionTypeFlag string
 var runAsRelay, debugFlag bool
+var fileSalt, fileIV, fileHash string
 
 func main() {
 	flag.BoolVar(&runAsRelay, "relay", false, "run as relay")
@@ -62,14 +63,14 @@ func main() {
 			log.Fatal(err)
 			return
 		}
-		encrypted, salt, iv := Encrypt(fdata, codePhraseFlag)
+		var encrypted []byte
+		encrypted, fileSalt, fileIV = Encrypt(fdata, codePhraseFlag)
 		if err != nil {
 			log.Fatal(err)
 			return
 		}
 		ioutil.WriteFile(fileName+".encrypted", encrypted, 0644)
-		ioutil.WriteFile(fileName+".salt", []byte(salt), 0644)
-		ioutil.WriteFile(fileName+".iv", []byte(iv), 0644)
+		fileHash = HashBytes(fdata)
 	}
 
 	log.SetFormatter(&log.TextFormatter{})
