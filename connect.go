@@ -65,6 +65,18 @@ func NewConnection(flags *Flags) *Connection {
 }
 
 func (c *Connection) Run() {
+	forceSingleThreaded := false
+	if c.IsSender {
+		fdata, err := ioutil.ReadFile(c.File.Name)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		if len(fdata) < MAX_NUMBER_THREADS*BUFFERSIZE {
+			forceSingleThreaded = true
+			log.Debug("forcing single thread")
+		}
+	}
 	log.Debug("checking code validity")
 	for {
 		// check code
@@ -73,7 +85,7 @@ func (c *Connection) Run() {
 		numThreads, errParse := strconv.Atoi(m[0])
 		if len(m) < 2 {
 			goodCode = false
-		} else if numThreads > MAX_NUMBER_THREADS || numThreads < 1 {
+		} else if numThreads > MAX_NUMBER_THREADS || numThreads < 1 || (forceSingleThreaded && numThreads != 1) {
 			c.NumberOfConnections = MAX_NUMBER_THREADS
 			goodCode = false
 		} else if errParse != nil {
@@ -82,6 +94,9 @@ func (c *Connection) Run() {
 		log.Debug(m)
 		if !goodCode {
 			if c.IsSender {
+				if forceSingleThreaded {
+					c.NumberOfConnections = 1
+				}
 				c.Code = strconv.Itoa(c.NumberOfConnections) + "-" + GetRandomName()
 			} else {
 				if len(c.Code) != 0 {
