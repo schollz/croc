@@ -86,7 +86,10 @@ func runClient(connectionType string, codePhrase string) {
 			log.Error(err)
 			return
 		}
-		ioutil.WriteFile(fileName, decrypted, 0644)
+		err = ioutil.WriteFile(fileName, decrypted, 0644)
+		if err != nil {
+			log.Error(err)
+		}
 		if !debugFlag {
 			os.Remove(fileName + ".encrypted")
 		}
