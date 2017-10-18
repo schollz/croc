@@ -1,19 +1,20 @@
 package main
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
-	"io"
 	mathrand "math/rand"
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/schollz/mnemonicode"
+	"golang.org/x/crypto/pbkdf2"
 )
 
 func init() {
@@ -28,62 +29,39 @@ func GetRandomName() string {
 	return strings.Join(result, "-")
 }
 
-func Encrypt(plaintext []byte, key string) (ciphertext []byte, err error) {
-	newKey := ""
-	for i := 0; i < 32; i++ {
-		if i < len(key) {
-			newKey += string(key[i])
-		} else {
-			newKey += ":"
-		}
-	}
-	block, err := aes.NewCipher([]byte(newKey))
-	if err != nil {
-		return nil, err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-
-	nonce := make([]byte, gcm.NonceSize())
-	_, err = io.ReadFull(rand.Reader, nonce)
-	if err != nil {
-		return nil, err
-	}
-
-	return gcm.Seal(nonce, nonce, plaintext, nil), nil
+func Encrypt(plaintext []byte, passphrase string) (ciphertext []byte, err error) {
+	key, salt := deriveKey(passphrase, nil)
+	iv := make([]byte, 12)
+	// http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
+	// Section 8.2
+	rand.Read(iv)
+	b, _ := aes.NewCipher(key)
+	aesgcm, _ := cipher.NewGCM(b)
+	data := aesgcm.Seal(nil, iv, plaintext, nil)
+	ciphertext = []byte(hex.EncodeToString(salt) + "-" + hex.EncodeToString(iv) + "-" + hex.EncodeToString(data))
+	return
 }
 
-func Decrypt(ciphertext []byte, key string) (plaintext []byte, err error) {
-	newKey := ""
-	for i := 0; i < 32; i++ {
-		if i < len(key) {
-			newKey += string(key[i])
-		} else {
-			newKey += ":"
-		}
-	}
-	block, err := aes.NewCipher([]byte(newKey))
-	if err != nil {
-		return nil, err
-	}
+func Decrypt(ciphertext []byte, passphrase string) (plaintext []byte, err error) {
+	arr := bytes.Split(ciphertext, []byte("-"))
+	salt, _ := hex.DecodeString(string(arr[0]))
+	iv, _ := hex.DecodeString(string(arr[1]))
+	data, _ := hex.DecodeString(string(arr[2]))
+	key, _ := deriveKey(passphrase, salt)
+	b, _ := aes.NewCipher(key)
+	aesgcm, _ := cipher.NewGCM(b)
+	plaintext, err = aesgcm.Open(nil, iv, data, nil)
+	return
+}
 
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
+func deriveKey(passphrase string, salt []byte) ([]byte, []byte) {
+	if salt == nil {
+		salt = make([]byte, 8)
+		// http://www.ietf.org/rfc/rfc2898.txt
+		// Salt.
+		rand.Read(salt)
 	}
-
-	if len(ciphertext) < gcm.NonceSize() {
-		return nil, errors.New("malformed ciphertext")
-	}
-
-	return gcm.Open(nil,
-		ciphertext[:gcm.NonceSize()],
-		ciphertext[gcm.NonceSize():],
-		nil,
-	)
+	return pbkdf2.Key([]byte(passphrase), salt, 1000, 32, sha256.New), salt
 }
 
 func Hash(data string) string {
