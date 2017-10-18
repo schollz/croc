@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
 
@@ -36,11 +37,6 @@ func main() {
 	}
 
 	if len(fileName) > 0 {
-		_, err := os.Open(fileName)
-		if err != nil {
-			log.Fatal(err)
-			return
-		}
 		connectionTypeFlag = "s" // sender
 	} else {
 		connectionTypeFlag = "r" //receiver
@@ -56,6 +52,21 @@ func main() {
 				fmt.Println("Your code phrase is now " + codePhraseFlag)
 			}
 		}
+	}
+
+	if connectionTypeFlag == "s" {
+		// encrypt the file
+		fdata, err := ioutil.ReadFile(fileName)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		encrypted, err := Encrypt(fdata, codePhraseFlag)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		ioutil.WriteFile(fileName+".encrypted", encrypted, 0644)
 	}
 
 	log.SetFormatter(&log.TextFormatter{})
