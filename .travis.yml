@@ -1,0 +1,16 @@
+language: go
+
+go:
+  - 1.9
+
+env:
+  - "PATH=/home/travis/gopath/bin:$PATH"
+
+before_install:
+  - go get github.com/gosuri/uiprogress
+  - go get github.com/schollz/mnemonicode
+  - go get github.com/pkg/errors
+  - go get github.com/sirupsen/logrus
+
+script:
+  - go test -v
