@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -75,5 +76,5 @@ func getInput(prompt string) string {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print(prompt)
 	text, _ := reader.ReadString('\n')
-	return text
+	return strings.TrimSpace(text)
 }
