@@ -78,9 +78,9 @@ func runClient(connectionType string, codePhrase string) {
 			return
 		}
 		fmt.Println("\n\ndecrypting...")
-		log.Debugf("codePhrase: %s", codePhrase)
-		log.Debugf("filefileSaltIV: %s", fileSalt)
-		log.Debugf("fileIV: %s", fileIV)
+		log.Debugf("codePhrase: [%s]", codePhrase)
+		log.Debugf("fileSalt: [%s]", fileSalt)
+		log.Debugf("fileIV: [%s]", fileIV)
 		decrypted, err := Decrypt(encrypted, codePhrase, fileSalt, fileIV)
 		if err != nil {
 			log.Error(err)
@@ -88,8 +88,8 @@ func runClient(connectionType string, codePhrase string) {
 		}
 		ioutil.WriteFile(fileName, decrypted, 0644)
 		os.Remove(fileName + ".encrypted")
-		log.Debugf("\n\n\ndownloaded hash: %s", HashBytes(decrypted))
-		log.Debugf("\n\n\nrelayed hash: %s", fileHash)
+		log.Debugf("\n\n\ndownloaded hash: [%s]", HashBytes(decrypted))
+		log.Debugf("\n\n\nrelayed hash: [%s]", fileHash)
 
 		if fileHash != HashBytes(decrypted) {
 			fmt.Printf("\nUh oh! %s is corrupted! Sorry, try again.\n", fileName)
