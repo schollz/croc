@@ -23,7 +23,7 @@ var runAsRelay, debugFlag bool
 func main() {
 	flag.BoolVar(&runAsRelay, "relay", false, "run as relay")
 	flag.BoolVar(&debugFlag, "debug", false, "debug mode")
-	flag.StringVar(&serverAddress, "server", "", "(run as client) server address to connect to")
+	flag.StringVar(&serverAddress, "server", "cowyo.com", "(run as client) server address to connect to")
 	flag.StringVar(&fileName, "file", "", "(run as server) file to serve")
 	flag.StringVar(&codePhraseFlag, "code", "", "(run as server) file to serve")
 	flag.Parse()
@@ -48,7 +48,9 @@ func main() {
 
 	if !runAsRelay {
 		if len(codePhraseFlag) == 0 {
-			codePhraseFlag = getInput("What is your code phrase? ")
+			if connectionTypeFlag == "r" {
+				codePhraseFlag = getInput("What is your code phrase? ")
+			}
 			if len(codePhraseFlag) < 5 {
 				codePhraseFlag = GetRandomName()
 				fmt.Println("Your code phrase is now " + codePhraseFlag)

@@ -44,12 +44,14 @@ func runClient(connectionType string, codePhrase string) {
 			logger.Debugf("telling relay: %s", connectionType+"."+codePhrase)
 			sendMessage(connectionType+"."+codePhrase, connection)
 			if connectionType == "s" { // this is a sender
+				if id == 0 {
+					fmt.Println("waiting for other to connect")
+				}
 				logger.Debug("waiting for ok from relay")
 				message = receiveMessage(connection)
 				logger.Debug("got ok from relay")
 				// wait for pipe to be made
 				time.Sleep(100 * time.Millisecond)
-
 				// Write data from file
 				logger.Debug("send file")
 				sendFile(id, connection)

@@ -1,6 +1,6 @@
 # personalportal
 
-*File transfer over parallel TCP, running a rendevouz server (but you don't need to do any port-forwarding!.*
+*File transfer over parallel TCP with a rendevous server.*
 
 This program pays homage to [magic-wormhole](https://github.com/warner/magic-wormhole) except it doesn't have the rendevous server, or the transit relay, or the password-authenticated key exchange. Its not really anything like it, except that its file transfer over TCP. Here you can transfer a file using multiple TCP ports simultaneously. 
 
