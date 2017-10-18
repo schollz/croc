@@ -2,13 +2,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"math"
 	"net"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,26 +19,104 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var bars []*uiprogress.Bar
+type Connection struct {
+	Server              string
+	File                FileMetaData
+	NumberOfConnections int
+	Code                string
+	HashedCode          string
+	IsSender            bool
+	Debug               bool
+	DontEncrypt         bool
+	bars                []*uiprogress.Bar
+}
+
+type FileMetaData struct {
+	Name  string
+	Size  int
+	Hash  string
+	IV    string
+	Salt  string
+	bytes []byte
+}
+
+func NewConnection(flags *Flags) *Connection {
+	c := new(Connection)
+	c.Debug = flags.Debug
+	c.DontEncrypt = flags.DontEncrypt
+	c.Server = flags.Server
+	c.Code = flags.Code
+	c.NumberOfConnections = flags.NumberOfConnections
+	if len(flags.File) > 0 {
+		c.File.Name = flags.File
+		c.IsSender = true
+	} else {
+		c.IsSender = false
+	}
+	return c
+}
+
+func (c *Connection) Run() {
+	if len(c.Code) == 0 {
+		if !c.IsSender {
+			c.Code = getInput("Enter receive code: ")
+		}
+		if len(c.Code) < 5 {
+			c.Code = GetRandomName()
+		}
+	}
+
+	log.SetFormatter(&log.TextFormatter{})
+	if c.Debug {
+		log.SetLevel(log.DebugLevel)
+	} else {
+		log.SetLevel(log.WarnLevel)
+	}
+
+	if c.IsSender {
+		// encrypt the file
+		log.Debug("encrypting...")
+		fdata, err := ioutil.ReadFile(c.File.Name)
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		c.File.bytes, c.File.Salt, c.File.IV = Encrypt(fdata, c.Code, c.DontEncrypt)
+		log.Debug("...finished encryption")
+		c.File.Hash = HashBytes(fdata)
+		c.File.Size = len(c.File.bytes)
+		if c.Debug {
+			ioutil.WriteFile(c.File.Name+".encrypted", c.File.bytes, 0644)
+		}
+		fmt.Printf("Sending %d byte file named '%s'\n", c.File.Size, c.File.Name)
+		fmt.Printf("Code is: %s\n", c.Code)
+	}
+
+	c.runClient()
+}
 
 // runClient spawns threads for parallel uplink/downlink via TCP
-func runClient(connectionType string, codePhrase string) {
+func (c *Connection) runClient() {
 	logger := log.WithFields(log.Fields{
-		"codePhrase": codePhrase,
-		"connection": connectionType,
+		"code":    c.Code,
+		"sender?": c.IsSender,
 	})
+
+	c.HashedCode = Hash(c.Code)
+
 	var wg sync.WaitGroup
-	wg.Add(numberConnections)
+	wg.Add(c.NumberOfConnections)
 
 	uiprogress.Start()
-	if !debugFlag {
-		bars = make([]*uiprogress.Bar, numberConnections)
+	if !c.Debug {
+		c.bars = make([]*uiprogress.Bar, c.NumberOfConnections)
 	}
-	for id := 0; id < numberConnections; id++ {
+	gotOK := false
+	for id := 0; id < c.NumberOfConnections; id++ {
 		go func(id int) {
 			defer wg.Done()
 			port := strconv.Itoa(27001 + id)
-			connection, err := net.Dial("tcp", serverAddress+":"+port)
+			connection, err := net.Dial("tcp", c.Server+":"+port)
 			if err != nil {
 				panic(err)
 			}
@@ -45,12 +124,21 @@ func runClient(connectionType string, codePhrase string) {
 
 			message := receiveMessage(connection)
 			logger.Debugf("relay says: %s", message)
-			logger.Debugf("telling relay: %s", connectionType+"."+codePhrase)
-
-			sendMessage(connectionType+"."+Hash(codePhrase), connection)
-			if connectionType == "s" { // this is a sender
+			if c.IsSender {
+				logger.Debugf("telling relay: %s", "s."+c.Code)
+				metaData, err := json.Marshal(c.File)
+				if err != nil {
+					log.Error(err)
+				}
+				encryptedMetaData, salt, iv := Encrypt(metaData, c.Code)
+				sendMessage("s."+c.HashedCode+"."+hex.EncodeToString(encryptedMetaData)+"-"+salt+"-"+iv, connection)
+			} else {
+				logger.Debugf("telling relay: %s", "r."+c.Code)
+				sendMessage("r."+c.HashedCode+".0.0.0", connection)
+			}
+			if c.IsSender { // this is a sender
 				if id == 0 {
-					fmt.Println("waiting for other to connect")
+					fmt.Printf("\nSending (<-%s)..\n", connection.RemoteAddr().String())
 				}
 				logger.Debug("waiting for ok from relay")
 				message = receiveMessage(connection)
@@ -59,62 +147,100 @@ func runClient(connectionType string, codePhrase string) {
 				time.Sleep(100 * time.Millisecond)
 				// Write data from file
 				logger.Debug("send file")
-				sendFile(id, connection, codePhrase)
+				c.sendFile(id, connection)
 			} else { // this is a receiver
-				// receive file
+				logger.Debug("waiting for meta data from sender")
+				message = receiveMessage(connection)
+				m := strings.Split(message, "-")
+				encryptedData, salt, iv := m[0], m[1], m[2]
+				encryptedBytes, err := hex.DecodeString(encryptedData)
+				if err != nil {
+					log.Error(err)
+					return
+				}
+				decryptedBytes, _ := Decrypt(encryptedBytes, c.Code, salt, iv, c.DontEncrypt)
+				err = json.Unmarshal(decryptedBytes, &c.File)
+				if err != nil {
+					log.Error(err)
+					return
+				}
+				log.Debugf("meta data received: %v", c.File)
+				// have the main thread ask for the okay
+				if id == 0 {
+					fmt.Printf("Receiving file (%d bytes) into: %s\n", c.File.Size, c.File.Name)
+					getOk := getInput("ok? (y/n): ")
+					if getOk == "y" {
+						gotOK = true
+					} else {
+						return
+					}
+				}
+				// wait for the main thread to get the okay
+				for limit := 0; limit < 1000; limit++ {
+					if gotOK {
+						break
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+				if !gotOK {
+					return
+				}
+				sendMessage("ok", connection)
 				logger.Debug("receive file")
-				fileName, fileIV, fileSalt, fileHash = receiveFile(id, connection, codePhrase)
+				c.receiveFile(id, connection)
 			}
-
 		}(id)
 	}
 	wg.Wait()
 
-	if connectionType == "r" {
-		catFile(fileName)
-		encrypted, err := ioutil.ReadFile(fileName + ".encrypted")
+	if !c.IsSender {
+		c.catFile(c.File.Name)
+		encrypted, err := ioutil.ReadFile(c.File.Name + ".encrypted")
 		if err != nil {
 			log.Error(err)
 			return
 		}
 		fmt.Println("\n\ndecrypting...")
-		log.Debugf("codePhrase: [%s]", codePhrase)
-		log.Debugf("fileSalt: [%s]", fileSalt)
-		log.Debugf("fileIV: [%s]", fileIV)
-		decrypted, err := Decrypt(encrypted, codePhrase, fileSalt, fileIV)
+		log.Debugf("Code: [%s]", c.Code)
+		log.Debugf("Salt: [%s]", c.File.Salt)
+		log.Debugf("IV: [%s]", c.File.IV)
+		decrypted, err := Decrypt(encrypted, c.Code, c.File.Salt, c.File.IV, c.DontEncrypt)
 		if err != nil {
 			log.Error(err)
 			return
 		}
-		log.Debugf("writing %d bytes to %s", len(decrypted), fileName)
-		err = ioutil.WriteFile(fileName, decrypted, 0644)
+		log.Debugf("writing %d bytes to %s", len(decrypted), c.File.Name)
+		err = ioutil.WriteFile(c.File.Name, decrypted, 0644)
 		if err != nil {
 			log.Error(err)
 		}
-		if !debugFlag {
-			os.Remove(fileName + ".encrypted")
+		if !c.Debug {
+			os.Remove(c.File.Name + ".encrypted")
 		}
 		log.Debugf("\n\n\ndownloaded hash: [%s]", HashBytes(decrypted))
-		log.Debugf("\n\n\nrelayed hash: [%s]", fileHash)
+		log.Debugf("\n\n\nrelayed hash: [%s]", c.File.Hash)
 
-		if fileHash != HashBytes(decrypted) {
-			fmt.Printf("\nUh oh! %s is corrupted! Sorry, try again.\n", fileName)
+		if c.File.Hash != HashBytes(decrypted) {
+			fmt.Printf("\nUh oh! %s is corrupted! Sorry, try again.\n", c.File.Name)
 		} else {
-			fmt.Printf("\nDownloaded %s!", fileName)
+			fmt.Printf("\nReceived file written to %s", c.File.Name)
 		}
+	} else {
+		fmt.Println("File sent.")
+		// TODO: Add confirmation
 	}
 }
 
-func catFile(fileNameToReceive string) {
+func (c *Connection) catFile(fname string) {
 	// cat the file
-	os.Remove(fileNameToReceive)
-	finished, err := os.Create(fileNameToReceive + ".encrypted")
+	os.Remove(fname)
+	finished, err := os.Create(fname + ".encrypted")
 	defer finished.Close()
 	if err != nil {
 		log.Fatal(err)
 	}
-	for id := 0; id < numberConnections; id++ {
-		fh, err := os.Open(fileNameToReceive + "." + strconv.Itoa(id))
+	for id := 0; id < c.NumberOfConnections; id++ {
+		fh, err := os.Open(fname + "." + strconv.Itoa(id))
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -124,74 +250,59 @@ func catFile(fileNameToReceive string) {
 			log.Fatal(err)
 		}
 		fh.Close()
-		os.Remove(fileNameToReceive + "." + strconv.Itoa(id))
+		os.Remove(fname + "." + strconv.Itoa(id))
 	}
 
 }
 
-func receiveFile(id int, connection net.Conn, codePhrase string) (fileNameToReceive string, iv string, salt string, hashOfFile string) {
+func (c *Connection) receiveFile(id int, connection net.Conn) error {
 	logger := log.WithFields(log.Fields{
 		"function": "receiveFile #" + strconv.Itoa(id),
 	})
 
-	logger.Debug("waiting for file data")
+	logger.Debug("waiting for chunk size from sender")
+	fileSizeBuffer := make([]byte, 10)
+	connection.Read(fileSizeBuffer)
+	fileDataString := strings.Trim(string(fileSizeBuffer), ":")
+	fileSizeInt, _ := strconv.Atoi(fileDataString)
+	chunkSize := int64(fileSizeInt)
+	logger.Debugf("chunk size: %d", chunkSize)
 
-	fileDataBuffer := make([]byte, BUFFERSIZE)
-	connection.Read(fileDataBuffer)
-	fileDataString := strings.Trim(string(fileDataBuffer), ":")
-	pieces := strings.Split(fileDataString, "-")
-	fileSizeInt, _ := strconv.Atoi(pieces[0])
-	fileSize := int64(fileSizeInt)
-	logger.Debugf("filesize: %d", fileSize)
-
-	fileNameToReceive = pieces[1]
-	logger.Debugf("fileName: [%s]", fileNameToReceive)
-
-	iv = pieces[2]
-	logger.Debugf("iv: [%s]", iv)
-
-	salt = pieces[3]
-	logger.Debugf("salt: [%s]", salt)
-
-	hashOfFile = pieces[4]
-	logger.Debugf("hashOfFile: [%s]", hashOfFile)
-
-	os.Remove(fileNameToReceive + "." + strconv.Itoa(id))
-	newFile, err := os.Create(fileNameToReceive + "." + strconv.Itoa(id))
+	os.Remove(c.File.Name + "." + strconv.Itoa(id))
+	newFile, err := os.Create(c.File.Name + "." + strconv.Itoa(id))
 	if err != nil {
 		panic(err)
 	}
 	defer newFile.Close()
 
-	if !debugFlag {
-		bars[id] = uiprogress.AddBar(int(fileSize)/1024 + 1).AppendCompleted().PrependElapsed()
+	if !c.Debug {
+		c.bars[id] = uiprogress.AddBar(int(chunkSize)/1024 + 1).AppendCompleted().PrependElapsed()
 	}
 
 	logger.Debug("waiting for file")
 	var receivedBytes int64
 	for {
-		if !debugFlag {
-			bars[id].Incr()
+		if !c.Debug {
+			c.bars[id].Incr()
 		}
-		if (fileSize - receivedBytes) < BUFFERSIZE {
+		if (chunkSize - receivedBytes) < BUFFERSIZE {
 			logger.Debug("at the end")
-			io.CopyN(newFile, connection, (fileSize - receivedBytes))
+			io.CopyN(newFile, connection, (chunkSize - receivedBytes))
 			// Empty the remaining bytes that we don't need from the network buffer
-			if (receivedBytes+BUFFERSIZE)-fileSize < BUFFERSIZE {
+			if (receivedBytes+BUFFERSIZE)-chunkSize < BUFFERSIZE {
 				logger.Debug("empty remaining bytes from network buffer")
-				connection.Read(make([]byte, (receivedBytes+BUFFERSIZE)-fileSize))
+				connection.Read(make([]byte, (receivedBytes+BUFFERSIZE)-chunkSize))
 			}
 			break
 		}
 		io.CopyN(newFile, connection, BUFFERSIZE)
-		//Increment the counter
 		receivedBytes += BUFFERSIZE
 	}
 	logger.Debug("received file")
-	return
+	return nil
 }
 
-func sendFile(id int, connection net.Conn, codePhrase string) {
+func (c *Connection) sendFile(id int, connection net.Conn) {
 	logger := log.WithFields(log.Fields{
 		"function": "sendFile #" + strconv.Itoa(id),
 	})
@@ -199,41 +310,29 @@ func sendFile(id int, connection net.Conn, codePhrase string) {
 
 	var err error
 
-	numChunks := math.Ceil(float64(len(fileBytes)) / float64(BUFFERSIZE))
-	chunksPerWorker := int(math.Ceil(numChunks / float64(numberConnections)))
+	numChunks := math.Ceil(float64(c.File.Size) / float64(BUFFERSIZE))
+	chunksPerWorker := int(math.Ceil(numChunks / float64(c.NumberOfConnections)))
 
-	bytesPerConnection := int64(chunksPerWorker * BUFFERSIZE)
-	if id+1 == numberConnections {
-		bytesPerConnection = int64(len(fileBytes)) - (numberConnections-1)*bytesPerConnection
+	chunkSize := int64(chunksPerWorker * BUFFERSIZE)
+	if id+1 == c.NumberOfConnections {
+		chunkSize = int64(c.File.Size) - int64(c.NumberOfConnections-1)*chunkSize
 	}
 
-	if id == 0 || id == numberConnections-1 {
+	if id == 0 || id == c.NumberOfConnections-1 {
 		logger.Debugf("numChunks: %v", numChunks)
 		logger.Debugf("chunksPerWorker: %v", chunksPerWorker)
-		logger.Debugf("bytesPerConnection: %v", bytesPerConnection)
-		logger.Debugf("fileNameToSend: %v", path.Base(fileName))
+		logger.Debugf("bytesPerchunkSizeConnection: %v", chunkSize)
 	}
 
-	payload := strings.Join([]string{
-		strconv.FormatInt(int64(bytesPerConnection), 10), // filesize
-		path.Base(fileName),
-		fileIV,
-		fileSalt,
-		fileHash,
-	}, "-")
-
-	logger.Debugf("sending fileSize: %d", bytesPerConnection)
-	logger.Debugf("sending fileName: %s", path.Base(fileName))
-	logger.Debugf("sending iv: %s", fileIV)
-	logger.Debugf("sending salt: %s", fileSalt)
-	logger.Debugf("sending sha256sum: %s", fileHash)
-	logger.Debugf("payload is %d bytes", len(payload))
-
-	connection.Write([]byte(fillString(payload, BUFFERSIZE)))
+	logger.Debugf("sending chunk size: %d", chunkSize)
+	connection.Write([]byte(fillString(strconv.FormatInt(int64(chunkSize), 10), 10)))
 
 	sendBuffer := make([]byte, BUFFERSIZE)
-	file := bytes.NewBuffer(fileBytes)
+	file := bytes.NewBuffer(c.File.bytes)
 	chunkI := 0
+	if !c.Debug {
+		c.bars[id] = uiprogress.AddBar(chunksPerWorker).AppendCompleted().PrependElapsed()
+	}
 	for {
 		_, err = file.Read(sendBuffer)
 		if err == io.EOF {
@@ -241,8 +340,11 @@ func sendFile(id int, connection net.Conn, codePhrase string) {
 			logger.Debug("EOF")
 			break
 		}
-		if (chunkI >= chunksPerWorker*id && chunkI < chunksPerWorker*id+chunksPerWorker) || (id == numberConnections-1 && chunkI >= chunksPerWorker*id) {
+		if (chunkI >= chunksPerWorker*id && chunkI < chunksPerWorker*id+chunksPerWorker) || (id == c.NumberOfConnections-1 && chunkI >= chunksPerWorker*id) {
 			connection.Write(sendBuffer)
+			if !c.Debug {
+				c.bars[id].Incr()
+			}
 		}
 		chunkI++
 	}

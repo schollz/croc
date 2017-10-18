@@ -28,23 +28,25 @@ func GetRandomName() string {
 	return strings.Join(result, "-")
 }
 
-func Encrypt(plaintext []byte, passphrase string) ([]byte, string, string) {
-	if dontEncrypt {
+func Encrypt(plaintext []byte, passphrase string, dontencrypt ...bool) (encrypted []byte, salt string, iv string) {
+	if len(dontencrypt) > 0 && dontencrypt[0] {
 		return plaintext, "salt", "iv"
 	}
-	key, salt := deriveKey(passphrase, nil)
-	iv := make([]byte, 12)
+	key, saltBytes := deriveKey(passphrase, nil)
+	ivBytes := make([]byte, 12)
 	// http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 	// Section 8.2
-	rand.Read(iv)
+	rand.Read(ivBytes)
 	b, _ := aes.NewCipher(key)
 	aesgcm, _ := cipher.NewGCM(b)
-	data := aesgcm.Seal(nil, iv, plaintext, nil)
-	return data, hex.EncodeToString(salt), hex.EncodeToString(iv)
+	encrypted = aesgcm.Seal(nil, ivBytes, plaintext, nil)
+	salt = hex.EncodeToString(saltBytes)
+	iv = hex.EncodeToString(ivBytes)
+	return
 }
 
-func Decrypt(data []byte, passphrase string, salt string, iv string) (plaintext []byte, err error) {
-	if dontEncrypt {
+func Decrypt(data []byte, passphrase string, salt string, iv string, dontencrypt ...bool) (plaintext []byte, err error) {
+	if len(dontencrypt) > 0 && dontencrypt[0] {
 		return data, nil
 	}
 	saltBytes, _ := hex.DecodeString(salt)
