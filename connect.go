@@ -42,7 +42,8 @@ func runClient(connectionType string, codePhrase string) {
 			message := receiveMessage(connection)
 			logger.Debugf("relay says: %s", message)
 			logger.Debugf("telling relay: %s", connectionType+"."+codePhrase)
-			sendMessage(connectionType+"."+codePhrase, connection)
+
+			sendMessage(connectionType+"."+Hash(codePhrase), connection)
 			if connectionType == "s" { // this is a sender
 				if id == 0 {
 					fmt.Println("waiting for other to connect")
