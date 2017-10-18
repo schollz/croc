@@ -14,44 +14,65 @@ import (
 type connectionMap struct {
 	reciever map[string]net.Conn
 	sender   map[string]net.Conn
+	metadata map[string]string
 	sync.RWMutex
 }
 
-var connections connectionMap
-
-func init() {
-	connections.Lock()
-	connections.reciever = make(map[string]net.Conn)
-	connections.sender = make(map[string]net.Conn)
-	connections.Unlock()
+type Relay struct {
+	connections         connectionMap
+	Debug               bool
+	NumberOfConnections int
 }
 
-func runServer() {
+func NewRelay(flags *Flags) *Relay {
+	r := new(Relay)
+	r.Debug = flags.Debug
+	r.NumberOfConnections = flags.NumberOfConnections
+	log.SetFormatter(&log.TextFormatter{})
+	if r.Debug {
+		log.SetLevel(log.DebugLevel)
+	} else {
+		log.SetLevel(log.WarnLevel)
+	}
+	return r
+}
+
+func (r *Relay) Run() {
+	r.connections = connectionMap{}
+	r.connections.Lock()
+	r.connections.reciever = make(map[string]net.Conn)
+	r.connections.sender = make(map[string]net.Conn)
+	r.connections.metadata = make(map[string]string)
+	r.connections.Unlock()
+	r.runServer()
+}
+
+func (r *Relay) runServer() {
 	logger := log.WithFields(log.Fields{
 		"function": "main",
 	})
 	logger.Debug("Initializing")
 	var wg sync.WaitGroup
-	wg.Add(numberConnections)
-	for id := 0; id < numberConnections; id++ {
-		go listenerThread(id, &wg)
+	wg.Add(r.NumberOfConnections)
+	for id := 0; id < r.NumberOfConnections; id++ {
+		go r.listenerThread(id, &wg)
 	}
 	wg.Wait()
 }
 
-func listenerThread(id int, wg *sync.WaitGroup) {
+func (r *Relay) listenerThread(id int, wg *sync.WaitGroup) {
 	logger := log.WithFields(log.Fields{
 		"function": "listenerThread:" + strconv.Itoa(27000+id),
 	})
 
 	defer wg.Done()
-	err := listener(id)
+	err := r.listener(id)
 	if err != nil {
 		logger.Error(err)
 	}
 }
 
-func listener(id int) (err error) {
+func (r *Relay) listener(id int) (err error) {
 	port := strconv.Itoa(27001 + id)
 	logger := log.WithFields(log.Fields{
 		"function": "listener" + ":" + port,
@@ -69,15 +90,16 @@ func listener(id int) (err error) {
 			return errors.Wrap(err, "problem accepting connection")
 		}
 		logger.Debugf("Client %s connected", connection.RemoteAddr().String())
-		go clientCommuncation(id, connection)
+		go r.clientCommuncation(id, connection)
 	}
 }
 
-func clientCommuncation(id int, connection net.Conn) {
+func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 	sendMessage("who?", connection)
-	message := receiveMessage(connection)
-	connectionType := strings.Split(message, ".")[0]
-	codePhrase := strings.Split(message, ".")[1] + "-" + strconv.Itoa(id)
+
+	m := strings.Split(receiveMessage(connection), ".")
+	connectionType, codePhrase, metaData := m[0], m[1], m[2]
+	key := codePhrase + "-" + strconv.Itoa(id)
 	logger := log.WithFields(log.Fields{
 		"id":         id,
 		"codePhrase": codePhrase,
@@ -85,39 +107,61 @@ func clientCommuncation(id int, connection net.Conn) {
 
 	if connectionType == "s" {
 		logger.Debug("got sender")
-		connections.Lock()
-		connections.sender[codePhrase] = connection
-		connections.Unlock()
+		r.connections.Lock()
+		r.connections.metadata[key] = metaData
+		r.connections.sender[key] = connection
+		r.connections.Unlock()
+		// wait for receiver
 		for {
-			connections.RLock()
-			if _, ok := connections.reciever[codePhrase]; ok {
+			r.connections.RLock()
+			if _, ok := r.connections.reciever[key]; ok {
 				logger.Debug("got reciever")
-				connections.RUnlock()
+				r.connections.RUnlock()
 				break
 			}
-			connections.RUnlock()
+			r.connections.RUnlock()
 			time.Sleep(100 * time.Millisecond)
 		}
 		logger.Debug("telling sender ok")
 		sendMessage("ok", connection)
 		logger.Debug("preparing pipe")
-		connections.Lock()
-		con1 := connections.sender[codePhrase]
-		con2 := connections.reciever[codePhrase]
-		connections.Unlock()
+		r.connections.Lock()
+		con1 := r.connections.sender[key]
+		con2 := r.connections.reciever[key]
+		r.connections.Unlock()
 		logger.Debug("piping connections")
 		Pipe(con1, con2)
 		logger.Debug("done piping")
-		connections.Lock()
-		delete(connections.sender, codePhrase)
-		delete(connections.reciever, codePhrase)
-		connections.Unlock()
+		r.connections.Lock()
+		delete(r.connections.sender, key)
+		delete(r.connections.reciever, key)
+		delete(r.connections.metadata, key)
+		r.connections.Unlock()
 		logger.Debug("deleted sender and receiver")
 	} else {
+		// wait for sender's metadata
+		for {
+			r.connections.RLock()
+			if _, ok := r.connections.metadata[key]; ok {
+				logger.Debug("got sender meta data")
+				r.connections.RUnlock()
+				break
+			}
+			r.connections.RUnlock()
+			time.Sleep(100 * time.Millisecond)
+			logger.Debug("waiting for metadata")
+		}
+		// send  meta data
+		r.connections.RLock()
+		sendMessage(r.connections.metadata[key], connection)
+		r.connections.RUnlock()
+		// check for receiver's consent
+		consent := receiveMessage(connection)
+		logger.Debug("consent: %s", consent)
 		logger.Debug("got reciever")
-		connections.Lock()
-		connections.reciever[codePhrase] = connection
-		connections.Unlock()
+		r.connections.Lock()
+		r.connections.reciever[key] = connection
+		r.connections.Unlock()
 	}
 	return
 }
