@@ -41,7 +41,7 @@ func runServer() {
 
 func listenerThread(id int, wg *sync.WaitGroup) {
 	logger := log.WithFields(log.Fields{
-		"function": "listenerThread@" + serverAddress + ":" + strconv.Itoa(27000+id),
+		"function": "listenerThread:" + strconv.Itoa(27000+id),
 	})
 
 	defer wg.Done()
@@ -54,11 +54,11 @@ func listenerThread(id int, wg *sync.WaitGroup) {
 func listener(id int) (err error) {
 	port := strconv.Itoa(27001 + id)
 	logger := log.WithFields(log.Fields{
-		"function": "listener@" + serverAddress + ":" + port,
+		"function": "listener" + ":" + port,
 	})
-	server, err := net.Listen("tcp", serverAddress+":"+port)
+	server, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
-		return errors.Wrap(err, "Error listening on "+serverAddress+":"+port)
+		return errors.Wrap(err, "Error listening on "+":"+port)
 	}
 	defer server.Close()
 	logger.Debug("waiting for connections")

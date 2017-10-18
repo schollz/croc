@@ -4,7 +4,9 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
+	"fmt"
 	"io"
 	mathrand "math/rand"
 	"strings"
@@ -12,7 +14,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/schollz/mnemonicode"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func init() {
@@ -86,6 +87,6 @@ func Decrypt(ciphertext []byte, key string) (plaintext []byte, err error) {
 }
 
 func Hash(data string) string {
-	hashed, _ := bcrypt.GenerateFromPassword([]byte(data), 14)
-	return string(hashed)
+	sum := sha256.Sum256([]byte(data))
+	return fmt.Sprintf("%x", sum)
 }
