@@ -220,9 +220,6 @@ func sendFile(id int, connection net.Conn, codePhrase string) {
 	if id+1 == numberConnections {
 		bytesPerConnection = int64(len(fileBytes)) - (numberConnections-1)*bytesPerConnection
 	}
-	fileSize := fillString(strconv.FormatInt(int64(bytesPerConnection), 10), 10)
-
-	fileNameToSend := fillString(path.Base(fileName), 64)
 
 	if id == 0 || id == numberConnections-1 {
 		logger.Debugf("numChunks: %v", numChunks)
@@ -232,12 +229,12 @@ func sendFile(id int, connection net.Conn, codePhrase string) {
 	}
 
 	// send file size
-	logger.Debugf("sending fileSize: %s", fileSize)
-	connection.Write([]byte(fileSize))
+	logger.Debugf("sending fileSize: %d", bytesPerConnection)
+	connection.Write([]byte(fillString(strconv.FormatInt(int64(bytesPerConnection), 10), 10)))
 
 	// send fileName
-	logger.Debugf("sending fileNameToSend: %s", fileNameToSend)
-	connection.Write([]byte(fileNameToSend))
+	logger.Debugf("sending fileName: %s", path.Base(fileName))
+	connection.Write([]byte(fillString(path.Base(fileName), 64)))
 
 	// send iv
 	logger.Debugf("sending iv: %s", fileIV)
