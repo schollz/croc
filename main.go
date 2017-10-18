@@ -21,6 +21,7 @@ var server, file string
 var serverAddress, fileName, codePhraseFlag, connectionTypeFlag string
 var runAsRelay, debugFlag bool
 var fileSalt, fileIV, fileHash string
+var fileBytes []byte
 
 func main() {
 	flag.BoolVar(&runAsRelay, "relay", false, "run as relay")
@@ -63,13 +64,7 @@ func main() {
 			log.Fatal(err)
 			return
 		}
-		var encrypted []byte
-		encrypted, fileSalt, fileIV = Encrypt(fdata, codePhraseFlag)
-		if err != nil {
-			log.Fatal(err)
-			return
-		}
-		ioutil.WriteFile(fileName+".encrypted", encrypted, 0644)
+		fileBytes, fileSalt, fileIV = Encrypt(fdata, codePhraseFlag)
 		fileHash = HashBytes(fdata)
 	}
 

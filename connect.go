@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -90,9 +91,6 @@ func runClient(connectionType string, codePhrase string) {
 		} else {
 			fmt.Printf("\nDownloaded %s!", fileName)
 		}
-	} else {
-		log.Info("cleaning up")
-		os.Remove(fileName + ".encrypted")
 	}
 }
 
@@ -189,26 +187,28 @@ func sendFile(id int, connection net.Conn, codePhrase string) {
 	})
 	defer connection.Close()
 
-	// Open the file that needs to be send to the client
-	file, err := os.Open(fileName + ".encrypted")
-	if err != nil {
-		logger.Error(err)
-		return
-	}
-	defer file.Close()
-	// Get the filename and filesize
-	fileInfo, err := file.Stat()
-	if err != nil {
-		logger.Error(err)
-		return
-	}
+	var err error
 
-	numChunks := math.Ceil(float64(fileInfo.Size()) / float64(BUFFERSIZE))
+	// // Open the file that needs to be send to the client
+	// file, err := os.Open(fileName + ".encrypted")
+	// if err != nil {
+	// 	logger.Error(err)
+	// 	return
+	// }
+	// defer file.Close()
+	// // Get the filename and filesize
+	// fileInfo, err := file.Stat()
+	// if err != nil {
+	// 	logger.Error(err)
+	// 	return
+	// }
+
+	numChunks := math.Ceil(float64(len(fileBytes)) / float64(BUFFERSIZE))
 	chunksPerWorker := int(math.Ceil(numChunks / float64(numberConnections)))
 
 	bytesPerConnection := int64(chunksPerWorker * BUFFERSIZE)
 	if id+1 == numberConnections {
-		bytesPerConnection = fileInfo.Size() - (numberConnections-1)*bytesPerConnection
+		bytesPerConnection = int64(len(fileBytes)) - (numberConnections-1)*bytesPerConnection
 	}
 	fileSize := fillString(strconv.FormatInt(int64(bytesPerConnection), 10), 10)
 
@@ -242,7 +242,7 @@ func sendFile(id int, connection net.Conn, codePhrase string) {
 	connection.Write([]byte(fillString(fileHash, BUFFERSIZE)))
 
 	sendBuffer := make([]byte, BUFFERSIZE)
-
+	file := bytes.NewBuffer(fileBytes)
 	chunkI := 0
 	for {
 		_, err = file.Read(sendBuffer)
