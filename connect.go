@@ -134,32 +134,26 @@ func receiveFile(id int, connection net.Conn, codePhrase string) (fileNameToRece
 		"function": "receiveFile #" + strconv.Itoa(id),
 	})
 
-	logger.Debug("waiting for file size")
+	logger.Debug("waiting for file data")
 
-	bufferFileSize := make([]byte, 10)
-	connection.Read(bufferFileSize)
-	fileSize, _ := strconv.ParseInt(strings.Trim(string(bufferFileSize), ":"), 10, 64)
+	fileDataBuffer := make([]byte, BUFFERSIZE)
+	connection.Read(fileDataBuffer)
+	fileDataString := strings.Trim(string(fileDataBuffer), ":")
+	pieces := strings.Split(fileDataString, "-")
+	fileSizeInt, _ := strconv.Atoi(pieces[0])
+	fileSize := int64(fileSizeInt)
 	logger.Debugf("filesize: %d", fileSize)
 
-	bufferFileName := make([]byte, 64)
-	connection.Read(bufferFileName)
-	fileNameToReceive = strings.Trim(string(bufferFileName), ":")
+	fileNameToReceive = pieces[1]
 	logger.Debugf("fileName: [%s]", fileNameToReceive)
 
-	ivHex := make([]byte, BUFFERSIZE)
-	connection.Read(ivHex)
-	iv = strings.Trim(strings.TrimSpace(string(ivHex)), ":")
-	iv = strings.Replace(iv, ":", "", -1)
+	iv = pieces[2]
 	logger.Debugf("iv: [%s]", iv)
 
-	saltHex := make([]byte, BUFFERSIZE)
-	connection.Read(saltHex)
-	salt = strings.Trim(strings.TrimSpace(string(saltHex)), ":")
+	salt = pieces[3]
 	logger.Debugf("salt: [%s]", salt)
 
-	hashOfFileBytes := make([]byte, BUFFERSIZE)
-	connection.Read(hashOfFileBytes)
-	hashOfFile = strings.Trim(strings.TrimSpace(string(hashOfFileBytes)), ":")
+	hashOfFile = pieces[4]
 	logger.Debugf("hashOfFile: [%s]", hashOfFile)
 
 	os.Remove(fileNameToReceive + "." + strconv.Itoa(id))
@@ -205,20 +199,6 @@ func sendFile(id int, connection net.Conn, codePhrase string) {
 
 	var err error
 
-	// // Open the file that needs to be send to the client
-	// file, err := os.Open(fileName + ".encrypted")
-	// if err != nil {
-	// 	logger.Error(err)
-	// 	return
-	// }
-	// defer file.Close()
-	// // Get the filename and filesize
-	// fileInfo, err := file.Stat()
-	// if err != nil {
-	// 	logger.Error(err)
-	// 	return
-	// }
-
 	numChunks := math.Ceil(float64(len(fileBytes)) / float64(BUFFERSIZE))
 	chunksPerWorker := int(math.Ceil(numChunks / float64(numberConnections)))
 
@@ -234,25 +214,22 @@ func sendFile(id int, connection net.Conn, codePhrase string) {
 		logger.Debugf("fileNameToSend: %v", path.Base(fileName))
 	}
 
-	// send file size
+	payload := strings.Join([]string{
+		strconv.FormatInt(int64(bytesPerConnection), 10), // filesize
+		path.Base(fileName),
+		fileIV,
+		fileSalt,
+		fileHash,
+	}, "-")
+
 	logger.Debugf("sending fileSize: %d", bytesPerConnection)
-	connection.Write([]byte(fillString(strconv.FormatInt(int64(bytesPerConnection), 10), 10)))
-
-	// send fileName
 	logger.Debugf("sending fileName: %s", path.Base(fileName))
-	connection.Write([]byte(fillString(path.Base(fileName), 64)))
-
-	// send iv
 	logger.Debugf("sending iv: %s", fileIV)
-	connection.Write([]byte(fillString(fileIV, BUFFERSIZE)))
-
-	// send salt
 	logger.Debugf("sending salt: %s", fileSalt)
-	connection.Write([]byte(fillString(fileSalt, BUFFERSIZE)))
-
-	// send sha256sum of file
 	logger.Debugf("sending sha256sum: %s", fileHash)
-	connection.Write([]byte(fillString(fileHash, BUFFERSIZE)))
+	logger.Debugf("payload is %d bytes", len(payload))
+
+	connection.Write([]byte(fillString(payload, BUFFERSIZE)))
 
 	sendBuffer := make([]byte, BUFFERSIZE)
 	file := bytes.NewBuffer(fileBytes)
