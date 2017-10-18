@@ -19,7 +19,7 @@ var server, file string
 
 // Global varaibles
 var serverAddress, fileName, codePhraseFlag, connectionTypeFlag string
-var runAsRelay, debugFlag bool
+var runAsRelay, debugFlag, dontEncrypt bool
 var fileSalt, fileIV, fileHash string
 var fileBytes []byte
 
@@ -29,6 +29,7 @@ func main() {
 	flag.StringVar(&serverAddress, "server", "cowyo.com", "address of relay server")
 	flag.StringVar(&fileName, "send", "", "file to send")
 	flag.StringVar(&codePhraseFlag, "code", "", "use your own code phrase")
+	flag.BoolVar(&dontEncrypt, "no-encrypt", false, "turn off encryption")
 	flag.Parse()
 	// Check build flags too, which take precedent
 	if server != "" {

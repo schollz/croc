@@ -1,9 +1,12 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	mathrand "math/rand"
 	"strings"
@@ -26,27 +29,31 @@ func GetRandomName() string {
 }
 
 func Encrypt(plaintext []byte, passphrase string) ([]byte, string, string) {
-	return plaintext, "salt", "iv"
-	// key, salt := deriveKey(passphrase, nil)
-	// iv := make([]byte, 12)
-	// // http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
-	// // Section 8.2
-	// rand.Read(iv)
-	// b, _ := aes.NewCipher(key)
-	// aesgcm, _ := cipher.NewGCM(b)
-	// data := aesgcm.Seal(nil, iv, plaintext, nil)
-	// return data, hex.EncodeToString(salt), hex.EncodeToString(iv)
+	if dontEncrypt {
+		return plaintext, "salt", "iv"
+	}
+	key, salt := deriveKey(passphrase, nil)
+	iv := make([]byte, 12)
+	// http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
+	// Section 8.2
+	rand.Read(iv)
+	b, _ := aes.NewCipher(key)
+	aesgcm, _ := cipher.NewGCM(b)
+	data := aesgcm.Seal(nil, iv, plaintext, nil)
+	return data, hex.EncodeToString(salt), hex.EncodeToString(iv)
 }
 
 func Decrypt(data []byte, passphrase string, salt string, iv string) (plaintext []byte, err error) {
-	return data, nil
-	// saltBytes, _ := hex.DecodeString(salt)
-	// ivBytes, _ := hex.DecodeString(iv)
-	// key, _ := deriveKey(passphrase, saltBytes)
-	// b, _ := aes.NewCipher(key)
-	// aesgcm, _ := cipher.NewGCM(b)
-	// plaintext, err = aesgcm.Open(nil, ivBytes, data, nil)
-	// return
+	if dontEncrypt {
+		return data, nil
+	}
+	saltBytes, _ := hex.DecodeString(salt)
+	ivBytes, _ := hex.DecodeString(iv)
+	key, _ := deriveKey(passphrase, saltBytes)
+	b, _ := aes.NewCipher(key)
+	aesgcm, _ := cipher.NewGCM(b)
+	plaintext, err = aesgcm.Open(nil, ivBytes, data, nil)
+	return
 }
 
 func deriveKey(passphrase string, salt []byte) ([]byte, []byte) {
