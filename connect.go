@@ -33,7 +33,7 @@ func runClient(connectionType string, codePhrase string) {
 		go func(id int) {
 			defer wg.Done()
 			port := strconv.Itoa(27001 + id)
-			connection, err := net.Dial("tcp", "localhost:"+port)
+			connection, err := net.Dial("tcp", serverAddress+":"+port)
 			if err != nil {
 				panic(err)
 			}
