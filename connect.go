@@ -133,22 +133,23 @@ func receiveFile(id int, connection net.Conn, codePhrase string) (fileNameToRece
 	bufferFileName := make([]byte, 64)
 	connection.Read(bufferFileName)
 	fileNameToReceive = strings.Trim(string(bufferFileName), ":")
-	logger.Debugf("fileName: %v", fileNameToReceive)
+	logger.Debugf("fileName: [%s]", fileNameToReceive)
 
 	ivHex := make([]byte, BUFFERSIZE)
 	connection.Read(ivHex)
 	iv = strings.Trim(strings.TrimSpace(string(ivHex)), ":")
-	logger.Debugf("iv: %s", iv)
+	iv = strings.Replace(iv, ":", "", -1)
+	logger.Debugf("iv: [%s]", iv)
 
 	saltHex := make([]byte, BUFFERSIZE)
 	connection.Read(saltHex)
 	salt = strings.Trim(strings.TrimSpace(string(saltHex)), ":")
-	logger.Debugf("salt: %s", salt)
+	logger.Debugf("salt: [%s]", salt)
 
 	hashOfFileBytes := make([]byte, BUFFERSIZE)
 	connection.Read(hashOfFileBytes)
 	hashOfFile = strings.Trim(strings.TrimSpace(string(hashOfFileBytes)), ":")
-	logger.Debugf("hashOfFile: %s", hashOfFile)
+	logger.Debugf("hashOfFile: [%s]", hashOfFile)
 
 	os.Remove(fileNameToReceive + "." + strconv.Itoa(id))
 	newFile, err := os.Create(fileNameToReceive + "." + strconv.Itoa(id))
