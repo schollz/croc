@@ -223,8 +223,11 @@ func (c *Connection) runClient() {
 		if c.File.Hash != HashBytes(decrypted) {
 			fmt.Printf("\nUh oh! %s is corrupted! Sorry, try again.\n", c.File.Name)
 		} else {
-			fmt.Printf("\nDownloaded %s!", c.File.Name)
+			fmt.Printf("\nReceived file written to %s", c.File.Name)
 		}
+	} else {
+		fmt.Println("File sent.")
+		// TODO: Add confirmation
 	}
 }
 
