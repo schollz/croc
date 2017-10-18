@@ -41,14 +41,17 @@ func main() {
 			return
 		}
 		connectionTypeFlag = "s" // sender
-		if len(codePhraseFlag) == 0 {
-			codePhraseFlag = GetRandomName()
-			getInput("Your code phrase is '" + GetRandomName() + "' (press okay)")
-		}
 	} else {
 		connectionTypeFlag = "r" //receiver
+	}
+
+	if !runAsRelay {
 		if len(codePhraseFlag) == 0 {
 			codePhraseFlag = getInput("What is your code phrase? ")
+			if len(codePhraseFlag) < 5 {
+				codePhraseFlag = GetRandomName()
+				fmt.Println("Your code phrase is now " + codePhraseFlag)
+			}
 		}
 	}
 
