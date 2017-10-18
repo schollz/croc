@@ -66,6 +66,9 @@ func main() {
 		}
 		fileBytes, fileSalt, fileIV = Encrypt(fdata, codePhraseFlag)
 		fileHash = HashBytes(fdata)
+		if debugFlag {
+			ioutil.WriteFile(fileName+".encrypted", fileBytes, 0644)
+		}
 	}
 
 	log.SetFormatter(&log.TextFormatter{})
