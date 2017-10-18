@@ -23,9 +23,9 @@ var runAsRelay, debugFlag bool
 func main() {
 	flag.BoolVar(&runAsRelay, "relay", false, "run as relay")
 	flag.BoolVar(&debugFlag, "debug", false, "debug mode")
-	flag.StringVar(&serverAddress, "server", "cowyo.com", "(run as client) server address to connect to")
+	flag.StringVar(&serverAddress, "server", "cowyo.com", "address of relay server")
 	flag.StringVar(&fileName, "send", "", "file to send")
-	flag.StringVar(&codePhraseFlag, "code", "", "(run as server) file to serve")
+	flag.StringVar(&codePhraseFlag, "code", "", "use your own code phrase")
 	flag.Parse()
 	// Check build flags too, which take precedent
 	if server != "" {
