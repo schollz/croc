@@ -19,6 +19,8 @@ builds:
         goarch: arm
       - goos: darwin
         goarch: 386
+    env:
+      - CGO_ENABLED=0
 archive:
   replacements:
     amd64: 64-bit
