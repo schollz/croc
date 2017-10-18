@@ -39,7 +39,7 @@ func Encrypt(plaintext []byte, passphrase string) ([]byte, string, string) {
 }
 
 func Decrypt(data []byte, passphrase string, salt string, iv string) (plaintext []byte, err error) {
-	return plaintext, nil
+	return data, nil
 	// saltBytes, _ := hex.DecodeString(salt)
 	// ivBytes, _ := hex.DecodeString(iv)
 	// key, _ := deriveKey(passphrase, saltBytes)
