@@ -152,14 +152,14 @@ func sendFile(id int, connection net.Conn, codePhrase string) {
 	// Open the file that needs to be send to the client
 	file, err := os.Open(fileName + ".encrypted")
 	if err != nil {
-		fmt.Println(err)
+		logger.Error(err)
 		return
 	}
 	defer file.Close()
 	// Get the filename and filesize
 	fileInfo, err := file.Stat()
 	if err != nil {
-		fmt.Println(err)
+		logger.Error(err)
 		return
 	}
 
@@ -181,8 +181,9 @@ func sendFile(id int, connection net.Conn, codePhrase string) {
 		logger.Debugf("fileNameToSend: %v", path.Base(fileName))
 	}
 
-	logger.Debugf("sending %s", fileSize)
+	logger.Debugf("sending fileSize: %s", fileSize)
 	connection.Write([]byte(fileSize))
+	logger.Debugf("sending fileNameToSend: %s", fileNameToSend)
 	connection.Write([]byte(fileNameToSend))
 	sendBuffer := make([]byte, BUFFERSIZE)
 
