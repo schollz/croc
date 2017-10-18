@@ -76,6 +76,9 @@ func runClient(connectionType string, codePhrase string) {
 			return
 		}
 		fmt.Println("\n\ndecrypting...")
+		log.Debugf("codePhrase: %s", codePhrase)
+		log.Debugf("filefileSaltIV: %s", fileSalt)
+		log.Debugf("fileIV: %s", fileIV)
 		decrypted, err := Decrypt(encrypted, codePhrase, fileSalt, fileIV)
 		if err != nil {
 			log.Error(err)
