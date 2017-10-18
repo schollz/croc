@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"os"
@@ -24,7 +25,6 @@ func main() {
 	flag.StringVar(&serverAddress, "server", "", "(run as client) server address to connect to")
 	flag.StringVar(&fileName, "file", "", "(run as server) file to serve")
 	flag.StringVar(&codePhraseFlag, "code", "", "(run as server) file to serve")
-	flag.StringVar(&connectionTypeFlag, "type", "", "(run as server) file to serve")
 	flag.Parse()
 	// Check build flags too, which take precedent
 	if server != "" {
@@ -39,6 +39,16 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 			return
+		}
+		connectionTypeFlag = "s" // sender
+		if len(codePhraseFlag) == 0 {
+			codePhraseFlag = GetRandomName()
+			getInput("Your code phrase is '" + GetRandomName() + "' (press okay)")
+		}
+	} else {
+		connectionTypeFlag = "r" //receiver
+		if len(codePhraseFlag) == 0 {
+			codePhraseFlag = getInput("What is your code phrase? ")
 		}
 	}
 
@@ -56,4 +66,11 @@ func main() {
 	} else {
 		fmt.Println("You must specify either -file (for running as a server) or -server (for running as a client)")
 	}
+}
+
+func getInput(prompt string) string {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print(prompt)
+	text, _ := reader.ReadString('\n')
+	return text
 }
