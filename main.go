@@ -20,7 +20,17 @@ type Flags struct {
 	NumberOfConnections int
 }
 
+var version string
+
 func main() {
+	fmt.Println(`
+         /\_/\
+    ____/ o o \
+  /~____  =ø= /
+ (______)__m_m)
+
+croc version `+version+`
+`)
 	flags := new(Flags)
 	flag.BoolVar(&flags.Relay, "relay", false, "run as relay")
 	flag.BoolVar(&flags.Debug, "debug", false, "debug mode")
