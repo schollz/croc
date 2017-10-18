@@ -11,6 +11,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const MAX_NUMBER_THREADS = 8
+
 type connectionMap struct {
 	reciever map[string]net.Conn
 	sender   map[string]net.Conn
@@ -27,7 +29,7 @@ type Relay struct {
 func NewRelay(flags *Flags) *Relay {
 	r := new(Relay)
 	r.Debug = flags.Debug
-	r.NumberOfConnections = flags.NumberOfConnections
+	r.NumberOfConnections = MAX_NUMBER_THREADS
 	log.SetFormatter(&log.TextFormatter{})
 	if r.Debug {
 		log.SetLevel(log.DebugLevel)
@@ -149,7 +151,6 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 			}
 			r.connections.RUnlock()
 			time.Sleep(100 * time.Millisecond)
-			logger.Debug("waiting for metadata")
 		}
 		// send  meta data
 		r.connections.RLock()
@@ -157,11 +158,13 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		r.connections.RUnlock()
 		// check for receiver's consent
 		consent := receiveMessage(connection)
-		logger.Debug("consent: %s", consent)
-		logger.Debug("got reciever")
-		r.connections.Lock()
-		r.connections.reciever[key] = connection
-		r.connections.Unlock()
+		logger.Debugf("consent: %s", consent)
+		if consent == "ok" {
+			logger.Debug("got consent")
+			r.connections.Lock()
+			r.connections.reciever[key] = connection
+			r.connections.Unlock()
+		}
 	}
 	return
 }
