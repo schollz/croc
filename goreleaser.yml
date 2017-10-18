@@ -23,9 +23,10 @@ builds:
       - CGO_ENABLED=0
 archive:
   replacements:
-    amd64: 64-bit
-    386: 32-bit
+    amd64: 64bit
+    386: 32bit
     darwin: OSX
+    linux_arm: raspberry_pi
   format_overrides:
      - goos: windows
        format: zip
