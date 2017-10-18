@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math"
 	"net"
 	"os"
@@ -29,7 +30,7 @@ func runClient(connectionType string, codePhrase string) {
 
 	uiprogress.Start()
 	bars = make([]*uiprogress.Bar, numberConnections)
-	fileNameToReceive := ""
+	var iv, salt, fileNameToReceive string
 	for id := 0; id < numberConnections; id++ {
 		go func(id int) {
 			defer wg.Done()
@@ -60,7 +61,7 @@ func runClient(connectionType string, codePhrase string) {
 			} else { // this is a receiver
 				// receive file
 				logger.Debug("receive file")
-				fileNameToReceive = receiveFile(id, connection, codePhrase)
+				fileNameToReceive, iv, salt = receiveFile(id, connection, codePhrase)
 			}
 
 		}(id)
@@ -69,13 +70,32 @@ func runClient(connectionType string, codePhrase string) {
 
 	if connectionType == "r" {
 		catFile(fileNameToReceive)
+		encrypted, err := ioutil.ReadFile(fileNameToReceive + ".encrypted")
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		fmt.Println("\n\ndecrypting...")
+		decrypted, err := Decrypt(encrypted, codePhrase, salt, iv)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		ioutil.WriteFile(fileNameToReceive, decrypted, 0644)
+		os.Remove(fileNameToReceive + ".encrypted")
+		fmt.Println("\nDownloaded " + fileNameToReceive + "!")
+	} else {
+		log.Info("cleaning up")
+		os.Remove(fileName + ".encrypted")
+		os.Remove(fileName + ".iv")
+		os.Remove(fileName + ".salt")
 	}
 }
 
 func catFile(fileNameToReceive string) {
 	// cat the file
 	os.Remove(fileNameToReceive)
-	finished, err := os.Create(fileNameToReceive)
+	finished, err := os.Create(fileNameToReceive + ".encrypted")
 	defer finished.Close()
 	if err != nil {
 		log.Fatal(err)
@@ -94,24 +114,35 @@ func catFile(fileNameToReceive string) {
 		os.Remove(fileNameToReceive + "." + strconv.Itoa(id))
 	}
 
-	fmt.Println("\n\n\nDownloaded " + fileNameToReceive + "!")
 }
 
-func receiveFile(id int, connection net.Conn, codePhrase string) string {
+func receiveFile(id int, connection net.Conn, codePhrase string) (fileNameToReceive string, iv string, salt string) {
 	logger := log.WithFields(log.Fields{
 		"function": "receiveFile #" + strconv.Itoa(id),
 	})
-	bufferFileName := make([]byte, 64)
-	bufferFileSize := make([]byte, 10)
 
 	logger.Debug("waiting for file size")
+
+	bufferFileSize := make([]byte, 10)
 	connection.Read(bufferFileSize)
 	fileSize, _ := strconv.ParseInt(strings.Trim(string(bufferFileSize), ":"), 10, 64)
 	logger.Debugf("filesize: %d", fileSize)
 
+	bufferFileName := make([]byte, 64)
 	connection.Read(bufferFileName)
-	fileNameToReceive := strings.Trim(string(bufferFileName), ":")
+	fileNameToReceive = strings.Trim(string(bufferFileName), ":")
 	logger.Debugf("fileName: %v", fileNameToReceive)
+
+	ivHex := make([]byte, BUFFERSIZE)
+	connection.Read(ivHex)
+	iv = strings.Trim(string(ivHex), ":")
+	logger.Debugf("iv: %v", iv)
+
+	saltHex := make([]byte, BUFFERSIZE)
+	connection.Read(saltHex)
+	salt = strings.Trim(string(saltHex), ":")
+	logger.Debugf("salt: %v", salt)
+
 	os.Remove(fileNameToReceive + "." + strconv.Itoa(id))
 	newFile, err := os.Create(fileNameToReceive + "." + strconv.Itoa(id))
 	if err != nil {
@@ -140,7 +171,7 @@ func receiveFile(id int, connection net.Conn, codePhrase string) string {
 		receivedBytes += BUFFERSIZE
 	}
 	logger.Debug("received file")
-	return fileNameToReceive
+	return
 }
 
 func sendFile(id int, connection net.Conn, codePhrase string) {
@@ -185,6 +216,25 @@ func sendFile(id int, connection net.Conn, codePhrase string) {
 	connection.Write([]byte(fileSize))
 	logger.Debugf("sending fileNameToSend: %s", fileNameToSend)
 	connection.Write([]byte(fileNameToSend))
+
+	// send iv
+	iv, err := ioutil.ReadFile(fileName + ".iv")
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	logger.Debugf("sending iv: %s", iv)
+	connection.Write([]byte(fillString(string(iv), BUFFERSIZE)))
+
+	// send salt
+	salt, err := ioutil.ReadFile(fileName + ".salt")
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	logger.Debugf("sending salt: %s", salt)
+	connection.Write([]byte(fillString(string(salt), BUFFERSIZE)))
+
 	sendBuffer := make([]byte, BUFFERSIZE)
 
 	chunkI := 0

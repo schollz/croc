@@ -8,19 +8,16 @@ import (
 func TestEncrypt(t *testing.T) {
 	key := GetRandomName()
 	fmt.Println(key)
-	encrypted, err := Encrypt([]byte("hello, world"), key)
-	if err != nil {
-		t.Error(err)
-	}
+	salt, iv, encrypted := Encrypt([]byte("hello, world"), key)
 	fmt.Println(len(encrypted))
-	decrypted, err := Decrypt(encrypted, key)
+	decrypted, err := Decrypt(salt, iv, encrypted, key)
 	if err != nil {
 		t.Error(err)
 	}
 	if string(decrypted) != "hello, world" {
 		t.Error("problem decrypting")
 	}
-	_, err = Decrypt(encrypted, "wrong passphrase")
+	_, err = Decrypt(salt, iv, encrypted, "wrong passphrase")
 	if err == nil {
 		t.Error("should not work!")
 	}
