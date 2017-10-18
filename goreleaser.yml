@@ -19,4 +19,7 @@ builds:
         goarch: arm
       - goos: darwin
         goarch: 386
-        
+    replacements:
+      amd64: 64-bit
+      386: 32-bit
+      darwin: OSX
