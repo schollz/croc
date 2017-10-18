@@ -86,7 +86,7 @@ func runClient(connectionType string, codePhrase string) {
 			log.Error(err)
 			return
 		}
-		log.Debug("writing [%s]", fileName)
+		log.Debugf("writing %d bytes to %s", len(decrypted), fileName)
 		err = ioutil.WriteFile(fileName, decrypted, 0644)
 		if err != nil {
 			log.Error(err)
