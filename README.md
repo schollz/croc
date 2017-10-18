@@ -1,55 +1,48 @@
-# personalportal
+# croc
 
-*File transfer over parallel TCP with a rendevous server.*
+*File transfer over parallel TCP with a rendezvous server.*
 
-This program pays homage to [magic-wormhole](https://github.com/warner/magic-wormhole) except it doesn't have the rendevous server, or the transit relay, or the password-authenticated key exchange. Its not really anything like it, except that its file transfer over TCP. Here you can transfer a file using multiple TCP ports simultaneously. 
+This is more or less a Golang port of [magic-wormhole](https://github.com/warner/magic-wormhole) except it probably isn't secure.
 
-## Normal use
-
-### Server computer 
-
-Be sure to open up TCP ports 27001-27009 on your port forwarding. Also, get your public address:
+# Install
 
 ```
-$ curl icanhazip.com
-X.Y.W.Z
+go get github.com/schollz/croc
 ```
 
-Then get and run *wormhole*:
+# Basic usage
+
+## Send a file
+
+On computer 1 do:
 
 ```
-$ go get github.com/schollz/wormhole
-$ wormhole -file SOMEFILE
+$ croc -send somefile
+Your code phrase is now limbo-rocket-gibson
+waiting for other to connect
 ```
 
-*personalportal* automatically knows to run as a server when the `-file` flag is set.
+## Receive a file
 
-### Client computer
-
-```
-$ go get github.com/schollz/wormhole
-$ wormhole -server X.Y.W.Z
-```
-
-*personalportal* automatically knows to run as a client when the `-server` flag is set.
-
-
-## Building for use without flags
-
-For people that don't have or don't want to build from source and don't want to use the command line, you can build it for them to have the flags set automatically! Build the wormhole binary so that it always behaves as a client to a specified server, so that someone just needs to click on it.
+Just type `croc` and you'll be prompted for the code phrase. Use the code phrase to get the file.
 
 ```
-cd $GOPATH/src/github.com/schollz/wormhole
-go build -ldflags "-s -w -X main.serverAddress=X.Y.W.Z" -o client.exe
+$ croc 
+What is your code phrase? limbo-rocket-gibson
+   0s [====================================================] 100%
+
+Downloaded somefile!
 ```
 
-Likewise you could do the same for the server:
+# Advanced usage
+
+## Make your own rendezvous server
+
+On some server you have, `your-server.com`, just run
 
 ```
-cd $GOPATH/src/github.com/schollz/wormhole
-go build -ldflags "-s -w -X main.fileName=testfile" -o server.exe
+$ croc -relay
 ```
 
-# License
+Now, when you use *croc* to send and receive you can add `-server your-server.com` to use your rendezvous server.
 
-MIT
