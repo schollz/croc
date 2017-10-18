@@ -87,7 +87,9 @@ func runClient(connectionType string, codePhrase string) {
 			return
 		}
 		ioutil.WriteFile(fileName, decrypted, 0644)
-		os.Remove(fileName + ".encrypted")
+		if !debugFlag {
+			os.Remove(fileName + ".encrypted")
+		}
 		log.Debugf("\n\n\ndownloaded hash: [%s]", HashBytes(decrypted))
 		log.Debugf("\n\n\nrelayed hash: [%s]", fileHash)
 
