@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -29,7 +28,7 @@ func GetRandomName() string {
 	return strings.Join(result, "-")
 }
 
-func Encrypt(plaintext []byte, passphrase string) (ciphertext []byte, err error) {
+func Encrypt(plaintext []byte, passphrase string) ([]byte, string, string) {
 	key, salt := deriveKey(passphrase, nil)
 	iv := make([]byte, 12)
 	// http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
@@ -38,19 +37,16 @@ func Encrypt(plaintext []byte, passphrase string) (ciphertext []byte, err error)
 	b, _ := aes.NewCipher(key)
 	aesgcm, _ := cipher.NewGCM(b)
 	data := aesgcm.Seal(nil, iv, plaintext, nil)
-	ciphertext = []byte(hex.EncodeToString(salt) + "-" + hex.EncodeToString(iv) + "-" + hex.EncodeToString(data))
-	return
+	return data, hex.EncodeToString(salt), hex.EncodeToString(iv)
 }
 
-func Decrypt(ciphertext []byte, passphrase string) (plaintext []byte, err error) {
-	arr := bytes.Split(ciphertext, []byte("-"))
-	salt, _ := hex.DecodeString(string(arr[0]))
-	iv, _ := hex.DecodeString(string(arr[1]))
-	data, _ := hex.DecodeString(string(arr[2]))
-	key, _ := deriveKey(passphrase, salt)
+func Decrypt(data []byte, passphrase string, salt string, iv string) (plaintext []byte, err error) {
+	saltBytes, _ := hex.DecodeString(salt)
+	ivBytes, _ := hex.DecodeString(iv)
+	key, _ := deriveKey(passphrase, saltBytes)
 	b, _ := aes.NewCipher(key)
 	aesgcm, _ := cipher.NewGCM(b)
-	plaintext, err = aesgcm.Open(nil, iv, data, nil)
+	plaintext, err = aesgcm.Open(nil, ivBytes, data, nil)
 	return
 }
 

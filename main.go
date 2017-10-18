@@ -56,17 +56,20 @@ func main() {
 
 	if connectionTypeFlag == "s" {
 		// encrypt the file
+		fmt.Println("encrypting...")
 		fdata, err := ioutil.ReadFile(fileName)
 		if err != nil {
 			log.Fatal(err)
 			return
 		}
-		encrypted, err := Encrypt(fdata, codePhraseFlag)
+		encrypted, salt, iv := Encrypt(fdata, codePhraseFlag)
 		if err != nil {
 			log.Fatal(err)
 			return
 		}
 		ioutil.WriteFile(fileName+".encrypted", encrypted, 0644)
+		ioutil.WriteFile(fileName+".salt", []byte(salt), 0644)
+		ioutil.WriteFile(fileName+".iv", []byte(iv), 0644)
 	}
 
 	log.SetFormatter(&log.TextFormatter{})
