@@ -1,0 +1,22 @@
+# .goreleaser.yml
+# Build customization
+builds:
+  - binary: croc
+    goos:
+      - windows
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm
+      - 386
+    goarm:
+      - 6
+    ignore:
+      - goos: darwin
+        goarch: arm
+      - goos: windows
+        goarch: arm
+      - goos: darwin
+        goarch: 386
+        
