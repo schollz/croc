@@ -30,7 +30,9 @@ func runClient(connectionType string, codePhrase string) {
 	wg.Add(numberConnections)
 
 	uiprogress.Start()
-	bars = make([]*uiprogress.Bar, numberConnections)
+	if !debugFlag {
+		bars = make([]*uiprogress.Bar, numberConnections)
+	}
 	for id := 0; id < numberConnections; id++ {
 		go func(id int) {
 			defer wg.Done()
@@ -161,12 +163,16 @@ func receiveFile(id int, connection net.Conn, codePhrase string) (fileNameToRece
 	}
 	defer newFile.Close()
 
-	bars[id] = uiprogress.AddBar(int(fileSize)/1024 + 1).AppendCompleted().PrependElapsed()
+	if !debugFlag {
+		bars[id] = uiprogress.AddBar(int(fileSize)/1024 + 1).AppendCompleted().PrependElapsed()
+	}
 
 	logger.Debug("waiting for file")
 	var receivedBytes int64
 	for {
-		bars[id].Incr()
+		if !debugFlag {
+			bars[id].Incr()
+		}
 		if (fileSize - receivedBytes) < BUFFERSIZE {
 			logger.Debug("at the end")
 			io.CopyN(newFile, connection, (fileSize - receivedBytes))
