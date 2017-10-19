@@ -207,9 +207,16 @@ func (c *Connection) runClient() {
 				// have the main thread ask for the okay
 				if id == 0 {
 					fmt.Printf("Receiving file (%d bytes) into: %s\n", c.File.Size, c.File.Name)
+					var sentFileNames []string
+
+					if fileAlreadyExists(sentFileNames, c.File.Name) {
+						fmt.Printf("Will not overwrite file!")
+						os.Exit(1)
+					}
 					getOK := getInput("ok? (y/n): ")
 					if getOK == "y" {
 						gotOK = true
+						sentFileNames = append(sentFileNames, c.File.Name)
 					}
 					gotResponse = true
 				}
@@ -271,6 +278,15 @@ func (c *Connection) runClient() {
 		fmt.Println("File sent.")
 		// TODO: Add confirmation
 	}
+}
+
+func fileAlreadyExists(s []string, f string) bool {
+	for _, a := range s {
+		if a == f {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Connection) catFile(fname string) {
