@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net"
 	"os"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gosuri/uiprogress"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -32,12 +32,9 @@ type Connection struct {
 }
 
 type FileMetaData struct {
-	Name  string
-	Size  int
-	Hash  string
-	IV    string
-	Salt  string
-	bytes []byte
+	Name string
+	Size int
+	Hash string
 }
 
 func NewConnection(flags *Flags) *Connection {
@@ -65,15 +62,14 @@ func NewConnection(flags *Flags) *Connection {
 	return c
 }
 
-func (c *Connection) Run() {
+func (c *Connection) Run() error {
 	forceSingleThreaded := false
 	if c.IsSender {
-		fdata, err := ioutil.ReadFile(c.File.Name)
+		fsize, err := FileSize(c.File.Name)
 		if err != nil {
-			log.Fatal(err)
-			return
+			return err
 		}
-		if len(fdata) < MAX_NUMBER_THREADS*BUFFERSIZE {
+		if fsize < MAX_NUMBER_THREADS*BUFFERSIZE {
 			forceSingleThreaded = true
 			log.Debug("forcing single thread")
 		}
@@ -113,29 +109,34 @@ func (c *Connection) Run() {
 	c.NumberOfConnections, _ = strconv.Atoi(strings.Split(c.Code, "-")[0])
 
 	if c.IsSender {
-		// encrypt the file
-		log.Debug("encrypting...")
-		fdata, err := ioutil.ReadFile(c.File.Name)
+		if c.DontEncrypt {
+			// don't encrypt
+			CopyFile(c.File.Name, c.File.Name+".enc")
+		} else {
+			// encrypt
+			log.Debug("encrypting...")
+			if err := EncryptFile(c.File.Name, c.File.Name+".enc", c.Code); err != nil {
+				return err
+			}
+		}
+		// get file hash
+		var err error
+		c.File.Hash, err = HashFile(c.File.Name)
 		if err != nil {
-			log.Fatal(err)
-			return
+			return err
 		}
-		c.File.bytes, c.File.Salt, c.File.IV = Encrypt(fdata, c.Code, c.DontEncrypt)
-		log.Debug("...finished encryption")
-		c.File.Hash = HashBytes(fdata)
-		c.File.Size = len(c.File.bytes)
-		if c.Debug {
-			ioutil.WriteFile(c.File.Name+".encrypted", c.File.bytes, 0644)
+		// get file size
+		c.File.Size, err = FileSize(c.File.Name + ".enc")
+		if err != nil {
+			return err
 		}
-		fmt.Printf("Sending %d byte file named '%s'\n", c.File.Size, c.File.Name)
-		fmt.Printf("Code is: %s\n", c.Code)
 	}
 
-	c.runClient()
+	return c.runClient()
 }
 
 // runClient spawns threads for parallel uplink/downlink via TCP
-func (c *Connection) runClient() {
+func (c *Connection) runClient() error {
 	logger := log.WithFields(log.Fields{
 		"code":    c.Code,
 		"sender?": c.IsSender,
@@ -177,12 +178,12 @@ func (c *Connection) runClient() {
 				sendMessage("r."+c.HashedCode+".0.0.0", connection)
 			}
 			if c.IsSender { // this is a sender
-				if id == 0 {
-					fmt.Printf("\nSending (<-%s)..\n", connection.RemoteAddr().String())
-				}
 				logger.Debug("waiting for ok from relay")
 				message = receiveMessage(connection)
 				logger.Debug("got ok from relay")
+				if id == 0 {
+					fmt.Printf("\nSending (->%s)..\n", message)
+				}
 				// wait for pipe to be made
 				time.Sleep(100 * time.Millisecond)
 				// Write data from file
@@ -192,7 +193,7 @@ func (c *Connection) runClient() {
 				logger.Debug("waiting for meta data from sender")
 				message = receiveMessage(connection)
 				m := strings.Split(message, "-")
-				encryptedData, salt, iv := m[0], m[1], m[2]
+				encryptedData, salt, iv, sendersAddress := m[0], m[1], m[2], m[3]
 				encryptedBytes, err := hex.DecodeString(encryptedData)
 				if err != nil {
 					log.Error(err)
@@ -233,6 +234,7 @@ func (c *Connection) runClient() {
 				} else {
 					sendMessage("ok", connection)
 					logger.Debug("receive file")
+					fmt.Printf("\n\nReceiving (<-%s)..\n", sendersAddress)
 					c.receiveFile(id, connection)
 				}
 			}
@@ -242,36 +244,32 @@ func (c *Connection) runClient() {
 
 	if !c.IsSender {
 		if !gotOK {
-			return
+			return errors.New("Transfer interrupted")
 		}
 		c.catFile(c.File.Name)
-		encrypted, err := ioutil.ReadFile(c.File.Name + ".encrypted")
-		if err != nil {
-			log.Error(err)
-			return
-		}
-		fmt.Println("\n\ndecrypting...")
 		log.Debugf("Code: [%s]", c.Code)
-		log.Debugf("Salt: [%s]", c.File.Salt)
-		log.Debugf("IV: [%s]", c.File.IV)
-		decrypted, err := Decrypt(encrypted, c.Code, c.File.Salt, c.File.IV, c.DontEncrypt)
-		if err != nil {
-			log.Error(err)
-			return
-		}
-		log.Debugf("writing %d bytes to %s", len(decrypted), c.File.Name)
-		err = ioutil.WriteFile(c.File.Name, decrypted, 0644)
-		if err != nil {
-			log.Error(err)
+		if c.DontEncrypt {
+			if err := CopyFile(c.File.Name+".enc", c.File.Name); err != nil {
+				return err
+			}
+		} else {
+			if err := DecryptFile(c.File.Name+".enc", c.File.Name, c.Code); err != nil {
+				return errors.Wrap(err, "Problem decrypting file")
+			}
 		}
 		if !c.Debug {
-			os.Remove(c.File.Name + ".encrypted")
+			os.Remove(c.File.Name + ".enc")
 		}
-		log.Debugf("\n\n\ndownloaded hash: [%s]", HashBytes(decrypted))
+
+		fileHash, err := HashFile(c.File.Name)
+		if err != nil {
+			log.Error(err)
+		}
+		log.Debugf("\n\n\ndownloaded hash: [%s]", fileHash)
 		log.Debugf("\n\n\nrelayed hash: [%s]", c.File.Hash)
 
-		if c.File.Hash != HashBytes(decrypted) {
-			fmt.Printf("\nUh oh! %s is corrupted! Sorry, try again.\n", c.File.Name)
+		if c.File.Hash != fileHash {
+			return fmt.Errorf("\nUh oh! %s is corrupted! Sorry, try again.\n", c.File.Name)
 		} else {
 			fmt.Printf("\nReceived file written to %s", c.File.Name)
 		}
@@ -279,6 +277,7 @@ func (c *Connection) runClient() {
 		fmt.Println("File sent.")
 		// TODO: Add confirmation
 	}
+	return nil
 }
 
 func fileAlreadyExists(s []string, f string) bool {
@@ -293,7 +292,7 @@ func fileAlreadyExists(s []string, f string) bool {
 func (c *Connection) catFile(fname string) {
 	// cat the file
 	os.Remove(fname)
-	finished, err := os.Create(fname + ".encrypted")
+	finished, err := os.Create(fname + ".enc")
 	defer finished.Close()
 	if err != nil {
 		log.Fatal(err)
