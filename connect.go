@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -370,7 +369,15 @@ func (c *Connection) sendFile(id int, connection net.Conn) {
 	connection.Write([]byte(fillString(strconv.FormatInt(int64(chunkSize), 10), 10)))
 
 	sendBuffer := make([]byte, BUFFERSIZE)
-	file := bytes.NewBuffer(c.File.bytes)
+
+	// open encrypted file
+	file, err := os.Open(c.File.Name + ".enc")
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	defer file.Close()
+
 	chunkI := 0
 	if !c.Debug {
 		c.bars[id] = uiprogress.AddBar(chunksPerWorker).AppendCompleted().PrependElapsed()
