@@ -210,6 +210,7 @@ func (c *Connection) runClient() error {
 				encryptedData, salt, iv, sendersAddress := m[0], m[1], m[2], m[3]
                                 if sendersAddress == "0.0.0.0" {
                                         notPresent = true
+					time.Sleep(1 * time.Second)
                                         return
                                 }
 				encryptedBytes, err := hex.DecodeString(encryptedData)
