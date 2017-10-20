@@ -14,10 +14,25 @@ import (
 const MAX_NUMBER_THREADS = 8
 
 type connectionMap struct {
-	reciever map[string]net.Conn
-	sender   map[string]net.Conn
-	metadata map[string]string
+	receiver           map[string]net.Conn
+	sender             map[string]net.Conn
+	metadata           map[string]string
+	potentialReceivers map[string]struct{}
 	sync.RWMutex
+}
+
+func (c *connectionMap) IsSenderConnected(key string) (found bool) {
+	c.RLock()
+	defer c.RUnlock()
+	_, found = c.sender[key]
+	return
+}
+
+func (c *connectionMap) IsPotentialReceiverConnected(key string) (found bool) {
+	c.RLock()
+	defer c.RUnlock()
+	_, found = c.potentialReceivers[key]
+	return
 }
 
 type Relay struct {
@@ -42,9 +57,10 @@ func NewRelay(flags *Flags) *Relay {
 func (r *Relay) Run() {
 	r.connections = connectionMap{}
 	r.connections.Lock()
-	r.connections.reciever = make(map[string]net.Conn)
+	r.connections.receiver = make(map[string]net.Conn)
 	r.connections.sender = make(map[string]net.Conn)
 	r.connections.metadata = make(map[string]string)
+	r.connections.potentialReceivers = make(map[string]struct{})
 	r.connections.Unlock()
 	r.runServer()
 }
@@ -107,7 +123,12 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		"codePhrase": codePhrase,
 	})
 
-	if connectionType == "s" {
+	if connectionType == "s" { // sender connection
+		if r.connections.IsSenderConnected(key) {
+			sendMessage("no", connection)
+			return
+		}
+
 		logger.Debug("got sender")
 		r.connections.Lock()
 		r.connections.metadata[key] = metaData
@@ -117,9 +138,9 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		receiversAddress := ""
 		for {
 			r.connections.RLock()
-			if _, ok := r.connections.reciever[key]; ok {
-				receiversAddress = r.connections.reciever[key].RemoteAddr().String()
-				logger.Debug("got reciever")
+			if _, ok := r.connections.receiver[key]; ok {
+				receiversAddress = r.connections.receiver[key].RemoteAddr().String()
+				logger.Debug("got receiver")
 				r.connections.RUnlock()
 				break
 			}
@@ -131,18 +152,29 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		logger.Debug("preparing pipe")
 		r.connections.Lock()
 		con1 := r.connections.sender[key]
-		con2 := r.connections.reciever[key]
+		con2 := r.connections.receiver[key]
 		r.connections.Unlock()
 		logger.Debug("piping connections")
 		Pipe(con1, con2)
 		logger.Debug("done piping")
 		r.connections.Lock()
 		delete(r.connections.sender, key)
-		delete(r.connections.reciever, key)
+		delete(r.connections.receiver, key)
 		delete(r.connections.metadata, key)
+		delete(r.connections.potentialReceivers, key)
 		r.connections.Unlock()
 		logger.Debug("deleted sender and receiver")
-	} else {
+	} else { //receiver connection "r"
+		if r.connections.IsPotentialReceiverConnected(key) {
+			sendMessage("no", connection)
+			return
+		}
+
+		// add as a potential receiver
+		r.connections.Lock()
+		r.connections.potentialReceivers[key] = struct{}{}
+		r.connections.Unlock()
+
 		// wait for sender's metadata
 		sendersAddress := ""
 		for {
@@ -168,7 +200,7 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		if consent == "ok" {
 			logger.Debug("got consent")
 			r.connections.Lock()
-			r.connections.reciever[key] = connection
+			r.connections.receiver[key] = connection
 			r.connections.Unlock()
 		}
 	}

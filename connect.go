@@ -79,21 +79,16 @@ func (c *Connection) Run() error {
 		// check code
 		goodCode := true
 		m := strings.Split(c.Code, "-")
-		log.Debug(m)
 		numThreads, errParse := strconv.Atoi(m[0])
 		if len(m) < 2 {
 			goodCode = false
-			log.Debug("code too short")
 		} else if numThreads > MAX_NUMBER_THREADS || numThreads < 1 || (forceSingleThreaded && numThreads != 1) {
 			c.NumberOfConnections = MAX_NUMBER_THREADS
 			goodCode = false
-			log.Debug("incorrect number of threads")
 		} else if errParse != nil {
 			goodCode = false
-			log.Debug("problem parsing threads")
 		}
 		log.Debug(m)
-		log.Debug(goodCode)
 		if !goodCode {
 			if c.IsSender {
 				if forceSingleThreaded {
@@ -135,8 +130,6 @@ func (c *Connection) Run() error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Sending %d byte file named '%s'\n", c.File.Size, c.File.Name)
-		fmt.Printf("Code is: %s\n", c.Code)
 	}
 
 	return c.runClient()
@@ -160,6 +153,7 @@ func (c *Connection) runClient() error {
 	}
 	gotOK := false
 	gotResponse := false
+	gotConnectionInUse := false
 	for id := 0; id < c.NumberOfConnections; id++ {
 		go func(id int) {
 			defer wg.Done()
@@ -187,71 +181,86 @@ func (c *Connection) runClient() error {
 			if c.IsSender { // this is a sender
 				logger.Debug("waiting for ok from relay")
 				message = receiveMessage(connection)
-				logger.Debug("got ok from relay")
-				if id == 0 {
-					fmt.Printf("\nSending (->%s)..\n", message)
+				if message == "no" {
+					fmt.Println("The specifed code is already in use by a sender.")
+					gotConnectionInUse = true
+				} else {
+					logger.Debug("got ok from relay")
+					if id == 0 {
+						fmt.Printf("\nSending (->%s)..\n", message)
+					}
+					// wait for pipe to be made
+					time.Sleep(100 * time.Millisecond)
+					// Write data from file
+					logger.Debug("send file")
+					c.sendFile(id, connection)
+					fmt.Println("File sent.")
 				}
-				// wait for pipe to be made
-				time.Sleep(100 * time.Millisecond)
-				// Write data from file
-				logger.Debug("send file")
-				c.sendFile(id, connection)
 			} else { // this is a receiver
 				logger.Debug("waiting for meta data from sender")
 				message = receiveMessage(connection)
-				m := strings.Split(message, "-")
-				encryptedData, salt, iv, sendersAddress := m[0], m[1], m[2], m[3]
-				encryptedBytes, err := hex.DecodeString(encryptedData)
-				if err != nil {
-					log.Error(err)
-					return
-				}
-				decryptedBytes, _ := Decrypt(encryptedBytes, c.Code, salt, iv, c.DontEncrypt)
-				err = json.Unmarshal(decryptedBytes, &c.File)
-				if err != nil {
-					log.Error(err)
-					return
-				}
-				log.Debugf("meta data received: %v", c.File)
-				// have the main thread ask for the okay
-				if id == 0 {
-					fmt.Printf("Receiving file (%d bytes) into: %s\n", c.File.Size, c.File.Name)
-					var sentFileNames []string
-
-					if fileAlreadyExists(sentFileNames, c.File.Name) {
-						fmt.Printf("Will not overwrite file!")
-						os.Exit(1)
-					}
-					getOK := getInput("ok? (y/n): ")
-					if getOK == "y" {
-						gotOK = true
-						sentFileNames = append(sentFileNames, c.File.Name)
-					}
-					gotResponse = true
-				}
-				// wait for the main thread to get the okay
-				for limit := 0; limit < 1000; limit++ {
-					if gotResponse {
-						break
-					}
-					time.Sleep(10 * time.Millisecond)
-				}
-				if !gotOK {
-					sendMessage("not ok", connection)
+				if message == "no" {
+					fmt.Println("The specifed code is already in use by a receiver.")
+					gotConnectionInUse = true
 				} else {
-					sendMessage("ok", connection)
-					logger.Debug("receive file")
-					if id == 0 {
-						fmt.Printf("\n\nReceiving (<-%s)..\n", sendersAddress)
+					m := strings.Split(message, "-")
+					encryptedData, salt, iv, sendersAddress := m[0], m[1], m[2], m[3]
+					encryptedBytes, err := hex.DecodeString(encryptedData)
+					if err != nil {
+						log.Error(err)
+						return
 					}
-					c.receiveFile(id, connection)
+					decryptedBytes, _ := Decrypt(encryptedBytes, c.Code, salt, iv, c.DontEncrypt)
+					err = json.Unmarshal(decryptedBytes, &c.File)
+					if err != nil {
+						log.Error(err)
+						return
+					}
+					log.Debugf("meta data received: %v", c.File)
+					// have the main thread ask for the okay
+					if id == 0 {
+						fmt.Printf("Receiving file (%d bytes) into: %s\n", c.File.Size, c.File.Name)
+						var sentFileNames []string
+
+						if fileAlreadyExists(sentFileNames, c.File.Name) {
+							fmt.Printf("Will not overwrite file!")
+							os.Exit(1)
+						}
+						getOK := getInput("ok? (y/n): ")
+						if getOK == "y" {
+							gotOK = true
+							sentFileNames = append(sentFileNames, c.File.Name)
+						}
+						gotResponse = true
+					}
+					// wait for the main thread to get the okay
+					for limit := 0; limit < 1000; limit++ {
+						if gotResponse {
+							break
+						}
+						time.Sleep(10 * time.Millisecond)
+					}
+					if !gotOK {
+						sendMessage("not ok", connection)
+					} else {
+						sendMessage("ok", connection)
+						logger.Debug("receive file")
+						fmt.Printf("\n\nReceiving (<-%s)..\n", sendersAddress)
+						c.receiveFile(id, connection)
+					}
 				}
 			}
 		}(id)
 	}
 	wg.Wait()
 
-	if !c.IsSender {
+	if gotConnectionInUse {
+		return nil // connection was in use, just quit cleanly
+	}
+
+	if c.IsSender {
+		// TODO: Add confirmation
+	} else { // Is a Receiver
 		if !gotOK {
 			return errors.New("Transfer interrupted")
 		}
@@ -282,9 +291,6 @@ func (c *Connection) runClient() error {
 		} else {
 			fmt.Printf("\nReceived file written to %s", c.File.Name)
 		}
-	} else {
-		fmt.Println("File sent.")
-		// TODO: Add confirmation
 	}
 	return nil
 }
@@ -348,7 +354,6 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 
 	logger.Debug("waiting for file")
 	var receivedBytes int64
-	receivedFirstBytes := false
 	for {
 		if !c.Debug {
 			c.bars[id].Incr()
@@ -365,10 +370,6 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 		}
 		io.CopyN(newFile, connection, BUFFERSIZE)
 		receivedBytes += BUFFERSIZE
-		if !receivedFirstBytes {
-			receivedFirstBytes = true
-			logger.Debug("Receieved first bytes!")
-		}
 	}
 	logger.Debug("received file")
 	return nil
@@ -402,7 +403,7 @@ func (c *Connection) sendFile(id int, connection net.Conn) {
 	sendBuffer := make([]byte, BUFFERSIZE)
 
 	// open encrypted file
-	file, err := os.OpenFile(c.File.Name+".enc", os.O_RDONLY, 0755)
+	file, err := os.Open(c.File.Name + ".enc")
 	if err != nil {
 		log.Error(err)
 		return
