@@ -156,6 +156,10 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 				}
 			}
 			r.connections.RUnlock()
+                        if connectionType == "c" {
+		                sendMessage("0-0-0-0.0.0.0", connection)
+                                return
+                        }
 			time.Sleep(100 * time.Millisecond)
 		}
 		// send  meta data
