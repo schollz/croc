@@ -27,7 +27,7 @@ type Connection struct {
 	IsSender            bool
 	Debug               bool
 	DontEncrypt         bool
-        Wait                bool
+	Wait                bool
 	bars                []*uiprogress.Bar
 	rate                int
 }
@@ -42,7 +42,7 @@ func NewConnection(flags *Flags) *Connection {
 	c := new(Connection)
 	c.Debug = flags.Debug
 	c.DontEncrypt = flags.DontEncrypt
-        c.Wait = flags.Wait
+	c.Wait = flags.Wait
 	c.Server = flags.Server
 	c.Code = flags.Code
 	c.NumberOfConnections = flags.NumberOfConnections
@@ -162,7 +162,7 @@ func (c *Connection) runClient() error {
 	}
 	gotOK := false
 	gotResponse := false
-        notPresent := false
+	notPresent := false
 	for id := 0; id < c.NumberOfConnections; id++ {
 		go func(id int) {
 			defer wg.Done()
@@ -185,11 +185,11 @@ func (c *Connection) runClient() error {
 				sendMessage("s."+c.HashedCode+"."+hex.EncodeToString(encryptedMetaData)+"-"+salt+"-"+iv, connection)
 			} else {
 				logger.Debugf("telling relay: %s", "r."+c.Code)
-                                if c.Wait {
-				    sendMessage("r."+c.HashedCode+".0.0.0", connection)
-                                } else {
-				    sendMessage("c."+c.HashedCode+".0.0.0", connection)
-                                }
+				if c.Wait {
+					sendMessage("r."+c.HashedCode+".0.0.0", connection)
+				} else {
+					sendMessage("c."+c.HashedCode+".0.0.0", connection)
+				}
 			}
 			if c.IsSender { // this is a sender
 				logger.Debug("waiting for ok from relay")
@@ -208,11 +208,11 @@ func (c *Connection) runClient() error {
 				message = receiveMessage(connection)
 				m := strings.Split(message, "-")
 				encryptedData, salt, iv, sendersAddress := m[0], m[1], m[2], m[3]
-                                if sendersAddress == "0.0.0.0" {
-                                        notPresent = true
+				if sendersAddress == "0.0.0.0" {
+					notPresent = true
 					time.Sleep(1 * time.Second)
-                                        return
-                                }
+					return
+				}
 				encryptedBytes, err := hex.DecodeString(encryptedData)
 				if err != nil {
 					log.Error(err)
@@ -264,10 +264,10 @@ func (c *Connection) runClient() error {
 	wg.Wait()
 
 	if !c.IsSender {
-                if notPresent {
-                    fmt.Println("Sender/Code not present")
-                    return nil
-                }
+		if notPresent {
+			fmt.Println("Sender/Code not present")
+			return nil
+		}
 		if !gotOK {
 			return errors.New("Transfer interrupted")
 		}
