@@ -281,6 +281,7 @@ func (c *Connection) runClient() error {
 
 	if c.IsSender {
 		// TODO: Add confirmation
+		fmt.Println("File sent.")
 	} else { // Is a Receiver
 		if notPresent {
 			fmt.Println("Sender/Code not present")
@@ -316,10 +317,6 @@ func (c *Connection) runClient() error {
 		} else {
 			fmt.Printf("\nReceived file written to %s", c.File.Name)
 		}
-
-	} else {
-		fmt.Println("File sent.")
-		// TODO: Add confirmation
 	}
 	return nil
 }
