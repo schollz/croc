@@ -15,6 +15,7 @@ var oneGigabytePerSecond = 1000000 // expressed as kbps
 type Flags struct {
 	Relay               bool
 	Debug               bool
+	Wait                bool
 	DontEncrypt         bool
 	Server              string
 	File                string
@@ -37,6 +38,7 @@ croc version ` + version + `
 	flags := new(Flags)
 	flag.BoolVar(&flags.Relay, "relay", false, "run as relay")
 	flag.BoolVar(&flags.Debug, "debug", false, "debug mode")
+	flag.BoolVar(&flags.Wait, "wait", false, "wait for code to be sent")
 	flag.StringVar(&flags.Server, "server", "cowyo.com", "address of relay server")
 	flag.StringVar(&flags.File, "send", "", "file to send")
 	flag.StringVar(&flags.Code, "code", "", "use your own code phrase")
