@@ -32,7 +32,7 @@ func main() {
   /~____  =ø= /
  (______)__m_m)
 
-croc version `+version+`
+croc version ` + version + `
 `)
 	flags := new(Flags)
 	flag.BoolVar(&flags.Relay, "relay", false, "run as relay")
@@ -50,7 +50,10 @@ croc version `+version+`
 		r.Run()
 	} else {
 		c := NewConnection(flags)
-		c.Run()
+		err := c.Run()
+		if err != nil {
+			fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
+		}
 	}
 }
 

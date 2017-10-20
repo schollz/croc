@@ -114,9 +114,11 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		r.connections.sender[key] = connection
 		r.connections.Unlock()
 		// wait for receiver
+		receiversAddress := ""
 		for {
 			r.connections.RLock()
 			if _, ok := r.connections.reciever[key]; ok {
+				receiversAddress = r.connections.reciever[key].RemoteAddr().String()
 				logger.Debug("got reciever")
 				r.connections.RUnlock()
 				break
@@ -125,7 +127,7 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 			time.Sleep(100 * time.Millisecond)
 		}
 		logger.Debug("telling sender ok")
-		sendMessage("ok", connection)
+		sendMessage(receiversAddress, connection)
 		logger.Debug("preparing pipe")
 		r.connections.Lock()
 		con1 := r.connections.sender[key]
@@ -142,19 +144,23 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		logger.Debug("deleted sender and receiver")
 	} else {
 		// wait for sender's metadata
+		sendersAddress := ""
 		for {
 			r.connections.RLock()
 			if _, ok := r.connections.metadata[key]; ok {
-				logger.Debug("got sender meta data")
-				r.connections.RUnlock()
-				break
+				if _, ok2 := r.connections.sender[key]; ok2 {
+					sendersAddress = r.connections.sender[key].RemoteAddr().String()
+					logger.Debug("got sender meta data")
+					r.connections.RUnlock()
+					break
+				}
 			}
 			r.connections.RUnlock()
 			time.Sleep(100 * time.Millisecond)
 		}
 		// send  meta data
 		r.connections.RLock()
-		sendMessage(r.connections.metadata[key], connection)
+		sendMessage(r.connections.metadata[key]+"-"+sendersAddress, connection)
 		r.connections.RUnlock()
 		// check for receiver's consent
 		consent := receiveMessage(connection)
