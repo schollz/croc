@@ -27,6 +27,7 @@ type Connection struct {
 	IsSender            bool
 	Debug               bool
 	DontEncrypt         bool
+	Wait                bool
 	bars                []*uiprogress.Bar
 	rate                int
 }
@@ -41,6 +42,7 @@ func NewConnection(flags *Flags) *Connection {
 	c := new(Connection)
 	c.Debug = flags.Debug
 	c.DontEncrypt = flags.DontEncrypt
+	c.Wait = flags.Wait
 	c.Server = flags.Server
 	c.Code = flags.Code
 	c.NumberOfConnections = flags.NumberOfConnections
@@ -79,16 +81,21 @@ func (c *Connection) Run() error {
 		// check code
 		goodCode := true
 		m := strings.Split(c.Code, "-")
+		log.Debug(m)
 		numThreads, errParse := strconv.Atoi(m[0])
 		if len(m) < 2 {
 			goodCode = false
+			log.Debug("code too short")
 		} else if numThreads > MAX_NUMBER_THREADS || numThreads < 1 || (forceSingleThreaded && numThreads != 1) {
 			c.NumberOfConnections = MAX_NUMBER_THREADS
 			goodCode = false
+			log.Debug("incorrect number of threads")
 		} else if errParse != nil {
 			goodCode = false
+			log.Debug("problem parsing threads")
 		}
 		log.Debug(m)
+		log.Debug(goodCode)
 		if !goodCode {
 			if c.IsSender {
 				if forceSingleThreaded {
@@ -130,6 +137,8 @@ func (c *Connection) Run() error {
 		if err != nil {
 			return err
 		}
+		fmt.Printf("Sending %d byte file named '%s'\n", c.File.Size, c.File.Name)
+		fmt.Printf("Code is: %s\n", c.Code)
 	}
 
 	return c.runClient()
@@ -154,6 +163,7 @@ func (c *Connection) runClient() error {
 	gotOK := false
 	gotResponse := false
 	gotConnectionInUse := false
+	notPresent := false
 	for id := 0; id < c.NumberOfConnections; id++ {
 		go func(id int) {
 			defer wg.Done()
@@ -176,7 +186,11 @@ func (c *Connection) runClient() error {
 				sendMessage("s."+c.HashedCode+"."+hex.EncodeToString(encryptedMetaData)+"-"+salt+"-"+iv, connection)
 			} else {
 				logger.Debugf("telling relay: %s", "r."+c.Code)
-				sendMessage("r."+c.HashedCode+".0.0.0", connection)
+				if c.Wait {
+					sendMessage("r."+c.HashedCode+".0.0.0", connection)
+				} else {
+					sendMessage("c."+c.HashedCode+".0.0.0", connection)
+				}
 			}
 			if c.IsSender { // this is a sender
 				logger.Debug("waiting for ok from relay")
@@ -205,6 +219,11 @@ func (c *Connection) runClient() error {
 				} else {
 					m := strings.Split(message, "-")
 					encryptedData, salt, iv, sendersAddress := m[0], m[1], m[2], m[3]
+					if sendersAddress == "0.0.0.0" {
+						notPresent = true
+						time.Sleep(1 * time.Second)
+						return
+					}
 					encryptedBytes, err := hex.DecodeString(encryptedData)
 					if err != nil {
 						log.Error(err)
@@ -245,7 +264,9 @@ func (c *Connection) runClient() error {
 					} else {
 						sendMessage("ok", connection)
 						logger.Debug("receive file")
-						fmt.Printf("\n\nReceiving (<-%s)..\n", sendersAddress)
+						if id == 0 {
+							fmt.Printf("\n\nReceiving (<-%s)..\n", sendersAddress)
+						}
 						c.receiveFile(id, connection)
 					}
 				}
@@ -261,6 +282,10 @@ func (c *Connection) runClient() error {
 	if c.IsSender {
 		// TODO: Add confirmation
 	} else { // Is a Receiver
+		if notPresent {
+			fmt.Println("Sender/Code not present")
+			return nil
+		}
 		if !gotOK {
 			return errors.New("Transfer interrupted")
 		}
@@ -291,6 +316,10 @@ func (c *Connection) runClient() error {
 		} else {
 			fmt.Printf("\nReceived file written to %s", c.File.Name)
 		}
+
+	} else {
+		fmt.Println("File sent.")
+		// TODO: Add confirmation
 	}
 	return nil
 }
@@ -354,6 +383,7 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 
 	logger.Debug("waiting for file")
 	var receivedBytes int64
+	receivedFirstBytes := false
 	for {
 		if !c.Debug {
 			c.bars[id].Incr()
@@ -370,6 +400,10 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 		}
 		io.CopyN(newFile, connection, BUFFERSIZE)
 		receivedBytes += BUFFERSIZE
+		if !receivedFirstBytes {
+			receivedFirstBytes = true
+			logger.Debug("Receieved first bytes!")
+		}
 	}
 	logger.Debug("received file")
 	return nil

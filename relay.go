@@ -128,7 +128,6 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 			sendMessage("no", connection)
 			return
 		}
-
 		logger.Debug("got sender")
 		r.connections.Lock()
 		r.connections.metadata[key] = metaData
@@ -174,7 +173,6 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		r.connections.Lock()
 		r.connections.potentialReceivers[key] = struct{}{}
 		r.connections.Unlock()
-
 		// wait for sender's metadata
 		sendersAddress := ""
 		for {
@@ -188,6 +186,10 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 				}
 			}
 			r.connections.RUnlock()
+			if connectionType == "c" {
+				sendMessage("0-0-0-0.0.0.0", connection)
+				return
+			}
 			time.Sleep(100 * time.Millisecond)
 		}
 		// send  meta data
