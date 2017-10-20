@@ -4,8 +4,55 @@ import (
 	"crypto/md5"
 	"fmt"
 	"io"
+	"math"
 	"os"
+	"strconv"
 )
+
+// SplitFile
+func SplitFile(fileName string, numPieces int) (err error) {
+	file, err := os.Open(fileName)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	fi, err := file.Stat()
+	if err != nil {
+		return err
+	}
+
+	bytesPerPiece := int(math.Ceil(float64(fi.Size()) / float64(numPieces)))
+	bytesRead := 0
+	i := 0
+	out, err := os.Create(fileName + "." + strconv.Itoa(i))
+	if err != nil {
+		return err
+	}
+	buf := make([]byte, 4096)
+	if bytesPerPiece < 4096/numPieces {
+		buf = make([]byte, bytesPerPiece)
+	}
+	for {
+		n, err := file.Read(buf)
+		out.Write(buf[:n])
+		bytesRead += n
+		if err == io.EOF {
+			break
+		}
+		if bytesRead >= bytesPerPiece {
+			// Close file and open a new one
+			out.Close()
+			i++
+			out, err = os.Create(fileName + "." + strconv.Itoa(i))
+			if err != nil {
+				return err
+			}
+			bytesRead = 0
+		}
+	}
+	out.Close()
+	return nil
+}
 
 // CopyFile copies a file from src to dst. If src and dst files exist, and are
 // the same, then return success. Otherise, attempt to create a hard link
