@@ -23,7 +23,7 @@ $ croc -send croc.exe
 Sending 3712016 byte file named 'croc.exe'
 Code is: 4-cement-galaxy-alpha
 
-Sending (<-[::1]:27001)..
+Sending (->24.65.41.43:50843)..
    0s [==========================================================] 100%
    0s [==========================================================] 100%
    0s [===========================================>--------------]  79%
@@ -38,11 +38,12 @@ $ croc
 Enter receive code: 4-cement-galaxy-alpha
 Receiving file (3712016 bytes) into: croc.exe
 ok? (y/n): y
-   0s [==========================================================] 100%
-   0s [==========================================================] 100%
-   0s [==========================================================] 100%
-   0s [==========================================================] 100%
 
+Receiving (<-50.32.38.188:50843)..
+   0s [==========================================================] 100%
+   0s [==========================================================] 100%
+   0s [==========================================================] 100%
+   0s [==========================================================] 100%
 Received file written to croc.exe
 ```
 
@@ -101,3 +102,4 @@ Thanks...
 - ...[@warner](https://github.com/warner) for the [idea](https://github.com/warner/magic-wormhole).
 - ...[@tscholl2](https://github.com/tscholl2) for the [encryption gists](https://gist.github.com/tscholl2/dc7dc15dc132ea70a98e8542fefffa28).
 - ...[@skorokithakis](https://github.com/skorokithakis) for [code on proxying two connections](https://www.stavros.io/posts/proxying-two-connections-go/).
+- ...for making pull requests [@Girbons](https://github.com/ss), [@techtide](https://github.com/techtide), [@heymatthew](https://github.com/heymatthew)!
