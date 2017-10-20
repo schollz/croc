@@ -4,15 +4,19 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	mathrand "math/rand"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/mars9/crypt"
 	"github.com/schollz/mnemonicode"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/pbkdf2"
 )
 
@@ -75,4 +79,47 @@ func Hash(data string) string {
 func HashBytes(data []byte) string {
 	sum := sha256.Sum256(data)
 	return fmt.Sprintf("%x", sum)
+}
+
+func EncryptFile(inputFilename string, outputFilename string, password string) error {
+	return cryptFile(inputFilename, outputFilename, password, true)
+}
+
+func DecryptFile(inputFilename string, outputFilename string, password string) error {
+	return cryptFile(inputFilename, outputFilename, password, false)
+}
+
+func cryptFile(inputFilename string, outputFilename string, password string, encrypt bool) error {
+	in, err := os.Open(inputFilename)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(outputFilename)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := out.Sync(); err != nil {
+			log.Error(err)
+		}
+		if err := out.Close(); err != nil {
+			log.Error(err)
+		}
+	}()
+	c := &crypt.Crypter{
+		HashFunc: sha1.New,
+		HashSize: sha1.Size,
+		Key:      crypt.NewPbkdf2Key([]byte(password), 32),
+	}
+	if encrypt {
+		if err := c.Encrypt(out, in); err != nil {
+			return err
+		}
+	} else {
+		if err := c.Decrypt(out, in); err != nil {
+			return err
+		}
+	}
+	return nil
 }
