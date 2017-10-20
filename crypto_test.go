@@ -45,4 +45,5 @@ func TestEncryptFiles(t *testing.T) {
 	}
 	os.Remove("temp.dec")
 	os.Remove("temp.enc")
+	os.Remove("temp")
 }
