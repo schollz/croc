@@ -15,7 +15,7 @@ var oneGigabytePerSecond = 1000000 // expressed as kbps
 type Flags struct {
 	Relay               bool
 	Debug               bool
-	Wait               bool
+	Wait                bool
 	DontEncrypt         bool
 	Server              string
 	File                string
