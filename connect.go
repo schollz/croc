@@ -28,6 +28,7 @@ type Connection struct {
 	Debug               bool
 	DontEncrypt         bool
 	bars                []*uiprogress.Bar
+	rate                int
 }
 
 type FileMetaData struct {
@@ -46,6 +47,7 @@ func NewConnection(flags *Flags) *Connection {
 	c.Server = flags.Server
 	c.Code = flags.Code
 	c.NumberOfConnections = flags.NumberOfConnections
+	c.rate = flags.Rate
 	if len(flags.File) > 0 {
 		c.File.Name = flags.File
 		c.IsSender = true
@@ -382,7 +384,13 @@ func (c *Connection) sendFile(id int, connection net.Conn) {
 	if !c.Debug {
 		c.bars[id] = uiprogress.AddBar(chunksPerWorker).AppendCompleted().PrependElapsed()
 	}
-	for {
+
+	bufferSizeInKilobytes := BUFFERSIZE / 1024
+	rate := float64(c.rate) / float64(c.NumberOfConnections*bufferSizeInKilobytes)
+	throttle := time.NewTicker(time.Second / time.Duration(rate))
+	defer throttle.Stop()
+
+	for range throttle.C {
 		_, err = file.Read(sendBuffer)
 		if err == io.EOF {
 			//End of file reached, break out of for loop
