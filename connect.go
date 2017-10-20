@@ -130,6 +130,8 @@ func (c *Connection) Run() error {
 		if err != nil {
 			return err
 		}
+		fmt.Printf("Sending %d byte file named '%s'\n", c.File.Size, c.File.Name)
+		fmt.Printf("Code is: %s\n", c.Code)
 	}
 
 	return c.runClient()
