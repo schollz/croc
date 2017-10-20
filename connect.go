@@ -79,16 +79,21 @@ func (c *Connection) Run() error {
 		// check code
 		goodCode := true
 		m := strings.Split(c.Code, "-")
+		log.Debug(m)
 		numThreads, errParse := strconv.Atoi(m[0])
 		if len(m) < 2 {
 			goodCode = false
+			log.Debug("code too short")
 		} else if numThreads > MAX_NUMBER_THREADS || numThreads < 1 || (forceSingleThreaded && numThreads != 1) {
 			c.NumberOfConnections = MAX_NUMBER_THREADS
 			goodCode = false
+			log.Debug("incorrect number of threads")
 		} else if errParse != nil {
 			goodCode = false
+			log.Debug("problem parsing threads")
 		}
 		log.Debug(m)
+		log.Debug(goodCode)
 		if !goodCode {
 			if c.IsSender {
 				if forceSingleThreaded {
@@ -236,7 +241,9 @@ func (c *Connection) runClient() error {
 				} else {
 					sendMessage("ok", connection)
 					logger.Debug("receive file")
-					fmt.Printf("\n\nReceiving (<-%s)..\n", sendersAddress)
+					if id == 0 {
+						fmt.Printf("\n\nReceiving (<-%s)..\n", sendersAddress)
+					}
 					c.receiveFile(id, connection)
 				}
 			}
@@ -341,6 +348,7 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 
 	logger.Debug("waiting for file")
 	var receivedBytes int64
+	receivedFirstBytes := false
 	for {
 		if !c.Debug {
 			c.bars[id].Incr()
@@ -357,6 +365,10 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 		}
 		io.CopyN(newFile, connection, BUFFERSIZE)
 		receivedBytes += BUFFERSIZE
+		if !receivedFirstBytes {
+			receivedFirstBytes = true
+			logger.Debug("Receieved first bytes!")
+		}
 	}
 	logger.Debug("received file")
 	return nil
@@ -390,7 +402,7 @@ func (c *Connection) sendFile(id int, connection net.Conn) {
 	sendBuffer := make([]byte, BUFFERSIZE)
 
 	// open encrypted file
-	file, err := os.Open(c.File.Name + ".enc")
+	file, err := os.OpenFile(c.File.Name+".enc", os.O_RDONLY, 0755)
 	if err != nil {
 		log.Error(err)
 		return
