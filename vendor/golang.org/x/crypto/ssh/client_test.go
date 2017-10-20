@@ -79,3 +79,40 @@ func TestHostKeyCheck(t *testing.T) {
 		}
 	}
 }
+func TestBannerCallback(t *testing.T) {
+	c1, c2, err := netPipe()
+	if err != nil {
+		t.Fatalf("netPipe: %v", err)
+	}
+	defer c1.Close()
+	defer c2.Close()
+
+	serverConf := &ServerConfig{
+		NoClientAuth: true,
+		BannerCallback: func(conn ConnMetadata) string {
+			return "Hello World"
+		},
+	}
+	serverConf.AddHostKey(testSigners["rsa"])
+	go NewServerConn(c1, serverConf)
+
+	var receivedBanner string
+	clientConf := ClientConfig{
+		User:            "user",
+		HostKeyCallback: InsecureIgnoreHostKey(),
+		BannerCallback: func(message string) error {
+			receivedBanner = message
+			return nil
+		},
+	}
+
+	_, _, _, err = NewClientConn(c2, "", &clientConf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := "Hello World"
+	if receivedBanner != expected {
+		t.Fatalf("got %s; want %s", receivedBanner, expected)
+	}
+}
