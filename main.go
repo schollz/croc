@@ -10,6 +10,8 @@ import (
 
 const BUFFERSIZE = 1024
 
+var oneGigabytePerSecond = 1000000 // expressed as kbps
+
 type Flags struct {
 	Relay               bool
 	Debug               bool
@@ -17,6 +19,7 @@ type Flags struct {
 	Server              string
 	File                string
 	Code                string
+	Rate                int
 	NumberOfConnections int
 }
 
@@ -37,6 +40,7 @@ croc version `+version+`
 	flag.StringVar(&flags.Server, "server", "cowyo.com", "address of relay server")
 	flag.StringVar(&flags.File, "send", "", "file to send")
 	flag.StringVar(&flags.Code, "code", "", "use your own code phrase")
+	flag.IntVar(&flags.Rate, "rate", oneGigabytePerSecond, "throttle down to speed in kbps")
 	flag.BoolVar(&flags.DontEncrypt, "no-encrypt", false, "turn off encryption")
 	flag.IntVar(&flags.NumberOfConnections, "threads", 4, "number of threads to use")
 	flag.Parse()
