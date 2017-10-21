@@ -12,6 +12,7 @@ import (
 )
 
 const MAX_NUMBER_THREADS = 8
+const CONNECTION_TIMEOUT = time.Hour
 
 type connectionMap struct {
 	receiver           map[string]net.Conn
@@ -135,7 +136,12 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		r.connections.Unlock()
 		// wait for receiver
 		receiversAddress := ""
+		isTimeout := time.Duration(0)
 		for {
+			if CONNECTION_TIMEOUT <= isTimeout {
+				sendMessage("timeout", connection)
+				break
+			}
 			r.connections.RLock()
 			if _, ok := r.connections.receiver[key]; ok {
 				receiversAddress = r.connections.receiver[key].RemoteAddr().String()
@@ -145,6 +151,7 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 			}
 			r.connections.RUnlock()
 			time.Sleep(100 * time.Millisecond)
+			isTimeout += 100 * time.Millisecond
 		}
 		logger.Debug("telling sender ok")
 		sendMessage(receiversAddress, connection)
