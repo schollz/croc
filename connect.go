@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"os"
 	"strconv"
@@ -125,6 +124,9 @@ func (c *Connection) Run() error {
 			if err := EncryptFile(c.File.Name, c.File.Name+".enc", c.Code); err != nil {
 				return err
 			}
+			if err := SplitFile(c.File.Name+".enc", c.NumberOfConnections); err != nil {
+				return err
+			}
 		}
 		// get file hash
 		var err error
@@ -135,6 +137,10 @@ func (c *Connection) Run() error {
 		// get file size
 		c.File.Size, err = FileSize(c.File.Name + ".enc")
 		if err != nil {
+			return err
+		}
+		// remove the file now since we still have pieces
+		if err := os.Remove(c.File.Name + ".enc"); err != nil {
 			return err
 		}
 		fmt.Printf("Sending %d byte file named '%s'\n", c.File.Size, c.File.Name)
@@ -207,8 +213,9 @@ func (c *Connection) runClient() error {
 					time.Sleep(100 * time.Millisecond)
 					// Write data from file
 					logger.Debug("send file")
-					c.sendFile(id, connection)
-					fmt.Println("File sent.")
+					if err := c.sendFile(id, connection); err != nil {
+						log.Error(err)
+					}
 				}
 			} else { // this is a receiver
 				logger.Debug("waiting for meta data from sender")
@@ -281,7 +288,7 @@ func (c *Connection) runClient() error {
 
 	if c.IsSender {
 		// TODO: Add confirmation
-		fmt.Println("File sent.")
+		fmt.Println("\nFile sent.")
 	} else { // Is a Receiver
 		if notPresent {
 			fmt.Println("Sender/Code not present")
@@ -290,7 +297,9 @@ func (c *Connection) runClient() error {
 		if !gotOK {
 			return errors.New("Transfer interrupted")
 		}
-		c.catFile(c.File.Name)
+		if err := c.catFile(); err != nil {
+			return err
+		}
 		log.Debugf("Code: [%s]", c.Code)
 		if c.DontEncrypt {
 			if err := CopyFile(c.File.Name+".enc", c.File.Name); err != nil {
@@ -330,28 +339,17 @@ func fileAlreadyExists(s []string, f string) bool {
 	return false
 }
 
-func (c *Connection) catFile(fname string) {
+func (c *Connection) catFile() error {
 	// cat the file
-	os.Remove(fname)
-	finished, err := os.Create(fname + ".enc")
-	defer finished.Close()
-	if err != nil {
-		log.Fatal(err)
+	files := make([]string, c.NumberOfConnections)
+	for id := range files {
+		files[id] = c.File.Name + ".enc." + strconv.Itoa(id)
 	}
-	for id := 0; id < c.NumberOfConnections; id++ {
-		fh, err := os.Open(fname + "." + strconv.Itoa(id))
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		_, err = io.Copy(finished, fh)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fh.Close()
-		os.Remove(fname + "." + strconv.Itoa(id))
+	toRemove := true
+	if c.Debug {
+		toRemove = false
 	}
-
+	return CatFiles(files, c.File.Name+".enc", toRemove)
 }
 
 func (c *Connection) receiveFile(id int, connection net.Conn) error {
@@ -367,8 +365,8 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 	chunkSize := int64(fileSizeInt)
 	logger.Debugf("chunk size: %d", chunkSize)
 
-	os.Remove(c.File.Name + "." + strconv.Itoa(id))
-	newFile, err := os.Create(c.File.Name + "." + strconv.Itoa(id))
+	os.Remove(c.File.Name + ".enc." + strconv.Itoa(id))
+	newFile, err := os.Create(c.File.Name + ".enc." + strconv.Itoa(id))
 	if err != nil {
 		panic(err)
 	}
@@ -406,66 +404,62 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 	return nil
 }
 
-func (c *Connection) sendFile(id int, connection net.Conn) {
+func (c *Connection) sendFile(id int, connection net.Conn) error {
 	logger := log.WithFields(log.Fields{
 		"function": "sendFile #" + strconv.Itoa(id),
 	})
 	defer connection.Close()
 
-	var err error
-
-	numChunks := math.Ceil(float64(c.File.Size) / float64(BUFFERSIZE))
-	chunksPerWorker := int(math.Ceil(numChunks / float64(c.NumberOfConnections)))
-
-	chunkSize := int64(chunksPerWorker * BUFFERSIZE)
-	if id+1 == c.NumberOfConnections {
-		chunkSize = int64(c.File.Size) - int64(c.NumberOfConnections-1)*chunkSize
-	}
-
-	if id == 0 || id == c.NumberOfConnections-1 {
-		logger.Debugf("numChunks: %v", numChunks)
-		logger.Debugf("chunksPerWorker: %v", chunksPerWorker)
-		logger.Debugf("bytesPerchunkSizeConnection: %v", chunkSize)
-	}
-
-	logger.Debugf("sending chunk size: %d", chunkSize)
-	connection.Write([]byte(fillString(strconv.FormatInt(int64(chunkSize), 10), 10)))
-
-	sendBuffer := make([]byte, BUFFERSIZE)
-
-	// open encrypted file
-	file, err := os.Open(c.File.Name + ".enc")
+	// open encrypted file chunk
+	logger.Debug("opening encrypted file chunk: " + c.File.Name + ".enc." + strconv.Itoa(id))
+	file, err := os.Open(c.File.Name + ".enc." + strconv.Itoa(id))
 	if err != nil {
-		log.Error(err)
-		return
+		return err
 	}
 	defer file.Close()
 
-	chunkI := 0
+	// determine and send the file size to client
+	fi, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	logger.Debugf("sending chunk size: %d", fi.Size())
+	connection.Write([]byte(fillString(strconv.FormatInt(int64(fi.Size()), 10), 10)))
+
+	// show the progress
 	if !c.Debug {
-		c.bars[id] = uiprogress.AddBar(chunksPerWorker).AppendCompleted().PrependElapsed()
+		logger.Debug("going to show progress")
+		c.bars[id] = uiprogress.AddBar(int(fi.Size())).AppendCompleted().PrependElapsed()
 	}
 
+	// rate limit the bandwidth
+	logger.Debug("determining rate limiting")
 	bufferSizeInKilobytes := BUFFERSIZE / 1024
 	rate := float64(c.rate) / float64(c.NumberOfConnections*bufferSizeInKilobytes)
 	throttle := time.NewTicker(time.Second / time.Duration(rate))
 	defer throttle.Stop()
 
+	// send the file
+	sendBuffer := make([]byte, BUFFERSIZE)
+	totalBytesSent := 0
 	for range throttle.C {
-		_, err = file.Read(sendBuffer)
+		n, err := file.Read(sendBuffer)
+		connection.Write(sendBuffer)
+		totalBytesSent += n
+		if !c.Debug {
+			c.bars[id].Set(totalBytesSent)
+		}
 		if err == io.EOF {
 			//End of file reached, break out of for loop
 			logger.Debug("EOF")
 			break
 		}
-		if (chunkI >= chunksPerWorker*id && chunkI < chunksPerWorker*id+chunksPerWorker) || (id == c.NumberOfConnections-1 && chunkI >= chunksPerWorker*id) {
-			connection.Write(sendBuffer)
-			if !c.Debug {
-				c.bars[id].Incr()
-			}
-		}
-		chunkI++
 	}
 	logger.Debug("file is sent")
-	return
+	logger.Debug("removing piece")
+	if !c.Debug {
+		file.Close()
+		err = os.Remove(c.File.Name + ".enc." + strconv.Itoa(id))
+	}
+	return err
 }
