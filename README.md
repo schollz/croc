@@ -12,7 +12,7 @@
 
 This is more or less (but mostly *less*) a Golang port of [@warner's](https://github.com/warner) [*magic-wormhole*](https://github.com/warner/magic-wormhole). I wrote this because I wanted to send my friend Jessie a file using *magic-wormhole*. However, Jessie doesn't like the idea of putting Python on her computer because it is a giant snake. So, nominally, this is a version of *magic-wormhole* without the dependencies that you can just double-click on your computer, even if you use Windows.
 
-**Don't we have enough open-source peer-to-peer file utilities?**
+**Don't we have enough open-source peer-to-peer file-transfer utilities?**
 
 [There](https://github.com/cowbell/sharedrop) [are](https://github.com/webtorrent/instant.io) [great](https://github.com/kern/filepizza) [tools](https://github.com/warner/magic-wormhole) [that](https://github.com/zerotier/toss) [already](https://github.com/ipfs/go-ipfs) [do](https://github.com/zerotier/toss) [this](https://github.com/nils-werner/zget). But, no we don't, because after review, [I found it was useful to make a new one](https://schollz.github.io/sending-a-file/).
 
