@@ -9,6 +9,30 @@ import (
 	"strconv"
 )
 
+func CatFiles(files []string, outfile string, remove ...bool) error {
+	finished, err := os.Create(outfile)
+	defer finished.Close()
+	if err != nil {
+		return err
+	}
+	for i := range files {
+		fh, err := os.Open(files[i])
+		if err != nil {
+			return err
+		}
+
+		_, err = io.Copy(finished, fh)
+		if err != nil {
+			return err
+		}
+		fh.Close()
+		if len(remove) > 0 && remove[0] {
+			os.Remove(files[i])
+		}
+	}
+	return nil
+}
+
 // SplitFile
 func SplitFile(fileName string, numPieces int) (err error) {
 	file, err := os.Open(fileName)
