@@ -117,6 +117,10 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 	sendMessage("who?", connection)
 
 	m := strings.Split(receiveMessage(connection), ".")
+	if len(m) != 3 {
+		sendMessage("not enough information", connection)
+		return
+	}
 	connectionType, codePhrase, metaData := m[0], m[1], m[2]
 	key := codePhrase + "-" + strconv.Itoa(id)
 	logger := log.WithFields(log.Fields{
