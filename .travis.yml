@@ -11,6 +11,6 @@ before_install:
   - go get github.com/schollz/mnemonicode
   - go get github.com/pkg/errors
   - go get github.com/sirupsen/logrus
-
+  - go get github.com/verybluebot/tarinator-go
 script:
   - go test -v
