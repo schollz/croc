@@ -180,7 +180,12 @@ func (c *Connection) runClient() error {
 			port := strconv.Itoa(27001 + id)
 			connection, err := net.Dial("tcp", c.Server+":"+port)
 			if err != nil {
-				panic(err)
+				if c.Server == "cowyo.com" {
+					fmt.Println("\nThe public server is down. Please tweet the webmaster: @yakczar")
+				} else {
+					fmt.Printf("\nCould not connect to relay %s\n", c.Server)
+				}
+				os.Exit(1)
 			}
 			defer connection.Close()
 
