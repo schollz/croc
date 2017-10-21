@@ -387,6 +387,10 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 	fileSizeInt, _ := strconv.Atoi(fileDataString)
 	chunkSize := int64(fileSizeInt)
 	logger.Debugf("chunk size: %d", chunkSize)
+	if chunkSize == 0 {
+		logger.Debug(fileSizeBuffer)
+		return errors.New("chunk size is empty!")
+	}
 
 	os.Remove(c.File.Name + ".enc." + strconv.Itoa(id))
 	log.Debug("Making " + c.File.Name + ".enc." + strconv.Itoa(id))
@@ -448,7 +452,10 @@ func (c *Connection) sendFile(id int, connection net.Conn) error {
 		return err
 	}
 	logger.Debugf("sending chunk size: %d", fi.Size())
-	connection.Write([]byte(fillString(strconv.FormatInt(int64(fi.Size()), 10), 10)))
+	_, err = connection.Write([]byte(fillString(strconv.FormatInt(int64(fi.Size()), 10), 10)))
+	if err != nil {
+		return errors.Wrap(err, "Problem sending chunk data: ")
+	}
 
 	// show the progress
 	if !c.Debug {
