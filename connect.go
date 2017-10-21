@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,6 +36,7 @@ type FileMetaData struct {
 	Name string
 	Size int
 	Hash string
+	Path string
 }
 
 func NewConnection(flags *Flags) *Connection {
@@ -47,7 +49,8 @@ func NewConnection(flags *Flags) *Connection {
 	c.NumberOfConnections = flags.NumberOfConnections
 	c.rate = flags.Rate
 	if len(flags.File) > 0 {
-		c.File.Name = flags.File
+		c.File.Name = path.Base(flags.File)
+		c.File.Path = path.Dir(flags.File)
 		c.IsSender = true
 	} else {
 		c.IsSender = false
@@ -66,7 +69,7 @@ func NewConnection(flags *Flags) *Connection {
 func (c *Connection) Run() error {
 	forceSingleThreaded := false
 	if c.IsSender {
-		fsize, err := FileSize(c.File.Name)
+		fsize, err := FileSize(path.Join(c.File.Path, c.File.Name))
 		if err != nil {
 			return err
 		}
@@ -117,11 +120,11 @@ func (c *Connection) Run() error {
 	if c.IsSender {
 		if c.DontEncrypt {
 			// don't encrypt
-			CopyFile(c.File.Name, c.File.Name+".enc")
+			CopyFile(path.Join(c.File.Path, c.File.Name), c.File.Name+".enc")
 		} else {
 			// encrypt
 			log.Debug("encrypting...")
-			if err := EncryptFile(c.File.Name, c.File.Name+".enc", c.Code); err != nil {
+			if err := EncryptFile(path.Join(c.File.Path, c.File.Name), c.File.Name+".enc", c.Code); err != nil {
 				return err
 			}
 			if err := SplitFile(c.File.Name+".enc", c.NumberOfConnections); err != nil {
@@ -130,7 +133,7 @@ func (c *Connection) Run() error {
 		}
 		// get file hash
 		var err error
-		c.File.Hash, err = HashFile(c.File.Name)
+		c.File.Hash, err = HashFile(path.Join(c.File.Path, c.File.Name))
 		if err != nil {
 			return err
 		}
@@ -337,7 +340,7 @@ func (c *Connection) runClient() error {
 		if c.File.Hash != fileHash {
 			return fmt.Errorf("\nUh oh! %s is corrupted! Sorry, try again.\n", c.File.Name)
 		} else {
-			fmt.Printf("\nReceived file written to %s", c.File.Name)
+			fmt.Printf("\nReceived file written to %s\n", c.File.Name)
 		}
 	}
 	return nil
