@@ -41,6 +41,10 @@ type FileMetaData struct {
 	isDir bool
 }
 
+const (
+	tmpTarGzFileName = "to_send.tmp.tar.gz"
+)
+
 func NewConnection(flags *Flags) *Connection {
 	c := new(Connection)
 	c.Debug = flags.Debug
@@ -61,22 +65,23 @@ func NewConnection(flags *Flags) *Connection {
 		if info.Mode().IsDir() { // if our file is a dir
 			fmt.Print("The file you are trying to send is a directory; compressing...")
 
-			tmpFileName := "to_send.tmp.tar.gz"
 			// we "tarify" the file
-			err = tarinator.Tarinate([]string{flags.File}, tmpFileName)
+			err = tarinator.Tarinate([]string{flags.File}, tmpTarGzFileName)
 			if err != nil {
 				fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
 				os.Exit(1)
 			}
 
 			// now, we change the target file name to match the new archive created
-			flags.File = tmpFileName
+			flags.File = tmpTarGzFileName
 			// we set the value isDir to true
 			c.File.isDir = true
 			fmt.Println("Done !")
+			c.File.Name = path.Base(tmpTarGzFileName)
+		} else {
+			c.File.Name = path.Base(flags.File)
 		}
 
-		c.File.Name = path.Base(flags.File)
 		c.File.Path = path.Dir(flags.File)
 		c.IsSender = true
 	} else {
@@ -173,6 +178,14 @@ func (c *Connection) Run() error {
 		if err := os.Remove(c.File.Name + ".enc"); err != nil {
 			return err
 		}
+
+		// remove compressed archive
+		if c.File.isDir {
+			if err := os.Remove(tmpTarGzFileName); err != nil {
+				return err
+			}
+		}
+
 		fmt.Printf("Sending %d byte file named '%s'\n", c.File.Size, c.File.Name)
 		fmt.Printf("Code is: %s\n", c.Code)
 	}
@@ -374,6 +387,7 @@ func (c *Connection) runClient() error {
 		} else {
 			fmt.Printf("\nReceived file written to %s\n", c.File.Name)
 		}
+
 	}
 	return nil
 }
