@@ -117,7 +117,7 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 	sendMessage("who?", connection)
 
 	m := strings.Split(receiveMessage(connection), ".")
-	if len(m) != 3 {
+	if len(m) < 3 {
 		sendMessage("not enough information", connection)
 		return
 	}
