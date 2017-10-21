@@ -166,6 +166,7 @@ func (c *Connection) runClient() error {
 	if !c.Debug {
 		c.bars = make([]*uiprogress.Bar, c.NumberOfConnections)
 	}
+	gotTimeout := false
 	gotOK := false
 	gotResponse := false
 	gotConnectionInUse := false
@@ -201,8 +202,13 @@ func (c *Connection) runClient() error {
 			if c.IsSender { // this is a sender
 				logger.Debug("waiting for ok from relay")
 				message = receiveMessage(connection)
+				if message == "timeout" {
+					gotTimeout = true
+					fmt.Println("You've just exceeded limit waiting time.")
+					return
+				}
 				if message == "no" {
-					if id == 0 {					
+					if id == 0 {
 						fmt.Println("The specifed code is already in use by a sender.")
 					}
 					gotConnectionInUse = true
@@ -223,7 +229,7 @@ func (c *Connection) runClient() error {
 				logger.Debug("waiting for meta data from sender")
 				message = receiveMessage(connection)
 				if message == "no" {
-					if id == 0 {					
+					if id == 0 {
 						fmt.Println("The specifed code is already in use by a sender.")
 					}
 					gotConnectionInUse = true
@@ -291,7 +297,10 @@ func (c *Connection) runClient() error {
 	}
 
 	if c.IsSender {
-		// TODO: Add confirmation
+		if gotTimeout {
+			fmt.Println("Timeout waiting for receiver")
+			return nil
+		}
 		fmt.Println("\nFile sent.")
 	} else { // Is a Receiver
 		if notPresent {
