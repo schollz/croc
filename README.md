@@ -10,7 +10,7 @@
 
 <p align="center">Secure transfer of stuff from one side of the internet to the other.</p>
 
-This is more or less (but mostly *less*) a Golang port of [@warner's](https://github.com/warner) [*magic-wormhole*](https://github.com/warner/magic-wormhole) which allows you to directly transfer files between computers. I wrote this because I wanted to send my friend Jessie a file using *magic-wormhole*. However, Jessie doesn't like the idea of putting Python on her computer because it is a giant snake. So, nominally, this is a version of *magic-wormhole* without the dependencies that you can just double-click on your computer, even if you use Windows.
+This is more or less (but mostly *less*) a Golang port of [@warner's](https://github.com/warner) [*magic-wormhole*](https://github.com/warner/magic-wormhole) which allows you to directly transfer files between computers. I wrote this because I wanted to send my friend Jessie a file using *magic-wormhole*. However, when I told Jessie how to install the dependencies for *magic-wormhole* she made this face: :sob:. So, nominally, *croc* does the same thing (file transfer directly between computers) without dependencies so you can just double-click on your computer, even if you use Windows.
 
 **Don't we have enough open-source peer-to-peer file-transfer utilities?**
 
