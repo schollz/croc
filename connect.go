@@ -389,6 +389,7 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 	logger.Debugf("chunk size: %d", chunkSize)
 
 	os.Remove(c.File.Name + ".enc." + strconv.Itoa(id))
+	log.Debug("Making " + c.File.Name + ".enc." + strconv.Itoa(id))
 	newFile, err := os.Create(c.File.Name + ".enc." + strconv.Itoa(id))
 	if err != nil {
 		panic(err)
