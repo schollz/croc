@@ -177,7 +177,8 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		delete(r.connections.potentialReceivers, key)
 		r.connections.Unlock()
 		logger.Debug("deleted sender and receiver")
-	} else if connectionType == "r" { //receiver connection "r"
+	} else if connectionType == "r" || connectionType == "c" {
+		//receiver
 		if r.connections.IsPotentialReceiverConnected(key) {
 			sendMessage("no", connection)
 			return
@@ -236,7 +237,7 @@ func receiveMessage(connection net.Conn) string {
 		"ip":   connection.RemoteAddr().String(),
 	})
 	messageByte := make([]byte, BUFFERSIZE)
-	err := connection.SetDeadline(time.Now().Add(30 * time.Second))
+	err := connection.SetDeadline(time.Now().Add(60 * time.Minute))
 	if err != nil {
 		logger.Warn(err)
 	}
