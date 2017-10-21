@@ -290,7 +290,9 @@ func (c *Connection) runClient() error {
 		if !gotOK {
 			return errors.New("Transfer interrupted")
 		}
-		c.catFile(c.File.Name)
+		if err := c.catFile(); err != nil {
+			return err
+		}
 		log.Debugf("Code: [%s]", c.Code)
 		if c.DontEncrypt {
 			if err := CopyFile(c.File.Name+".enc", c.File.Name); err != nil {
@@ -330,28 +332,17 @@ func fileAlreadyExists(s []string, f string) bool {
 	return false
 }
 
-func (c *Connection) catFile(fname string) {
+func (c *Connection) catFile() error {
 	// cat the file
-	os.Remove(fname)
-	finished, err := os.Create(fname + ".enc")
-	defer finished.Close()
-	if err != nil {
-		log.Fatal(err)
+	files := make([]string, c.NumberOfConnections)
+	for id := range files {
+		files[id] = c.File.Name + "." + strconv.Itoa(id)
 	}
-	for id := 0; id < c.NumberOfConnections; id++ {
-		fh, err := os.Open(fname + "." + strconv.Itoa(id))
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		_, err = io.Copy(finished, fh)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fh.Close()
-		os.Remove(fname + "." + strconv.Itoa(id))
+	toRemove := true
+	if c.Debug {
+		toRemove = false
 	}
-
+	return CatFiles(files, c.File.Name+".enc", toRemove)
 }
 
 func (c *Connection) receiveFile(id int, connection net.Conn) error {
