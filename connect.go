@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/verybluebot/tarinator-go"
 	"io"
 	"net"
 	"os"
@@ -33,10 +34,11 @@ type Connection struct {
 }
 
 type FileMetaData struct {
-	Name string
-	Size int
-	Hash string
-	Path string
+	Name  string
+	Size  int
+	Hash  string
+	Path  string
+	isDir bool
 }
 
 func NewConnection(flags *Flags) *Connection {
@@ -49,6 +51,31 @@ func NewConnection(flags *Flags) *Connection {
 	c.NumberOfConnections = flags.NumberOfConnections
 	c.rate = flags.Rate
 	if len(flags.File) > 0 {
+		// check wether the file is a dir
+		info, err := os.Stat(flags.File)
+		if err != nil {
+			fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
+			os.Exit(1)
+		}
+
+		if info.Mode().IsDir() { // if our file is a dir
+			fmt.Print("The file you are trying to send is a directory; compressing...")
+
+			tmpFileName := "to_send.tmp.tar.gz"
+			// we "tarify" the file
+			err = tarinator.Tarinate([]string{flags.File}, tmpFileName)
+			if err != nil {
+				fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
+				os.Exit(1)
+			}
+
+			// now, we change the target file name to match the new archive created
+			flags.File = tmpFileName
+			// we set the value isDir to true
+			c.File.isDir = true
+			fmt.Println("Done !")
+		}
+
 		c.File.Name = path.Base(flags.File)
 		c.File.Path = path.Dir(flags.File)
 		c.IsSender = true
