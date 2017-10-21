@@ -28,12 +28,16 @@ var version string
 
 func main() {
 	fmt.Println(`
-         /\_/\
-    ____/ o o \
-  /~____  =ø= /
- (______)__m_m)
+                                ,_
+                               >' )
+   croc version ` + fmt.Sprintf("%5s", version) + `          ( ( \ 
+                                || \ 
+                 /^^^^\         ||
+    /^^\________/0     \        ||
+   (                    ` + "`" + `~+++,,_||__,,++~^^^^^^^
+ ...V^V^V^V^V^V^\...............................
 
-croc version ` + version + `
+
 `)
 	flags := new(Flags)
 	flag.BoolVar(&flags.Relay, "relay", false, "run as relay")
