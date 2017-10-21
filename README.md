@@ -67,7 +67,7 @@ Or, if you are like my good friend Jessie and "*just can't even*" with programmi
 
 ## Run your own relay
 
-*croc* relies on a TCP relay to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses my server, `cowyo.com`, which has no guarantees except that I guarantee to turn if off as soon as it gets abused. 
+*croc* relies on a TCP relay to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses a public relay at, `cowyo.com`, which has no guarantees except that I guarantee to turn if off as soon as it gets abused ([click here to check the current status of the public relay](https://stats.uptimerobot.com/lOwJYIgRm)). 
 
 I recommend you run your own relay, it is very easy. On your server, `your-server.com`, just run
 
