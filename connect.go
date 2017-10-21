@@ -38,7 +38,7 @@ type FileMetaData struct {
 	Size  int
 	Hash  string
 	Path  string
-	isDir bool
+	IsDir bool
 }
 
 const (
@@ -74,8 +74,8 @@ func NewConnection(flags *Flags) *Connection {
 
 			// now, we change the target file name to match the new archive created
 			flags.File = tmpTarGzFileName
-			// we set the value isDir to true
-			c.File.isDir = true
+			// we set the value IsDir to true
+			c.File.IsDir = true
 			fmt.Println("Done !")
 			c.File.Name = path.Base(tmpTarGzFileName)
 		} else {
@@ -180,7 +180,7 @@ func (c *Connection) Run() error {
 		}
 
 		// remove compressed archive
-		if c.File.isDir {
+		if c.File.IsDir {
 			if err := os.Remove(tmpTarGzFileName); err != nil {
 				return err
 			}
