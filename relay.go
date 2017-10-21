@@ -114,8 +114,6 @@ func (r *Relay) listener(id int) (err error) {
 }
 
 func (r *Relay) clientCommuncation(id int, connection net.Conn) {
-	defer connection.Close()
-
 	logger := log.WithFields(log.Fields{
 		"id": id,
 		"ip": connection.RemoteAddr().String(),
@@ -171,6 +169,10 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		Pipe(con1, con2)
 		logger.Debug("done piping")
 		r.connections.Lock()
+		// close connections
+		r.connections.sender[key].Close()
+		r.connections.receiver[key].Close()
+		// delete connctions
 		delete(r.connections.sender, key)
 		delete(r.connections.receiver, key)
 		delete(r.connections.metadata, key)
