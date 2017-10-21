@@ -1,7 +1,7 @@
 <p align="center">
 <img
-    src="https://user-images.githubusercontent.com/6550035/31846736-0357bb50-b5cd-11e7-9037-96c3887fcd28.png"
-    width="360" border="0" alt="croc">
+    src="https://user-images.githubusercontent.com/6550035/31846899-2b8a7034-b5cf-11e7-9643-afe552226c59.png"
+    width="100%" border="0" alt="croc">
 <br>
 <a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-WIP-red.svg?style=flat-square" alt="Version"></a>
 <img src="https://img.shields.io/badge/coverage-7%25-red.svg?style=flat-square" alt="Code Coverage">
