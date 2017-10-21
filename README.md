@@ -102,4 +102,4 @@ Thanks...
 - ...[@warner](https://github.com/warner) for the [idea](https://github.com/warner/magic-wormhole).
 - ...[@tscholl2](https://github.com/tscholl2) for the [encryption gists](https://gist.github.com/tscholl2/dc7dc15dc132ea70a98e8542fefffa28).
 - ...[@skorokithakis](https://github.com/skorokithakis) for [code on proxying two connections](https://www.stavros.io/posts/proxying-two-connections-go/).
-- ...for making pull requests [@Girbons](https://github.com/ss), [@techtide](https://github.com/techtide), [@heymatthew](https://github.com/heymatthew)!
+- ...for making pull requests [@Girbons](https://github.com/ss), [@techtide](https://github.com/techtide), [@heymatthew](https://github.com/heymatthew), [@Lunsford94](https://github.com/Lunsford94), [@lummie](https://github.com/lummie)!
