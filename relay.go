@@ -114,26 +114,29 @@ func (r *Relay) listener(id int) (err error) {
 }
 
 func (r *Relay) clientCommuncation(id int, connection net.Conn) {
-	sendMessage("who?", connection)
+	defer connection.Close()
 
+	logger := log.WithFields(log.Fields{
+		"id": id,
+		"ip": connection.RemoteAddr().String(),
+	})
+
+	sendMessage("who?", connection)
 	m := strings.Split(receiveMessage(connection), ".")
 	if len(m) < 3 {
+		logger.Debug("exiting, not enough information")
 		sendMessage("not enough information", connection)
 		return
 	}
 	connectionType, codePhrase, metaData := m[0], m[1], m[2]
 	key := codePhrase + "-" + strconv.Itoa(id)
-	logger := log.WithFields(log.Fields{
-		"id":         id,
-		"codePhrase": codePhrase,
-	})
 
 	if connectionType == "s" { // sender connection
 		if r.connections.IsSenderConnected(key) {
 			sendMessage("no", connection)
 			return
 		}
-		logger.Debug("got sender")
+
 		r.connections.Lock()
 		r.connections.metadata[key] = metaData
 		r.connections.sender[key] = connection
@@ -174,7 +177,7 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		delete(r.connections.potentialReceivers, key)
 		r.connections.Unlock()
 		logger.Debug("deleted sender and receiver")
-	} else { //receiver connection "r"
+	} else if connectionType == "r" { //receiver connection "r"
 		if r.connections.IsPotentialReceiverConnected(key) {
 			sendMessage("no", connection)
 			return
@@ -216,6 +219,8 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 			r.connections.receiver[key] = connection
 			r.connections.Unlock()
 		}
+	} else {
+		logger.Debugf("Got unknown protocol: '%s'", connectionType)
 	}
 	return
 }
@@ -226,8 +231,20 @@ func sendMessage(message string, connection net.Conn) {
 }
 
 func receiveMessage(connection net.Conn) string {
+	logger := log.WithFields(log.Fields{
+		"func": "receiveMessage",
+		"ip":   connection.RemoteAddr().String(),
+	})
 	messageByte := make([]byte, BUFFERSIZE)
-	connection.Read(messageByte)
+	err := connection.SetDeadline(time.Now().Add(30 * time.Second))
+	if err != nil {
+		logger.Warn(err)
+	}
+	_, err = connection.Read(messageByte)
+	if err != nil {
+		logger.Warn("read deadline, no response")
+		return ""
+	}
 	return strings.Replace(string(messageByte), ":", "", -1)
 }
 
