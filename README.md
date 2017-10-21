@@ -18,6 +18,10 @@ This is more or less (but mostly *less*) a Golang port of [@warner's](https://gi
 
 # Example
 
+![send](https://user-images.githubusercontent.com/6550035/31855780-35140b88-b66f-11e7-86cb-c23e2cb4fa86.gif)
+![receive](https://user-images.githubusercontent.com/6550035/31855781-3632b384-b66f-11e7-8b29-9ba61ec374d4.gif)
+
+
 **Sender:**
 
 ```
