@@ -202,7 +202,9 @@ func (c *Connection) runClient() error {
 				logger.Debug("waiting for ok from relay")
 				message = receiveMessage(connection)
 				if message == "no" {
-					fmt.Println("The specifed code is already in use by a sender.")
+					if id == 0 {					
+						fmt.Println("The specifed code is already in use by a sender.")
+					}
 					gotConnectionInUse = true
 				} else {
 					logger.Debug("got ok from relay")
@@ -221,7 +223,9 @@ func (c *Connection) runClient() error {
 				logger.Debug("waiting for meta data from sender")
 				message = receiveMessage(connection)
 				if message == "no" {
-					fmt.Println("The specifed code is already in use by a receiver.")
+					if id == 0 {					
+						fmt.Println("The specifed code is already in use by a sender.")
+					}
 					gotConnectionInUse = true
 				} else {
 					m := strings.Split(message, "-")
