@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/verybluebot/tarinator-go"
 	"io"
 	"net"
 	"os"
@@ -33,11 +34,16 @@ type Connection struct {
 }
 
 type FileMetaData struct {
-	Name string
-	Size int
-	Hash string
-	Path string
+	Name  string
+	Size  int
+	Hash  string
+	Path  string
+	IsDir bool
 }
+
+const (
+	tmpTarGzFileName = "to_send.tmp.tar.gz"
+)
 
 func NewConnection(flags *Flags) *Connection {
 	c := new(Connection)
@@ -49,7 +55,33 @@ func NewConnection(flags *Flags) *Connection {
 	c.NumberOfConnections = flags.NumberOfConnections
 	c.rate = flags.Rate
 	if len(flags.File) > 0 {
-		c.File.Name = path.Base(flags.File)
+		// check wether the file is a dir
+		info, err := os.Stat(flags.File)
+		if err != nil {
+			fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
+			os.Exit(1)
+		}
+
+		if info.Mode().IsDir() { // if our file is a dir
+			fmt.Print("The file you are trying to send is a directory; compressing...")
+
+			// we "tarify" the file
+			err = tarinator.Tarinate([]string{flags.File}, tmpTarGzFileName)
+			if err != nil {
+				fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
+				os.Exit(1)
+			}
+
+			// now, we change the target file name to match the new archive created
+			flags.File = tmpTarGzFileName
+			// we set the value IsDir to true
+			c.File.IsDir = true
+			fmt.Println("Done !")
+			c.File.Name = path.Base(tmpTarGzFileName)
+		} else {
+			c.File.Name = path.Base(flags.File)
+		}
+
 		c.File.Path = path.Dir(flags.File)
 		c.IsSender = true
 	} else {
@@ -146,6 +178,14 @@ func (c *Connection) Run() error {
 		if err := os.Remove(c.File.Name + ".enc"); err != nil {
 			return err
 		}
+
+		// remove compressed archive
+		if c.File.IsDir {
+			if err := os.Remove(tmpTarGzFileName); err != nil {
+				return err
+			}
+		}
+
 		fmt.Printf("Sending %d byte file named '%s'\n", c.File.Size, c.File.Name)
 		fmt.Printf("Code is: %s\n", c.Code)
 	}
@@ -349,6 +389,7 @@ func (c *Connection) runClient() error {
 		} else {
 			fmt.Printf("\nReceived file written to %s\n", c.File.Name)
 		}
+
 	}
 	return nil
 }
