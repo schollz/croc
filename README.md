@@ -10,9 +10,11 @@
 
 <p align="center">Secure transfer of stuff from one side of the internet to the other.</p>
 
-This is more or less a Golang port of [@warner](https://github.com/warner's) [*magic-wormhole*](https://github.com/warner/magic-wormhole). I wrote this because I wanted to send my friend Jessie a file using *magic-wormhole*. However, Jessie doesn't like the idea of putting Python on her computer because it is a giant snake. So, nominally, this is a version of *magic-wormhole* without the dependencies that you can just double-click on your computer, even if you use Windows.
+This is more or less (but mostly *less*) a Golang port of [@warner's](https://github.com/warner) [*magic-wormhole*](https://github.com/warner/magic-wormhole). I wrote this because I wanted to send my friend Jessie a file using *magic-wormhole*. However, Jessie doesn't like the idea of putting Python on her computer because it is a giant snake. So, nominally, this is a version of *magic-wormhole* without the dependencies that you can just double-click on your computer, even if you use Windows.
 
-**This is a work-in-progress, the master branch may break from time to time until the first release.**
+**Don't we have enough open-source peer-to-peer file utilities?**
+
+[There](https://github.com/cowbell/sharedrop) [are](https://github.com/webtorrent/instant.io) [great](https://github.com/kern/filepizza) [tools](https://github.com/warner/magic-wormhole) [that](https://github.com/zerotier/toss) [already](https://github.com/ipfs/go-ipfs) [do](https://github.com/zerotier/toss) [this](https://github.com/nils-werner/zget). But, no we don't, because after review, [I found it was useful to make a new one](https://schollz.github.io/sending-a-file/).
 
 # Example
 
@@ -26,7 +28,8 @@ Code is: 4-cement-galaxy-alpha
 Sending (->24.65.41.43:50843)..
    0s [==========================================================] 100%
    0s [==========================================================] 100%
-   0s [===========================================>--------------]  79%
+   0s 
+     79%
    0s [========================================>-----------------]  75%
 File sent.
 ```
@@ -46,6 +49,8 @@ Receiving (<-50.32.38.188:50843)..
    0s [==========================================================] 100%
 Received file written to croc.exe
 ```
+
+
 
 # Install
 
