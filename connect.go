@@ -292,7 +292,9 @@ func (c *Connection) runClient() error {
 						if id == 0 {
 							fmt.Printf("\n\nReceiving (<-%s)..\n", sendersAddress)
 						}
-						c.receiveFile(id, connection)
+						if err := c.receiveFile(id, connection); err != nil {
+							log.Error(errors.Wrap(err, "Problem receiving the file: "))
+						}
 					}
 				}
 			}
