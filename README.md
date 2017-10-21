@@ -8,7 +8,7 @@
 <a href="https://gitter.im/schollz/croc?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=body_badge"><img src="https://img.shields.io/badge/chat-on%20gitter-green.svg?style=flat-square" alt="Version"></a>
 </p>
 
-<p align="center">Secure transfer of stuff across the internet.</p>
+<p align="center">Secure transfer of stuff from one side of the internet to the other.</p>
 
 This is more or less a Golang port of [@warner](https://github.com/warner's) [*magic-wormhole*](https://github.com/warner/magic-wormhole). I wrote this because I wanted to send my friend Jessie a file using *magic-wormhole*. However, Jessie doesn't like the idea of putting Python on her computer because it is a giant snake. So, nominally, this is a version of *magic-wormhole* without the dependencies that you can just double-click on your computer, even if you use Windows.
 
