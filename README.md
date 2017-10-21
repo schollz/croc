@@ -18,6 +18,12 @@ This is more or less (but mostly *less*) a Golang port of [@warner's](https://gi
 
 # Example
 
+_These two gifs should run in sync if you force-reload (Ctl+F5)_
+
+![send](https://user-images.githubusercontent.com/6550035/31855780-35140b88-b66f-11e7-86cb-c23e2cb4fa86.gif)
+![receive](https://user-images.githubusercontent.com/6550035/31855781-3632b384-b66f-11e7-8b29-9ba61ec374d4.gif)
+
+
 **Sender:**
 
 ```
@@ -61,7 +67,7 @@ Or, if you are like my good friend Jessie and "*just can't even*" with programmi
 
 ## Run your own relay
 
-*croc* relies on a TCP relay to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses my server, `cowyo.com`, which has no guarantees except that I guarantee to turn if off as soon as it gets abused. 
+*croc* relies on a TCP relay to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses a public relay at, `cowyo.com`, which has no guarantees except that I guarantee to turn if off as soon as it gets abused ([click here to check the current status of the public relay](https://stats.uptimerobot.com/lOwJYIgRm)). 
 
 I recommend you run your own relay, it is very easy. On your server, `your-server.com`, just run
 
