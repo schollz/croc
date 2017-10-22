@@ -59,8 +59,12 @@ func main() {
 		r := NewRelay(flags)
 		r.Run()
 	} else {
-		c := NewConnection(flags)
-		err := c.Run()
+		c, err := NewConnection(flags)
+		if err != nil {
+			fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
+			return
+		}
+		err = c.Run()
 		if err != nil {
 			fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
 		}
