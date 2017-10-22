@@ -317,10 +317,16 @@ func (c *Connection) runClient() error {
 					log.Debugf("meta data received: %v", c.File)
 					// have the main thread ask for the okay
 					if id == 0 {
+						fType := "file"
+						fName := path.Join(c.Path, c.File.Name)
+						if c.File.IsDir {
+							fType = "folder"
+							fName = fName[:len(fName)-4]
+						}
 						if _, err := os.Stat(path.Join(c.Path, c.File.Name)); os.IsNotExist(err) {
-							fmt.Printf("Receiving file (%s) into: %s\n", humanize.Bytes(uint64(c.File.Size)), path.Join(c.Path, c.File.Name))
+							fmt.Printf("Receiving %s (%s) into: %s\n", fType, humanize.Bytes(uint64(c.File.Size)), fName)
 						} else {
-							fmt.Printf("Overwriting file %s (%s)\n", path.Join(c.Path, c.File.Name), humanize.Bytes(uint64(c.File.Size)))
+							fmt.Printf("Overwriting %s %s (%s)\n", fType, fName, humanize.Bytes(uint64(c.File.Size)))
 						}
 						var sentFileNames []string
 

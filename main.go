@@ -38,8 +38,7 @@ func main() {
     /^^\________/0     \        ||
    (                    ` + "`" + `~+++,,_||__,,++~^^^^^^^
  ...V^V^V^V^V^V^\...............................
-
-
+ 
 `)
 	flags := new(Flags)
 	flag.BoolVar(&flags.Relay, "relay", false, "run as relay")
