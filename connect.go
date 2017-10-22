@@ -25,7 +25,9 @@ type Connection struct {
 	NumberOfConnections int
 	Code                string
 	HashedCode          string
+	Path                string
 	IsSender            bool
+	AskPath             bool
 	Debug               bool
 	DontEncrypt         bool
 	Wait                bool
@@ -86,6 +88,8 @@ func NewConnection(flags *Flags) *Connection {
 		c.IsSender = true
 	} else {
 		c.IsSender = false
+		c.AskPath = flags.PathSpec
+		c.Path = flags.Path
 	}
 
 	log.SetFormatter(&log.TextFormatter{})
@@ -303,9 +307,15 @@ func (c *Connection) runClient() error {
 					log.Debugf("meta data received: %v", c.File)
 					// have the main thread ask for the okay
 					if id == 0 {
-						fmt.Printf("Receiving file (%d bytes) into: %s\n", c.File.Size, c.File.Name)
+						fmt.Printf("Receiving file (%d bytes) into: %s\n", c.File.Size, path.Join(c.Path, c.File.Name))
 						var sentFileNames []string
 
+						if c.AskPath {
+							getPath := getInput("path: ")
+							if len(getPath) > 0 {
+								c.Path = path.Clean(getPath)
+							}
+						}
 						if fileAlreadyExists(sentFileNames, c.File.Name) {
 							fmt.Printf("Will not overwrite file!")
 							os.Exit(1)
@@ -365,19 +375,19 @@ func (c *Connection) runClient() error {
 		}
 		log.Debugf("Code: [%s]", c.Code)
 		if c.DontEncrypt {
-			if err := CopyFile(c.File.Name+".enc", c.File.Name); err != nil {
+			if err := CopyFile(path.Join(c.Path, c.File.Name+".enc"), path.Join(c.Path, c.File.Name)); err != nil {
 				return err
 			}
 		} else {
-			if err := DecryptFile(c.File.Name+".enc", c.File.Name, c.Code); err != nil {
+			if err := DecryptFile(path.Join(c.Path, c.File.Name+".enc"), path.Join(c.Path, c.File.Name), c.Code); err != nil {
 				return errors.Wrap(err, "Problem decrypting file")
 			}
 		}
 		if !c.Debug {
-			os.Remove(c.File.Name + ".enc")
+			os.Remove(path.Join(c.Path, c.File.Name+".enc"))
 		}
 
-		fileHash, err := HashFile(c.File.Name)
+		fileHash, err := HashFile(path.Join(c.Path, c.File.Name))
 		if err != nil {
 			log.Error(err)
 		}
@@ -387,7 +397,7 @@ func (c *Connection) runClient() error {
 		if c.File.Hash != fileHash {
 			return fmt.Errorf("\nUh oh! %s is corrupted! Sorry, try again.\n", c.File.Name)
 		} else {
-			fmt.Printf("\nReceived file written to %s\n", c.File.Name)
+			fmt.Printf("\nReceived file written to %s\n", path.Join(c.Path, c.File.Name))
 		}
 
 	}
@@ -407,13 +417,13 @@ func (c *Connection) catFile() error {
 	// cat the file
 	files := make([]string, c.NumberOfConnections)
 	for id := range files {
-		files[id] = c.File.Name + ".enc." + strconv.Itoa(id)
+		files[id] = path.Join(c.Path, c.File.Name+".enc."+strconv.Itoa(id))
 	}
 	toRemove := true
 	if c.Debug {
 		toRemove = false
 	}
-	return CatFiles(files, c.File.Name+".enc", toRemove)
+	return CatFiles(files, path.Join(c.Path, c.File.Name+".enc"), toRemove)
 }
 
 func (c *Connection) receiveFile(id int, connection net.Conn) error {
@@ -433,9 +443,9 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 		return errors.New("chunk size is empty!")
 	}
 
-	os.Remove(c.File.Name + ".enc." + strconv.Itoa(id))
+	os.Remove(path.Join(c.Path, c.File.Name+".enc."+strconv.Itoa(id)))
 	log.Debug("Making " + c.File.Name + ".enc." + strconv.Itoa(id))
-	newFile, err := os.Create(c.File.Name + ".enc." + strconv.Itoa(id))
+	newFile, err := os.Create(path.Join(c.Path, c.File.Name+".enc."+strconv.Itoa(id)))
 	if err != nil {
 		panic(err)
 	}
