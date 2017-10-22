@@ -16,9 +16,11 @@ type Flags struct {
 	Relay               bool
 	Debug               bool
 	Wait                bool
+	PathSpec            bool
 	DontEncrypt         bool
 	Server              string
 	File                string
+	Path                string
 	Code                string
 	Rate                int
 	NumberOfConnections int
@@ -43,8 +45,10 @@ func main() {
 	flag.BoolVar(&flags.Relay, "relay", false, "run as relay")
 	flag.BoolVar(&flags.Debug, "debug", false, "debug mode")
 	flag.BoolVar(&flags.Wait, "wait", false, "wait for code to be sent")
+	flag.BoolVar(&flags.PathSpec, "ask-save", false, "ask for path to save to")
 	flag.StringVar(&flags.Server, "server", "cowyo.com", "address of relay server")
 	flag.StringVar(&flags.File, "send", "", "file to send")
+	flag.StringVar(&flags.Path, "save", "", "path to save to")
 	flag.StringVar(&flags.Code, "code", "", "use your own code phrase")
 	flag.IntVar(&flags.Rate, "rate", oneGigabytePerSecond, "throttle down to speed in kbps")
 	flag.BoolVar(&flags.DontEncrypt, "no-encrypt", false, "turn off encryption")
