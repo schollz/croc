@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/verybluebot/tarinator-go"
 	"io"
 	"net"
 	"os"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/verybluebot/tarinator-go"
 
 	"github.com/gosuri/uiprogress"
 	"github.com/pkg/errors"
@@ -48,7 +49,7 @@ const (
 	tmpTarGzFileName = "to_send.tmp.tar.gz"
 )
 
-func NewConnection(flags *Flags) *Connection {
+func NewConnection(flags *Flags) (*Connection, error) {
 	c := new(Connection)
 	c.Debug = flags.Debug
 	c.DontEncrypt = flags.DontEncrypt
@@ -61,31 +62,24 @@ func NewConnection(flags *Flags) *Connection {
 		// check wether the file is a dir
 		info, err := os.Stat(flags.File)
 		if err != nil {
-			fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
-			os.Exit(1)
+			return c, err
 		}
 
 		if info.Mode().IsDir() { // if our file is a dir
-			fmt.Print("The file you are trying to send is a directory; compressing...")
+			fmt.Println("compressing directory...")
 
 			// we "tarify" the file
-			err = tarinator.Tarinate([]string{flags.File}, tmpTarGzFileName)
+			err = tarinator.Tarinate([]string{flags.File}, path.Base(flags.File)+".tar")
 			if err != nil {
-				fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
-				os.Exit(1)
+				return c, err
 			}
 
 			// now, we change the target file name to match the new archive created
-			flags.File = tmpTarGzFileName
+			flags.File = path.Base(flags.File) + ".tar"
 			// we set the value IsDir to true
 			c.File.IsDir = true
-
-			fmt.Println("Done !")
-			c.File.Name = path.Base(tmpTarGzFileName)
-		} else {
-			c.File.Name = path.Base(flags.File)
 		}
-
+		c.File.Name = path.Base(flags.File)
 		c.File.Path = path.Dir(flags.File)
 		c.IsSender = true
 	} else {
@@ -101,7 +95,7 @@ func NewConnection(flags *Flags) *Connection {
 		log.SetLevel(log.WarnLevel)
 	}
 
-	return c
+	return c, nil
 }
 
 func (c *Connection) Run() error {
@@ -187,12 +181,18 @@ func (c *Connection) Run() error {
 
 		// remove compressed archive
 		if c.File.IsDir {
-			if err := os.Remove(tmpTarGzFileName); err != nil {
+			log.Debug("removing archive: " + c.File.Name)
+			if err := os.Remove(c.File.Name); err != nil {
 				return err
 			}
 		}
 
-		fmt.Printf("Sending %d byte file named '%s'\n", c.File.Size, c.File.Name)
+		if c.File.IsDir {
+			fmt.Printf("Sending %d byte folder named '%s'\n", c.File.Size, c.File.Name[:len(c.File.Name)-4])
+		} else {
+			fmt.Printf("Sending %d byte file named '%s'\n", c.File.Size, c.File.Name)
+
+		}
 		fmt.Printf("Code is: %s\n", c.Code)
 	}
 
@@ -399,18 +399,22 @@ func (c *Connection) runClient() error {
 		if c.File.Hash != fileHash {
 			return fmt.Errorf("\nUh oh! %s is corrupted! Sorry, try again.\n", c.File.Name)
 		} else {
-			fmt.Printf("\nReceived file written to %s\n", path.Join(c.Path, c.File.Name))
-		}
+			if c.File.IsDir { // if the file was originally a dir
+				fmt.Print("decompressing folder")
+				log.Debug("untarring " + c.File.Name)
+				err := tarinator.UnTarinate(c.Path, path.Join(c.Path, c.File.Name))
 
-		if c.File.IsDir { // if the file was originally a dir
-			fmt.Print("Since the receive file was originally a directory, uncompressing... ")
-			tarinator.UnTarinate(crocReceiveDir, tmpTarGzFileName)
-			fmt.Println("Done !\nDirectory written into " + crocReceiveDir)
-
-			// we remove the old tar.gz file
-			err := os.RemoveAll(tmpTarGzFileName)
-			if err != nil {
-				log.Error(err)
+				if err != nil {
+					return err
+				}
+				// we remove the old tar.gz file
+				err = os.Remove(path.Join(c.Path, c.File.Name))
+				if err != nil {
+					return err
+				}
+				fmt.Printf("\nReceived folder written to %s\n", path.Join(c.Path, c.File.Name[:len(c.File.Name)-4]))
+			} else {
+				fmt.Printf("\nReceived file written to %s\n", path.Join(c.Path, c.File.Name))
 			}
 		}
 
