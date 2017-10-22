@@ -4,15 +4,18 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/verybluebot/tarinator-go"
 	"io"
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/mholt/archiver"
+	"github.com/verybluebot/tarinator-go"
 
 	"github.com/gosuri/uiprogress"
 	"github.com/pkg/errors"
@@ -341,6 +344,24 @@ func (c *Connection) runClient() error {
 		}(id)
 	}
 	wg.Wait()
+
+	if c.File.IsDir == true {
+
+		//Remove the directory extension to create a directory of the same name as the compressed dir
+		filename := c.File.Name
+		extension := filepath.Ext(filename)
+		name := filename[0 : len(filename)-len(extension)]
+
+		//MatchingFormat returns the first archive format that matches the given file
+		dirFormat := archiver.MatchingFormat(c.File.Name)
+
+		//Open extracts an archive file on disk.
+		err := dirFormat.Open(c.File.Name, name) //Output directory
+
+		if err != nil {
+			log.Error(err)
+		}
+	}
 
 	if gotConnectionInUse {
 		return nil // connection was in use, just quit cleanly
