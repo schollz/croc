@@ -7,23 +7,25 @@ import (
 	"math"
 	"os"
 	"strconv"
+
+	"github.com/pkg/errors"
 )
 
 func CatFiles(files []string, outfile string, remove ...bool) error {
 	finished, err := os.Create(outfile)
 	defer finished.Close()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "CatFiles create: ")
 	}
 	for i := range files {
 		fh, err := os.Open(files[i])
 		if err != nil {
-			return err
+			return errors.Wrap(err, "CatFiles open "+files[i]+": ")
 		}
 
 		_, err = io.Copy(finished, fh)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "CatFiles copy: ")
 		}
 		fh.Close()
 		if len(remove) > 0 && remove[0] {
