@@ -37,11 +37,12 @@ type Connection struct {
 }
 
 type FileMetaData struct {
-	Name  string
-	Size  int
-	Hash  string
-	Path  string
-	IsDir bool
+	Name        string
+	Size        int
+	Hash        string
+	Path        string
+	IsDir       bool
+	IsEncrypted bool
 }
 
 const (
@@ -153,16 +154,20 @@ func (c *Connection) Run() error {
 		if c.DontEncrypt {
 			// don't encrypt
 			CopyFile(path.Join(c.File.Path, c.File.Name), c.File.Name+".enc")
+			c.File.IsEncrypted = false
 		} else {
 			// encrypt
 			log.Debug("encrypting...")
 			if err := EncryptFile(path.Join(c.File.Path, c.File.Name), c.File.Name+".enc", c.Code); err != nil {
 				return err
 			}
-			if err := SplitFile(c.File.Name+".enc", c.NumberOfConnections); err != nil {
-				return err
-			}
+			c.File.IsEncrypted = true
 		}
+		// split file into pieces to send
+		if err := SplitFile(c.File.Name+".enc", c.NumberOfConnections); err != nil {
+			return err
+		}
+
 		// get file hash
 		var err error
 		c.File.Hash, err = HashFile(path.Join(c.File.Path, c.File.Name))
@@ -381,8 +386,14 @@ func (c *Connection) runClient() error {
 				return err
 			}
 		} else {
-			if err := DecryptFile(path.Join(c.Path, c.File.Name+".enc"), path.Join(c.Path, c.File.Name), c.Code); err != nil {
-				return errors.Wrap(err, "Problem decrypting file")
+			if c.File.IsEncrypted {
+				if err := DecryptFile(path.Join(c.Path, c.File.Name+".enc"), path.Join(c.Path, c.File.Name), c.Code); err != nil {
+					return errors.Wrap(err, "Problem decrypting file")
+				}
+			} else {
+				if err := CopyFile(path.Join(c.Path, c.File.Name+".enc"), path.Join(c.Path, c.File.Name)); err != nil {
+					return errors.Wrap(err, "Problem copying file")
+				}
 			}
 		}
 		if !c.Debug {
