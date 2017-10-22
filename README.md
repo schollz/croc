@@ -10,13 +10,19 @@
 
 <p align="center">Secure transfer of stuff from one side of the internet to the other.</p>
 
-This is more or less (but mostly *less*) a Golang port of [@warner's](https://github.com/warner) [*magic-wormhole*](https://github.com/warner/magic-wormhole) which allows you to directly transfer files between computers. I wrote this because I wanted to send my friend Jessie a file using *magic-wormhole*. However, Jessie doesn't like the idea of putting Python on her computer because it is a giant snake. So, nominally, this is a version of *magic-wormhole* without the dependencies that you can just double-click on your computer, even if you use Windows.
+This is more or less (but mostly *less*) a Golang port of [@warner's](https://github.com/warner) [*magic-wormhole*](https://github.com/warner/magic-wormhole) which allows you to directly transfer files between computers. I wrote this because I wanted to send my friend Jessie a file using *magic-wormhole*. However, when I told Jessie how to install the dependencies for *magic-wormhole* she made this face: :sob:. So, nominally, *croc* does the same thing (file transfer directly between computers) without dependencies so you can just double-click on your computer, even if you use Windows.
 
 **Don't we have enough open-source peer-to-peer file-transfer utilities?**
 
 [There](https://github.com/cowbell/sharedrop) [are](https://github.com/webtorrent/instant.io) [great](https://github.com/kern/filepizza) [tools](https://github.com/warner/magic-wormhole) [that](https://github.com/zerotier/toss) [already](https://github.com/ipfs/go-ipfs) [do](https://github.com/zerotier/toss) [this](https://github.com/nils-werner/zget). But, no we don't, because after review, [I found it was useful to make a new one](https://schollz.github.io/sending-a-file/).
 
 # Example
+
+_These two gifs should run in sync if you force-reload (Ctl+F5)_
+
+![send](https://user-images.githubusercontent.com/6550035/31855780-35140b88-b66f-11e7-86cb-c23e2cb4fa86.gif)
+![receive](https://user-images.githubusercontent.com/6550035/31855781-3632b384-b66f-11e7-8b29-9ba61ec374d4.gif)
+
 
 **Sender:**
 
@@ -61,7 +67,7 @@ Or, if you are like my good friend Jessie and "*just can't even*" with programmi
 
 ## Run your own relay
 
-*croc* relies on a TCP relay to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses my server, `cowyo.com`, which has no guarantees except that I guarantee to turn if off as soon as it gets abused. 
+*croc* relies on a TCP relay to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses a public relay at, `cowyo.com`, which has no guarantees except that I guarantee to turn if off as soon as it gets abused ([click here to check the current status of the public relay](https://stats.uptimerobot.com/lOwJYIgRm)). 
 
 I recommend you run your own relay, it is very easy. On your server, `your-server.com`, just run
 
