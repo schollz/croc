@@ -42,6 +42,7 @@ type FileMetaData struct {
 }
 
 const (
+	crocReceiveDir   = "croc_received"
 	tmpTarGzFileName = "to_send.tmp.tar.gz"
 )
 
@@ -76,6 +77,7 @@ func NewConnection(flags *Flags) *Connection {
 			flags.File = tmpTarGzFileName
 			// we set the value IsDir to true
 			c.File.IsDir = true
+
 			fmt.Println("Done !")
 			c.File.Name = path.Base(tmpTarGzFileName)
 		} else {
@@ -388,6 +390,18 @@ func (c *Connection) runClient() error {
 			return fmt.Errorf("\nUh oh! %s is corrupted! Sorry, try again.\n", c.File.Name)
 		} else {
 			fmt.Printf("\nReceived file written to %s\n", c.File.Name)
+		}
+
+		if c.File.IsDir { // if the file was originally a dir
+			fmt.Print("Since the receive file was originally a directory, uncompressing... ")
+			tarinator.UnTarinate(crocReceiveDir, tmpTarGzFileName)
+			fmt.Println("Done !\nDirectory written into " + crocReceiveDir)
+
+			// we remove the old tar.gz file
+			err := os.RemoveAll(tmpTarGzFileName)
+			if err != nil {
+				log.Error(err)
+			}
 		}
 
 	}
