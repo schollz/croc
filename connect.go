@@ -253,8 +253,10 @@ func (c *Connection) runClient() error {
 			} else {
 				logger.Debugf("telling relay: %s", "r."+c.Code)
 				if c.Wait {
+					// tell server to wait for sender
 					sendMessage("r."+c.HashedCode+".0.0.0", connection)
 				} else {
+					// tell server to cancel if sender doesn't exist
 					sendMessage("c."+c.HashedCode+".0.0.0", connection)
 				}
 			}
@@ -371,7 +373,7 @@ func (c *Connection) runClient() error {
 		fmt.Println("\nFile sent.")
 	} else { // Is a Receiver
 		if notPresent {
-			fmt.Println("Sender/Code not present")
+			fmt.Println("Sender is not ready. Use -wait to wait until sender connects.")
 			return nil
 		}
 		if !gotOK {

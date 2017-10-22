@@ -205,6 +205,10 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 			r.connections.RUnlock()
 			if connectionType == "c" {
 				sendMessage("0-0-0-0.0.0.0", connection)
+				// sender is not ready so delete connection
+				r.connections.Lock()
+				delete(r.connections.potentialReceivers, key)
+				r.connections.Unlock()
 				return
 			}
 			time.Sleep(100 * time.Millisecond)
