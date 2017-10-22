@@ -3,6 +3,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/dustin/go-humanize"
+  packages = ["."]
+  revision = "77ed807830b4df581417e7f89eb81d4872832b72"
+
+[[projects]]
+  branch = "master"
   name = "github.com/gosuri/uilive"
   packages = ["."]
   revision = "ac356e6e42cd31fcef8e6aec13ae9ed6fe87713e"
@@ -45,6 +51,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/verybluebot/tarinator-go"
+  packages = ["."]
+  revision = "f75724675c91d0c731b69c81e0985de07663f007"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/crypto"
   packages = ["pbkdf2","scrypt","ssh/terminal"]
   revision = "541b9d50ad47e36efd8fb423e938e59ff1691f68"
@@ -64,6 +76,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b7969c854fd8997ea62c1a9ed968e5eeac091a3fc5650cca64e99e888a0156db"
+  inputs-digest = "56157cf168219ec6f5596364497dc7fc93cb674ce0a159fd339d88d025f97e25"
   solver-name = "gps-cdcl"
   solver-version = 1
