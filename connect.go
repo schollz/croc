@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	humanize "github.com/dustin/go-humanize"
 	"github.com/verybluebot/tarinator-go"
 
 	"github.com/gosuri/uiprogress"
@@ -193,9 +194,9 @@ func (c *Connection) Run() error {
 		}
 
 		if c.File.IsDir {
-			fmt.Printf("Sending %d byte folder named '%s'\n", c.File.Size, c.File.Name[:len(c.File.Name)-4])
+			fmt.Printf("Sending %s folder named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name[:len(c.File.Name)-4])
 		} else {
-			fmt.Printf("Sending %d byte file named '%s'\n", c.File.Size, c.File.Name)
+			fmt.Printf("Sending %s file named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name)
 
 		}
 		fmt.Printf("Code is: %s\n", c.Code)
@@ -316,7 +317,11 @@ func (c *Connection) runClient() error {
 					log.Debugf("meta data received: %v", c.File)
 					// have the main thread ask for the okay
 					if id == 0 {
-						fmt.Printf("Receiving file (%d bytes) into: %s\n", c.File.Size, path.Join(c.Path, c.File.Name))
+						if _, err := os.Stat(path.Join(c.Path, c.File.Name)); os.IsNotExist(err) {
+							fmt.Printf("Receiving file (%s) into: %s\n", humanize.Bytes(uint64(c.File.Size)), path.Join(c.Path, c.File.Name))
+						} else {
+							fmt.Printf("Overwriting file %s (%s)\n", path.Join(c.Path, c.File.Name), humanize.Bytes(uint64(c.File.Size)))
+						}
 						var sentFileNames []string
 
 						if c.AskPath {
