@@ -36,7 +36,7 @@ func CatFiles(files []string, outfile string, remove bool) error {
 	return nil
 }
 
-// SplitFile
+// SplitFile creates a bunch of smaller files with the data from source splited into them
 func SplitFile(fileName string, numPieces int) (err error) {
 	file, err := os.Open(fileName)
 	if err != nil {
@@ -62,10 +62,13 @@ func SplitFile(fileName string, numPieces int) (err error) {
 	for {
 		n, err := file.Read(buf)
 		out.Write(buf[:n])
-		bytesRead += n
-		if err == io.EOF {
+		// If written bytes count is smaller than lenght of buffer
+		// then we don't create one more empty file
+		if err == io.EOF || n < len(buf) {
 			break
 		}
+		bytesRead += n
+
 		if bytesRead >= bytesPerPiece {
 			// Close file and open a new one
 			out.Close()

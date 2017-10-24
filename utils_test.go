@@ -12,5 +12,4 @@ func TestSplitFile(t *testing.T) {
 	}
 	os.Remove("README.md.0")
 	os.Remove("README.md.1")
-	os.Remove("README.md.2")
 }
