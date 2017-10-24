@@ -43,7 +43,7 @@ File sent.
 **Receiver:**
 
 ```
-$ croc 
+$ croc
 Enter receive code: 4-cement-galaxy-alpha
 Receiving file (4.4 MB) into: croc.exe
 ok? (y/n): y
@@ -79,11 +79,11 @@ Encryption uses PBKDF2 (see [RFC2898](http://www.ietf.org/rfc/rfc2898.txt)) wher
 
 **Decryption**
 
-On the receiver's computer, each piece of received encrypted data is written to a separate file. These files are concatenated and then decrypted. The hash of the decrypted file is then checked against the hash transmitted from the sender (part of the meta data block). 
+On the receiver's computer, each piece of received encrypted data is written to a separate file. These files are concatenated and then decrypted. The hash of the decrypted file is then checked against the hash transmitted from the sender (part of the meta data block).
 
 ## Run your own relay
 
-*croc* relies on a TCP relay to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses a public relay at, `cowyo.com`, which has no guarantees except that I guarantee to turn if off as soon as it gets abused ([click here to check the current status of the public relay](https://stats.uptimerobot.com/lOwJYIgRm)). 
+*croc* relies on a TCP relay to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses a public relay at, `cowyo.com`, which has no guarantees except that I guarantee to turn if off as soon as it gets abused ([click here to check the current status of the public relay](https://stats.uptimerobot.com/lOwJYIgRm)).
 
 I recommend you run your own relay, it is very easy. On your server, `your-server.com`, just run
 
@@ -91,7 +91,7 @@ I recommend you run your own relay, it is very easy. On your server, `your-serve
 $ croc -relay
 ```
 
-Now, when you use *croc* to send and receive you should add `-server your-server.com` to use your relay server. 
+Now, when you use *croc* to send and receive you should add `-server your-server.com` to use your relay server.
 
 _Note:_ If you are behind a firewall, make sure to open up TCP ports 27001-27009.
 
@@ -99,7 +99,7 @@ _Note:_ If you are behind a firewall, make sure to open up TCP ports 27001-27009
 
 I am awed by all the [great contributions](#acknowledgements) made! If you feel like contributing, in any way, by all means you can send an Issue, a PR, ask a question, or tweet me ([@yakczar](http://ctt.ec/Rq054)).
 
-# License 
+# License
 
 MIT
 
@@ -110,4 +110,4 @@ Thanks...
 - ...[@warner](https://github.com/warner) for the [idea](https://github.com/warner/magic-wormhole).
 - ...[@tscholl2](https://github.com/tscholl2) for the [encryption gists](https://gist.github.com/tscholl2/dc7dc15dc132ea70a98e8542fefffa28).
 - ...[@skorokithakis](https://github.com/skorokithakis) for [code on proxying two connections](https://www.stavros.io/posts/proxying-two-connections-go/).
-- ...for making pull requests [@Girbons](https://github.com/ss), [@techtide](https://github.com/techtide), [@heymatthew](https://github.com/heymatthew), [@Lunsford94](https://github.com/Lunsford94), [@lummie](https://github.com/lummie), [@jesuiscamille](https://github.com/jesuiscamille), [@threefjord](https://github.com/threefjord), [@marcossegovia](https://github.com/marcossegovia), [@csleong98](https://github.com/csleong98)! 
+- ...for making pull requests [@Girbons](https://github.com/Girbons), [@techtide](https://github.com/techtide), [@heymatthew](https://github.com/heymatthew), [@Lunsford94](https://github.com/Lunsford94), [@lummie](https://github.com/lummie), [@jesuiscamille](https://github.com/jesuiscamille), [@threefjord](https://github.com/threefjord), [@marcossegovia](https://github.com/marcossegovia), [@csleong98](https://github.com/csleong98)!
