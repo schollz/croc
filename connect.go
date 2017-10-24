@@ -461,10 +461,7 @@ func (c *Connection) catFile() error {
 	for id := range files {
 		files[id] = path.Join(c.Path, c.File.Name+".enc."+strconv.Itoa(id))
 	}
-	toRemove := true
-	if c.Debug {
-		toRemove = false
-	}
+	toRemove := !c.Debug
 	return CatFiles(files, path.Join(c.Path, c.File.Name+".enc"), toRemove)
 }
 
