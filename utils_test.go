@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"testing"
 )
 
@@ -9,5 +10,7 @@ func TestSplitFile(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-
+	os.Remove("README.md.0")
+	os.Remove("README.md.1")
+	os.Remove("README.md.2")
 }
