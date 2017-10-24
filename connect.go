@@ -221,11 +221,16 @@ func (c *Connection) runClient() error {
 	if !c.Debug {
 		c.bars = make([]*uiprogress.Bar, c.NumberOfConnections)
 	}
-	gotTimeout := false
-	gotOK := false
-	gotResponse := false
-	gotConnectionInUse := false
-	notPresent := false
+	type responsesStruct struct {
+		gotTimeout         bool
+		gotOK              bool
+		gotResponse        bool
+		gotConnectionInUse bool
+		notPresent         bool
+		sync.RWMutex
+	}
+
+	responses := new(responsesStruct)
 	for id := 0; id < c.NumberOfConnections; id++ {
 		go func(id int) {
 			defer wg.Done()
@@ -265,7 +270,9 @@ func (c *Connection) runClient() error {
 				logger.Debug("waiting for ok from relay")
 				message = receiveMessage(connection)
 				if message == "timeout" {
-					gotTimeout = true
+					responses.Lock()
+					responses.gotTimeout = true
+					responses.Unlock()
 					fmt.Println("You've just exceeded limit waiting time.")
 					return
 				}
@@ -273,7 +280,9 @@ func (c *Connection) runClient() error {
 					if id == 0 {
 						fmt.Println("The specifed code is already in use by a sender.")
 					}
-					gotConnectionInUse = true
+					responses.Lock()
+					responses.gotConnectionInUse = true
+					responses.Unlock()
 				} else {
 					logger.Debug("got ok from relay")
 					if id == 0 {
@@ -294,29 +303,33 @@ func (c *Connection) runClient() error {
 					if id == 0 {
 						fmt.Println("The specifed code is already in use by a sender.")
 					}
-					gotConnectionInUse = true
+					responses.Lock()
+					responses.gotConnectionInUse = true
+					responses.Unlock()
 				} else {
 					m := strings.Split(message, "-")
 					encryptedData, salt, iv, sendersAddress := m[0], m[1], m[2], m[3]
 					if sendersAddress == "0.0.0.0" {
-						notPresent = true
+						responses.Lock()
+						responses.notPresent = true
+						responses.Unlock()
 						time.Sleep(1 * time.Second)
 						return
 					}
-					encryptedBytes, err := hex.DecodeString(encryptedData)
-					if err != nil {
-						log.Error(err)
-						return
-					}
-					decryptedBytes, _ := Decrypt(encryptedBytes, c.Code, salt, iv, c.DontEncrypt)
-					err = json.Unmarshal(decryptedBytes, &c.File)
-					if err != nil {
-						log.Error(err)
-						return
-					}
-					log.Debugf("meta data received: %v", c.File)
 					// have the main thread ask for the okay
 					if id == 0 {
+						encryptedBytes, err := hex.DecodeString(encryptedData)
+						if err != nil {
+							log.Error(err)
+							return
+						}
+						decryptedBytes, _ := Decrypt(encryptedBytes, c.Code, salt, iv, c.DontEncrypt)
+						err = json.Unmarshal(decryptedBytes, &c.File)
+						if err != nil {
+							log.Error(err)
+							return
+						}
+						log.Debugf("meta data received: %v", c.File)
 						fType := "file"
 						fName := path.Join(c.Path, c.File.Name)
 						if c.File.IsDir {
@@ -342,18 +355,28 @@ func (c *Connection) runClient() error {
 						}
 						getOK := getInput("ok? (y/n): ")
 						if getOK == "y" {
-							gotOK = true
+							responses.Lock()
+							responses.gotOK = true
+							responses.Unlock()
 							sentFileNames = append(sentFileNames, c.File.Name)
 						}
-						gotResponse = true
+						responses.Lock()
+						responses.gotResponse = true
+						responses.Unlock()
 					}
 					// wait for the main thread to get the okay
 					for limit := 0; limit < 1000; limit++ {
+						responses.Lock()
+						gotResponse := responses.gotResponse
+						responses.Unlock()
 						if gotResponse {
 							break
 						}
 						time.Sleep(10 * time.Millisecond)
 					}
+					responses.RLock()
+					gotOK := responses.gotOK
+					responses.RUnlock()
 					if !gotOK {
 						sendMessage("not ok", connection)
 					} else {
@@ -372,22 +395,24 @@ func (c *Connection) runClient() error {
 	}
 	wg.Wait()
 
-	if gotConnectionInUse {
+	responses.Lock()
+	defer responses.Unlock()
+	if responses.gotConnectionInUse {
 		return nil // connection was in use, just quit cleanly
 	}
 
 	if c.IsSender {
-		if gotTimeout {
+		if responses.gotTimeout {
 			fmt.Println("Timeout waiting for receiver")
 			return nil
 		}
 		fmt.Println("\nFile sent.")
 	} else { // Is a Receiver
-		if notPresent {
+		if responses.notPresent {
 			fmt.Println("Sender is not ready. Use -wait to wait until sender connects.")
 			return nil
 		}
-		if !gotOK {
+		if !responses.gotOK {
 			return errors.New("Transfer interrupted")
 		}
 		if err := c.catFile(); err != nil {
