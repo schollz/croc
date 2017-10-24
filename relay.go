@@ -303,15 +303,14 @@ func Pipe(conn1 net.Conn, conn2 net.Conn) {
 		case b1 := <-chan1:
 			if b1 == nil {
 				return
-			} else {
-				conn2.Write(b1)
 			}
+			conn2.Write(b1)
+
 		case b2 := <-chan2:
 			if b2 == nil {
 				return
-			} else {
-				conn1.Write(b2)
 			}
+			conn1.Write(b2)
 		}
 	}
 }

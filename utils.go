@@ -11,31 +11,32 @@ import (
 	"github.com/pkg/errors"
 )
 
-func CatFiles(files []string, outfile string, remove ...bool) error {
+// CatFiles copies data from n files to a single one and removes source files
+// if Debug mode is set to false
+func CatFiles(files []string, outfile string, remove bool) error {
 	finished, err := os.Create(outfile)
-	defer finished.Close()
 	if err != nil {
 		return errors.Wrap(err, "CatFiles create: ")
 	}
-	for i := range files {
-		fh, err := os.Open(files[i])
+	defer finished.Close()
+	for _, file := range files {
+		fh, err := os.Open(file)
 		if err != nil {
-			return errors.Wrap(err, "CatFiles open "+files[i]+": ")
+			return errors.Wrap(err, fmt.Sprintf("CatFiles open %v: ", file))
 		}
-
+		defer fh.Close()
 		_, err = io.Copy(finished, fh)
 		if err != nil {
 			return errors.Wrap(err, "CatFiles copy: ")
 		}
-		fh.Close()
-		if len(remove) > 0 && remove[0] {
-			os.Remove(files[i])
+		if remove {
+			os.Remove(file)
 		}
 	}
 	return nil
 }
 
-// SplitFile
+// SplitFile creates a bunch of smaller files with the data from source splited into them
 func SplitFile(fileName string, numPieces int) (err error) {
 	file, err := os.Open(fileName)
 	if err != nil {
@@ -61,10 +62,13 @@ func SplitFile(fileName string, numPieces int) (err error) {
 	for {
 		n, err := file.Read(buf)
 		out.Write(buf[:n])
-		bytesRead += n
-		if err == io.EOF {
+		// If written bytes count is smaller than lenght of buffer
+		// then we don't create one more empty file
+		if err == io.EOF || n < len(buf) {
 			break
 		}
+		bytesRead += n
+
 		if bytesRead >= bytesPerPiece {
 			// Close file and open a new one
 			out.Close()
