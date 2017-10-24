@@ -43,15 +43,18 @@ type Relay struct {
 }
 
 func NewRelay(flags *Flags) *Relay {
-	r := new(Relay)
-	r.Debug = flags.Debug
-	r.NumberOfConnections = MAX_NUMBER_THREADS
+	r := &Relay{
+		Debug:               flags.Debug,
+		NumberOfConnections: MAX_NUMBER_THREADS,
+	}
+
 	log.SetFormatter(&log.TextFormatter{})
 	if r.Debug {
 		log.SetLevel(log.DebugLevel)
 	} else {
 		log.SetLevel(log.WarnLevel)
 	}
+
 	return r
 }
 
@@ -85,8 +88,8 @@ func (r *Relay) listenerThread(id int, wg *sync.WaitGroup) {
 	})
 
 	defer wg.Done()
-	err := r.listener(id)
-	if err != nil {
+
+	if err := r.listener(id); err != nil {
 		logger.Error(err)
 	}
 }
@@ -94,11 +97,11 @@ func (r *Relay) listenerThread(id int, wg *sync.WaitGroup) {
 func (r *Relay) listener(id int) (err error) {
 	port := strconv.Itoa(27001 + id)
 	logger := log.WithFields(log.Fields{
-		"function": "listener" + ":" + port,
+		"function": "listener:" + port,
 	})
 	server, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
-		return errors.Wrap(err, "Error listening on "+":"+port)
+		return errors.Wrap(err, "Error listening on :"+port)
 	}
 	defer server.Close()
 	logger.Debug("waiting for connections")
@@ -129,7 +132,8 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 	connectionType, codePhrase, metaData := m[0], m[1], m[2]
 	key := codePhrase + "-" + strconv.Itoa(id)
 
-	if connectionType == "s" { // sender connection
+	switch connectionType {
+	case "s": // sender connection
 		if r.connections.IsSenderConnected(key) {
 			sendMessage("no", connection)
 			return
@@ -179,8 +183,7 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		delete(r.connections.potentialReceivers, key)
 		r.connections.Unlock()
 		logger.Debug("deleted sender and receiver")
-	} else if connectionType == "r" || connectionType == "c" {
-		//receiver
+	case "r", "c": // receiver
 		if r.connections.IsPotentialReceiverConnected(key) {
 			sendMessage("no", connection)
 			return
@@ -226,10 +229,9 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 			r.connections.receiver[key] = connection
 			r.connections.Unlock()
 		}
-	} else {
+	default:
 		logger.Debugf("Got unknown protocol: '%s'", connectionType)
 	}
-	return
 }
 
 func sendMessage(message string, connection net.Conn) {
