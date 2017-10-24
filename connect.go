@@ -422,24 +422,23 @@ func (c *Connection) runClient() error {
 
 		if c.File.Hash != fileHash {
 			return fmt.Errorf("\nUh oh! %s is corrupted! Sorry, try again.\n", c.File.Name)
-		} else {
-			if c.File.IsDir { // if the file was originally a dir
-				fmt.Print("decompressing folder")
-				log.Debug("untarring " + c.File.Name)
-				err := tarinator.UnTarinate(c.Path, path.Join(c.Path, c.File.Name))
+		}
+		if c.File.IsDir { // if the file was originally a dir
+			fmt.Print("decompressing folder")
+			log.Debug("untarring " + c.File.Name)
+			err := tarinator.UnTarinate(c.Path, path.Join(c.Path, c.File.Name))
 
-				if err != nil {
-					return err
-				}
-				// we remove the old tar.gz file
-				err = os.Remove(path.Join(c.Path, c.File.Name))
-				if err != nil {
-					return err
-				}
-				fmt.Printf("\nReceived folder written to %s\n", path.Join(c.Path, c.File.Name[:len(c.File.Name)-4]))
-			} else {
-				fmt.Printf("\nReceived file written to %s\n", path.Join(c.Path, c.File.Name))
+			if err != nil {
+				return err
 			}
+			// we remove the old tar.gz file
+			err = os.Remove(path.Join(c.Path, c.File.Name))
+			if err != nil {
+				return err
+			}
+			fmt.Printf("\nReceived folder written to %s\n", path.Join(c.Path, c.File.Name[:len(c.File.Name)-4]))
+		} else {
+			fmt.Printf("\nReceived file written to %s\n", path.Join(c.Path, c.File.Name))
 		}
 
 	}
