@@ -24,11 +24,11 @@ func CatFiles(files []string, outfile string, remove bool) error {
 		if err != nil {
 			return errors.Wrap(err, fmt.Sprintf("CatFiles open %v: ", file))
 		}
-		defer fh.Close()
 		_, err = io.Copy(finished, fh)
 		if err != nil {
 			return errors.Wrap(err, "CatFiles copy: ")
 		}
+		fh.Close()
 		if remove {
 			os.Remove(file)
 		}
