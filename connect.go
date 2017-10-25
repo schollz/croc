@@ -520,6 +520,7 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 
 	if !c.Debug {
 		c.bars[id] = uiprogress.AddBar(int(chunkSize)/1024 + 1).AppendCompleted().PrependElapsed()
+		c.bars[id].Width = 40
 	}
 
 	logger.Debug("waiting for file")
@@ -579,6 +580,7 @@ func (c *Connection) sendFile(id int, connection net.Conn) error {
 	if !c.Debug {
 		logger.Debug("going to show progress")
 		c.bars[id] = uiprogress.AddBar(int(fi.Size())).AppendCompleted().PrependElapsed()
+		c.bars[id].Width = 40
 	}
 
 	// rate limit the bandwidth
