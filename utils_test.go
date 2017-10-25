@@ -81,7 +81,7 @@ func TestCopyFileContents(t *testing.T) {
 }
 
 func TestCopyFile(t *testing.T) {
-	t.Run("Content copied successfully", func(t *testing.T) {
+	t.Run("Files copied successfully", func(t *testing.T) {
 		f1 := "testing_data/README.md"
 		f2 := "testing_data/CopyOfREADME.md"
 		err := CopyFile(f1, f2)
@@ -101,5 +101,19 @@ func TestCopyFile(t *testing.T) {
 			t.Errorf("size of both files should be same got: file1: %d file2: %d", f1Length, f2Length)
 		}
 		os.Remove(f2)
+	})
+}
+
+func TestCatFiles(t *testing.T) {
+	t.Run("CatFiles passing", func(t *testing.T) {
+		files := []string{"testing_data/catFile1.txt", "testing_data/catFile2.txt"}
+		err := CatFiles(files, "testing_data/CatFile.txt", false)
+		if err != nil {
+			t.Errorf("should pass with no error, got: %v", err)
+		}
+		if _, err := os.Stat("testing_data/CatFile.txt"); os.IsNotExist(err) {
+			t.Errorf("file were not created: %v", err)
+		}
+		os.Remove("testing_data/CatFile.txt")
 	})
 }
