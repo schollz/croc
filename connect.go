@@ -212,6 +212,7 @@ func (c *Connection) runClient() error {
 		"sender?": c.IsSender,
 	})
 
+	startTime:= time.Now()
 	c.HashedCode = Hash(c.Code)
 
 	var wg sync.WaitGroup
@@ -465,8 +466,9 @@ func (c *Connection) runClient() error {
 		} else {
 			fmt.Printf("\nReceived file written to %s\n", path.Join(c.Path, c.File.Name))
 		}
-
 	}
+	timeSinceStart:= time.Since(startTime) / time.Second
+	fmt.Printf("\nTransfered at an average speed of %s/s", humanize.Bytes(uint64(float64(c.File.Size)/float64(timeSinceStart))))
 	return nil
 }
 
