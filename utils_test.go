@@ -55,3 +55,27 @@ func TestHashFile(t *testing.T) {
 		}
 	})
 }
+
+func TestCopyFileContents(t *testing.T) {
+	t.Run("Content copied successfully", func(t *testing.T) {
+		f1 := "testing_data/README.md"
+		f2 := "testing_data/CopyOfREADME.md"
+		err := copyFileContents(f1, f2)
+		if err != nil {
+			t.Errorf("should pass with no error, got: %v", err)
+		}
+		f1Length, err := FileSize(f1)
+		if err != nil {
+			t.Errorf("can't get file nr1 size: %v", err)
+		}
+		f2Length, err := FileSize(f2)
+		if err != nil {
+			t.Errorf("can't get file nr2 size: %v", err)
+		}
+
+		if f1Length != f2Length {
+			t.Errorf("size of both files should be same got: file1: %d file2: %d", f1Length, f2Length)
+		}
+		os.Remove(f2)
+	})
+}
