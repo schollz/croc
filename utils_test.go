@@ -26,8 +26,8 @@ func TestFileSize(t *testing.T) {
 		if err == nil {
 			t.Error("should return an error")
 		}
-		if s > 0 {
-			t.Errorf("size should be 0, got: %d", s)
+		if s != -1 {
+			t.Errorf("size should be -1, got: %d", s)
 		}
 	})
 }
