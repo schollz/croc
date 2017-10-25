@@ -31,3 +31,27 @@ func TestFileSize(t *testing.T) {
 		}
 	})
 }
+
+func TestHashFile(t *testing.T) {
+	t.Run("Hash created successfully", func(t *testing.T) {
+		h, err := HashFile("testing_data/README.md")
+		if err != nil {
+			t.Errorf("should pass with no error, got: %v", err)
+		}
+		if len(h) != 32 {
+			t.Errorf("invalid md5 hash, length should be 32 got: %d", len(h))
+		}
+	})
+	t.Run("File does not exist", func(t *testing.T) {
+		h, err := HashFile("testing_data/someStrangeFile")
+		if err == nil {
+			t.Error("should return an error")
+		}
+		if len(h) > 0 {
+			t.Errorf("hash length should be 0, got: %d", len(h))
+		}
+		if h != "" {
+			t.Errorf("hash should be empty string, got: %s", h)
+		}
+	})
+}
