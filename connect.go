@@ -212,7 +212,7 @@ func (c *Connection) runClient() error {
 		"sender?": c.IsSender,
 	})
 
-	startTime:= time.Now()
+	startTime := time.Now()
 	c.HashedCode = Hash(c.Code)
 
 	var wg sync.WaitGroup
@@ -293,6 +293,7 @@ func (c *Connection) runClient() error {
 					time.Sleep(100 * time.Millisecond)
 					// Write data from file
 					logger.Debug("send file")
+					startTime = time.Now()
 					if err := c.sendFile(id, connection); err != nil {
 						log.Error(err)
 					}
@@ -386,6 +387,7 @@ func (c *Connection) runClient() error {
 						if id == 0 {
 							fmt.Printf("\n\nReceiving (<-%s)..\n", sendersAddress)
 						}
+						startTime = time.Now()
 						if err := c.receiveFile(id, connection); err != nil {
 							log.Error(errors.Wrap(err, "Problem receiving the file: "))
 						}
@@ -407,7 +409,7 @@ func (c *Connection) runClient() error {
 			fmt.Println("Timeout waiting for receiver")
 			return nil
 		}
-		fmt.Println("\nFile sent.")
+		fmt.Print("\nFile sent")
 	} else { // Is a Receiver
 		if responses.notPresent {
 			fmt.Println("Sender is not ready. Use -wait to wait until sender connects.")
@@ -462,13 +464,13 @@ func (c *Connection) runClient() error {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("\nReceived folder written to %s\n", path.Join(c.Path, c.File.Name[:len(c.File.Name)-4]))
+			fmt.Printf("\nReceived folder written to %s", path.Join(c.Path, c.File.Name[:len(c.File.Name)-4]))
 		} else {
-			fmt.Printf("\nReceived file written to %s\n", path.Join(c.Path, c.File.Name))
+			fmt.Printf("\nReceived file written to %s", path.Join(c.Path, c.File.Name))
 		}
 	}
-	timeSinceStart:= time.Since(startTime) / time.Second
-	fmt.Printf("\nTransfered at an average speed of %s/s", humanize.Bytes(uint64(float64(c.File.Size)/float64(timeSinceStart))))
+	timeSinceStart := time.Since(startTime) / time.Second
+	fmt.Printf(" (%s/s)\n", humanize.Bytes(uint64(float64(c.File.Size)/float64(timeSinceStart))))
 	return nil
 }
 
