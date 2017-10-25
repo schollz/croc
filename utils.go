@@ -163,13 +163,7 @@ func HashFile(filename string) (hash string, err error) {
 
 // FileSize returns the size of a file
 func FileSize(filename string) (int, error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return -1, err
-	}
-	defer f.Close()
-
-	fi, err := f.Stat()
+	fi, err := os.Stat(filename)
 	if err != nil {
 		return -1, err
 	}
