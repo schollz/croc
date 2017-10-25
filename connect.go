@@ -408,7 +408,8 @@ func (c *Connection) runClient() error {
 			return nil
 		}
 		fmt.Println("\nFile sent.")
-		fmt.Printf("\nTransfered with an average speed of %s/s", humanize.Bytes(uint64(c.File.Size/time.Since(startTime))))
+		timeSinceStart:= time.Since(startTime) / time.Second
+		fmt.Printf("\nTransfered with an average speed of %s/s", humanize.Bytes(uint64(float64(c.File.Size)/float64(timeSinceStart))))
 	} else { // Is a Receiver
 		if responses.notPresent {
 			fmt.Println("Sender is not ready. Use -wait to wait until sender connects.")
@@ -467,8 +468,8 @@ func (c *Connection) runClient() error {
 		} else {
 			fmt.Printf("\nReceived file written to %s\n", path.Join(c.Path, c.File.Name))
 		}
-
-		fmt.Printf("\nTransfered with an average speed of %s/s", humanize.Bytes(uint64(c.File.Size/time.Since(startTime))))
+		timeSinceStart:= time.Since(startTime) / time.Second
+		fmt.Printf("\nTransfered with an average speed of %s/s", humanize.Bytes(uint64(float64(c.File.Size)/float64(timeSinceStart))))
 	}
 	return nil
 }
