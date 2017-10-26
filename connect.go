@@ -388,7 +388,7 @@ func (c *Connection) runClient() error {
 							fmt.Printf("\n\nReceiving (<-%s)..\n", sendersAddress)
 						}
 						startTime = time.Now()
-						c.bar.Set(c.File.Size)
+						c.bar.SetMax(c.File.Size)
 						c.bar.Reset()
 						if err := c.receiveFile(id, connection); err != nil {
 							log.Error(errors.Wrap(err, "Problem receiving the file: "))
