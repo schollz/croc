@@ -9,27 +9,9 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/gosuri/uilive"
-  packages = ["."]
-  revision = "ac356e6e42cd31fcef8e6aec13ae9ed6fe87713e"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/gosuri/uiprogress"
-  packages = [".","util/strutil"]
-  revision = "d0567a9d84a1c40dd7568115ea66f4887bf57b33"
-
-[[projects]]
-  branch = "master"
   name = "github.com/mars9/crypt"
   packages = ["."]
   revision = "65899cf653ff022fe5c7fe504b439feed9e7e0fc"
-
-[[projects]]
-  name = "github.com/mattn/go-isatty"
-  packages = ["."]
-  revision = "0360b2af4f38e8d38c7fce2a9f4e702702d73a39"
-  version = "v0.0.3"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -42,6 +24,12 @@
   name = "github.com/schollz/mnemonicode"
   packages = ["."]
   revision = "15c9654387fad6d257aa28f9be57b9f124101955"
+
+[[projects]]
+  name = "github.com/schollz/progressbar"
+  packages = ["."]
+  revision = "91090f7acee17a22f3cefcac2178c417b2ead337"
+  version = "v0.1.0"
 
 [[projects]]
   name = "github.com/sirupsen/logrus"
@@ -76,6 +64,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "56157cf168219ec6f5596364497dc7fc93cb674ce0a159fd339d88d025f97e25"
+  inputs-digest = "bdbf624014ff879def63602194ddf9c775d9d8461e0b2e687314dc8b855ffc50"
   solver-name = "gps-cdcl"
   solver-version = 1
