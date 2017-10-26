@@ -14,9 +14,9 @@ import (
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
+	"github.com/schollz/progressbar"
 	"github.com/verybluebot/tarinator-go"
 
-	"github.com/gosuri/uiprogress"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
@@ -33,7 +33,7 @@ type Connection struct {
 	Debug               bool
 	DontEncrypt         bool
 	Wait                bool
-	bars                []*uiprogress.Bar
+	bar                 *progressbar.ProgressBar
 	rate                int
 }
 
@@ -218,9 +218,8 @@ func (c *Connection) runClient() error {
 	var wg sync.WaitGroup
 	wg.Add(c.NumberOfConnections)
 
-	uiprogress.Start()
 	if !c.Debug {
-		c.bars = make([]*uiprogress.Bar, c.NumberOfConnections)
+		c.bar = progressbar.New(c.File.Size)
 	}
 	type responsesStruct struct {
 		gotTimeout         bool
@@ -294,6 +293,7 @@ func (c *Connection) runClient() error {
 					// Write data from file
 					logger.Debug("send file")
 					startTime = time.Now()
+					c.bar.Reset()
 					if err := c.sendFile(id, connection); err != nil {
 						log.Error(err)
 					}
@@ -388,6 +388,8 @@ func (c *Connection) runClient() error {
 							fmt.Printf("\n\nReceiving (<-%s)..\n", sendersAddress)
 						}
 						startTime = time.Now()
+						c.bar.SetMax(c.File.Size)
+						c.bar.Reset()
 						if err := c.receiveFile(id, connection); err != nil {
 							log.Error(errors.Wrap(err, "Problem receiving the file: "))
 						}
@@ -452,7 +454,7 @@ func (c *Connection) runClient() error {
 			return fmt.Errorf("\nUh oh! %s is corrupted! Sorry, try again.\n", c.File.Name)
 		}
 		if c.File.IsDir { // if the file was originally a dir
-			fmt.Print("decompressing folder")
+			fmt.Print("\ndecompressing folder")
 			log.Debug("untarring " + c.File.Name)
 			err := tarinator.UnTarinate(c.Path, path.Join(c.Path, c.File.Name))
 
@@ -518,18 +520,10 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 	}
 	defer newFile.Close()
 
-	if !c.Debug {
-		c.bars[id] = uiprogress.AddBar(int(chunkSize)/1024 + 1).AppendCompleted().PrependElapsed()
-		c.bars[id].Width = 40
-	}
-
 	logger.Debug("waiting for file")
 	var receivedBytes int64
 	receivedFirstBytes := false
 	for {
-		if !c.Debug {
-			c.bars[id].Incr()
-		}
 		if (chunkSize - receivedBytes) < BUFFERSIZE {
 			logger.Debug("at the end")
 			io.CopyN(newFile, connection, (chunkSize - receivedBytes))
@@ -538,6 +532,9 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 				logger.Debug("empty remaining bytes from network buffer")
 				connection.Read(make([]byte, (receivedBytes+BUFFERSIZE)-chunkSize))
 			}
+			if !c.Debug {
+				c.bar.Add(int((chunkSize - receivedBytes)))
+			}
 			break
 		}
 		io.CopyN(newFile, connection, BUFFERSIZE)
@@ -545,6 +542,9 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 		if !receivedFirstBytes {
 			receivedFirstBytes = true
 			logger.Debug("Receieved first bytes!")
+		}
+		if !c.Debug {
+			c.bar.Add(BUFFERSIZE)
 		}
 	}
 	logger.Debug("received file")
@@ -576,13 +576,6 @@ func (c *Connection) sendFile(id int, connection net.Conn) error {
 		return errors.Wrap(err, "Problem sending chunk data: ")
 	}
 
-	// show the progress
-	if !c.Debug {
-		logger.Debug("going to show progress")
-		c.bars[id] = uiprogress.AddBar(int(fi.Size())).AppendCompleted().PrependElapsed()
-		c.bars[id].Width = 40
-	}
-
 	// rate limit the bandwidth
 	logger.Debug("determining rate limiting")
 	bufferSizeInKilobytes := BUFFERSIZE / 1024
@@ -598,7 +591,7 @@ func (c *Connection) sendFile(id int, connection net.Conn) error {
 		connection.Write(sendBuffer)
 		totalBytesSent += n
 		if !c.Debug {
-			c.bars[id].Set(totalBytesSent)
+			c.bar.Add(n)
 		}
 		if err == io.EOF {
 			//End of file reached, break out of for loop
