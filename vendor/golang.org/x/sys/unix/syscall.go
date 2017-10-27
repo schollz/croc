@@ -5,10 +5,10 @@
 // +build darwin dragonfly freebsd linux netbsd openbsd solaris
 
 // Package unix contains an interface to the low-level operating system
-// primitives.  OS details vary depending on the underlying system, and
+// primitives. OS details vary depending on the underlying system, and
 // by default, godoc will display OS-specific documentation for the current
-// system.  If you want godoc to display OS documentation for another
-// system, set $GOOS and $GOARCH to the desired system.  For example, if
+// system. If you want godoc to display OS documentation for another
+// system, set $GOOS and $GOARCH to the desired system. For example, if
 // you want to view documentation for freebsd/arm on linux/amd64, set $GOOS
 // to freebsd and $GOARCH to arm.
 // The primary use of this package is inside other packages that provide a more
@@ -65,5 +65,3 @@ func (ts *Timespec) Nano() int64 {
 func (tv *Timeval) Nano() int64 {
 	return int64(tv.Sec)*1e9 + int64(tv.Usec)*1000
 }
-
-func TimevalToNsec(tv Timeval) int64 { return int64(tv.Sec)*1e9 + int64(tv.Usec)*1e3 }

@@ -1904,6 +1904,8 @@ const (
 	TUNSETVNETHDRSZ                      = 0x800454d8
 	TUNSETVNETLE                         = 0x800454dc
 	UMOUNT_NOFOLLOW                      = 0x8
+	UTIME_NOW                            = 0x3fffffff
+	UTIME_OMIT                           = 0x3ffffffe
 	VDISCARD                             = 0x10
 	VEOF                                 = 0x4
 	VEOL                                 = 0x6
@@ -1933,6 +1935,17 @@ const (
 	WALL                                 = 0x40000000
 	WCLONE                               = 0x80000000
 	WCONTINUED                           = 0x8
+	WDIOC_GETBOOTSTATUS                  = 0x40045702
+	WDIOC_GETPRETIMEOUT                  = 0x40045709
+	WDIOC_GETSTATUS                      = 0x40045701
+	WDIOC_GETSUPPORT                     = 0x40285700
+	WDIOC_GETTEMP                        = 0x40045703
+	WDIOC_GETTIMELEFT                    = 0x4004570a
+	WDIOC_GETTIMEOUT                     = 0x40045707
+	WDIOC_KEEPALIVE                      = 0x40045705
+	WDIOC_SETOPTIONS                     = 0x40045704
+	WDIOC_SETPRETIMEOUT                  = 0xc0045708
+	WDIOC_SETTIMEOUT                     = 0xc0045706
 	WEXITED                              = 0x4
 	WNOHANG                              = 0x1
 	WNOTHREAD                            = 0x20000000

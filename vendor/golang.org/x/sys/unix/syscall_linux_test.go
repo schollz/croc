@@ -184,6 +184,38 @@ func TestUtime(t *testing.T) {
 	}
 }
 
+func TestUtimesNanoAt(t *testing.T) {
+	defer chtmpdir(t)()
+
+	symlink := "symlink1"
+	os.Remove(symlink)
+	err := os.Symlink("nonexisting", symlink)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ts := []unix.Timespec{
+		{Sec: 1111, Nsec: 2222},
+		{Sec: 3333, Nsec: 4444},
+	}
+	err = unix.UtimesNanoAt(unix.AT_FDCWD, symlink, ts, unix.AT_SYMLINK_NOFOLLOW)
+	if err != nil {
+		t.Fatalf("UtimesNanoAt: %v", err)
+	}
+
+	var st unix.Stat_t
+	err = unix.Lstat(symlink, &st)
+	if err != nil {
+		t.Fatalf("Lstat: %v", err)
+	}
+	if st.Atim != ts[0] {
+		t.Errorf("UtimesNanoAt: wrong atime: %v", st.Atim)
+	}
+	if st.Mtim != ts[1] {
+		t.Errorf("UtimesNanoAt: wrong mtime: %v", st.Mtim)
+	}
+}
+
 func TestGetrlimit(t *testing.T) {
 	var rlim unix.Rlimit
 	err := unix.Getrlimit(unix.RLIMIT_AS, &rlim)

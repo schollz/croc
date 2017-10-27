@@ -283,9 +283,7 @@ func confirmKeyAck(key PublicKey, c packetConn) (bool, error) {
 		}
 		switch packet[0] {
 		case msgUserAuthBanner:
-			if err := handleBannerResponse(c, packet); err != nil {
-				return false, err
-			}
+			// TODO(gpaul): add callback to present the banner to the user
 		case msgUserAuthPubKeyOk:
 			var msg userAuthPubKeyOkMsg
 			if err := Unmarshal(packet, &msg); err != nil {
@@ -327,9 +325,7 @@ func handleAuthResponse(c packetConn) (bool, []string, error) {
 
 		switch packet[0] {
 		case msgUserAuthBanner:
-			if err := handleBannerResponse(c, packet); err != nil {
-				return false, nil, err
-			}
+			// TODO: add callback to present the banner to the user
 		case msgUserAuthFailure:
 			var msg userAuthFailureMsg
 			if err := Unmarshal(packet, &msg); err != nil {
@@ -342,24 +338,6 @@ func handleAuthResponse(c packetConn) (bool, []string, error) {
 			return false, nil, unexpectedMessageError(msgUserAuthSuccess, packet[0])
 		}
 	}
-}
-
-func handleBannerResponse(c packetConn, packet []byte) error {
-	var msg userAuthBannerMsg
-	if err := Unmarshal(packet, &msg); err != nil {
-		return err
-	}
-
-	transport, ok := c.(*handshakeTransport)
-	if !ok {
-		return nil
-	}
-
-	if transport.bannerCallback != nil {
-		return transport.bannerCallback(msg.Message)
-	}
-
-	return nil
 }
 
 // KeyboardInteractiveChallenge should print questions, optionally
@@ -407,9 +385,7 @@ func (cb KeyboardInteractiveChallenge) auth(session []byte, user string, c packe
 		// like handleAuthResponse, but with less options.
 		switch packet[0] {
 		case msgUserAuthBanner:
-			if err := handleBannerResponse(c, packet); err != nil {
-				return false, nil, err
-			}
+			// TODO: Print banners during userauth.
 			continue
 		case msgUserAuthInfoRequest:
 			// OK

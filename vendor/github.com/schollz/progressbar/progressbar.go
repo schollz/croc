@@ -50,25 +50,42 @@ func New(max int) *ProgressBar {
 	return p
 }
 
-// Reset will reset the clock
+// Reset will reset the clock that is used
+// to calculate current time and the time left.
 func (p *ProgressBar) Reset() {
 	p.Lock()
 	defer p.Unlock()
 	p.lastShown = time.Now()
 	p.startTime = time.Now()
+	p.currentNum = 0
 }
 
-// Set the max of the progress bar
+// SetMax sets the total number of the progress bar
 func (p *ProgressBar) SetMax(num int) {
 	p.Lock()
 	defer p.Unlock()
 	p.max = num
 }
 
-// Add a certain amount to the progress bar
-func (p *ProgressBar) Add(num int) error {
+// SetSize sets the size of the progress bar.
+func (p *ProgressBar) SetSize(size int) {
 	p.Lock()
-	p.currentNum += num
+	defer p.Unlock()
+	p.size = size
+}
+
+// Add with increase the current count on the progress bar
+func (p *ProgressBar) Add(num int) error {
+	p.RLock()
+	currentNum := p.currentNum
+	p.RUnlock()
+	return p.Set(currentNum + num)
+}
+
+// Set will change the current count on the progress bar
+func (p *ProgressBar) Set(num int) error {
+	p.Lock()
+	p.currentNum = num
 	percent := float64(p.currentNum) / float64(p.max)
 	p.currentSaucerSize = int(percent * float64(p.size))
 	p.currentPercent = int(percent * 100)
@@ -89,7 +106,7 @@ func (p *ProgressBar) Show() error {
 		return errors.New("current number exceeds max")
 	}
 	secondsLeft := time.Since(p.startTime).Seconds() / float64(p.currentNum) * (float64(p.max) - float64(p.currentNum))
-	s := fmt.Sprintf("\r%3d%% %s%s%s%s [%s:%s]            ",
+	s := fmt.Sprintf("\r%4d%% %s%s%s%s [%s:%s]            ",
 		p.currentPercent,
 		p.leftBookend,
 		strings.Repeat(p.symbolFinished, p.currentSaucerSize),
