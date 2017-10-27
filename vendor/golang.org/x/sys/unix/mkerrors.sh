@@ -184,6 +184,7 @@ struct ltchars {
 #include <linux/vm_sockets.h>
 #include <linux/taskstats.h>
 #include <linux/genetlink.h>
+#include <linux/watchdog.h>
 #include <net/route.h>
 #include <asm/termbits.h>
 
@@ -420,7 +421,9 @@ ccflags="$@"
 		$2 ~ /^(VM|VMADDR)_/ ||
 		$2 ~ /^(TASKSTATS|TS)_/ ||
 		$2 ~ /^GENL_/ ||
+		$2 ~ /^UTIME_/ ||
 		$2 ~ /^XATTR_(CREATE|REPLACE)/ ||
+		$2 ~ /^WDIOC_/ ||
 		$2 !~ "WMESGLEN" &&
 		$2 ~ /^W[A-Z0-9]+$/ ||
 		$2 ~ /^BLK[A-Z]*(GET$|SET$|BUF$|PART$|SIZE)/ {printf("\t%s = C.%s\n", $2, $2)}

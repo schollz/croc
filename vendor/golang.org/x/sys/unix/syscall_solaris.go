@@ -166,7 +166,7 @@ func Getwd() (wd string, err error) {
 
 func Getgroups() (gids []int, err error) {
 	n, err := getgroups(0, nil)
-	// Check for error and sanity check group count.  Newer versions of
+	// Check for error and sanity check group count. Newer versions of
 	// Solaris allow up to 1024 (NGROUPS_MAX).
 	if n < 0 || n > 1024 {
 		if err != nil {
@@ -350,7 +350,7 @@ func Futimesat(dirfd int, path string, tv []Timeval) error {
 }
 
 // Solaris doesn't have an futimes function because it allows NULL to be
-// specified as the path for futimesat.  However, Go doesn't like
+// specified as the path for futimesat. However, Go doesn't like
 // NULL-style string interfaces, so this simple wrapper is provided.
 func Futimes(fd int, tv []Timeval) error {
 	if tv == nil {

@@ -54,7 +54,7 @@ func nametomib(name string) (mib []_C_int, err error) {
 
 	// NOTE(rsc): It seems strange to set the buffer to have
 	// size CTL_MAXNAME+2 but use only CTL_MAXNAME
-	// as the size.  I don't know why the +2 is here, but the
+	// as the size. I don't know why the +2 is here, but the
 	// kernel uses +2 for its own implementation of this function.
 	// I am scared that if we don't include the +2 here, the kernel
 	// will silently write 2 words farther than we specify
@@ -239,6 +239,15 @@ func IoctlGetTermios(fd int, req uint) (*Termios, error) {
 	return &value, err
 }
 
+//sys	poll(fds *PollFd, nfds int, timeout int) (n int, err error)
+
+func Poll(fds []PollFd, timeout int) (n int, err error) {
+	if len(fds) == 0 {
+		return poll(nil, 0, timeout)
+	}
+	return poll(&fds[0], len(fds), timeout)
+}
+
 /*
  * Exposed directly
  */
@@ -377,7 +386,6 @@ func IoctlGetTermios(fd int, req uint) (*Termios, error) {
 // Searchfs
 // Delete
 // Copyfile
-// Poll
 // Watchevent
 // Waitevent
 // Modwatch

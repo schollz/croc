@@ -95,10 +95,6 @@ type ServerConfig struct {
 	// Note that RFC 4253 section 4.2 requires that this string start with
 	// "SSH-2.0-".
 	ServerVersion string
-
-	// BannerCallback, if present, is called and the return string is sent to
-	// the client after key exchange completed but before authentication.
-	BannerCallback func(conn ConnMetadata) string
 }
 
 // AddHostKey adds a private key as a host key. If an existing host
@@ -347,19 +343,6 @@ userAuthLoop:
 		}
 
 		s.user = userAuthReq.User
-
-		if authFailures == 0 && config.BannerCallback != nil {
-			msg := config.BannerCallback(s)
-			if msg != "" {
-				bannerMsg := &userAuthBannerMsg{
-					Message: msg,
-				}
-				if err := s.transport.writePacket(Marshal(bannerMsg)); err != nil {
-					return nil, err
-				}
-			}
-		}
-
 		perms = nil
 		authErr := errors.New("no auth passed yet")
 
