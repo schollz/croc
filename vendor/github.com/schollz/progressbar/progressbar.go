@@ -35,19 +35,17 @@ type ProgressBar struct {
 // New returns a new ProgressBar
 // with the specified maximum
 func New(max int) *ProgressBar {
-	p := new(ProgressBar)
-	p.Lock()
-	defer p.Unlock()
-	p.max = max
-	p.size = 40
-	p.symbolFinished = "█"
-	p.symbolLeft = " "
-	p.leftBookend = "|"
-	p.rightBookend = "|"
-	p.w = os.Stdout
-	p.lastShown = time.Now()
-	p.startTime = time.Now()
-	return p
+	return &ProgressBar{
+		max:            max,
+		size:           40,
+		symbolFinished: "█",
+		symbolLeft:     " ",
+		leftBookend:    "|",
+		rightBookend:   "|",
+		w:              os.Stdout,
+		lastShown:      time.Now(),
+		startTime:      time.Now(),
+	}
 }
 
 // Reset will reset the clock that is used
@@ -85,6 +83,10 @@ func (p *ProgressBar) Add(num int) error {
 // Set will change the current count on the progress bar
 func (p *ProgressBar) Set(num int) error {
 	p.Lock()
+	if p.max == 0 {
+		p.Unlock()
+		return errors.New("max must be greater than 0")
+	}
 	p.currentNum = num
 	percent := float64(p.currentNum) / float64(p.max)
 	p.currentSaucerSize = int(percent * float64(p.size))
@@ -112,7 +114,7 @@ func (p *ProgressBar) Show() error {
 		strings.Repeat(p.symbolFinished, p.currentSaucerSize),
 		strings.Repeat(p.symbolLeft, p.size-p.currentSaucerSize),
 		p.rightBookend,
-		time.Since(p.startTime).Round(time.Second).String(),
+		(time.Duration(time.Since(p.startTime).Seconds()) * time.Second).String(),
 		(time.Duration(secondsLeft) * time.Second).String(),
 	)
 
