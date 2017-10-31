@@ -1,15 +1,21 @@
-<p align="center">
-<img
-    src="logo.png"
-    width="100%" border="0" alt="progressbar">
-<br>
-<a href="https://travis-ci.org/schollz/progressbar"><img src="https://travis-ci.org/schollz/progressbar.svg?branch=master" alt="Build Status"></a>
-<img src="https://img.shields.io/badge/coverage-94%25-brightgreen.svg" alt="Code Coverage">
-<a href="https://goreportcard.com/report/github.com/schollz/progressbar"><img src="https://goreportcard.com/badge/github.com/schollz/progressbar" alt="Go Report Card"></a>
-<a href="https://godoc.org/github.com/schollz/progressbar"><img src="https://godoc.org/github.com/schollz/progressbar?status.svg" alt="GoDoc"></a>
-</p>
+# progressbar
 
-<p align="center">A very simple progress bar.</p>
+[![travis](https://travis-ci.org/schollz/progressbar.svg?branch=master)](https://travis-ci.org/schollz/progressbar) 
+[![go report card](https://goreportcard.com/badge/github.com/schollz/progressbar)](https://goreportcard.com/report/github.com/schollz/progressbar) 
+![coverage](https://img.shields.io/badge/coverage-94%25-brightgreen.svg)
+[![godocs](https://godoc.org/github.com/schollz/progressbar?status.svg)](https://godoc.org/github.com/schollz/progressbar) 
+
+A very simple thread-safe progress bar which should work on every OS without problems. I needed a progressbar for [croc](https://github.com/schollz/croc) and everything I tried had problems, so I made another one.
+
+![Example of progress bar](https://user-images.githubusercontent.com/6550035/32120326-5f420d42-bb15-11e7-89d4-c502864e78eb.gif)
+
+## Install
+
+```
+go get -u github.com/schollz/progressbar
+```
+
+## Usage 
 
 **Basic usage:**
 
@@ -26,3 +32,18 @@ which looks like:
 ```bash
  100% |████████████████████████████████████████| [1s:0s]            
  ```
+
+The times at the end show the elapsed time and the remaining time, respectively. 
+
+## Contributing
+
+Pull requests are welcome. Feel free to...
+
+- Revise documentation
+- Add new features
+- Fix bugs
+- Suggest improvements
+
+## License
+
+MIT
