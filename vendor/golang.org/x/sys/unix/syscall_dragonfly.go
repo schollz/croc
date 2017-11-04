@@ -125,13 +125,9 @@ func Getfsstat(buf []Statfs_t, flags int) (n int, err error) {
 	return
 }
 
-//sys   poll(fds *PollFd, nfds int, timeout int) (n int, err error)
-
-func Poll(fds []PollFd, timeout int) (n int, err error) {
-	if len(fds) == 0 {
-		return poll(nil, 0, timeout)
-	}
-	return poll(&fds[0], len(fds), timeout)
+func setattrlistTimes(path string, times []Timespec, flags int) error {
+	// used on Darwin for UtimesNano
+	return ENOSYS
 }
 
 /*

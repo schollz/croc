@@ -102,6 +102,11 @@ func Getfsstat(buf []Statfs_t, flags int) (n int, err error) {
 	return
 }
 
+func setattrlistTimes(path string, times []Timespec, flags int) error {
+	// used on Darwin for UtimesNano
+	return ENOSYS
+}
+
 /*
  * Exposed directly
  */
@@ -243,7 +248,6 @@ func Getfsstat(buf []Statfs_t, flags int) (n int, err error) {
 // nfssvc
 // nnpfspioctl
 // openat
-// poll
 // preadv
 // profil
 // pwritev

@@ -1282,7 +1282,7 @@ const (
 	RLIMIT_RTTIME                        = 0xf
 	RLIMIT_SIGPENDING                    = 0xb
 	RLIMIT_STACK                         = 0x3
-	RLIM_INFINITY                        = -0x1
+	RLIM_INFINITY                        = 0xffffffffffffffff
 	RTAX_ADVMSS                          = 0x8
 	RTAX_CC_ALGO                         = 0x10
 	RTAX_CWND                            = 0x7

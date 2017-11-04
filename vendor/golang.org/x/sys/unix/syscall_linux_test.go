@@ -56,34 +56,6 @@ func TestIoctlGetInt(t *testing.T) {
 	t.Logf("%d bits of entropy available", v)
 }
 
-func TestPoll(t *testing.T) {
-	f, cleanup := mktmpfifo(t)
-	defer cleanup()
-
-	const timeout = 100
-
-	ok := make(chan bool, 1)
-	go func() {
-		select {
-		case <-time.After(10 * timeout * time.Millisecond):
-			t.Errorf("Poll: failed to timeout after %d milliseconds", 10*timeout)
-		case <-ok:
-		}
-	}()
-
-	fds := []unix.PollFd{{Fd: int32(f.Fd()), Events: unix.POLLIN}}
-	n, err := unix.Poll(fds, timeout)
-	ok <- true
-	if err != nil {
-		t.Errorf("Poll: unexpected error: %v", err)
-		return
-	}
-	if n != 0 {
-		t.Errorf("Poll: wrong number of events: got %v, expected %v", n, 0)
-		return
-	}
-}
-
 func TestPpoll(t *testing.T) {
 	f, cleanup := mktmpfifo(t)
 	defer cleanup()
@@ -110,25 +82,6 @@ func TestPpoll(t *testing.T) {
 	if n != 0 {
 		t.Errorf("Ppoll: wrong number of events: got %v, expected %v", n, 0)
 		return
-	}
-}
-
-// mktmpfifo creates a temporary FIFO and provides a cleanup function.
-func mktmpfifo(t *testing.T) (*os.File, func()) {
-	err := unix.Mkfifo("fifo", 0666)
-	if err != nil {
-		t.Fatalf("mktmpfifo: failed to create FIFO: %v", err)
-	}
-
-	f, err := os.OpenFile("fifo", os.O_RDWR, 0666)
-	if err != nil {
-		os.Remove("fifo")
-		t.Fatalf("mktmpfifo: failed to open FIFO: %v", err)
-	}
-
-	return f, func() {
-		f.Close()
-		os.Remove("fifo")
 	}
 }
 
@@ -225,10 +178,21 @@ func TestGetrlimit(t *testing.T) {
 }
 
 func TestSelect(t *testing.T) {
-	_, err := unix.Select(0, nil, nil, nil, &unix.Timeval{0, 0})
+	_, err := unix.Select(0, nil, nil, nil, &unix.Timeval{Sec: 0, Usec: 0})
 	if err != nil {
 		t.Fatalf("Select: %v", err)
 	}
+}
+
+func TestUname(t *testing.T) {
+	var utsname unix.Utsname
+	err := unix.Uname(&utsname)
+	if err != nil {
+		t.Fatalf("Uname: %v", err)
+	}
+
+	// conversion from []byte to string, golang.org/issue/20753
+	t.Logf("OS: %s/%s %s", string(utsname.Sysname[:]), string(utsname.Machine[:]), string(utsname.Release[:]))
 }
 
 // utilities taken from os/os_test.go
