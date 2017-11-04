@@ -88,5 +88,37 @@ Example:
 humanize.SI(0.00000000223, "M") // 2.23 nM
 ```
 
+## English-specific functions
+
+The following functions are in the `humanize/english` subpackage.
+
+### Plurals
+
+Simple English pluralization
+
+```go
+english.PluralWord(1, "object", "") // object
+english.PluralWord(42, "object", "") // objects
+english.PluralWord(2, "bus", "") // buses
+english.PluralWord(99, "locus", "loci") // loci
+
+english.Plural(1, "object", "") // 1 object
+english.Plural(42, "object", "") // 42 objects
+english.Plural(2, "bus", "") // 2 buses
+english.Plural(99, "locus", "loci") // 99 loci
+```
+
+### Word series
+
+Format comma-separated words lists with conjuctions:
+
+```go
+english.WordSeries([]string{"foo"}, "and") // foo
+english.WordSeries([]string{"foo", "bar"}, "and") // foo and bar
+english.WordSeries([]string{"foo", "bar", "baz"}, "and") // foo, bar and baz
+
+english.OxfordWordSeries([]string{"foo", "bar", "baz"}, "and") // foo, bar, and baz
+```
+
 [odisc]: https://groups.google.com/d/topic/golang-nuts/l8NhI74jl-4/discussion
 [sinotation]: http://en.wikipedia.org/wiki/Metric_prefix

@@ -167,6 +167,7 @@ func TestLabelErrors(t *testing.T) {
 		{resolve, "\u3002b", ".b", ""},
 		{resolve, "..b", "..b", ""},
 		{resolve, "b..", "b..", ""},
+		{resolve, "\xed", "", "P1"},
 
 		// Raw punycode
 		{punyA, "", "", ""},

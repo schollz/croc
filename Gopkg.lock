@@ -5,7 +5,7 @@
   branch = "master"
   name = "github.com/dustin/go-humanize"
   packages = ["."]
-  revision = "77ed807830b4df581417e7f89eb81d4872832b72"
+  revision = "6d15c0ae71e55ed645c21ac4945aaadbc0e9a590"
 
 [[projects]]
   branch = "master"
@@ -32,6 +32,12 @@
   version = "v0.3.1"
 
 [[projects]]
+  name = "github.com/schollz/tarinator-go"
+  packages = ["."]
+  revision = "835680f17d252bd7a6047e670079f35e5626dc1e"
+  version = "v0.1.0"
+
+[[projects]]
   name = "github.com/sirupsen/logrus"
   packages = ["."]
   revision = "f006c2ac4710855cf0f916dd6b77acf6b048dc6e"
@@ -39,31 +45,25 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/verybluebot/tarinator-go"
-  packages = ["."]
-  revision = "f75724675c91d0c731b69c81e0985de07663f007"
-
-[[projects]]
-  branch = "master"
   name = "golang.org/x/crypto"
   packages = ["pbkdf2","scrypt","ssh/terminal"]
-  revision = "2509b142fb2b797aa7587dad548f113b2c0f20ce"
+  revision = "bd6f299fb381e4c3393d1c4b1f0b94f5e77650c8"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix","windows"]
-  revision = "0649f9fe46d917da5591af4d4784b6badd31d7e5"
+  revision = "4fe5d7925040acd225bf9c7cee65e82d07f06bff"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/text"
   packages = ["transform"]
-  revision = "6eab0e8f74e86c598ec3b6fad4888e0c11482d48"
+  revision = "88f656faf3f37f690df1a32515b479415e1a6769"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bdbf624014ff879def63602194ddf9c775d9d8461e0b2e687314dc8b855ffc50"
+  inputs-digest = "12bd97b8551ca41a157e3e1d8f42f1e0b1ee2e484b00d1eaec92e928e42f0244"
   solver-name = "gps-cdcl"
   solver-version = 1

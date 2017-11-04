@@ -15,7 +15,7 @@ import (
 
 	humanize "github.com/dustin/go-humanize"
 	"github.com/schollz/progressbar"
-	"github.com/verybluebot/tarinator-go"
+	"github.com/schollz/tarinator-go"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"

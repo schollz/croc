@@ -38,3 +38,25 @@ func NsecToTimeval(nsec int64) Timeval {
 	}
 	return setTimeval(sec, usec)
 }
+
+// Unix returns ts as the number of seconds and nanoseconds elapsed since the
+// Unix epoch.
+func (ts *Timespec) Unix() (sec int64, nsec int64) {
+	return int64(ts.Sec), int64(ts.Nsec)
+}
+
+// Unix returns tv as the number of seconds and nanoseconds elapsed since the
+// Unix epoch.
+func (tv *Timeval) Unix() (sec int64, nsec int64) {
+	return int64(tv.Sec), int64(tv.Usec) * 1000
+}
+
+// Nano returns ts as the number of nanoseconds elapsed since the Unix epoch.
+func (ts *Timespec) Nano() int64 {
+	return int64(ts.Sec)*1e9 + int64(ts.Nsec)
+}
+
+// Nano returns tv as the number of nanoseconds elapsed since the Unix epoch.
+func (tv *Timeval) Nano() int64 {
+	return int64(tv.Sec)*1e9 + int64(tv.Usec)*1000
+}
