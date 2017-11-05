@@ -24,11 +24,11 @@ _These two gifs should run in sync if you force-reload (Ctl+F5)_
 
 **Sender:**
 
-![send](https://user-images.githubusercontent.com/6550035/31864532-ad80c6ae-b71b-11e7-91f9-bcba8143d3cf.gif)
+![send](https://user-images.githubusercontent.com/6550035/32415611-9bfa858a-c1f9-11e7-9573-52c1edc52e5f.gif)
 
 **Receiver:**
 
-![receive](https://user-images.githubusercontent.com/6550035/31864531-ad6e22c4-b71b-11e7-901a-02a210057cf1.gif)
+![receive](https://user-images.githubusercontent.com/6550035/32415609-9ba49dc8-c1f9-11e7-9c86-ea0baae730fe.gif)
 
 
 **Sender:**
