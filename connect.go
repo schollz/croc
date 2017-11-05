@@ -212,7 +212,6 @@ func (c *Connection) runClient() error {
 		"sender?": c.IsSender,
 	})
 
-	startTime := time.Now()
 	c.HashedCode = Hash(c.Code)
 
 	var wg sync.WaitGroup
@@ -227,10 +226,14 @@ func (c *Connection) runClient() error {
 		gotResponse        bool
 		gotConnectionInUse bool
 		notPresent         bool
+		startTime          time.Time
 		sync.RWMutex
 	}
 
 	responses := new(responsesStruct)
+	responses.Lock()
+	responses.startTime = time.Now()
+	responses.Unlock()
 	for id := 0; id < c.NumberOfConnections; id++ {
 		go func(id int) {
 			defer wg.Done()
@@ -292,7 +295,9 @@ func (c *Connection) runClient() error {
 					time.Sleep(100 * time.Millisecond)
 					// Write data from file
 					logger.Debug("send file")
-					startTime = time.Now()
+					responses.Lock()
+					responses.startTime = time.Now()
+					responses.Unlock()
 					c.bar.Reset()
 					if err := c.sendFile(id, connection); err != nil {
 						log.Error(err)
@@ -387,7 +392,9 @@ func (c *Connection) runClient() error {
 						if id == 0 {
 							fmt.Printf("\n\nReceiving (<-%s)..\n", sendersAddress)
 						}
-						startTime = time.Now()
+						responses.Lock()
+						responses.startTime = time.Now()
+						responses.Unlock()
 						c.bar.SetMax(c.File.Size)
 						c.bar.Reset()
 						if err := c.receiveFile(id, connection); err != nil {
@@ -405,6 +412,8 @@ func (c *Connection) runClient() error {
 	if responses.gotConnectionInUse {
 		return nil // connection was in use, just quit cleanly
 	}
+
+	timeSinceStart := time.Since(responses.startTime) / time.Second
 
 	if c.IsSender {
 		if responses.gotTimeout {
@@ -471,7 +480,6 @@ func (c *Connection) runClient() error {
 			fmt.Printf("\nReceived file written to %s", path.Join(c.Path, c.File.Name))
 		}
 	}
-	timeSinceStart := time.Since(startTime) / time.Second
 	fmt.Printf(" (%s/s)\n", humanize.Bytes(uint64(float64(c.File.Size)/float64(timeSinceStart))))
 	return nil
 }
