@@ -29,17 +29,18 @@ type Flags struct {
 var version string
 
 func main() {
-	fmt.Println(`
-                                ,_
-                               >' )
-   croc version ` + fmt.Sprintf("%5s", version) + `          ( ( \ 
-                                || \ 
-                 /^^^^\         ||
-    /^^\________/0     \        ||
-   (                    ` + "`" + `~+++,,_||__,,++~^^^^^^^
- ...V^V^V^V^V^V^\...............................
- 
-`)
+	// 	fmt.Println(`
+	//                                 ,_
+	//                                >' )
+	//    croc version ` + fmt.Sprintf("%5s", version) + `          ( ( \
+	//                                 || \
+	//                  /^^^^\         ||
+	//     /^^\________/0     \        ||
+	//    (                    ` + "`" + `~+++,,_||__,,++~^^^^^^^
+	//  ...V^V^V^V^V^V^\...............................
+
+	// `)
+	fmt.Printf("croc version %s\n", version)
 	flags := new(Flags)
 	flag.BoolVar(&flags.Relay, "relay", false, "run as relay")
 	flag.BoolVar(&flags.Debug, "debug", false, "debug mode")
