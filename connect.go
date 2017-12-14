@@ -7,15 +7,17 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/signal"
 	"path"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
 	"github.com/schollz/progressbar"
-	"github.com/schollz/tarinator-go"
+	tarinator "github.com/schollz/tarinator-go"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -100,7 +102,27 @@ func NewConnection(flags *Flags) (*Connection, error) {
 	return c, nil
 }
 
+func (c *Connection) cleanup() {
+	log.Debug("cleaning")
+	for id := 1; id <= 8; id++ {
+		os.Remove(path.Join(c.Path, c.File.Name+".enc."+strconv.Itoa(id)))
+	}
+	os.Remove(path.Join(c.Path, c.File.Name+".enc"))
+
+}
+
 func (c *Connection) Run() error {
+	// catch the Ctl+C
+	catchCtlC := make(chan os.Signal, 2)
+	signal.Notify(catchCtlC, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-catchCtlC
+		c.cleanup()
+		fmt.Println("\nExiting")
+		os.Exit(1)
+	}()
+	defer c.cleanup()
+
 	forceSingleThreaded := false
 	if c.IsSender {
 		fsize, err := FileSize(path.Join(c.File.Path, c.File.Name))
