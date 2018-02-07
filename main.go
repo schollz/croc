@@ -13,6 +13,7 @@ const BUFFERSIZE = 1024
 var oneGigabytePerSecond = 1000000 // expressed as kbps
 
 type Flags struct {
+	HideLogo            bool
 	Relay               bool
 	Debug               bool
 	Wait                bool
@@ -29,19 +30,8 @@ type Flags struct {
 var version string
 
 func main() {
-	// 	fmt.Println(`
-	//                                 ,_
-	//                                >' )
-	//    croc version ` + fmt.Sprintf("%5s", version) + `          ( ( \
-	//                                 || \
-	//                  /^^^^\         ||
-	//     /^^\________/0     \        ||
-	//    (                    ` + "`" + `~+++,,_||__,,++~^^^^^^^
-	//  ...V^V^V^V^V^V^\...............................
-
-	// `)
-	fmt.Printf("croc version %s\n", version)
 	flags := new(Flags)
+	flag.BoolVar(&flags.HideLogo, "hidelogo", false, "run as relay")
 	flag.BoolVar(&flags.Relay, "relay", false, "run as relay")
 	flag.BoolVar(&flags.Debug, "debug", false, "debug mode")
 	flag.BoolVar(&flags.Wait, "wait", false, "wait for code to be sent")
@@ -54,6 +44,20 @@ func main() {
 	flag.BoolVar(&flags.DontEncrypt, "no-encrypt", false, "turn off encryption")
 	flag.IntVar(&flags.NumberOfConnections, "threads", 4, "number of threads to use")
 	flag.Parse()
+	if !flags.HideLogo {
+		fmt.Println(`
+                                ,_
+                               >' )
+   croc version ` + fmt.Sprintf("%5s", version) + `          ( ( \
+                                || \
+                 /^^^^\         ||
+    /^^\________/0     \        ||
+   (                    ` + "`" + `~+++,,_||__,,++~^^^^^^^
+ ...V^V^V^V^V^V^\...............................
+
+	`)
+	}
+	fmt.Printf("croc version %s\n", version)
 
 	if flags.Relay {
 		r := NewRelay(flags)
