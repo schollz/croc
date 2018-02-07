@@ -4,7 +4,7 @@
     width="100%" border="0" alt="croc">
 <br>
 <a href="https://travis-ci.org/schollz/croc"><img src="https://travis-ci.org/schollz/croc.svg?branch=master" alt="Build Status"></a>
-<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-0.3.2-brightgreen.svg?style=flat-square" alt="Version"></a>
+<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-0.4.1-brightgreen.svg?style=flat-square" alt="Version"></a>
 <a href="https://gitter.im/schollz/croc?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=body_badge"><img src="https://img.shields.io/badge/chat-on%20gitter-brightgreen.svg?style=flat-square" alt="Gitter"></a>
 <a href="https://goreportcard.com/report/github.com/schollz/croc"><img src="https://goreportcard.com/badge/github.com/schollz/croc" alt="Go Report Card"></a>
 <a href="https://godoc.org/github.com/schollz/croc"><img src="https://godoc.org/github.com/schollz/croc?status.svg" alt="GoDoc"></a>
