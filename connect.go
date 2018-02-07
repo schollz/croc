@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	humanize "github.com/dustin/go-humanize"
+	"github.com/dustin/go-humanize"
 	"github.com/schollz/progressbar"
 	tarinator "github.com/schollz/tarinator-go"
 
