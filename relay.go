@@ -254,7 +254,7 @@ func receiveMessage(connection net.Conn) string {
 		logger.Warn("read deadline, no response")
 		return ""
 	}
-	return strings.Replace(string(messageByte), ":", "", -1)
+	return strings.TrimRight(string(messageByte), ":")
 }
 
 func fillString(retunString string, toLength int) string {
