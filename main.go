@@ -30,8 +30,7 @@ type Flags struct {
 var version string
 
 func main() {
-	version = "0.4.2"
-	
+
 	flags := new(Flags)
 	flag.BoolVar(&flags.HideLogo, "hidelogo", false, "run as relay")
 	flag.BoolVar(&flags.Relay, "relay", false, "run as relay")
