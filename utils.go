@@ -49,38 +49,22 @@ func SplitFile(fileName string, numPieces int) (err error) {
 	}
 
 	bytesPerPiece := int(math.Ceil(float64(fi.Size()) / float64(numPieces)))
-	bytesRead := 0
-	i := 0
-	out, err := os.Create(fileName + "." + strconv.Itoa(i))
-	if err != nil {
-		return err
-	}
-	buf := make([]byte, 4096)
-	if bytesPerPiece < 4096/numPieces {
-		buf = make([]byte, bytesPerPiece)
-	}
-	for {
+
+	buf := make([]byte, bytesPerPiece)
+	for i := 0; i < numPieces; i++ {
+
+		out, err := os.Create(fileName + "." + strconv.Itoa(i))
+		if err != nil {
+			return err
+		}
 		n, err := file.Read(buf)
 		out.Write(buf[:n])
-		// If written bytes count is smaller than lenght of buffer
-		// then we don't create one more empty file
-		if err == io.EOF || n < len(buf) {
+		out.Close()
+
+		if err == io.EOF {
 			break
 		}
-		bytesRead += n
-
-		if bytesRead >= bytesPerPiece {
-			// Close file and open a new one
-			out.Close()
-			i++
-			out, err = os.Create(fileName + "." + strconv.Itoa(i))
-			if err != nil {
-				return err
-			}
-			bytesRead = 0
-		}
 	}
-	out.Close()
 	return nil
 }
 
