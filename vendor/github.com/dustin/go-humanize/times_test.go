@@ -37,6 +37,17 @@ func TestPast(t *testing.T) {
 	}.validate(t)
 }
 
+func TestReltimeOffbyone(t *testing.T) {
+	testList{
+		{"1w-1", RelTime(time.Unix(0, 0), time.Unix(7*24*60*60, -1), "ago", ""), "6 days ago"},
+		{"1w±0", RelTime(time.Unix(0, 0), time.Unix(7*24*60*60, 0), "ago", ""), "1 week ago"},
+		{"1w+1", RelTime(time.Unix(0, 0), time.Unix(7*24*60*60, 1), "ago", ""), "1 week ago"},
+		{"2w-1", RelTime(time.Unix(0, 0), time.Unix(14*24*60*60, -1), "ago", ""), "1 week ago"},
+		{"2w±0", RelTime(time.Unix(0, 0), time.Unix(14*24*60*60, 0), "ago", ""), "2 weeks ago"},
+		{"2w+1", RelTime(time.Unix(0, 0), time.Unix(14*24*60*60, 1), "ago", ""), "2 weeks ago"},
+	}.validate(t)
+}
+
 func TestFuture(t *testing.T) {
 	// Add a little time so that these things properly line up in
 	// the future.

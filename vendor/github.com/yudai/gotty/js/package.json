@@ -1,0 +1,13 @@
+{
+    "devDependencies": {
+        "license-loader": "^0.5.0",
+        "ts-loader": "^2.0.3",
+        "typescript": "^2.3.2",
+        "uglifyjs-webpack-plugin": "^1.0.0-beta.2",
+        "webpack": "^2.5.1"
+    },
+    "dependencies": {
+        "libapps": "github:yudai/libapps#release-hterm-1.70",
+        "xterm": "^2.7.0"
+    }
+}

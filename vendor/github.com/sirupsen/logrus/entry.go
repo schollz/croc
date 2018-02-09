@@ -94,7 +94,10 @@ func (entry Entry) log(level Level, msg string) {
 	entry.Level = level
 	entry.Message = msg
 
-	if err := entry.Logger.Hooks.Fire(level, &entry); err != nil {
+	entry.Logger.mu.Lock()
+	err := entry.Logger.Hooks.Fire(level, &entry)
+	entry.Logger.mu.Unlock()
+	if err != nil {
 		entry.Logger.mu.Lock()
 		fmt.Fprintf(os.Stderr, "Failed to fire hook: %v\n", err)
 		entry.Logger.mu.Unlock()

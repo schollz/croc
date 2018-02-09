@@ -53,18 +53,18 @@ const (
 	tmpTarGzFileName = "to_send.tmp.tar.gz"
 )
 
-func NewConnection(flags *Flags) (*Connection, error) {
+func NewConnection(config *AppConfig) (*Connection, error) {
 	c := new(Connection)
-	c.Debug = flags.Debug
-	c.DontEncrypt = flags.DontEncrypt
-	c.Wait = flags.Wait
-	c.Server = flags.Server
-	c.Code = flags.Code
-	c.NumberOfConnections = flags.NumberOfConnections
-	c.rate = flags.Rate
-	if len(flags.File) > 0 {
+	c.Debug = config.Debug
+	c.DontEncrypt = config.DontEncrypt
+	c.Wait = config.Wait
+	c.Server = config.Server
+	c.Code = config.Code
+	c.NumberOfConnections = config.NumberOfConnections
+	c.rate = config.Rate
+	if len(config.File) > 0 {
 		// check wether the file is a dir
-		info, err := os.Stat(flags.File)
+		info, err := os.Stat(config.File)
 		if err != nil {
 			return c, err
 		}
@@ -73,23 +73,23 @@ func NewConnection(flags *Flags) (*Connection, error) {
 			fmt.Println("compressing directory...")
 
 			// we "tarify" the file
-			err = tarinator.Tarinate([]string{flags.File}, path.Base(flags.File)+".tar")
+			err = tarinator.Tarinate([]string{config.File}, path.Base(config.File)+".tar")
 			if err != nil {
 				return c, err
 			}
 
 			// now, we change the target file name to match the new archive created
-			flags.File = path.Base(flags.File) + ".tar"
+			config.File = path.Base(config.File) + ".tar"
 			// we set the value IsDir to true
 			c.File.IsDir = true
 		}
-		c.File.Name = path.Base(flags.File)
-		c.File.Path = path.Dir(flags.File)
+		c.File.Name = path.Base(config.File)
+		c.File.Path = path.Dir(config.File)
 		c.IsSender = true
 	} else {
 		c.IsSender = false
-		c.AskPath = flags.PathSpec
-		c.Path = flags.Path
+		c.AskPath = config.PathSpec
+		c.Path = config.Path
 	}
 
 	log.SetFormatter(&log.TextFormatter{})
