@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -24,27 +25,27 @@ type ProgressBar struct {
 	startTime time.Time
 	w         io.Writer
 
-	// symbols
-	symbolFinished string
-	symbolLeft     string
-	leftBookend    string
-	rightBookend   string
+	theme []string
+
 	sync.RWMutex
+}
+
+func (p *ProgressBar) SetTheme(theme []string) {
+	p.Lock()
+	p.theme = theme
+	p.Unlock()
 }
 
 // New returns a new ProgressBar
 // with the specified maximum
 func New(max int) *ProgressBar {
 	return &ProgressBar{
-		max:            max,
-		size:           40,
-		symbolFinished: "█",
-		symbolLeft:     " ",
-		leftBookend:    "|",
-		rightBookend:   "|",
-		w:              os.Stdout,
-		lastShown:      time.Now(),
-		startTime:      time.Now(),
+		max:       max,
+		size:      40,
+		theme:     []string{"█", " ", "|", "|"},
+		w:         os.Stdout,
+		lastShown: time.Now(),
+		startTime: time.Now(),
 	}
 }
 
@@ -107,23 +108,37 @@ func (p *ProgressBar) Show() error {
 	if p.currentNum > p.max {
 		return errors.New("current number exceeds max")
 	}
-	secondsLeft := time.Since(p.startTime).Seconds() / float64(p.currentNum) * (float64(p.max) - float64(p.currentNum))
-	s := fmt.Sprintf("\r%4d%% %s%s%s%s [%s:%s]            ",
-		p.currentPercent,
-		p.leftBookend,
-		strings.Repeat(p.symbolFinished, p.currentSaucerSize),
-		strings.Repeat(p.symbolLeft, p.size-p.currentSaucerSize),
-		p.rightBookend,
-		(time.Duration(time.Since(p.startTime).Seconds()) * time.Second).String(),
-		(time.Duration(secondsLeft) * time.Second).String(),
-	)
+
+	s := p.String()
 
 	_, err := io.WriteString(p.w, s)
 	if err != nil {
 		return err
 	}
+
+	// handle mac os newline
+	// this breaks your test for some reason
+	if runtime.GOOS == "darwin" {
+		fmt.Fprintf(p.w, "\033[%dA", 0)
+	}
+
 	if f, ok := p.w.(*os.File); ok {
 		f.Sync()
 	}
 	return nil
+}
+
+func (p *ProgressBar) String() string {
+	p.RLock()
+	defer p.RUnlock()
+	leftTime := time.Since(p.startTime).Seconds() / float64(p.currentNum) * (float64(p.max) - float64(p.currentNum))
+	return fmt.Sprintf("\r%4d%% %s%s%s%s [%s:%s]            ",
+		p.currentPercent,
+		p.theme[2],
+		strings.Repeat(p.theme[0], p.currentSaucerSize),
+		strings.Repeat(p.theme[1], p.size-p.currentSaucerSize),
+		p.theme[3],
+		(time.Duration(time.Since(p.startTime).Seconds()) * time.Second).String(),
+		(time.Duration(leftTime) * time.Second).String(),
+	)
 }
