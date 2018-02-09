@@ -2,12 +2,6 @@
 
 
 [[projects]]
-  name = "github.com/codegangsta/cli"
-  packages = ["."]
-  revision = "cfb38830724cc34fedffe9a2a29fb54fa9169cd1"
-  version = "v1.20.0"
-
-[[projects]]
   branch = "master"
   name = "github.com/dustin/go-humanize"
   packages = ["."]
@@ -68,6 +62,12 @@
   version = "v1.0.3"
 
 [[projects]]
+  name = "github.com/urfave/cli"
+  packages = ["."]
+  revision = "cfb38830724cc34fedffe9a2a29fb54fa9169cd1"
+  version = "v1.20.0"
+
+[[projects]]
   name = "github.com/yudai/gotty"
   packages = ["pkg/homedir"]
   revision = "a080c85cbc59226c94c6941ad8c395232d72d517"
@@ -106,6 +106,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "8ee0066f90aab988cd1553eedcde5f62c9d2a9d3c18d2a4ea0a57a85df4b2eab"
+  inputs-digest = "f8ef1cfe7bc4581e86cff48f7b1d070246e97b9d49fcf6d30a4421e5b3bfaf75"
   solver-name = "gps-cdcl"
   solver-version = 1
