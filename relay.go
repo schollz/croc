@@ -42,9 +42,9 @@ type Relay struct {
 	NumberOfConnections int
 }
 
-func NewRelay(flags *Flags) *Relay {
+func NewRelay(config *AppConfig) *Relay {
 	r := &Relay{
-		Debug:               flags.Debug,
+		Debug:               config.Debug,
 		NumberOfConnections: MAX_NUMBER_THREADS,
 	}
 
