@@ -7,6 +7,8 @@
 //
 package cldrtree
 
+//go:generate go test -gen
+
 // cldrtree stores CLDR data in a tree-like structure called Tree. In the CLDR
 // data each branch in the tree is indicated by either an element name or an
 // attribute value. A Tree does not distinguish between these two cases, but

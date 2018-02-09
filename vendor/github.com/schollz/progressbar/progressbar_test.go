@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func ExampleBar() {
+func ExampleProgressBar() {
 	bar := New(10)
 	bar.SetMax(100)
 	bar.SetSize(10)
