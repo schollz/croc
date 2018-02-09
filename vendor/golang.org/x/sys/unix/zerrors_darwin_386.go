@@ -249,6 +249,8 @@ const (
 	CSTOP                             = 0x13
 	CSTOPB                            = 0x400
 	CSUSP                             = 0x1a
+	CTL_HW                            = 0x6
+	CTL_KERN                          = 0x1
 	CTL_MAXNAME                       = 0xc
 	CTL_NET                           = 0x4
 	DLT_A429                          = 0xb8
@@ -510,6 +512,7 @@ const (
 	F_PATHPKG_CHECK                   = 0x34
 	F_PEOFPOSMODE                     = 0x3
 	F_PREALLOCATE                     = 0x2a
+	F_PUNCHHOLE                       = 0x63
 	F_RDADVISE                        = 0x2c
 	F_RDAHEAD                         = 0x2d
 	F_RDLCK                           = 0x1
@@ -526,10 +529,12 @@ const (
 	F_SINGLE_WRITER                   = 0x4c
 	F_THAW_FS                         = 0x36
 	F_TRANSCODEKEY                    = 0x4b
+	F_TRIM_ACTIVE_FILE                = 0x64
 	F_UNLCK                           = 0x2
 	F_VOLPOSMODE                      = 0x4
 	F_WRLCK                           = 0x3
 	HUPCL                             = 0x4000
+	HW_MACHINE                        = 0x1
 	ICANON                            = 0x100
 	ICMP6_FILTER                      = 0x12
 	ICRNL                             = 0x100
@@ -766,6 +771,7 @@ const (
 	IPV6_FAITH                        = 0x1d
 	IPV6_FLOWINFO_MASK                = 0xffffff0f
 	IPV6_FLOWLABEL_MASK               = 0xffff0f00
+	IPV6_FLOW_ECN_MASK                = 0x300
 	IPV6_FRAGTTL                      = 0x3c
 	IPV6_FW_ADD                       = 0x1e
 	IPV6_FW_DEL                       = 0x1f
@@ -856,6 +862,7 @@ const (
 	IP_RECVOPTS                       = 0x5
 	IP_RECVPKTINFO                    = 0x1a
 	IP_RECVRETOPTS                    = 0x6
+	IP_RECVTOS                        = 0x1b
 	IP_RECVTTL                        = 0x18
 	IP_RETOPTS                        = 0x8
 	IP_RF                             = 0x8000
@@ -874,6 +881,10 @@ const (
 	IXANY                             = 0x800
 	IXOFF                             = 0x400
 	IXON                              = 0x200
+	KERN_HOSTNAME                     = 0xa
+	KERN_OSRELEASE                    = 0x2
+	KERN_OSTYPE                       = 0x1
+	KERN_VERSION                      = 0x4
 	LOCK_EX                           = 0x2
 	LOCK_NB                           = 0x4
 	LOCK_SH                           = 0x1

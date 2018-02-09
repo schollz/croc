@@ -448,7 +448,7 @@ func loadTestdata(t *testing.T, test string) (tree *Tree, file []byte) {
 	generate(b, tree, w)
 	generateTestData(b, w)
 	buf := &bytes.Buffer{}
-	if _, err = w.WriteGo(buf, "test"); err != nil {
+	if _, err = w.WriteGo(buf, "test", ""); err != nil {
 		t.Log(buf.String())
 		t.Fatal("error generating code:", err)
 	}

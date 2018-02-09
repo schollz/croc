@@ -52,7 +52,7 @@ func main() {
 	if err != nil {
 		exit(err, 3)
 	}
-	
+
 	app.Flags = append(
 		cliFlags,
 		cli.StringFlag{

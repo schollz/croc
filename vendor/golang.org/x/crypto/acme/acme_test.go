@@ -946,7 +946,7 @@ func TestNonce_add(t *testing.T) {
 	c.addNonce(http.Header{"Replay-Nonce": {}})
 	c.addNonce(http.Header{"Replay-Nonce": {"nonce"}})
 
-	nonces := map[string]struct{}{"nonce": struct{}{}}
+	nonces := map[string]struct{}{"nonce": {}}
 	if !reflect.DeepEqual(c.nonces, nonces) {
 		t.Errorf("c.nonces = %q; want %q", c.nonces, nonces)
 	}

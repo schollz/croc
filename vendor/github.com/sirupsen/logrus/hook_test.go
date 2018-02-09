@@ -1,6 +1,7 @@
 package logrus
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -118,5 +119,26 @@ func TestErrorHookShouldFireOnError(t *testing.T) {
 		log.Error("test")
 	}, func(fields Fields) {
 		assert.Equal(t, hook.Fired, true)
+	})
+}
+
+func TestAddHookRace(t *testing.T) {
+	var wg sync.WaitGroup
+	wg.Add(2)
+	hook := new(ErrorHook)
+	LogAndAssertJSON(t, func(log *Logger) {
+		go func() {
+			defer wg.Done()
+			log.AddHook(hook)
+		}()
+		go func() {
+			defer wg.Done()
+			log.Error("test")
+		}()
+		wg.Wait()
+	}, func(fields Fields) {
+		// the line may have been logged
+		// before the hook was added, so we can't
+		// actually assert on the hook
 	})
 }
