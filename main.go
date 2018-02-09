@@ -3,10 +3,10 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"os"
-	"strings"
 	"github.com/urfave/cli"
 	"github.com/yudai/gotty/pkg/homedir"
+	"os"
+	"strings"
 )
 
 const BUFFERSIZE = 1024
