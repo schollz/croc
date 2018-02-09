@@ -1,0 +1,32 @@
+box: golang:1.9.0
+
+build:
+  steps:
+    - setup-go-workspace
+    - script:
+        name: tools
+        code: make tools
+    - script:
+        name: test
+        code: make test
+    - script:
+        name: cross compile
+        code: make cross_compile OUTPUT_DIR=$WERCKER_OUTPUT_DIR
+    - script:
+        name: store Makefile
+        code: cp Makefile $WERCKER_OUTPUT_DIR/
+
+deploy:
+  steps:
+    - script:
+        name: tools
+        code: make tools
+    - script:
+        name: targz
+        code: make targz OUTPUT_DIR=.
+    - script:
+        name: shasums
+        code: make shasums OUTPUT_DIR=.
+    - script:
+        name: release
+        code: make release OUTPUT_DIR=. GIT_COMMIT=$WERCKER_GIT_COMMIT
