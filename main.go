@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 	"github.com/yudai/gotty/pkg/homedir"
 	"github.com/smileboywtu/croc/common"
 )
@@ -52,7 +52,7 @@ func main() {
 	if err != nil {
 		exit(err, 3)
 	}
-
+	
 	app.Flags = append(
 		cliFlags,
 		cli.StringFlag{
