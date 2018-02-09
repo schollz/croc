@@ -7,7 +7,6 @@ import (
 	"strings"
 	"github.com/urfave/cli"
 	"github.com/yudai/gotty/pkg/homedir"
-	"github.com/smileboywtu/croc/common"
 )
 
 const BUFFERSIZE = 1024
@@ -44,11 +43,11 @@ func main() {
 	cli.AppHelpTemplate = helpTemplate
 
 	appOptions := &AppConfig{}
-	if err := common.ApplyDefaultValues(appOptions); err != nil {
+	if err := ApplyDefaultValues(appOptions); err != nil {
 		exit(err, 1)
 	}
 
-	cliFlags, flagMappings, err := common.GenerateFlags(appOptions)
+	cliFlags, flagMappings, err := GenerateFlags(appOptions)
 	if err != nil {
 		exit(err, 3)
 	}
@@ -68,12 +67,12 @@ func main() {
 		configFile := c.String("config")
 		_, err := os.Stat(homedir.Expand(configFile))
 		if configFile != "~/.croc" || !os.IsNotExist(err) {
-			if err := common.ApplyConfigFileYaml(configFile, appOptions); err != nil {
+			if err := ApplyConfigFileYaml(configFile, appOptions); err != nil {
 				exit(err, 2)
 			}
 		}
 
-		common.ApplyFlags(cliFlags, flagMappings, c, appOptions)
+		ApplyFlags(cliFlags, flagMappings, c, appOptions)
 		if !appOptions.HideLogo {
 			fmt.Println(`
                                 ,_
