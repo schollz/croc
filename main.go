@@ -2,51 +2,80 @@ package main
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"os"
 	"strings"
+	"github.com/codegangsta/cli"
+	"github.com/yudai/gotty/pkg/homedir"
+	"github.com/smileboywtu/croc/common"
 )
 
 const BUFFERSIZE = 1024
 
-var oneGigabytePerSecond = 1000000 // expressed as kbps
-
-type Flags struct {
-	HideLogo            bool
-	Relay               bool
-	Debug               bool
-	Wait                bool
-	PathSpec            bool
-	DontEncrypt         bool
-	Server              string
-	File                string
-	Path                string
-	Code                string
-	Rate                int
-	NumberOfConnections int
+type AppConfig struct {
+	HideLogo            bool   `yaml:"hidelogo"  flagName:"hidelogo" flagSName:"hl" flagDescribe:"Hidden logo" default:"false"`
+	Relay               bool   `yaml:"relay"  flagName:"relay" flagSName:"r" flagDescribe:"Run as relay" default:"false"`
+	Debug               bool   `yaml:"debug"  flagName:"debug" flagSName:"d" flagDescribe:"Debug mode" default:"false"`
+	Wait                bool   `yaml:"wait"  flagName:"wait" flagSName:"w" flagDescribe:"Wait for code to be sent" default:"false"`
+	PathSpec            bool   `yaml:"ask-save"  flagName:"ask-save" flagSName:"q" flagDescribe:"Ask for path to save to" default:"false"`
+	DontEncrypt         bool   `yaml:"no-encrypt"  flagName:"no-encrypt" flagSName:"g" flagDescribe:"Turn off encryption" default:"false"`
+	Server              string `yaml:"server"  flagName:"server" flagSName:"l" flagDescribe:"Address of relay server" default:"cowyo.com"`
+	File                string `yaml:"send"  flagName:"send" flagSName:"s" flagDescribe:"File to send" default:""`
+	Path                string `yaml:"save"  flagName:"save" flagSName:"p" flagDescribe:"Path to save to" default:""`
+	Code                string `yaml:"code"  flagName:"code" flagSName:"c" flagDescribe:"Use your own code phrase" default:""`
+	Rate                int    `yaml:"rate"  flagName:"rate" flagSName:"R" flagDescribe:"Throttle down to speed in kbps" default:"1000000"`
+	NumberOfConnections int    `yaml:"threads"  flagName:"threads" flagSName:"n" flagDescribe:"Number of threads to use" default:"4"`
 }
 
+var email string
+var author string
 var version string
 
 func main() {
 
-	flags := new(Flags)
-	flag.BoolVar(&flags.HideLogo, "hidelogo", false, "run as relay")
-	flag.BoolVar(&flags.Relay, "relay", false, "run as relay")
-	flag.BoolVar(&flags.Debug, "debug", false, "debug mode")
-	flag.BoolVar(&flags.Wait, "wait", false, "wait for code to be sent")
-	flag.BoolVar(&flags.PathSpec, "ask-save", false, "ask for path to save to")
-	flag.StringVar(&flags.Server, "server", "cowyo.com", "address of relay server")
-	flag.StringVar(&flags.File, "send", "", "file to send")
-	flag.StringVar(&flags.Path, "save", "", "path to save to")
-	flag.StringVar(&flags.Code, "code", "", "use your own code phrase")
-	flag.IntVar(&flags.Rate, "rate", oneGigabytePerSecond, "throttle down to speed in kbps")
-	flag.BoolVar(&flags.DontEncrypt, "no-encrypt", false, "turn off encryption")
-	flag.IntVar(&flags.NumberOfConnections, "threads", 4, "number of threads to use")
-	flag.Parse()
-	if !flags.HideLogo {
-		fmt.Println(`
+	app := cli.NewApp()
+	app.Name = "Croc"
+	app.Version = version
+	app.Author = author
+	app.Email = email
+	app.Usage = "send file by croc bridge"
+	app.HideHelp = true
+
+	cli.AppHelpTemplate = helpTemplate
+
+	appOptions := &AppConfig{}
+	if err := common.ApplyDefaultValues(appOptions); err != nil {
+		exit(err, 1)
+	}
+
+	cliFlags, flagMappings, err := common.GenerateFlags(appOptions)
+	if err != nil {
+		exit(err, 3)
+	}
+
+	app.Flags = append(
+		cliFlags,
+		cli.StringFlag{
+			Name:   "config",
+			Value:  "~/.croc",
+			Usage:  "Config file path",
+			EnvVar: "CROC_CONFIG",
+		},
+	)
+
+	app.Action = func(c *cli.Context) {
+
+		configFile := c.String("config")
+		_, err := os.Stat(homedir.Expand(configFile))
+		if configFile != "~/.croc" || !os.IsNotExist(err) {
+			if err := common.ApplyConfigFileYaml(configFile, appOptions); err != nil {
+				exit(err, 2)
+			}
+		}
+
+		common.ApplyFlags(cliFlags, flagMappings, c, appOptions)
+		if !appOptions.HideLogo {
+			fmt.Println(`
                                 ,_
                                >' )
    croc version ` + fmt.Sprintf("%5s", version) + `          ( ( \
@@ -57,23 +86,26 @@ func main() {
  ...V^V^V^V^V^V^\...............................
 
 	`)
-	}
-	fmt.Printf("croc version %s\n", version)
+		}
+		fmt.Printf("croc version %s\n", version)
 
-	if flags.Relay {
-		r := NewRelay(flags)
-		r.Run()
-	} else {
-		c, err := NewConnection(flags)
-		if err != nil {
-			fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
-			return
-		}
-		err = c.Run()
-		if err != nil {
-			fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
+		if appOptions.Relay {
+			r := NewRelay(appOptions)
+			r.Run()
+		} else {
+			c, err := NewConnection(appOptions)
+			if err != nil {
+				fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
+				return
+			}
+			err = c.Run()
+			if err != nil {
+				fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
+			}
 		}
 	}
+
+	app.Run(os.Args)
 }
 
 func getInput(prompt string) string {
@@ -81,4 +113,11 @@ func getInput(prompt string) string {
 	fmt.Print(prompt)
 	text, _ := reader.ReadString('\n')
 	return strings.TrimSpace(text)
+}
+
+func exit(err error, code int) {
+	if err != nil {
+		fmt.Println(err)
+	}
+	os.Exit(code)
 }
