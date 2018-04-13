@@ -75,3 +75,41 @@ func TestEntryPanicf(t *testing.T) {
 	entry := NewEntry(logger)
 	entry.WithField("err", errBoom).Panicf("kaboom %v", true)
 }
+
+const (
+	badMessage   = "this is going to panic"
+	panicMessage = "this is broken"
+)
+
+type panickyHook struct{}
+
+func (p *panickyHook) Levels() []Level {
+	return []Level{InfoLevel}
+}
+
+func (p *panickyHook) Fire(entry *Entry) error {
+	if entry.Message == badMessage {
+		panic(panicMessage)
+	}
+
+	return nil
+}
+
+func TestEntryHooksPanic(t *testing.T) {
+	logger := New()
+	logger.Out = &bytes.Buffer{}
+	logger.Level = InfoLevel
+	logger.Hooks.Add(&panickyHook{})
+
+	defer func() {
+		p := recover()
+		assert.NotNil(t, p)
+		assert.Equal(t, panicMessage, p)
+
+		entry := NewEntry(logger)
+		entry.Info("another message")
+	}()
+
+	entry := NewEntry(logger)
+	entry.Info(badMessage)
+}
