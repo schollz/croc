@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -73,6 +72,13 @@ func (p *ProgressBar) SetSize(size int) {
 	p.size = size
 }
 
+// SetWriter will specify a different writer than os.Stdout
+func (p *ProgressBar) SetWriter(w io.Writer) {
+	p.Lock()
+	defer p.Unlock()
+	p.w = w
+}
+
 // Add with increase the current count on the progress bar
 func (p *ProgressBar) Add(num int) error {
 	p.RLock()
@@ -114,12 +120,6 @@ func (p *ProgressBar) Show() error {
 	_, err := io.WriteString(p.w, s)
 	if err != nil {
 		return err
-	}
-
-	// handle mac os newline
-	// this breaks your test for some reason
-	if runtime.GOOS == "darwin" {
-		fmt.Fprintf(p.w, "\033[%dA", 0)
 	}
 
 	if f, ok := p.w.(*os.File); ok {
