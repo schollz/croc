@@ -124,8 +124,11 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 
 func (c *Connection) cleanup() {
 	log.Debug("cleaning")
-	for id := 1; id <= 8; id++ {
-		os.Remove(path.Join(c.Path, c.File.Name+".enc."+strconv.Itoa(id)))
+	for id := 0; id <= 8; id++ {
+		err := os.Remove(path.Join(c.Path, c.File.Name+".enc."+strconv.Itoa(id)))
+		if err == nil {
+			log.Debugf("removed %s", path.Join(c.Path, c.File.Name+".enc."+strconv.Itoa(id)))
+		}
 	}
 	os.Remove(path.Join(c.Path, c.File.Name+".enc"))
 }
@@ -340,7 +343,10 @@ func (c *Connection) runClient() error {
 					responses.Lock()
 					responses.startTime = time.Now()
 					responses.Unlock()
-					c.bar.Reset()
+					if !c.Debug {
+						c.bar.Reset()
+
+					}
 					if err := c.sendFile(id, connection); err != nil {
 						log.Error(err)
 					}
