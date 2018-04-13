@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
@@ -40,12 +41,13 @@ type Connection struct {
 }
 
 type FileMetaData struct {
-	Name        string
-	Size        int
-	Hash        string
-	Path        string
-	IsDir       bool
-	IsEncrypted bool
+	Name               string
+	Size               int
+	Hash               string
+	Path               string
+	IsDir              bool
+	IsEncrypted        bool
+	DeleteAfterSending bool
 }
 
 const (
@@ -63,6 +65,22 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.NumberOfConnections = config.NumberOfConnections
 	c.rate = config.Rate
 	if len(config.File) > 0 {
+		if config.File == "stdin" {
+			f, err := ioutil.TempFile(os.TempDir(), "croc-stdin-")
+			if err != nil {
+				return c, err
+			}
+			_, err = io.Copy(f, os.Stdin)
+			if err != nil {
+				return c, err
+			}
+			config.File = f.Name()
+			err = f.Close()
+			if err != nil {
+				return c, err
+			}
+			c.File.DeleteAfterSending = true
+		}
 		// check wether the file is a dir
 		info, err := os.Stat(config.File)
 		if err != nil {
@@ -108,7 +126,6 @@ func (c *Connection) cleanup() {
 		os.Remove(path.Join(c.Path, c.File.Name+".enc."+strconv.Itoa(id)))
 	}
 	os.Remove(path.Join(c.Path, c.File.Name+".enc"))
-
 }
 
 func (c *Connection) Run() error {
@@ -634,6 +651,9 @@ func (c *Connection) sendFile(id int, connection net.Conn) error {
 	if !c.Debug {
 		file.Close()
 		err = os.Remove(c.File.Name + ".enc." + strconv.Itoa(id))
+	}
+	if err != nil && c.File.DeleteAfterSending {
+		err = os.Remove(path.Join(c.File.Path, c.File.Name))
 	}
 	return err
 }
