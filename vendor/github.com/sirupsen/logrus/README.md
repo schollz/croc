@@ -220,7 +220,7 @@ Logrus comes with [built-in hooks](hooks/). Add those, or your custom hook, in
 ```go
 import (
   log "github.com/sirupsen/logrus"
-  "gopkg.in/gemnasium/logrus-airbrake-hook.v2" // the package is named "aibrake"
+  "gopkg.in/gemnasium/logrus-airbrake-hook.v2" // the package is named "airbrake"
   logrus_syslog "github.com/sirupsen/logrus/hooks/syslog"
   "log/syslog"
 )
@@ -247,6 +247,7 @@ Note: Syslog hook also support connecting to local syslog (Ex. "/dev/log" or "/v
 | [Airbrake](https://github.com/gemnasium/logrus-airbrake-hook) | Send errors to the Airbrake API V3. Uses the official [`gobrake`](https://github.com/airbrake/gobrake) behind the scenes. |
 | [Amazon Kinesis](https://github.com/evalphobia/logrus_kinesis) | Hook for logging to [Amazon Kinesis](https://aws.amazon.com/kinesis/) |
 | [Amqp-Hook](https://github.com/vladoatanasov/logrus_amqp) | Hook for logging to Amqp broker (Like RabbitMQ) |
+| [Application Insights](https://github.com/jjcollinge/logrus-appinsights) | Hook for logging to [Application Insights](https://azure.microsoft.com/en-us/services/application-insights/)
 | [AzureTableHook](https://github.com/kpfaulkner/azuretablehook/) | Hook for logging to Azure Table Storage|
 | [Bugsnag](https://github.com/Shopify/logrus-bugsnag/blob/master/bugsnag.go) | Send errors to the Bugsnag exception tracking service. |
 | [DeferPanic](https://github.com/deferpanic/dp-logrus) | Hook for logging to DeferPanic |
@@ -262,6 +263,7 @@ Note: Syslog hook also support connecting to local syslog (Ex. "/dev/log" or "/v
 | [Influxus](http://github.com/vlad-doru/influxus) | Hook for concurrently logging to [InfluxDB](http://influxdata.com/) |
 | [Journalhook](https://github.com/wercker/journalhook) | Hook for logging to `systemd-journald` |
 | [KafkaLogrus](https://github.com/tracer0tong/kafkalogrus) | Hook for logging to Kafka |
+| [Kafka REST Proxy](https://github.com/Nordstrom/logrus-kafka-rest-proxy) | Hook for logging to [Kafka REST Proxy](https://docs.confluent.io/current/kafka-rest/docs) |
 | [LFShook](https://github.com/rifflock/lfshook) | Hook for logging to the local filesystem |
 | [Logbeat](https://github.com/macandmia/logbeat) | Hook for logging to [Opbeat](https://opbeat.com/) |
 | [Logentries](https://github.com/jcftang/logentriesrus) | Hook for logging to [Logentries](https://logentries.com/) |

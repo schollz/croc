@@ -1,16 +1,18 @@
 package yaml_test
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"strconv"
 	"strings"
 	"time"
 
-	. "gopkg.in/check.v1"
-	"gopkg.in/yaml.v2"
 	"net"
 	"os"
+
+	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 )
 
 var marshalIntTest = 123
@@ -21,6 +23,9 @@ var marshalTests = []struct {
 }{
 	{
 		nil,
+		"null\n",
+	}, {
+		(*marshalerType)(nil),
 		"null\n",
 	}, {
 		&struct{}{},
@@ -70,6 +75,9 @@ var marshalTests = []struct {
 	}, {
 		map[string]interface{}{"v": float64(0.1)},
 		"v: 0.1\n",
+	}, {
+		map[string]interface{}{"v": float32(0.99)},
+		"v: 0.99\n",
 	}, {
 		map[string]interface{}{"v": -0.1},
 		"v: -0.1\n",
@@ -143,6 +151,9 @@ var marshalTests = []struct {
 		&struct{ A []int }{[]int{1, 2}},
 		"a:\n- 1\n- 2\n",
 	}, {
+		&struct{ A [2]int }{[2]int{1, 2}},
+		"a:\n- 1\n- 2\n",
+	}, {
 		&struct {
 			B int "a"
 		}{1},
@@ -196,6 +207,25 @@ var marshalTests = []struct {
 			B float64 "b,omitempty"
 		}{1, 0},
 		"a: 1\n",
+	},
+	{
+		&struct {
+			T1 time.Time  "t1,omitempty"
+			T2 time.Time  "t2,omitempty"
+			T3 *time.Time "t3,omitempty"
+			T4 *time.Time "t4,omitempty"
+		}{
+			T2: time.Date(2018, 1, 9, 10, 40, 47, 0, time.UTC),
+			T4: newTime(time.Date(2098, 1, 9, 10, 40, 47, 0, time.UTC)),
+		},
+		"t2: 2018-01-09T10:40:47Z\nt4: 2098-01-09T10:40:47Z\n",
+	},
+	// Nil interface that implements Marshaler.
+	{
+		map[string]yaml.Marshaler{
+			"a": nil,
+		},
+		"a: null\n",
 	},
 
 	// Flow flag
@@ -302,9 +332,24 @@ var marshalTests = []struct {
 		map[string]net.IP{"a": net.IPv4(1, 2, 3, 4)},
 		"a: 1.2.3.4\n",
 	},
+	// time.Time gets a timestamp tag.
 	{
-		map[string]time.Time{"a": time.Unix(1424801979, 0)},
+		map[string]time.Time{"a": time.Date(2015, 2, 24, 18, 19, 39, 0, time.UTC)},
 		"a: 2015-02-24T18:19:39Z\n",
+	},
+	{
+		map[string]*time.Time{"a": newTime(time.Date(2015, 2, 24, 18, 19, 39, 0, time.UTC))},
+		"a: 2015-02-24T18:19:39Z\n",
+	},
+	{
+		// This is confirmed to be properly decoded in Python (libyaml) without a timestamp tag.
+		map[string]time.Time{"a": time.Date(2015, 2, 24, 18, 19, 39, 123456789, time.FixedZone("FOO", -3*60*60))},
+		"a: 2015-02-24T18:19:39.123456789-03:00\n",
+	},
+	// Ensure timestamp-like strings are quoted.
+	{
+		map[string]string{"a": "2015-02-24T18:19:39Z"},
+		"a: \"2015-02-24T18:19:39Z\"\n",
 	},
 
 	// Ensure strings containing ": " are quoted (reported as PR #43, but not reproducible).
@@ -327,11 +372,49 @@ var marshalTests = []struct {
 func (s *S) TestMarshal(c *C) {
 	defer os.Setenv("TZ", os.Getenv("TZ"))
 	os.Setenv("TZ", "UTC")
-	for _, item := range marshalTests {
+	for i, item := range marshalTests {
+		c.Logf("test %d: %q", i, item.data)
 		data, err := yaml.Marshal(item.value)
 		c.Assert(err, IsNil)
 		c.Assert(string(data), Equals, item.data)
 	}
+}
+
+func (s *S) TestEncoderSingleDocument(c *C) {
+	for i, item := range marshalTests {
+		c.Logf("test %d. %q", i, item.data)
+		var buf bytes.Buffer
+		enc := yaml.NewEncoder(&buf)
+		err := enc.Encode(item.value)
+		c.Assert(err, Equals, nil)
+		err = enc.Close()
+		c.Assert(err, Equals, nil)
+		c.Assert(buf.String(), Equals, item.data)
+	}
+}
+
+func (s *S) TestEncoderMultipleDocuments(c *C) {
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	err := enc.Encode(map[string]string{"a": "b"})
+	c.Assert(err, Equals, nil)
+	err = enc.Encode(map[string]string{"c": "d"})
+	c.Assert(err, Equals, nil)
+	err = enc.Close()
+	c.Assert(err, Equals, nil)
+	c.Assert(buf.String(), Equals, "a: b\n---\nc: d\n")
+}
+
+func (s *S) TestEncoderWriteError(c *C) {
+	enc := yaml.NewEncoder(errorWriter{})
+	err := enc.Encode(map[string]string{"a": "b"})
+	c.Assert(err, ErrorMatches, `yaml: write error: some write error`) // Data not flushed yet
+}
+
+type errorWriter struct{}
+
+func (errorWriter) Write([]byte) (int, error) {
+	return 0, fmt.Errorf("some write error")
 }
 
 var marshalErrorTests = []struct {
@@ -455,8 +538,13 @@ func (s *S) TestSortedOutput(c *C) {
 		"1",
 		"2",
 		"a!10",
-		"a/2",
+		"a/0001",
+		"a/002",
+		"a/3",
 		"a/10",
+		"a/11",
+		"a/0012",
+		"a/100",
 		"a~10",
 		"ab/1",
 		"b/1",
@@ -471,6 +559,8 @@ func (s *S) TestSortedOutput(c *C) {
 		"c2.10",
 		"c10.2",
 		"d1",
+		"d7",
+		"d7abc",
 		"d12",
 		"d12a",
 	}
@@ -498,4 +588,8 @@ func (s *S) TestSortedOutput(c *C) {
 		}
 		last = index
 	}
+}
+
+func newTime(t time.Time) *time.Time {
+	return &t
 }

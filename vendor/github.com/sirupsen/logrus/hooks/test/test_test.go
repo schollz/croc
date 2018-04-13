@@ -1,6 +1,7 @@
 package test
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -8,7 +9,6 @@ import (
 )
 
 func TestAllHooks(t *testing.T) {
-
 	assert := assert.New(t)
 
 	logger, hook := NewNullLogger()
@@ -35,5 +35,27 @@ func TestAllHooks(t *testing.T) {
 	assert.Equal(logrus.ErrorLevel, hook.LastEntry().Level)
 	assert.Equal("Hello error", hook.LastEntry().Message)
 	assert.Equal(1, len(hook.Entries))
+}
 
+func TestLoggingWithHooksRace(t *testing.T) {
+	assert := assert.New(t)
+	logger, hook := NewNullLogger()
+
+	var wg sync.WaitGroup
+	wg.Add(100)
+
+	for i := 0; i < 100; i++ {
+		go func() {
+			logger.Info("info")
+			wg.Done()
+		}()
+	}
+
+	assert.Equal(logrus.InfoLevel, hook.LastEntry().Level)
+	assert.Equal("info", hook.LastEntry().Message)
+
+	wg.Wait()
+
+	entries := hook.AllEntries()
+	assert.Equal(100, len(entries))
 }

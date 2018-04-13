@@ -2,13 +2,14 @@ package yaml_test
 
 import (
 	"errors"
-	. "gopkg.in/check.v1"
-	"gopkg.in/yaml.v2"
+	"io"
 	"math"
-	"net"
 	"reflect"
 	"strings"
 	"time"
+
+	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 )
 
 var unmarshalIntTest = 123
@@ -19,8 +20,9 @@ var unmarshalTests = []struct {
 }{
 	{
 		"",
-		&struct{}{},
-	}, {
+		(*struct{})(nil),
+	},
+	{
 		"{}", &struct{}{},
 	}, {
 		"v: hi",
@@ -127,6 +129,9 @@ var unmarshalTests = []struct {
 	}, {
 		"bin: -0b101010",
 		map[string]interface{}{"bin": -42},
+	}, {
+		"bin: -0b1000000000000000000000000000000000000000000000000000000000000000",
+		map[string]interface{}{"bin": -9223372036854775808},
 	}, {
 		"decimal: +685_230",
 		map[string]int{"decimal": 685230},
@@ -239,6 +244,9 @@ var unmarshalTests = []struct {
 	}, {
 		"a: [1, 2]",
 		&struct{ A []int }{[]int{1, 2}},
+	}, {
+		"a: [1, 2]",
+		&struct{ A [2]int }{[2]int{1, 2}},
 	}, {
 		"a: 1",
 		&struct{ B int }{0},
@@ -398,6 +406,12 @@ var unmarshalTests = []struct {
 		"v: !!float '1.1'",
 		map[string]interface{}{"v": 1.1},
 	}, {
+		"v: !!float 0",
+		map[string]interface{}{"v": float64(0)},
+	}, {
+		"v: !!float -1",
+		map[string]interface{}{"v": float64(-1)},
+	}, {
 		"v: !!null ''",
 		map[string]interface{}{"v": nil},
 	}, {
@@ -425,13 +439,6 @@ var unmarshalTests = []struct {
 	}, {
 		"a: &a [1, 2]\nb: *a",
 		&struct{ B []int }{[]int{1, 2}},
-	}, {
-		"b: *a\na: &a {c: 1}",
-		&struct {
-			A, B struct {
-				C int
-			}
-		}{struct{ C int }{1}, struct{ C int }{1}},
 	},
 
 	// Bug #1133337
@@ -517,6 +524,18 @@ var unmarshalTests = []struct {
 		map[string]interface{}{"a": "50cent_of_dollar"},
 	},
 
+	// issue #295 (allow scalars with colons in flow mappings and sequences)
+	{
+		"a: {b: https://github.com/go-yaml/yaml}",
+		map[string]interface{}{"a": map[interface{}]interface{}{
+			"b": "https://github.com/go-yaml/yaml",
+		}},
+	},
+	{
+		"a: [https://github.com/go-yaml/yaml]",
+		map[string]interface{}{"a": []interface{}{"https://github.com/go-yaml/yaml"}},
+	},
+
 	// Duration
 	{
 		"a: 3s",
@@ -568,11 +587,80 @@ var unmarshalTests = []struct {
 	// Support encoding.TextUnmarshaler.
 	{
 		"a: 1.2.3.4\n",
-		map[string]net.IP{"a": net.IPv4(1, 2, 3, 4)},
+		map[string]textUnmarshaler{"a": textUnmarshaler{S: "1.2.3.4"}},
 	},
 	{
 		"a: 2015-02-24T18:19:39Z\n",
-		map[string]time.Time{"a": time.Unix(1424801979, 0).In(time.UTC)},
+		map[string]textUnmarshaler{"a": textUnmarshaler{"2015-02-24T18:19:39Z"}},
+	},
+
+	// Timestamps
+	{
+		// Date only.
+		"a: 2015-01-01\n",
+		map[string]time.Time{"a": time.Date(2015, 1, 1, 0, 0, 0, 0, time.UTC)},
+	},
+	{
+		// RFC3339
+		"a: 2015-02-24T18:19:39.12Z\n",
+		map[string]time.Time{"a": time.Date(2015, 2, 24, 18, 19, 39, .12e9, time.UTC)},
+	},
+	{
+		// RFC3339 with short dates.
+		"a: 2015-2-3T3:4:5Z",
+		map[string]time.Time{"a": time.Date(2015, 2, 3, 3, 4, 5, 0, time.UTC)},
+	},
+	{
+		// ISO8601 lower case t
+		"a: 2015-02-24t18:19:39Z\n",
+		map[string]time.Time{"a": time.Date(2015, 2, 24, 18, 19, 39, 0, time.UTC)},
+	},
+	{
+		// space separate, no time zone
+		"a: 2015-02-24 18:19:39\n",
+		map[string]time.Time{"a": time.Date(2015, 2, 24, 18, 19, 39, 0, time.UTC)},
+	},
+	// Some cases not currently handled. Uncomment these when
+	// the code is fixed.
+	//	{
+	//		// space separated with time zone
+	//		"a: 2001-12-14 21:59:43.10 -5",
+	//		map[string]interface{}{"a": time.Date(2001, 12, 14, 21, 59, 43, .1e9, time.UTC)},
+	//	},
+	//	{
+	//		// arbitrary whitespace between fields
+	//		"a: 2001-12-14 \t\t \t21:59:43.10 \t Z",
+	//		map[string]interface{}{"a": time.Date(2001, 12, 14, 21, 59, 43, .1e9, time.UTC)},
+	//	},
+	{
+		// explicit string tag
+		"a: !!str 2015-01-01",
+		map[string]interface{}{"a": "2015-01-01"},
+	},
+	{
+		// explicit timestamp tag on quoted string
+		"a: !!timestamp \"2015-01-01\"",
+		map[string]time.Time{"a": time.Date(2015, 1, 1, 0, 0, 0, 0, time.UTC)},
+	},
+	{
+		// explicit timestamp tag on unquoted string
+		"a: !!timestamp 2015-01-01",
+		map[string]time.Time{"a": time.Date(2015, 1, 1, 0, 0, 0, 0, time.UTC)},
+	},
+	{
+		// quoted string that's a valid timestamp
+		"a: \"2015-01-01\"",
+		map[string]interface{}{"a": "2015-01-01"},
+	},
+	{
+		// explicit timestamp tag into interface.
+		"a: !!timestamp \"2015-01-01\"",
+		map[string]interface{}{"a": "2015-01-01"},
+	},
+	{
+		// implicit timestamp tag into interface.
+		"a: 2015-01-01",
+		map[string]interface{}{"a": "2015-01-01"},
 	},
 
 	// Encode empty lists as zero-length slices.
@@ -611,6 +699,21 @@ var unmarshalTests = []struct {
 		"a: 123456E1\n",
 		M{"a": "123456E1"},
 	},
+	// yaml-test-suite 3GZX: Spec Example 7.1. Alias Nodes
+	{
+		"First occurrence: &anchor Foo\nSecond occurrence: *anchor\nOverride anchor: &anchor Bar\nReuse anchor: *anchor\n",
+		map[interface{}]interface{}{
+			"Reuse anchor":      "Bar",
+			"First occurrence":  "Foo",
+			"Second occurrence": "Foo",
+			"Override anchor":   "Bar",
+		},
+	},
+	// Single document with garbage following it.
+	{
+		"---\nhello\n...\n}not yaml",
+		"hello",
+	},
 }
 
 type M map[interface{}]interface{}
@@ -628,27 +731,97 @@ func (s *S) TestUnmarshal(c *C) {
 	for i, item := range unmarshalTests {
 		c.Logf("test %d: %q", i, item.data)
 		t := reflect.ValueOf(item.value).Type()
-		var value interface{}
-		switch t.Kind() {
-		case reflect.Map:
-			value = reflect.MakeMap(t).Interface()
-		case reflect.String:
-			value = reflect.New(t).Interface()
-		case reflect.Ptr:
-			value = reflect.New(t.Elem()).Interface()
-		default:
-			c.Fatalf("missing case for %s", t)
-		}
-		err := yaml.Unmarshal([]byte(item.data), value)
+		value := reflect.New(t)
+		err := yaml.Unmarshal([]byte(item.data), value.Interface())
 		if _, ok := err.(*yaml.TypeError); !ok {
 			c.Assert(err, IsNil)
 		}
-		if t.Kind() == reflect.String {
-			c.Assert(*value.(*string), Equals, item.value)
-		} else {
-			c.Assert(value, DeepEquals, item.value)
-		}
+		c.Assert(value.Elem().Interface(), DeepEquals, item.value, Commentf("error: %v", err))
 	}
+}
+
+// TODO(v3): This test should also work when unmarshaling onto an interface{}.
+func (s *S) TestUnmarshalFullTimestamp(c *C) {
+	// Full timestamp in same format as encoded. This is confirmed to be
+	// properly decoded by Python as a timestamp as well.
+	var str = "2015-02-24T18:19:39.123456789-03:00"
+	var t time.Time
+	err := yaml.Unmarshal([]byte(str), &t)
+	c.Assert(err, IsNil)
+	c.Assert(t, Equals, time.Date(2015, 2, 24, 18, 19, 39, 123456789, t.Location()))
+	c.Assert(t.In(time.UTC), Equals, time.Date(2015, 2, 24, 21, 19, 39, 123456789, time.UTC))
+}
+
+func (s *S) TestDecoderSingleDocument(c *C) {
+	// Test that Decoder.Decode works as expected on
+	// all the unmarshal tests.
+	for i, item := range unmarshalTests {
+		c.Logf("test %d: %q", i, item.data)
+		if item.data == "" {
+			// Behaviour differs when there's no YAML.
+			continue
+		}
+		t := reflect.ValueOf(item.value).Type()
+		value := reflect.New(t)
+		err := yaml.NewDecoder(strings.NewReader(item.data)).Decode(value.Interface())
+		if _, ok := err.(*yaml.TypeError); !ok {
+			c.Assert(err, IsNil)
+		}
+		c.Assert(value.Elem().Interface(), DeepEquals, item.value)
+	}
+}
+
+var decoderTests = []struct {
+	data   string
+	values []interface{}
+}{{
+	"",
+	nil,
+}, {
+	"a: b",
+	[]interface{}{
+		map[interface{}]interface{}{"a": "b"},
+	},
+}, {
+	"---\na: b\n...\n",
+	[]interface{}{
+		map[interface{}]interface{}{"a": "b"},
+	},
+}, {
+	"---\n'hello'\n...\n---\ngoodbye\n...\n",
+	[]interface{}{
+		"hello",
+		"goodbye",
+	},
+}}
+
+func (s *S) TestDecoder(c *C) {
+	for i, item := range decoderTests {
+		c.Logf("test %d: %q", i, item.data)
+		var values []interface{}
+		dec := yaml.NewDecoder(strings.NewReader(item.data))
+		for {
+			var value interface{}
+			err := dec.Decode(&value)
+			if err == io.EOF {
+				break
+			}
+			c.Assert(err, IsNil)
+			values = append(values, value)
+		}
+		c.Assert(values, DeepEquals, item.values)
+	}
+}
+
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) {
+	return 0, errors.New("some read error")
+}
+
+func (s *S) TestDecoderReadError(c *C) {
+	err := yaml.NewDecoder(errReader{}).Decode(&struct{}{})
+	c.Assert(err, ErrorMatches, `yaml: input error: some read error`)
 }
 
 func (s *S) TestUnmarshalNaN(c *C) {
@@ -664,19 +837,30 @@ var unmarshalErrorTests = []struct {
 	{"v: !!float 'error'", "yaml: cannot decode !!str `error` as a !!float"},
 	{"v: [A,", "yaml: line 1: did not find expected node content"},
 	{"v:\n- [A,", "yaml: line 2: did not find expected node content"},
+	{"a:\n- b: *,", "yaml: line 2: did not find expected alphabetic or numeric character"},
 	{"a: *b\n", "yaml: unknown anchor 'b' referenced"},
 	{"a: &a\n  b: *a\n", "yaml: anchor 'a' value contains itself"},
 	{"value: -", "yaml: block sequence entries are not allowed in this context"},
 	{"a: !!binary ==", "yaml: !!binary value contains invalid base64 data"},
 	{"{[.]}", `yaml: invalid map key: \[\]interface \{\}\{"\."\}`},
 	{"{{.}}", `yaml: invalid map key: map\[interface\ \{\}\]interface \{\}\{".":interface \{\}\(nil\)\}`},
+	{"b: *a\na: &a {c: 1}", `yaml: unknown anchor 'a' referenced`},
 	{"%TAG !%79! tag:yaml.org,2002:\n---\nv: !%79!int '1'", "yaml: did not find expected whitespace"},
 }
 
 func (s *S) TestUnmarshalErrors(c *C) {
-	for _, item := range unmarshalErrorTests {
+	for i, item := range unmarshalErrorTests {
+		c.Logf("test %d: %q", i, item.data)
 		var value interface{}
 		err := yaml.Unmarshal([]byte(item.data), &value)
+		c.Assert(err, ErrorMatches, item.error, Commentf("Partial unmarshal: %#v", value))
+	}
+}
+
+func (s *S) TestDecoderErrors(c *C) {
+	for _, item := range unmarshalErrorTests {
+		var value interface{}
+		err := yaml.NewDecoder(strings.NewReader(item.data)).Decode(&value)
 		c.Assert(err, ErrorMatches, item.error, Commentf("Partial unmarshal: %#v", value))
 	}
 }
@@ -991,15 +1175,125 @@ func (s *S) TestUnmarshalSliceOnPreset(c *C) {
 	c.Assert(v.A, DeepEquals, []int{2})
 }
 
-func (s *S) TestUnmarshalStrict(c *C) {
-	v := struct{ A, B int }{}
+var unmarshalStrictTests = []struct {
+	data  string
+	value interface{}
+	error string
+}{{
+	data:  "a: 1\nc: 2\n",
+	value: struct{ A, B int }{A: 1},
+	error: `yaml: unmarshal errors:\n  line 2: field c not found in type struct { A int; B int }`,
+}, {
+	data:  "a: 1\nb: 2\na: 3\n",
+	value: struct{ A, B int }{A: 3, B: 2},
+	error: `yaml: unmarshal errors:\n  line 3: field a already set in type struct { A int; B int }`,
+}, {
+	data: "c: 3\na: 1\nb: 2\nc: 4\n",
+	value: struct {
+		A       int
+		inlineB `yaml:",inline"`
+	}{
+		A: 1,
+		inlineB: inlineB{
+			B: 2,
+			inlineC: inlineC{
+				C: 4,
+			},
+		},
+	},
+	error: `yaml: unmarshal errors:\n  line 4: field c already set in type struct { A int; yaml_test.inlineB "yaml:\\",inline\\"" }`,
+}, {
+	data: "c: 0\na: 1\nb: 2\nc: 1\n",
+	value: struct {
+		A       int
+		inlineB `yaml:",inline"`
+	}{
+		A: 1,
+		inlineB: inlineB{
+			B: 2,
+			inlineC: inlineC{
+				C: 1,
+			},
+		},
+	},
+	error: `yaml: unmarshal errors:\n  line 4: field c already set in type struct { A int; yaml_test.inlineB "yaml:\\",inline\\"" }`,
+}, {
+	data: "c: 1\na: 1\nb: 2\nc: 3\n",
+	value: struct {
+		A int
+		M map[string]interface{} `yaml:",inline"`
+	}{
+		A: 1,
+		M: map[string]interface{}{
+			"b": 2,
+			"c": 3,
+		},
+	},
+	error: `yaml: unmarshal errors:\n  line 4: key "c" already set in map`,
+}, {
+	data: "a: 1\n9: 2\nnull: 3\n9: 4",
+	value: map[interface{}]interface{}{
+		"a": 1,
+		nil: 3,
+		9:   4,
+	},
+	error: `yaml: unmarshal errors:\n  line 4: key 9 already set in map`,
+}}
 
-	err := yaml.UnmarshalStrict([]byte("a: 1\nb: 2"), &v)
-	c.Check(err, IsNil)
-	err = yaml.Unmarshal([]byte("a: 1\nb: 2\nc: 3"), &v)
-	c.Check(err, IsNil)
-	err = yaml.UnmarshalStrict([]byte("a: 1\nb: 2\nc: 3"), &v)
-	c.Check(err, ErrorMatches, "yaml: unmarshal errors:\n  line 3: field c not found in struct struct { A int; B int }")
+func (s *S) TestUnmarshalStrict(c *C) {
+	for i, item := range unmarshalStrictTests {
+		c.Logf("test %d: %q", i, item.data)
+		// First test that normal Unmarshal unmarshals to the expected value.
+		t := reflect.ValueOf(item.value).Type()
+		value := reflect.New(t)
+		err := yaml.Unmarshal([]byte(item.data), value.Interface())
+		c.Assert(err, Equals, nil)
+		c.Assert(value.Elem().Interface(), DeepEquals, item.value)
+
+		// Then test that UnmarshalStrict fails on the same thing.
+		t = reflect.ValueOf(item.value).Type()
+		value = reflect.New(t)
+		err = yaml.UnmarshalStrict([]byte(item.data), value.Interface())
+		c.Assert(err, ErrorMatches, item.error)
+	}
+}
+
+type textUnmarshaler struct {
+	S string
+}
+
+func (t *textUnmarshaler) UnmarshalText(s []byte) error {
+	t.S = string(s)
+	return nil
+}
+
+func (s *S) TestFuzzCrashers(c *C) {
+	cases := []string{
+		// runtime error: index out of range
+		"\"\\0\\\r\n",
+
+		// should not happen
+		"  0: [\n] 0",
+		"? ? \"\n\" 0",
+		"    - {\n000}0",
+		"0:\n  0: [0\n] 0",
+		"    - \"\n000\"0",
+		"    - \"\n000\"\"",
+		"0:\n    - {\n000}0",
+		"0:\n    - \"\n000\"0",
+		"0:\n    - \"\n000\"\"",
+
+		// runtime error: index out of range
+		" \ufeff\n",
+		"? \ufeff\n",
+		"? \ufeff:\n",
+		"0: \ufeff\n",
+		"? \ufeff: \ufeff\n",
+	}
+	for _, data := range cases {
+		var v interface{}
+		_ = yaml.Unmarshal([]byte(data), &v)
+	}
 }
 
 //var data []byte
