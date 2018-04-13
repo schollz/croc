@@ -35,6 +35,7 @@ type Connection struct {
 	AskPath             bool
 	Debug               bool
 	DontEncrypt         bool
+	UseStdout           bool
 	Wait                bool
 	bar                 *progressbar.ProgressBar
 	rate                int
@@ -63,6 +64,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.Server = config.Server
 	c.Code = config.Code
 	c.NumberOfConnections = config.NumberOfConnections
+	c.UseStdout = config.UseStdout
 	c.rate = config.Rate
 	if len(config.File) > 0 {
 		if config.File == "stdin" {
@@ -233,12 +235,12 @@ func (c *Connection) Run() error {
 		}
 
 		if c.File.IsDir {
-			fmt.Printf("Sending %s folder named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name[:len(c.File.Name)-4])
+			fmt.Fprintf(os.Stderr, "Sending %s folder named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name[:len(c.File.Name)-4])
 		} else {
-			fmt.Printf("Sending %s file named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name)
+			fmt.Fprintf(os.Stderr, "Sending %s file named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name)
 
 		}
-		fmt.Printf("Code is: %s\n", c.Code)
+		fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
 	}
 
 	return c.runClient()
@@ -258,6 +260,7 @@ func (c *Connection) runClient() error {
 
 	if !c.Debug {
 		c.bar = progressbar.New(c.File.Size)
+		c.bar.SetWriter(os.Stderr)
 	}
 	type responsesStruct struct {
 		gotTimeout         bool
@@ -282,7 +285,7 @@ func (c *Connection) runClient() error {
 				if c.Server == "cowyo.com" {
 					fmt.Println("\nCheck http://bit.ly/croc-relay to see if the public server is down or contact the webmaster: @yakczar")
 				} else {
-					fmt.Printf("\nCould not connect to relay %s\n", c.Server)
+					fmt.Fprintf(os.Stderr, "\nCould not connect to relay %s\n", c.Server)
 				}
 				os.Exit(1)
 			}
@@ -328,7 +331,7 @@ func (c *Connection) runClient() error {
 				} else {
 					logger.Debug("got ok from relay")
 					if id == 0 {
-						fmt.Printf("\nSending (->%s)..\n", message)
+						fmt.Fprintf(os.Stderr, "\nSending (->%s)..\n", message)
 					}
 					// wait for pipe to be made
 					time.Sleep(100 * time.Millisecond)
@@ -383,9 +386,9 @@ func (c *Connection) runClient() error {
 							fName = fName[:len(fName)-4]
 						}
 						if _, err := os.Stat(path.Join(c.Path, c.File.Name)); os.IsNotExist(err) {
-							fmt.Printf("Receiving %s (%s) into: %s\n", fType, humanize.Bytes(uint64(c.File.Size)), fName)
+							fmt.Fprintf(os.Stderr, "Receiving %s (%s) into: %s\n", fType, humanize.Bytes(uint64(c.File.Size)), fName)
 						} else {
-							fmt.Printf("Overwriting %s %s (%s)\n", fType, fName, humanize.Bytes(uint64(c.File.Size)))
+							fmt.Fprintf(os.Stderr, "Overwriting %s %s (%s)\n", fType, fName, humanize.Bytes(uint64(c.File.Size)))
 						}
 						var sentFileNames []string
 
@@ -396,7 +399,7 @@ func (c *Connection) runClient() error {
 							}
 						}
 						if fileAlreadyExists(sentFileNames, c.File.Name) {
-							fmt.Printf("Will not overwrite file!")
+							fmt.Fprintf(os.Stderr, "Will not overwrite file!")
 							os.Exit(1)
 						}
 						getOK := getInput("ok? (y/n): ")
@@ -429,7 +432,7 @@ func (c *Connection) runClient() error {
 						sendMessage("ok", connection)
 						logger.Debug("receive file")
 						if id == 0 {
-							fmt.Printf("\n\nReceiving (<-%s)..\n", sendersAddress)
+							fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)..\n", sendersAddress)
 						}
 						responses.Lock()
 						responses.startTime = time.Now()
@@ -514,12 +517,21 @@ func (c *Connection) runClient() error {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("\nReceived folder written to %s", path.Join(c.Path, c.File.Name[:len(c.File.Name)-4]))
+			fmt.Fprintf(os.Stderr, "\nReceived folder written to %s", path.Join(c.Path, c.File.Name[:len(c.File.Name)-4]))
 		} else {
-			fmt.Printf("\nReceived file written to %s", path.Join(c.Path, c.File.Name))
+			outputStream := path.Join(c.Path, c.File.Name)
+			if c.UseStdout {
+				outputStream = "stdout"
+			}
+			fmt.Fprintf(os.Stderr, "\nReceived file written to %s", outputStream)
+			if c.UseStdout {
+				defer os.Remove(path.Join(c.Path, c.File.Name))
+				b, _ := ioutil.ReadFile(path.Join(c.Path, c.File.Name))
+				fmt.Printf("%s", b)
+			}
 		}
 	}
-	fmt.Printf(" (%s/s)\n", humanize.Bytes(uint64(float64(c.File.Size)/float64(timeSinceStart))))
+	fmt.Fprintf(os.Stderr, " (%s/s)\n", humanize.Bytes(uint64(float64(c.File.Size)/float64(timeSinceStart))))
 	return nil
 }
 
