@@ -3,10 +3,11 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/urfave/cli"
-	"github.com/yudai/gotty/pkg/homedir"
 	"os"
 	"strings"
+
+	"github.com/urfave/cli"
+	"github.com/yudai/gotty/pkg/homedir"
 )
 
 const BUFFERSIZE = 1024
@@ -19,7 +20,7 @@ type AppConfig struct {
 	PathSpec            bool   `yaml:"ask-save"  flagName:"ask-save" flagSName:"q" flagDescribe:"Ask for path to save to" default:"false"`
 	DontEncrypt         bool   `yaml:"no-encrypt"  flagName:"no-encrypt" flagSName:"g" flagDescribe:"Turn off encryption" default:"false"`
 	Server              string `yaml:"server"  flagName:"server" flagSName:"l" flagDescribe:"Address of relay server" default:"cowyo.com"`
-	File                string `yaml:"send"  flagName:"send" flagSName:"s" flagDescribe:"File to send" default:""`
+	File                string `yaml:"send"  flagName:"send" flagSName:"s" flagDescribe:"File to send (\"stdin\" to read from stdin)" default:""`
 	Path                string `yaml:"save"  flagName:"save" flagSName:"p" flagDescribe:"Path to save to" default:""`
 	Code                string `yaml:"code"  flagName:"code" flagSName:"c" flagDescribe:"Use your own code phrase" default:""`
 	Rate                int    `yaml:"rate"  flagName:"rate" flagSName:"R" flagDescribe:"Throttle down to speed in kbps" default:"1000000"`
