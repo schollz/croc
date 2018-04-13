@@ -20,6 +20,7 @@ type AppConfig struct {
 	PathSpec            bool   `yaml:"ask-save"  flagName:"ask-save" flagSName:"q" flagDescribe:"Ask for path to save to" default:"false"`
 	DontEncrypt         bool   `yaml:"no-encrypt"  flagName:"no-encrypt" flagSName:"g" flagDescribe:"Turn off encryption" default:"false"`
 	UseStdout           bool   `yaml:"stdout"  flagName:"stdout" flagSName:"o" flagDescribe:"Use stdout" default:"false"`
+	Yes                 bool   `yaml:"yes"  flagName:"yes" flagSName:"y" flagDescribe:"Automatically accept file" default:"false"`
 	Server              string `yaml:"server"  flagName:"server" flagSName:"l" flagDescribe:"Address of relay server" default:"cowyo.com"`
 	File                string `yaml:"send"  flagName:"send" flagSName:"s" flagDescribe:"File to send (\"stdin\" to read from stdin)" default:""`
 	Path                string `yaml:"save"  flagName:"save" flagSName:"p" flagDescribe:"Path to save to" default:""`
