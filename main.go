@@ -19,6 +19,7 @@ type AppConfig struct {
 	Wait                bool   `yaml:"wait"  flagName:"wait" flagSName:"w" flagDescribe:"Wait for code to be sent" default:"false"`
 	PathSpec            bool   `yaml:"ask-save"  flagName:"ask-save" flagSName:"q" flagDescribe:"Ask for path to save to" default:"false"`
 	DontEncrypt         bool   `yaml:"no-encrypt"  flagName:"no-encrypt" flagSName:"g" flagDescribe:"Turn off encryption" default:"false"`
+	UseStdout           bool   `yaml:"stdout"  flagName:"stdout" flagSName:"o" flagDescribe:"Use stdout" default:"false"`
 	Server              string `yaml:"server"  flagName:"server" flagSName:"l" flagDescribe:"Address of relay server" default:"cowyo.com"`
 	File                string `yaml:"send"  flagName:"send" flagSName:"s" flagDescribe:"File to send (\"stdin\" to read from stdin)" default:""`
 	Path                string `yaml:"save"  flagName:"save" flagSName:"p" flagDescribe:"Path to save to" default:""`
@@ -74,6 +75,9 @@ func main() {
 		}
 
 		ApplyFlags(cliFlags, flagMappings, c, appOptions)
+		if appOptions.UseStdout {
+			appOptions.HideLogo = true
+		}
 		if !appOptions.HideLogo {
 			fmt.Println(`
                                 ,_
@@ -87,9 +91,9 @@ func main() {
 
 	`)
 		}
-		fmt.Printf("croc version %s\n", version)
 
 		if appOptions.Relay {
+			fmt.Println("running relay")
 			r := NewRelay(appOptions)
 			r.Run()
 		} else {
@@ -110,7 +114,7 @@ func main() {
 
 func getInput(prompt string) string {
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print(prompt)
+	fmt.Fprintf(os.Stderr, "%s", prompt)
 	text, _ := reader.ReadString('\n')
 	return strings.TrimSpace(text)
 }
