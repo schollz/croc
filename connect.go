@@ -35,6 +35,7 @@ type Connection struct {
 	AskPath             bool
 	Debug               bool
 	DontEncrypt         bool
+	Yes                 bool
 	UseStdout           bool
 	Wait                bool
 	bar                 *progressbar.ProgressBar
@@ -65,6 +66,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.Code = config.Code
 	c.NumberOfConnections = config.NumberOfConnections
 	c.UseStdout = config.UseStdout
+	c.Yes = config.Yes
 	c.rate = config.Rate
 	if len(config.File) > 0 {
 		if config.File == "stdin" {
@@ -408,7 +410,10 @@ func (c *Connection) runClient() error {
 							fmt.Fprintf(os.Stderr, "Will not overwrite file!")
 							os.Exit(1)
 						}
-						getOK := getInput("ok? (y/n): ")
+						getOK := "y"
+						if !c.Yes {
+							getOK = getInput("ok? (y/n): ")
+						}
 						if getOK == "y" {
 							responses.Lock()
 							responses.gotOK = true
