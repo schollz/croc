@@ -22,7 +22,7 @@ type AppConfig struct {
 	UseStdout           bool   `yaml:"stdout"  flagName:"stdout" flagSName:"o" flagDescribe:"Use stdout" default:"false"`
 	Yes                 bool   `yaml:"yes"  flagName:"yes" flagSName:"y" flagDescribe:"Automatically accept file" default:"false"`
 	Server              string `yaml:"server"  flagName:"server" flagSName:"l" flagDescribe:"Address of relay server" default:"cowyo.com"`
-	File                string `yaml:"send"  flagName:"send" flagSName:"s" flagDescribe:"File to send (\"stdin\" to read from stdin)" default:""`
+	File                string `yaml:"send"  flagName:"send" flagSName:"s" flagDescribe:"File to send default:""`
 	Path                string `yaml:"save"  flagName:"save" flagSName:"p" flagDescribe:"Path to save to" default:""`
 	Code                string `yaml:"code"  flagName:"code" flagSName:"c" flagDescribe:"Use your own code phrase" default:""`
 	Rate                int    `yaml:"rate"  flagName:"rate" flagSName:"R" flagDescribe:"Throttle down to speed in kbps" default:"1000000"`
