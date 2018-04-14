@@ -68,9 +68,14 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.UseStdout = config.UseStdout
 	c.Yes = config.Yes
 	c.rate = config.Rate
+
+	stat, _ := os.Stdin.Stat()
+	if (stat.Mode() & os.ModeCharDevice) == 0 {
+		config.File = "stdin"
+	}
 	if len(config.File) > 0 {
 		if config.File == "stdin" {
-			f, err := ioutil.TempFile(os.TempDir(), "croc-stdin-")
+			f, err := ioutil.TempFile(".", "croc-stdin-")
 			if err != nil {
 				return c, err
 			}
