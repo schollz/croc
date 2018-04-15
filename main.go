@@ -36,7 +36,7 @@ var version string
 func main() {
 
 	app := cli.NewApp()
-	app.Name = "Croc"
+	app.Name = "croc"
 	app.Version = version
 	app.Author = author
 	app.Email = email
