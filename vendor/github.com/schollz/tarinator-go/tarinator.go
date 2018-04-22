@@ -3,7 +3,6 @@ package tarinator
 import (
 	"archive/tar"
 	"compress/gzip"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -72,7 +71,7 @@ func tarwalk(source, target string, tw *tar.Writer) error {
 			if baseDir != "" {
 				header.Name = filepath.ToSlash(filepath.Join(baseDir, strings.TrimPrefix(path, source)))
 			}
-			fmt.Println(header.Name)
+
 			if err := tw.WriteHeader(header); err != nil {
 				return err
 			}
