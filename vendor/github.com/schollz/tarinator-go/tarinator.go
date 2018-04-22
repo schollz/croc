@@ -46,7 +46,7 @@ func tarwalk(source, target string, tw *tar.Writer) error {
 
 	var baseDir string
 	if info.IsDir() {
-		baseDir = filepath.Base(source)
+		baseDir = filepath.ToSlash(filepath.Base(source))
 	}
 
 	return filepath.Walk(source,
@@ -58,7 +58,8 @@ func tarwalk(source, target string, tw *tar.Writer) error {
 			if err != nil {
 				return err
 			}
-
+			source = filepath.ToSlash(source)
+			path = filepath.ToSlash(path)
 			if baseDir != "" {
 				header.Name = filepath.ToSlash(filepath.Join(baseDir, strings.TrimPrefix(path, source)))
 			}
