@@ -36,6 +36,7 @@ type Connection struct {
 	Debug               bool
 	DontEncrypt         bool
 	Yes                 bool
+	Local               bool
 	UseStdout           bool
 	Wait                bool
 	bar                 *progressbar.ProgressBar
@@ -68,6 +69,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.UseStdout = config.UseStdout
 	c.Yes = config.Yes
 	c.rate = config.Rate
+	c.Local = config.Local
 
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
@@ -250,7 +252,12 @@ func (c *Connection) Run() error {
 			fmt.Fprintf(os.Stderr, "Sending %s file named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name)
 
 		}
-		fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
+		if c.Local {
+			fmt.Fprintf(os.Stderr, "Receive with:\n\tcroc --code 4-local --server %s\n", GetLocalIP())
+		} else {
+			fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
+		}
+
 	}
 
 	return c.runClient()
@@ -453,8 +460,10 @@ func (c *Connection) runClient() error {
 						responses.Lock()
 						responses.startTime = time.Now()
 						responses.Unlock()
-						c.bar.SetMax(c.File.Size)
-						c.bar.Reset()
+						if !c.Debug {
+							c.bar.SetMax(c.File.Size)
+							c.bar.Reset()
+						}
 						if err := c.receiveFile(id, connection); err != nil {
 							log.Error(errors.Wrap(err, "Problem receiving the file: "))
 						}
@@ -656,6 +665,7 @@ func (c *Connection) sendFile(id int, connection net.Conn) error {
 	bufferSizeInKilobytes := BUFFERSIZE / 1024
 	rate := float64(c.rate) / float64(c.NumberOfConnections*bufferSizeInKilobytes)
 	throttle := time.NewTicker(time.Second / time.Duration(rate))
+	logger.Debugf("rate: %+v", rate)
 	defer throttle.Stop()
 
 	// send the file
