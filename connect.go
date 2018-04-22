@@ -253,7 +253,7 @@ func (c *Connection) Run() error {
 
 		}
 		if c.Local {
-			fmt.Fprintf(os.Stderr, "Receive with:\n\tcroc --code 4-local --server %s\n", GetLocalIP())
+			fmt.Fprintf(os.Stderr, "Receive with: croc --code 8-local --server %s\n", GetLocalIP())
 		} else {
 			fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
 		}
@@ -359,7 +359,6 @@ func (c *Connection) runClient() error {
 					responses.Unlock()
 					if !c.Debug {
 						c.bar.Reset()
-
 					}
 					if err := c.sendFile(id, connection); err != nil {
 						log.Error(err)

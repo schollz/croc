@@ -106,7 +106,7 @@ func main() {
 				appOptions.Server = GetLocalIP()
 				r := NewRelay(appOptions)
 				go r.Run()
-				appOptions.Code = "4-local"
+				appOptions.Code = "8-local"
 				time.Sleep(500 * time.Millisecond)
 			}
 			c, err := NewConnection(appOptions)
