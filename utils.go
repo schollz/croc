@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"os"
 	"strconv"
 
@@ -153,4 +154,22 @@ func FileSize(filename string) (int, error) {
 	}
 	size := int(fi.Size())
 	return size, nil
+}
+
+// GetLocalIP returns the local ip address
+func GetLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	bestIP := ""
+	for _, address := range addrs {
+		// check the address type and if it is not a loopback the display it
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+	return bestIP
 }
