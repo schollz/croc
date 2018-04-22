@@ -253,7 +253,7 @@ func (c *Connection) Run() error {
 
 		}
 		if c.Local {
-			fmt.Fprintf(os.Stderr, "Receive with: croc --code 8-local --server %s\n", GetLocalIP())
+			fmt.Fprintf(os.Stderr, "Receive with: croc --code 8-local --server %s --yes\n", GetLocalIP())
 		} else {
 			fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
 		}
