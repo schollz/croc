@@ -59,6 +59,11 @@ func tarwalk(source, target string, tw *tar.Writer) error {
 				return err
 			}
 			source = filepath.ToSlash(source)
+			if len(source) > 0 {
+				if source[0:2] == "./" {
+					source = source[2:]
+				}
+			}
 			path = filepath.ToSlash(path)
 			if baseDir != "" {
 				header.Name = filepath.ToSlash(filepath.Join(baseDir, strings.TrimPrefix(path, source)))
@@ -105,7 +110,7 @@ func UnTarinate(extractPath, sourcefile string) error {
 	}
 
 	tarBallReader := tar.NewReader(fileReader)
-
+	extractPath = filepath.FromSlash(extractPath)
 	for {
 		header, err := tarBallReader.Next()
 		if err != nil {
