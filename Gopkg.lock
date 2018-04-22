@@ -52,8 +52,8 @@
 [[projects]]
   name = "github.com/schollz/tarinator-go"
   packages = ["."]
-  revision = "cf11a1e21eee77c805dd5134a2a14bead090ea97"
-  version = "v0.3.0"
+  revision = "c219982e378a152f1d15247f1175534014ac2b77"
+  version = "v0.3.1"
 
 [[projects]]
   name = "github.com/sirupsen/logrus"
