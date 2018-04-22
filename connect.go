@@ -535,11 +535,11 @@ func (c *Connection) runClient() error {
 			fmt.Print("\ndecompressing folder")
 			log.Debug("untarring " + c.File.Name)
 			err := tarinator.UnTarinate(c.Path, path.Join(c.Path, c.File.Name))
-
 			if err != nil {
 				return err
 			}
 			// we remove the old tar.gz file
+			log.Debug("removing old tar file: " + c.File.Name)
 			err = os.Remove(path.Join(c.Path, c.File.Name))
 			if err != nil {
 				return err
