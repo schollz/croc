@@ -39,6 +39,13 @@ func Tarinate(paths []string, tarPath string) error {
 }
 
 func tarwalk(source, target string, tw *tar.Writer) error {
+	source = filepath.ToSlash(source)
+	if len(source) > 0 {
+		if source[0:2] == "./" {
+			source = source[2:]
+		}
+	}
+
 	info, err := os.Stat(source)
 	if err != nil {
 		return nil
@@ -46,7 +53,8 @@ func tarwalk(source, target string, tw *tar.Writer) error {
 
 	var baseDir string
 	if info.IsDir() {
-		baseDir = filepath.Base(source)
+		baseDir = filepath.ToSlash(filepath.Base(source))
+
 	}
 
 	return filepath.Walk(source,
@@ -59,6 +67,7 @@ func tarwalk(source, target string, tw *tar.Writer) error {
 				return err
 			}
 
+			path = filepath.ToSlash(path)
 			if baseDir != "" {
 				header.Name = filepath.ToSlash(filepath.Join(baseDir, strings.TrimPrefix(path, source)))
 			}
@@ -104,7 +113,7 @@ func UnTarinate(extractPath, sourcefile string) error {
 	}
 
 	tarBallReader := tar.NewReader(fileReader)
-
+	extractPath = filepath.FromSlash(extractPath)
 	for {
 		header, err := tarBallReader.Next()
 		if err != nil {
