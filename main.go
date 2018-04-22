@@ -104,6 +104,7 @@ func main() {
 				fmt.Println("running relay on local address " + GetLocalIP())
 				appOptions.Relay = true
 				appOptions.Server = GetLocalIP()
+				appOptions.DontEncrypt = true
 				r := NewRelay(appOptions)
 				go r.Run()
 				appOptions.Code = "8-local"
