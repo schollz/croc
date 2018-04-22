@@ -5,7 +5,7 @@
   branch = "master"
   name = "github.com/dustin/go-humanize"
   packages = ["."]
-  revision = "bb3d318650d48840a39aa21a027c6630e198e626"
+  revision = "02af3965c54e8cacf948b97fef38925c4120652c"
 
 [[projects]]
   name = "github.com/fatih/structs"
@@ -46,8 +46,8 @@
 [[projects]]
   name = "github.com/schollz/progressbar"
   packages = ["."]
-  revision = "5fb8484b7c7c686d5dbe5b7031fe2f1f464444a9"
-  version = "v0.5.0"
+  revision = "5441d79e9e64d6356575e1e296142ebba27949a7"
+  version = "v0.6.0"
 
 [[projects]]
   name = "github.com/schollz/tarinator-go"
@@ -76,20 +76,31 @@
 [[projects]]
   branch = "master"
   name = "github.com/yudai/hcl"
-  packages = [".","hcl","json"]
+  packages = [
+    ".",
+    "hcl",
+    "json"
+  ]
   revision = "5fa2393b3552119bf33a69adb1402a1160cba23d"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
-  packages = ["pbkdf2","scrypt","ssh/terminal"]
-  revision = "d6449816ce06963d9d136eee5a56fca5b0616e7e"
+  packages = [
+    "pbkdf2",
+    "scrypt",
+    "ssh/terminal"
+  ]
+  revision = "e73bf333ef8920dbb52ad18d4bd38ad9d9bc76d7"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
-  packages = ["unix","windows"]
-  revision = "f6f352972f061230a99fbf49d1eb8073ebdb36cb"
+  packages = [
+    "unix",
+    "windows"
+  ]
+  revision = "79b0c6888797020a994db17c8510466c72fe75d9"
 
 [[projects]]
   name = "golang.org/x/text"

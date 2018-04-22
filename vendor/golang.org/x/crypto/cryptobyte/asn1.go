@@ -23,6 +23,12 @@ func (b *Builder) AddASN1Int64(v int64) {
 	b.addASN1Signed(asn1.INTEGER, v)
 }
 
+// AddASN1Int64WithTag appends a DER-encoded ASN.1 INTEGER with the
+// given tag.
+func (b *Builder) AddASN1Int64WithTag(v int64, tag asn1.Tag) {
+	b.addASN1Signed(tag, v)
+}
+
 // AddASN1Enum appends a DER-encoded ASN.1 ENUMERATION.
 func (b *Builder) AddASN1Enum(v int64) {
 	b.addASN1Signed(asn1.ENUM, v)
@@ -362,6 +368,14 @@ func asn1Unsigned(out *uint64, n []byte) bool {
 	return true
 }
 
+// ReadASN1Int64WithTag decodes an ASN.1 INTEGER with the given tag into out
+// and advances. It reports whether the read was successful and resulted in a
+// value that can be represented in an int64.
+func (s *String) ReadASN1Int64WithTag(out *int64, tag asn1.Tag) bool {
+	var bytes String
+	return s.ReadASN1(&bytes, tag) && checkASN1Integer(bytes) && asn1Signed(out, bytes)
+}
+
 // ReadASN1Enum decodes an ASN.1 ENUMERATION into out and advances. It reports
 // whether the read was successful.
 func (s *String) ReadASN1Enum(out *int) bool {
@@ -623,7 +637,7 @@ func (s *String) ReadOptionalASN1Integer(out interface{}, tag asn1.Tag, defaultV
 
 // ReadOptionalASN1OctetString attempts to read an optional ASN.1 OCTET STRING
 // explicitly tagged with tag into out and advances. If no element with a
-// matching tag is present, it writes defaultValue into out instead. It reports
+// matching tag is present, it sets "out" to nil instead. It reports
 // whether the read was successful.
 func (s *String) ReadOptionalASN1OctetString(out *[]byte, outPresent *bool, tag asn1.Tag) bool {
 	var present bool
