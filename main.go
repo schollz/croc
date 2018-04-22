@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli"
 	"github.com/yudai/gotty/pkg/homedir"
@@ -21,7 +22,8 @@ type AppConfig struct {
 	DontEncrypt         bool   `yaml:"no-encrypt"  flagName:"no-encrypt" flagSName:"g" flagDescribe:"Turn off encryption" default:"false"`
 	UseStdout           bool   `yaml:"stdout"  flagName:"stdout" flagSName:"o" flagDescribe:"Use stdout" default:"false"`
 	Yes                 bool   `yaml:"yes"  flagName:"yes" flagSName:"y" flagDescribe:"Automatically accept file" default:"false"`
-	Server              string `yaml:"server"  flagName:"server" flagSName:"l" flagDescribe:"Address of relay server" default:"cowyo.com"`
+	Local               bool   `yaml:"local"  flagName:"local" flagSName:"lo" flagDescribe:"Automatically accept file" default:"false"`
+	Server              string `yaml:"server"  flagName:"server" flagSName:"l" flagDescribe:"start relay when sending" default:"false"`
 	File                string `yaml:"send"  flagName:"send" flagSName:"s" flagDescribe:"File to send default:""`
 	Path                string `yaml:"save"  flagName:"save" flagSName:"p" flagDescribe:"Path to save to" default:""`
 	Code                string `yaml:"code"  flagName:"code" flagSName:"c" flagDescribe:"Use your own code phrase" default:""`
@@ -94,10 +96,19 @@ func main() {
 		}
 
 		if appOptions.Relay {
-			fmt.Println("running relay")
+			fmt.Println("running relay on local address " + GetLocalIP())
 			r := NewRelay(appOptions)
 			r.Run()
 		} else {
+			if appOptions.Local {
+				fmt.Println("running relay on local address " + GetLocalIP())
+				appOptions.Relay = true
+				appOptions.Server = GetLocalIP()
+				r := NewRelay(appOptions)
+				go r.Run()
+				appOptions.Code = "8-local"
+				time.Sleep(500 * time.Millisecond)
+			}
 			c, err := NewConnection(appOptions)
 			if err != nil {
 				fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
