@@ -94,6 +94,29 @@ func TestSI(t *testing.T) {
 	}
 }
 
+func TestSIWithDigits(t *testing.T) {
+	tests := []struct {
+		name      string
+		num       float64
+		digits    int
+		formatted string
+	}{
+		{"e-12", 2.234e-12, 0, "2 pF"},
+		{"e-12", 2.234e-12, 1, "2.2 pF"},
+		{"e-12", 2.234e-12, 2, "2.23 pF"},
+		{"e-12", 2.234e-12, 3, "2.234 pF"},
+		{"e-12", 2.234e-12, 4, "2.234 pF"},
+	}
+
+	for _, test := range tests {
+		got := SIWithDigits(test.num, test.digits, "F")
+		if got != test.formatted {
+			t.Errorf("On %v (%v), got %v, wanted %v",
+				test.name, test.num, got, test.formatted)
+		}
+	}
+}
+
 func BenchmarkParseSI(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		ParseSI("2.2346ZB")

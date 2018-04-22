@@ -253,7 +253,7 @@ func (c *Connection) Run() error {
 
 		}
 		if c.Local {
-			fmt.Fprintf(os.Stderr, "Receive with: croc --code 8-local --server %s\n", GetLocalIP())
+			fmt.Fprintf(os.Stderr, "Receive with: croc --code 8-local --server %s --yes\n", GetLocalIP())
 		} else {
 			fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
 		}
@@ -459,9 +459,12 @@ func (c *Connection) runClient() error {
 						responses.Lock()
 						responses.startTime = time.Now()
 						responses.Unlock()
-						if !c.Debug {
+						if !c.Debug && id == 0 {
 							c.bar.SetMax(c.File.Size)
 							c.bar.Reset()
+						} else {
+							// try to let the first thread start first
+							time.Sleep(10 * time.Millisecond)
 						}
 						if err := c.receiveFile(id, connection); err != nil {
 							log.Error(errors.Wrap(err, "Problem receiving the file: "))

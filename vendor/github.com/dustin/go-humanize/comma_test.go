@@ -36,6 +36,15 @@ func TestCommas(t *testing.T) {
 	}.validate(t)
 }
 
+func TestCommafWithDigits(t *testing.T) {
+	testList{
+		{"1.23, 0", CommafWithDigits(1.23, 0), "1"},
+		{"1.23, 1", CommafWithDigits(1.23, 1), "1.2"},
+		{"1.23, 2", CommafWithDigits(1.23, 2), "1.23"},
+		{"1.23, 3", CommafWithDigits(1.23, 3), "1.23"},
+	}.validate(t)
+}
+
 func TestCommafs(t *testing.T) {
 	testList{
 		{"0", Commaf(0), "0"},
