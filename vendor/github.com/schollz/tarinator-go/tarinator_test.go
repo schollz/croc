@@ -9,7 +9,7 @@ import (
 func TestArchive(t *testing.T) {
 	paths := []string{
 		"somescript.sh",
-		"test_files/",
+		"./test_files/",
 	}
 
 	err := Tarinate(paths, "output_test.tar.gz")
