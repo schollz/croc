@@ -53,7 +53,7 @@
   branch = "master"
   name = "github.com/schollz/peerdiscovery"
   packages = ["."]
-  revision = "91f5786581428e3602d9b00118a0efad87ad2958"
+  revision = "5485f2fb8e48e812ac8c0387729e4952603bfaff"
 
 [[projects]]
   name = "github.com/schollz/progressbar"
@@ -88,19 +88,41 @@
 [[projects]]
   branch = "master"
   name = "github.com/yudai/hcl"
-  packages = [".","hcl","json"]
+  packages = [
+    ".",
+    "hcl",
+    "json"
+  ]
   revision = "5fa2393b3552119bf33a69adb1402a1160cba23d"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
-  packages = ["pbkdf2","scrypt","ssh/terminal"]
-  revision = "e73bf333ef8920dbb52ad18d4bd38ad9d9bc76d7"
+  packages = [
+    "pbkdf2",
+    "scrypt",
+    "ssh/terminal"
+  ]
+  revision = "2b6c08872f4b66da917bb4ce98df4f0307330f78"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/net"
+  packages = [
+    "bpf",
+    "internal/iana",
+    "internal/socket",
+    "ipv4"
+  ]
+  revision = "5f9ae10d9af5b1c89ae6904293b14b064d4ada23"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
-  packages = ["unix","windows"]
+  packages = [
+    "unix",
+    "windows"
+  ]
   revision = "79b0c6888797020a994db17c8510466c72fe75d9"
 
 [[projects]]
