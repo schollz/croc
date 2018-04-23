@@ -167,8 +167,10 @@ func (c *Connection) Run() error {
 
 	if c.Local {
 		c.DontEncrypt = true
-		c.Code = peerdiscovery.RandStringBytesMaskImprSrc(4)
 		c.Yes = true
+		if c.Code == "" {
+			c.Code = peerdiscovery.RandStringBytesMaskImprSrc(4)
+		}
 	}
 
 	if c.Local && c.Server == "" {
@@ -180,9 +182,7 @@ func (c *Connection) Run() error {
 			Payload:   []byte(c.Code),
 		})
 		if c.IsSender {
-			c.Server = "localhost"
 			go p.Discover()
-
 		} else {
 			fmt.Print("finding local croc relay...")
 			discovered, err := p.Discover()
@@ -199,6 +199,7 @@ func (c *Connection) Run() error {
 	}
 
 	if c.Local && c.IsSender {
+		log.Debug("starting relay")
 		relay := NewRelay(&AppConfig{
 			Debug: c.Debug,
 		})
@@ -273,6 +274,8 @@ func (c *Connection) Run() error {
 		}
 		if c.Local {
 			fmt.Fprintf(os.Stderr, "Receive with: croc --local\n")
+			fmt.Fprintf(os.Stderr, "or            croc --local --server %s --code %s\n", GetLocalIP(), c.Code)
+
 		} else {
 			fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
 		}
