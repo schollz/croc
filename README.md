@@ -22,11 +22,11 @@ _These two gifs should run in sync if you force-reload (Ctl+F5)_
 
 **Sender:**
 
-![send](https://user-images.githubusercontent.com/6550035/32415611-9bfa858a-c1f9-11e7-9573-52c1edc52e5f.gif)
+![send](https://raw.githubusercontent.com/schollz/croc/master/logo/sender.gif)
 
 **Receiver:**
 
-![receive](https://user-images.githubusercontent.com/6550035/32415609-9ba49dc8-c1f9-11e7-9c86-ea0baae730fe.gif)
+![receive](https://raw.githubusercontent.com/schollz/croc/master/logo/receiver.gif)
 
 
 **Sender:**

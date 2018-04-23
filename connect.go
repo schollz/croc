@@ -108,7 +108,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 		}
 
 		if info.Mode().IsDir() { // if our file is a dir
-			fmt.Println("compressing directory...")
+			fmt.Println("Compressing folder...")
 
 			// we "tarify" the file
 			err = tarinator.Tarinate([]string{config.File}, path.Base(config.File)+".tar")
@@ -208,7 +208,11 @@ func (c *Connection) Run() error {
 
 	log.Debug("checking code validity")
 	if len(c.Code) == 0 {
-		c.Code = GetRandomName()
+		if c.IsSender {
+			c.Code = GetRandomName()
+		} else {
+			c.Code = getInput("Enter receive code: ")
+		}
 		log.Debug("changed code to ", c.Code)
 	}
 
@@ -507,10 +511,14 @@ func (c *Connection) runClient() error {
 			fmt.Println("Timeout waiting for receiver")
 			return nil
 		}
-		fmt.Print("\nFile sent")
+		fileOrFolder := "File"
+		if c.File.IsDir {
+			fileOrFolder = "Folder"
+		}
+		fmt.Printf("\n%s sent", fileOrFolder)
 	} else { // Is a Receiver
 		if responses.notPresent {
-			fmt.Println("Sender is not ready. Use -wait to wait until sender connects.")
+			fmt.Println("Either code is incorrect or sender is not ready. Use -wait to wait until sender connects.")
 			return nil
 		}
 		if !responses.gotOK {
@@ -550,7 +558,7 @@ func (c *Connection) runClient() error {
 			return fmt.Errorf("\nUh oh! %s is corrupted! Sorry, try again.\n", c.File.Name)
 		}
 		if c.File.IsDir { // if the file was originally a dir
-			fmt.Print("\ndecompressing folder")
+			fmt.Print("\nDecompressing folder...")
 			log.Debug("untarring " + c.File.Name)
 			err := tarinator.UnTarinate(c.Path, path.Join(c.Path, c.File.Name))
 			if err != nil {

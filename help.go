@@ -1,6 +1,17 @@
 package main
 
-var helpTemplate = `NAME:
+var helpTemplate = `
+                                ,_
+                               >' )
+                               ( ( \
+                                || \
+                 /^^^^\         ||
+    /^^\________/0     \        ||
+   (                    ` + "`" + `~+++,,_||__,,++~^^^^^^^
+ ...V^V^V^V^V^V^\...............................
+
+
+NAME:
    {{.Name}} - {{.Usage}}
 
 USAGE:
