@@ -4,7 +4,7 @@
     width="100%" border="0" alt="croc">
 <br>
 <a href="https://travis-ci.org/schollz/croc"><img src="https://travis-ci.org/schollz/croc.svg?branch=master" alt="Build Status"></a>
-<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-0.6.0-brightgreen.svg?style=flat-square" alt="Version"></a>
+<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-1.0.0-brightgreen.svg?style=flat-square" alt="Version"></a>
 <a href="https://goreportcard.com/report/github.com/schollz/croc"><img src="https://goreportcard.com/badge/github.com/schollz/croc" alt="Go Report Card"></a>
 </p>
 
@@ -55,6 +55,17 @@ Received file written to croc.exe (2.6 MB/s)
 ```
 
 Note, by default, you don't need any arguments for receiving! This makes it possible for you to just double click the executable to run (nice for those of us that aren't computer wizards).
+
+It's even fancier if you want to run it locally:
+
+
+**Sender:**
+
+![Running locally](https://raw.githubusercontent.com/schollz/croc/master/logo/1.gif)
+
+**Receiver:**
+
+![Running locally](https://raw.githubusercontent.com/schollz/croc/master/logo/2.gif)
 
 
 # Install
