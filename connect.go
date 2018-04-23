@@ -184,7 +184,7 @@ func (c *Connection) Run() error {
 		if c.IsSender {
 			go p.Discover()
 		} else {
-			fmt.Print("finding local croc relay...")
+			fmt.Print("Finding local croc relay...")
 			discovered, err := p.Discover()
 			if err != nil {
 				return err
