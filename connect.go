@@ -133,6 +133,9 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 
 func (c *Connection) cleanup() {
 	log.Debug("cleaning")
+	if c.Debug {
+		return
+	}
 	for id := 0; id <= 8; id++ {
 		err := os.Remove(path.Join(c.Path, c.File.Name+".enc."+strconv.Itoa(id)))
 		if err == nil {
@@ -154,55 +157,22 @@ func (c *Connection) Run() error {
 	}()
 	defer c.cleanup()
 
-	forceSingleThreaded := false
+	log.Debug("checking code validity")
+	if len(c.Code) == 0 {
+		c.Code = GetRandomName()
+	}
+
+	c.NumberOfConnections = MAX_NUMBER_THREADS
 	if c.IsSender {
 		fsize, err := FileSize(path.Join(c.File.Path, c.File.Name))
 		if err != nil {
 			return err
 		}
 		if fsize < MAX_NUMBER_THREADS*BUFFERSIZE {
-			forceSingleThreaded = true
+			c.NumberOfConnections = 1
 			log.Debug("forcing single thread")
 		}
 	}
-	log.Debug("checking code validity")
-	for {
-		// check code
-		goodCode := true
-		m := strings.Split(c.Code, "-")
-		log.Debug(m)
-		numThreads, errParse := strconv.Atoi(m[0])
-		if len(m) < 2 {
-			goodCode = false
-			log.Debug("code too short")
-		} else if numThreads > MAX_NUMBER_THREADS || numThreads < 1 || (forceSingleThreaded && numThreads != 1) {
-			c.NumberOfConnections = MAX_NUMBER_THREADS
-			goodCode = false
-			log.Debug("incorrect number of threads")
-		} else if errParse != nil {
-			goodCode = false
-			log.Debug("problem parsing threads")
-		}
-		log.Debug(m)
-		log.Debug(goodCode)
-		if !goodCode {
-			if c.IsSender {
-				if forceSingleThreaded {
-					c.NumberOfConnections = 1
-				}
-				c.Code = strconv.Itoa(c.NumberOfConnections) + "-" + GetRandomName()
-			} else {
-				if len(c.Code) != 0 {
-					fmt.Println("Code must begin with number of threads (e.g. 3-some-code)")
-				}
-				c.Code = getInput("Enter receive code: ")
-			}
-		} else {
-			break
-		}
-	}
-	// assign number of connections
-	c.NumberOfConnections, _ = strconv.Atoi(strings.Split(c.Code, "-")[0])
 
 	if c.IsSender {
 		if c.DontEncrypt {
@@ -271,7 +241,7 @@ func (c *Connection) runClient() error {
 	})
 
 	c.HashedCode = Hash(c.Code)
-
+	c.NumberOfConnections = MAX_NUMBER_THREADS
 	var wg sync.WaitGroup
 	wg.Add(c.NumberOfConnections)
 
@@ -467,7 +437,7 @@ func (c *Connection) runClient() error {
 							time.Sleep(10 * time.Millisecond)
 						}
 						if err := c.receiveFile(id, connection); err != nil {
-							log.Error(errors.Wrap(err, "Problem receiving the file: "))
+							log.Debug(errors.Wrap(err, "no file to recieve"))
 						}
 					}
 				}
@@ -575,9 +545,17 @@ func fileAlreadyExists(s []string, f string) bool {
 func (c *Connection) catFile() error {
 	// cat the file
 	files := make([]string, c.NumberOfConnections)
-	for id := range files {
-		files[id] = path.Join(c.Path, c.File.Name+".enc."+strconv.Itoa(id))
+	i := 0
+	for id := 0; id < len(files); id++ {
+		files[i] = path.Join(c.Path, c.File.Name+".enc."+strconv.Itoa(id))
+		if _, err := os.Stat(files[id]); os.IsNotExist(err) {
+			break
+		}
+		log.Debug(files[i])
+		i++
 	}
+	files = files[:i]
+	log.Debug(files)
 	toRemove := !c.Debug
 	return CatFiles(files, path.Join(c.Path, c.File.Name+".enc"), toRemove)
 }
@@ -644,11 +622,12 @@ func (c *Connection) sendFile(id int, connection net.Conn) error {
 	})
 	defer connection.Close()
 
-	// open encrypted file chunk
+	// open encrypted file chunk, if it exists
 	logger.Debug("opening encrypted file chunk: " + c.File.Name + ".enc." + strconv.Itoa(id))
 	file, err := os.Open(c.File.Name + ".enc." + strconv.Itoa(id))
 	if err != nil {
-		return err
+		log.Debug(err)
+		return nil
 	}
 	defer file.Close()
 
