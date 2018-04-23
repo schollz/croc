@@ -175,7 +175,7 @@ func (c *Connection) Run() error {
 		c.Server = "localhost"
 		p := peerdiscovery.New(peerdiscovery.Settings{
 			Limit:     1,
-			TimeLimit: 60 * time.Second,
+			TimeLimit: 600 * time.Second,
 			Delay:     500 * time.Millisecond,
 			Payload:   []byte(c.Code),
 		})
