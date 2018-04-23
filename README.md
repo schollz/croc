@@ -4,7 +4,7 @@
     width="100%" border="0" alt="croc">
 <br>
 <a href="https://travis-ci.org/schollz/croc"><img src="https://travis-ci.org/schollz/croc.svg?branch=master" alt="Build Status"></a>
-<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-1.0.0-brightgreen.svg?style=flat-square" alt="Version"></a>
+<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-1.0.1-brightgreen.svg?style=flat-square" alt="Version"></a>
 <a href="https://goreportcard.com/report/github.com/schollz/croc"><img src="https://goreportcard.com/badge/github.com/schollz/croc" alt="Go Report Card"></a>
 </p>
 
@@ -32,9 +32,9 @@ _These two gifs should run in sync if you force-reload (Ctl+F5)_
 **Sender:**
 
 ```
-$ croc -send croc.exe
-Sending 4.4 MB file named 'croc.exe'
-Code is: 4-cement-galaxy-alpha
+$ croc -send some-file-or-folder
+Sending 4.4 MB file named 'some-file-or-folder'
+Code is: cement-galaxy-alpha
 
 Sending (->[1]63982)..
   89% |███████████████████████████████████     | [12s:1s]
@@ -45,19 +45,35 @@ File sent (2.6 MB/s)
 
 ```
 $ croc
-Enter receive code: 4-cement-galaxy-alpha
-Receiving file (4.4 MB) into: croc.exe
+Enter receive code: cement-galaxy-alpha
+Receiving file (4.4 MB) into: some-file-or-folder
 ok? (y/n): y
 
 Receiving (<-[1]63975)..
   97% |██████████████████████████████████████  | [13s:0s]
-Received file written to croc.exe (2.6 MB/s)
+Received file written to some-file-or-folder (2.6 MB/s)
 ```
 
 Note, by default, you don't need any arguments for receiving! This makes it possible for you to just double click the executable to run (nice for those of us that aren't computer wizards).
 
-It's even fancier if you want to run it locally:
 
+## Transfering files between local computers
+
+Its even easier if you want to transfer files between two computers on the same network.
+
+**Sender:**
+
+```
+$ croc -send some-file-or-folder -local
+```
+
+**Receiver:**
+
+```
+$ croc -local
+```
+
+Yes, when you run locally you don't even need to use a code. When you run locally, the *croc* receiver will use UDP broadcast packets to automatically find the correct IP address and code to use to transfer the file.
 
 **Sender:**
 
@@ -75,12 +91,11 @@ It's even fancier if you want to run it locally:
 Or, you can [install Go](https://golang.org/dl/) and build from source with `go get github.com/schollz/croc`.
 
 
-
 # How does it work?
 
 *croc* is similar to [magic-wormhole](https://github.com/warner/magic-wormhole#design) in spirit and design. Like *magic-wormhole*, *croc* generates a code phrase for you to share with your friend which allows secure end-to-end transfering of files and folders through a intermediary relay that  connects the TCP ports between the two computers.
 
-In *croc*, code phrase is 16 random bits that are [menemonic encoded](http://web.archive.org/web/20101031205747/http://www.tothink.com/mnemonic/) plus a prepended integer to specify number of threads. This code phrase is hashed using sha256 and sent to a relay which maps that key to that connection. When the relay finds a matching key for both the receiver and the sender (i.e. they both have the same code phrase), then the sender transmits the encrypted metadata to the receiver through the relay. Then the receiver decrypts and reviews the metadata (file name, size), and chooses whether to consent to the transfer.
+In *croc*, code phrase is 16 random bits that are [menemonic encoded](http://web.archive.org/web/20101031205747/http://www.tothink.com/mnemonic/). This code phrase is hashed using sha256 and sent to a relay which maps that key to that connection. When the relay finds a matching key for both the receiver and the sender (i.e. they both have the same code phrase), then the sender transmits the encrypted metadata to the receiver through the relay. Then the receiver decrypts and reviews the metadata (file name, size), and chooses whether to consent to the transfer.
 
 After the receiver consents to the transfer, the sender transmits encrypted data through the relay. The relay setups up [Go channels](https://golang.org/doc/effective_go.html?h=chan#channels) for each connection which pipes all the data incoming from that sender's connection out to the receiver's connection. After the transmission the channels are destroyed and all the connection and meta data information is wiped from the relay server. The encrypted file data never is stored on the relay.
 
