@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/urfave/cli"
 	"github.com/yudai/gotty/pkg/homedir"
@@ -100,16 +99,6 @@ func main() {
 			r := NewRelay(appOptions)
 			r.Run()
 		} else {
-			if appOptions.Local {
-				fmt.Println("running relay on local address " + GetLocalIP())
-				appOptions.Relay = true
-				appOptions.Server = GetLocalIP()
-				appOptions.DontEncrypt = true
-				r := NewRelay(appOptions)
-				go r.Run()
-				appOptions.Code = "8-local"
-				time.Sleep(500 * time.Millisecond)
-			}
 			c, err := NewConnection(appOptions)
 			if err != nil {
 				fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
