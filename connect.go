@@ -175,12 +175,15 @@ func (c *Connection) Run() error {
 
 	if c.Local && c.Server == "" {
 		c.Server = "localhost"
-		p := peerdiscovery.New(peerdiscovery.Settings{
+		p, err := peerdiscovery.New(peerdiscovery.Settings{
 			Limit:     1,
 			TimeLimit: 600 * time.Second,
 			Delay:     500 * time.Millisecond,
 			Payload:   []byte(c.Code),
 		})
+		if err != nil {
+			return err
+		}
 		if c.IsSender {
 			go p.Discover()
 		} else {

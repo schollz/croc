@@ -25,6 +25,21 @@ func GetLocalIP() string {
 	return bestIP
 }
 
+// GetLocalIPs returns the local ip address
+func GetLocalIPs() (ips map[string]struct{}) {
+	ips = make(map[string]struct{})
+	ips["localhost"] = struct{}{}
+	ips["127.0.0.1"] = struct{}{}
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return
+	}
+	for _, address := range addrs {
+		ips[strings.Split(address.String(), "/")[0]] = struct{}{}
+	}
+	return
+}
+
 // src is seeds the random generator for generating random strings
 var src = math_rand.NewSource(time.Now().UnixNano())
 
