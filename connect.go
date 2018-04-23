@@ -17,11 +17,12 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar"
 	tarinator "github.com/schollz/tarinator-go"
 
+	log "github.com/cihub/seelog"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 )
 
 type Connection struct {
@@ -59,6 +60,7 @@ const (
 )
 
 func NewConnection(config *AppConfig) (*Connection, error) {
+	defer log.Flush()
 	c := new(Connection)
 	c.Debug = config.Debug
 	c.DontEncrypt = config.DontEncrypt
@@ -70,6 +72,13 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.Yes = config.Yes
 	c.rate = config.Rate
 	c.Local = config.Local
+
+	if c.Local {
+		c.DontEncrypt = true
+		if c.Server == "cowyo.com" {
+			c.Server = ""
+		}
+	}
 
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
@@ -121,11 +130,10 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 		c.Path = config.Path
 	}
 
-	log.SetFormatter(&log.TextFormatter{})
 	if c.Debug {
-		log.SetLevel(log.DebugLevel)
+		SetLogLevel("debug")
 	} else {
-		log.SetLevel(log.WarnLevel)
+		SetLogLevel("warn")
 	}
 
 	return c, nil
@@ -157,9 +165,53 @@ func (c *Connection) Run() error {
 	}()
 	defer c.cleanup()
 
+	if c.Local {
+		c.DontEncrypt = true
+		c.Code = peerdiscovery.RandStringBytesMaskImprSrc(4)
+		c.Yes = true
+	}
+
+	if c.Local && c.Server == "" {
+		c.Server = "localhost"
+		p := peerdiscovery.New(peerdiscovery.Settings{
+			Limit:     1,
+			TimeLimit: 60 * time.Second,
+			Delay:     500 * time.Millisecond,
+			Payload:   []byte(c.Code),
+		})
+		if c.IsSender {
+			c.Server = "localhost"
+			p.Discover()
+
+			fmt.Println("running relay on local address " + GetLocalIP())
+			fmt.Println([]byte(c.Code))
+		} else {
+			discovered, err := p.Discover()
+			if err != nil {
+				return err
+			}
+			fmt.Println(discovered)
+			if len(discovered) == 0 {
+				return errors.New("could not find server")
+			}
+			c.Server = discovered[0].Address
+			fmt.Println(discovered[0].Payload)
+			c.Code = string(discovered[0].Payload)
+			time.Sleep(1 * time.Second)
+		}
+	}
+
+	if c.Local && c.IsSender {
+		relay := NewRelay(&AppConfig{
+			Debug: c.Debug,
+		})
+		go relay.Run()
+	}
+
 	log.Debug("checking code validity")
 	if len(c.Code) == 0 {
 		c.Code = GetRandomName()
+		log.Debug("changed code to ", c.Code)
 	}
 
 	c.NumberOfConnections = MAX_NUMBER_THREADS
@@ -235,11 +287,6 @@ func (c *Connection) Run() error {
 
 // runClient spawns threads for parallel uplink/downlink via TCP
 func (c *Connection) runClient() error {
-	logger := log.WithFields(log.Fields{
-		"code":    c.Code,
-		"sender?": c.IsSender,
-	})
-
 	c.HashedCode = Hash(c.Code)
 	c.NumberOfConnections = MAX_NUMBER_THREADS
 	var wg sync.WaitGroup
@@ -279,17 +326,17 @@ func (c *Connection) runClient() error {
 			defer connection.Close()
 
 			message := receiveMessage(connection)
-			logger.Debugf("relay says: %s", message)
+			log.Debugf("relay says: %s", message)
 			if c.IsSender {
-				logger.Debugf("telling relay: %s", "s."+c.Code)
+				log.Debugf("telling relay: %s", "s."+c.Code)
 				metaData, err := json.Marshal(c.File)
 				if err != nil {
 					log.Error(err)
 				}
-				encryptedMetaData, salt, iv := Encrypt(metaData, c.Code)
+				encryptedMetaData, salt, iv := Encrypt(metaData, c.Code, c.DontEncrypt)
 				sendMessage("s."+c.HashedCode+"."+hex.EncodeToString(encryptedMetaData)+"-"+salt+"-"+iv, connection)
 			} else {
-				logger.Debugf("telling relay: %s", "r."+c.Code)
+				log.Debugf("telling relay: %s", "r."+c.Code)
 				if c.Wait {
 					// tell server to wait for sender
 					sendMessage("r."+c.HashedCode+".0.0.0", connection)
@@ -299,7 +346,7 @@ func (c *Connection) runClient() error {
 				}
 			}
 			if c.IsSender { // this is a sender
-				logger.Debug("waiting for ok from relay")
+				log.Debug("waiting for ok from relay")
 				message = receiveMessage(connection)
 				if message == "timeout" {
 					responses.Lock()
@@ -316,14 +363,14 @@ func (c *Connection) runClient() error {
 					responses.gotConnectionInUse = true
 					responses.Unlock()
 				} else {
-					logger.Debug("got ok from relay")
+					log.Debug("got ok from relay")
 					if id == 0 {
 						fmt.Fprintf(os.Stderr, "\nSending (->%s)..\n", message)
 					}
 					// wait for pipe to be made
 					time.Sleep(100 * time.Millisecond)
 					// Write data from file
-					logger.Debug("send file")
+					log.Debug("send file")
 					responses.Lock()
 					responses.startTime = time.Now()
 					responses.Unlock()
@@ -335,7 +382,7 @@ func (c *Connection) runClient() error {
 					}
 				}
 			} else { // this is a receiver
-				logger.Debug("waiting for meta data from sender")
+				log.Debug("waiting for meta data from sender")
 				message = receiveMessage(connection)
 				if message == "no" {
 					if id == 0 {
@@ -422,7 +469,7 @@ func (c *Connection) runClient() error {
 						sendMessage("not ok", connection)
 					} else {
 						sendMessage("ok", connection)
-						logger.Debug("receive file")
+						log.Debug("receive file")
 						if id == 0 {
 							fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)..\n", sendersAddress)
 						}
@@ -445,6 +492,7 @@ func (c *Connection) runClient() error {
 		}(id)
 	}
 	wg.Wait()
+	log.Debugf("moving on")
 
 	responses.Lock()
 	defer responses.Unlock()
@@ -561,19 +609,15 @@ func (c *Connection) catFile() error {
 }
 
 func (c *Connection) receiveFile(id int, connection net.Conn) error {
-	logger := log.WithFields(log.Fields{
-		"function": "receiveFile #" + strconv.Itoa(id),
-	})
-
-	logger.Debug("waiting for chunk size from sender")
+	log.Debug("waiting for chunk size from sender")
 	fileSizeBuffer := make([]byte, 10)
 	connection.Read(fileSizeBuffer)
 	fileDataString := strings.Trim(string(fileSizeBuffer), ":")
 	fileSizeInt, _ := strconv.Atoi(fileDataString)
 	chunkSize := int64(fileSizeInt)
-	logger.Debugf("chunk size: %d", chunkSize)
+	log.Debugf("chunk size: %d", chunkSize)
 	if chunkSize == 0 {
-		logger.Debug(fileSizeBuffer)
+		log.Debug(fileSizeBuffer)
 		return errors.New("chunk size is empty!")
 	}
 
@@ -585,16 +629,16 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 	}
 	defer newFile.Close()
 
-	logger.Debug("waiting for file")
+	log.Debug(id, "waiting for file")
 	var receivedBytes int64
 	receivedFirstBytes := false
 	for {
 		if (chunkSize - receivedBytes) < BUFFERSIZE {
-			logger.Debug("at the end")
+			log.Debugf("%d at the end: %d < %d", id, (chunkSize - receivedBytes), BUFFERSIZE)
 			io.CopyN(newFile, connection, (chunkSize - receivedBytes))
 			// Empty the remaining bytes that we don't need from the network buffer
 			if (receivedBytes+BUFFERSIZE)-chunkSize < BUFFERSIZE {
-				logger.Debug("empty remaining bytes from network buffer")
+				log.Debug(id, "empty remaining bytes from network buffer")
 				connection.Read(make([]byte, (receivedBytes+BUFFERSIZE)-chunkSize))
 			}
 			if !c.Debug {
@@ -602,28 +646,25 @@ func (c *Connection) receiveFile(id int, connection net.Conn) error {
 			}
 			break
 		}
-		io.CopyN(newFile, connection, BUFFERSIZE)
-		receivedBytes += BUFFERSIZE
+		written, _ := io.CopyN(newFile, connection, BUFFERSIZE)
+		receivedBytes += written
 		if !receivedFirstBytes {
 			receivedFirstBytes = true
-			logger.Debug("Receieved first bytes!")
+			log.Debug(id, "Receieved first bytes!")
 		}
 		if !c.Debug {
-			c.bar.Add(BUFFERSIZE)
+			c.bar.Add(int(written))
 		}
 	}
-	logger.Debug("received file")
+	log.Debug(id, "received file")
 	return nil
 }
 
 func (c *Connection) sendFile(id int, connection net.Conn) error {
-	logger := log.WithFields(log.Fields{
-		"function": "sendFile #" + strconv.Itoa(id),
-	})
 	defer connection.Close()
 
 	// open encrypted file chunk, if it exists
-	logger.Debug("opening encrypted file chunk: " + c.File.Name + ".enc." + strconv.Itoa(id))
+	log.Debug("opening encrypted file chunk: " + c.File.Name + ".enc." + strconv.Itoa(id))
 	file, err := os.Open(c.File.Name + ".enc." + strconv.Itoa(id))
 	if err != nil {
 		log.Debug(err)
@@ -636,44 +677,55 @@ func (c *Connection) sendFile(id int, connection net.Conn) error {
 	if err != nil {
 		return err
 	}
-	logger.Debugf("sending chunk size: %d", fi.Size())
+	log.Debugf("sending chunk size: %d", fi.Size())
 	_, err = connection.Write([]byte(fillString(strconv.FormatInt(int64(fi.Size()), 10), 10)))
 	if err != nil {
 		return errors.Wrap(err, "Problem sending chunk data: ")
 	}
 
 	// rate limit the bandwidth
-	logger.Debug("determining rate limiting")
+	log.Debug("determining rate limiting")
 	bufferSizeInKilobytes := BUFFERSIZE / 1024
 	rate := float64(c.rate) / float64(c.NumberOfConnections*bufferSizeInKilobytes)
 	throttle := time.NewTicker(time.Second / time.Duration(rate))
-	logger.Debugf("rate: %+v", rate)
+	log.Debugf("rate: %+v", rate)
 	defer throttle.Stop()
 
 	// send the file
 	sendBuffer := make([]byte, BUFFERSIZE)
 	totalBytesSent := 0
 	for range throttle.C {
-		n, err := file.Read(sendBuffer)
-		connection.Write(sendBuffer)
-		totalBytesSent += n
+		_, err := file.Read(sendBuffer)
+		written, errWrite := connection.Write(sendBuffer)
+		totalBytesSent += written
 		if !c.Debug {
-			c.bar.Add(n)
+			c.bar.Add(int(written))
+		}
+		if errWrite != nil {
+			log.Error(errWrite)
 		}
 		if err == io.EOF {
 			//End of file reached, break out of for loop
-			logger.Debug("EOF")
+			log.Debug("EOF")
 			break
 		}
 	}
-	logger.Debug("file is sent")
-	logger.Debug("removing piece")
+	log.Debug("file is sent")
+	log.Debug("removing piece")
 	if !c.Debug {
 		file.Close()
 		err = os.Remove(c.File.Name + ".enc." + strconv.Itoa(id))
 	}
 	if err != nil && c.File.DeleteAfterSending {
 		err = os.Remove(path.Join(c.File.Path, c.File.Name))
+	}
+
+	// wait until client breaks connection
+	for range throttle.C {
+		_, errWrite := connection.Write([]byte("."))
+		if errWrite != nil {
+			break
+		}
 	}
 	return err
 }
