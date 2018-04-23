@@ -181,23 +181,20 @@ func (c *Connection) Run() error {
 		})
 		if c.IsSender {
 			c.Server = "localhost"
-			p.Discover()
+			go p.Discover()
 
-			fmt.Println("running relay on local address " + GetLocalIP())
-			fmt.Println([]byte(c.Code))
 		} else {
+			fmt.Print("finding local croc relay...")
 			discovered, err := p.Discover()
 			if err != nil {
 				return err
 			}
-			fmt.Println(discovered)
 			if len(discovered) == 0 {
 				return errors.New("could not find server")
 			}
 			c.Server = discovered[0].Address
-			fmt.Println(discovered[0].Payload)
+			fmt.Println(discovered[0].Address)
 			c.Code = string(discovered[0].Payload)
-			time.Sleep(1 * time.Second)
 		}
 	}
 
@@ -275,7 +272,7 @@ func (c *Connection) Run() error {
 
 		}
 		if c.Local {
-			fmt.Fprintf(os.Stderr, "Receive with: croc --code %s --server %s --yes\n", c.Code, GetLocalIP())
+			fmt.Fprintf(os.Stderr, "Receive with: croc --local\n")
 		} else {
 			fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
 		}
@@ -500,7 +497,7 @@ func (c *Connection) runClient() error {
 		return nil // connection was in use, just quit cleanly
 	}
 
-	timeSinceStart := time.Since(responses.startTime) / time.Second
+	timeSinceStart := time.Since(responses.startTime).Nanoseconds()
 
 	if c.IsSender {
 		if responses.gotTimeout {
@@ -577,7 +574,7 @@ func (c *Connection) runClient() error {
 			}
 		}
 	}
-	fmt.Fprintf(os.Stderr, " (%s/s)\n", humanize.Bytes(uint64(float64(c.File.Size)/float64(timeSinceStart))))
+	fmt.Fprintf(os.Stderr, " (%s/s)\n", humanize.Bytes(uint64(float64(1000000000)*float64(c.File.Size)/float64(timeSinceStart))))
 	return nil
 }
 
