@@ -13,7 +13,6 @@ import (
 const BUFFERSIZE = 1024
 
 type AppConfig struct {
-	HideLogo            bool   `yaml:"hidelogo"  flagName:"hidelogo" flagSName:"hl" flagDescribe:"Hidden logo" default:"false"`
 	Relay               bool   `yaml:"relay"  flagName:"relay" flagSName:"r" flagDescribe:"Run as relay" default:"false"`
 	Debug               bool   `yaml:"debug"  flagName:"debug" flagSName:"d" flagDescribe:"Debug mode" default:"false"`
 	Wait                bool   `yaml:"wait"  flagName:"wait" flagSName:"w" flagDescribe:"Wait for code to be sent" default:"false"`
@@ -77,22 +76,6 @@ func main() {
 		}
 
 		ApplyFlags(cliFlags, flagMappings, c, appOptions)
-		if appOptions.UseStdout {
-			appOptions.HideLogo = true
-		}
-		if !appOptions.HideLogo {
-			fmt.Println(`
-                                ,_
-                               >' )
-   croc version ` + fmt.Sprintf("%5s", version) + `          ( ( \
-                                || \
-                 /^^^^\         ||
-    /^^\________/0     \        ||
-   (                    ` + "`" + `~+++,,_||__,,++~^^^^^^^
- ...V^V^V^V^V^V^\...............................
-
-	`)
-		}
 
 		if appOptions.Relay {
 			fmt.Println("running relay on local address " + GetLocalIP())
