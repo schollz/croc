@@ -81,6 +81,26 @@ Yes, when you run locally you don't even need to use a code. When you run locall
 
 ![Running locally](https://raw.githubusercontent.com/schollz/croc/master/logo/2.gif)
 
+## Using *croc* in pipes
+
+You can easily use *croc* in pipes when you need to send data through stdin or get data from stdout.
+
+**Sender:**
+
+```
+$ cat some_file_or_folder | croc
+```
+
+In this case *croc* will automatically use the stdin data and send and assign a filename like "croc-stdin-123456789".
+
+**Receiver:**
+
+```
+$ croc --code code-phrase --yes --stdout | more
+```
+
+Here the reciever specified the code (`--code`) so it will not be prompted, and also specified `--yes` so the file will be automatically accepted. The output goes to stdout when flagged with `--stdout`.
+
 
 # Install
 
