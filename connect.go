@@ -121,7 +121,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 			// we set the value IsDir to true
 			c.File.IsDir = true
 		}
-		c.File.Name = path.Base(config.File)
+		c.File.Name = path.Base(info.Name())
 		c.File.Path = path.Dir(config.File)
 		c.IsSender = true
 	} else {
