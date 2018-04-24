@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -85,6 +86,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 		config.File = "stdin"
 	}
 	if len(config.File) > 0 {
+		config.File = filepath.Clean(config.File)
 		if config.File == "stdin" {
 			f, err := ioutil.TempFile(".", "croc-stdin-")
 			if err != nil {
@@ -121,7 +123,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 			// we set the value IsDir to true
 			c.File.IsDir = true
 		}
-		c.File.Name = path.Base(info.Name())
+		c.File.Name = path.Base(config.File)
 		c.File.Path = path.Dir(config.File)
 		c.IsSender = true
 	} else {
