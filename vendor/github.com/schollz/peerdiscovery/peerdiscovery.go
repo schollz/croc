@@ -188,7 +188,7 @@ func (p *PeerDiscovery) Discover() (discoveries []Discovered, err error) {
 }
 
 const (
-	maxDatagramSize = 8192
+	maxDatagramSize = 65507
 )
 
 // Listen binds to the UDP address and port given and writes packets received
