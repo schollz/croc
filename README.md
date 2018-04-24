@@ -10,9 +10,9 @@
 
 <p align="center">Easily and securely transfer stuff from one computer to another.</p>
 
-This is more or less (but mostly *less*) a Golang port of [@warner's](https://github.com/warner) [*magic-wormhole*](https://github.com/warner/magic-wormhole) which allows you to directly transfer files and folders between computers. I decided to make this because I wanted to send my friend Jessie a file using *magic-wormhole* and when I told Jessie how to install the dependencies she made this face: :sob:. So, nominally, *croc* does the same thing (encrypted file transfer directly between computers) without dependencies so you can just double-click on your computer, even if you use Windows.
+*croc* allows any two computers to directly and securely transfer files and folders. When sending a file, *croc* generates a random code phrase which must be shared with the recipient so they can receive the file. The code phrase encrypts all data and metadata and also serves to authorize the connection between the two computers in a intermediary relay. The relay connects the TCP ports between the two computers and does not store any information (and all information passing through it is encrypted). 
 
-Don't we have enough open-source peer-to-peer file-transfer utilities? [There](https://github.com/cowbell/sharedrop) [are](https://github.com/webtorrent/instant.io) [great](https://github.com/kern/filepizza) [tools](https://github.com/warner/magic-wormhole) [that](https://github.com/zerotier/toss) [already](https://github.com/ipfs/go-ipfs) [do](https://github.com/zerotier/toss) [this](https://github.com/nils-werner/zget). But, no we don't, because after review, [I found it was useful to make a new one](https://schollz.github.io/sending-a-file/).
+I hear you asking, *Why another open-source peer-to-peer file-transfer utilities?* [There](https://github.com/cowbell/sharedrop) [are](https://github.com/webtorrent/instant.io) [great](https://github.com/kern/filepizza) [tools](https://github.com/warner/magic-wormhole) [that](https://github.com/zerotier/toss) [already](https://github.com/ipfs/go-ipfs) [do](https://github.com/zerotier/toss) [this](https://github.com/nils-werner/zget). But, no we don't, because after review, [I found it was useful to make a new one](https://schollz.github.io/sending-a-file/). Namely, *croc* has no dependencies (just [download a binary and run](https://github.com/schollz/croc/releases/latest)), it works on any operating system, and its blazingly fast because it does parallel transfer over multiple TCP ports.
 
 # Example
 
@@ -71,7 +71,7 @@ $ croc -send some-file-or-folder -local
 $ croc -local
 ```
 
-Yes, when you run locally you don't even need to use a code. When you run locally, the *croc* receiver will use UDP broadcast packets to automatically find the correct IP address and code to use to transfer the file.
+Yes, when you run locally you don't even need to use a code. When you run locally, the *croc* receiver will use UDP broadcast packets to automatically find the correct IP address and code to use to transfer the file. When run locally, there is also no encryption so it is even faster.
 
 **Sender:**
 
@@ -99,8 +99,7 @@ After the receiver consents to the transfer, the sender transmits encrypted data
 
 **Encryption**
 
-Encryption uses PBKDF2 (see [RFC2898](http://www.ietf.org/rfc/rfc2898.txt)) where the code phrase shared between the sender and receiver is used as the passphrase. For each of the two encrypted data blocks (metadata stored on relay server, and file data transmitted), a random 8-byte salt is used and a IV is generated according to [NIST Recommendation for Block ciphers, Section 8.2](http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf).
-
+Encryption uses pbkdf2 (see [RFC2898](http://www.ietf.org/rfc/rfc2898.txt)) where the code phrase shared between the sender and receiver is used as the passphrase. For each of the two encrypted data blocks (metadata stored on relay server, and file data transmitted), a random 8-byte salt is used and a IV is generated according to [NIST Recommendation for Block ciphers, Section 8.2](http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf).
 
 **Decryption**
 
@@ -108,17 +107,15 @@ On the receiver's computer, each piece of received encrypted data is written to 
 
 ## Run your own relay
 
-*croc* relies on a TCP relay to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses a public relay at, `cowyo.com`, which has no guarantees except that I guarantee to turn if off as soon as it gets abused ([click here to check the current status of the public relay](https://stats.uptimerobot.com/lOwJYIgRm)).
+*croc* relies on a TCP relay to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses a public relay at, `cowyo.com`, which has a 30-day uptime of 99.989% ([click here to check the current status of the public relay](https://stats.uptimerobot.com/lOwJYIgRm)).
 
-I recommend you run your own relay, it is very easy. On your server, `your-server.com`, just run
+You can also run your own relay, it is very easy. On your server, `your-server.com`, just run
 
 ```
 $ croc -relay
 ```
 
-Now, when you use *croc* to send and receive you should add `-server your-server.com` to use your relay server.
-
-_Note:_ If you are behind a firewall, make sure to open up TCP ports 27001-27009.
+Now, when you use *croc* to send and receive you should add `-server your-server.com` to use your relay server. Make sure to open up TCP ports 27001-27009.
 
 # Contribute
 
