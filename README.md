@@ -8,13 +8,11 @@
 <a href="https://goreportcard.com/report/github.com/schollz/croc"><img src="https://goreportcard.com/badge/github.com/schollz/croc" alt="Go Report Card"></a>
 </p>
 
-<p align="center">Secure transfer of stuff from one side of the internet to the other.</p>
+<p align="center">Easily and securely transfer stuff from one computer to another.</p>
 
 This is more or less (but mostly *less*) a Golang port of [@warner's](https://github.com/warner) [*magic-wormhole*](https://github.com/warner/magic-wormhole) which allows you to directly transfer files and folders between computers. I decided to make this because I wanted to send my friend Jessie a file using *magic-wormhole* and when I told Jessie how to install the dependencies she made this face: :sob:. So, nominally, *croc* does the same thing (encrypted file transfer directly between computers) without dependencies so you can just double-click on your computer, even if you use Windows.
 
-**Don't we have enough open-source peer-to-peer file-transfer utilities?**
-
-[There](https://github.com/cowbell/sharedrop) [are](https://github.com/webtorrent/instant.io) [great](https://github.com/kern/filepizza) [tools](https://github.com/warner/magic-wormhole) [that](https://github.com/zerotier/toss) [already](https://github.com/ipfs/go-ipfs) [do](https://github.com/zerotier/toss) [this](https://github.com/nils-werner/zget). But, no we don't, because after review, [I found it was useful to make a new one](https://schollz.github.io/sending-a-file/).
+Don't we have enough open-source peer-to-peer file-transfer utilities? [There](https://github.com/cowbell/sharedrop) [are](https://github.com/webtorrent/instant.io) [great](https://github.com/kern/filepizza) [tools](https://github.com/warner/magic-wormhole) [that](https://github.com/zerotier/toss) [already](https://github.com/ipfs/go-ipfs) [do](https://github.com/zerotier/toss) [this](https://github.com/nils-werner/zget). But, no we don't, because after review, [I found it was useful to make a new one](https://schollz.github.io/sending-a-file/).
 
 # Example
 
