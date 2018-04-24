@@ -169,7 +169,7 @@ func (c *Connection) Run() error {
 		c.DontEncrypt = true
 		c.Yes = true
 		if c.Code == "" {
-			c.Code = peerdiscovery.RandStringBytesMaskImprSrc(4)
+			c.Code = strings.Split(GetRandomName(), "-")[0]
 		}
 	}
 
