@@ -10,29 +10,50 @@ import (
 	"golang.org/x/net/ipv4"
 )
 
+// Discovered is the structure of the discovered peers,
+// which holds their local address (port removed) and
+// a payload if there is one.
 type Discovered struct {
+	// Address is the local address of a discovered peer.
 	Address string
+	// Payload is the associated payload from discovered peer.
 	Payload []byte
 }
 
+// Settings are the settings that can be specified for
+// doing peer discovery.
 type Settings struct {
-	Limit                   int
-	Port                    string
+	// Limit is the number of peers to discover, use < 1 for unlimited.
+	Limit int
+	// Port is the port to broadcast on (the peers must also broadcast using the same port).
+	// The default port is 999.
+	Port string
+	// MulticastAddress specifies the multicast address.
+	// You should be able to use any between 224.0.0.0 to 239.255.255.255.
+	// By default it uses the Simple Service Discovery Protocol address (239.255.255.250).
+	MulticastAddress string
+	// Payload is the bytes that are sent out with each broadcast. Must be short.
+	Payload []byte
+	// Delay is the amount of time between broadcasts. The default delay is 1 second.
+	Delay time.Duration
+	// TimeLimit is the amount of time to spend discovering, if the limit is not reached.
+	// The default time limit is 10 seconds.
+	TimeLimit time.Duration
+
 	portNum                 int
-	MulticastAddress        string
 	multicastAddressNumbers []uint8
-	Payload                 []byte
-	Delay                   time.Duration
-	TimeLimit               time.Duration
 }
 
+// PeerDiscovery is the object that can do the discovery for finding LAN peers.
 type PeerDiscovery struct {
 	settings Settings
-	localIP  string
 	received map[string][]byte
 	sync.RWMutex
 }
 
+// New returns a new PeerDiscovery object which can be used to discover peers.
+// The settings are optional. If any setting is not supplied, then defaults are used.
+// See the Settings for more information.
 func New(settings ...Settings) (p *PeerDiscovery, err error) {
 	p = new(PeerDiscovery)
 	p.Lock()
@@ -56,7 +77,6 @@ func New(settings ...Settings) (p *PeerDiscovery, err error) {
 	if p.settings.TimeLimit == time.Duration(0) {
 		p.settings.TimeLimit = 10 * time.Second
 	}
-	p.localIP = GetLocalIP()
 	p.received = make(map[string][]byte)
 	p.settings.multicastAddressNumbers = []uint8{0, 0, 0, 0}
 	for i, num := range strings.Split(p.settings.MulticastAddress, ".") {
@@ -74,6 +94,9 @@ func New(settings ...Settings) (p *PeerDiscovery, err error) {
 	return
 }
 
+// Discover will use the created settings to scan for LAN peers. It will return
+// an array of the discovered peers and their associate payloads. It will not
+// return broadcasts sent to itself.
 func (p *PeerDiscovery) Discover() (discoveries []Discovered, err error) {
 	p.RLock()
 	address := p.settings.MulticastAddress + ":" + p.settings.Port
@@ -176,7 +199,7 @@ func (p *PeerDiscovery) listen() (recievedBytes []byte, err error) {
 	portNum := p.settings.portNum
 	multicastAddressNumbers := p.settings.multicastAddressNumbers
 	p.RUnlock()
-	localIPs := GetLocalIPs()
+	localIPs := getLocalIPs()
 
 	// get interfaces
 	ifaces, err := net.Interfaces()
@@ -228,5 +251,20 @@ func (p *PeerDiscovery) listen() (recievedBytes []byte, err error) {
 		p.Unlock()
 	}
 
+	return
+}
+
+// getLocalIPs returns the local ip address
+func getLocalIPs() (ips map[string]struct{}) {
+	ips = make(map[string]struct{})
+	ips["localhost"] = struct{}{}
+	ips["127.0.0.1"] = struct{}{}
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return
+	}
+	for _, address := range addrs {
+		ips[strings.Split(address.String(), "/")[0]] = struct{}{}
+	}
 	return
 }

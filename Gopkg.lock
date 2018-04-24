@@ -50,10 +50,10 @@
   revision = "15c9654387fad6d257aa28f9be57b9f124101955"
 
 [[projects]]
-  branch = "master"
   name = "github.com/schollz/peerdiscovery"
   packages = ["."]
-  revision = "5485f2fb8e48e812ac8c0387729e4952603bfaff"
+  revision = "2665d149a222cb3cf607ef0cf70ce7909462c50f"
+  version = "v0.1.0"
 
 [[projects]]
   name = "github.com/schollz/progressbar"
@@ -140,6 +140,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9fcf09b3c3f693e027cf26c3b1721bea6ef6626a52385f7ed093433f72b8c6d6"
+  inputs-digest = "4145287e28323d22a74771b8f17cc9a94d13e6297e0de995820e1bc7953948d7"
   solver-name = "gps-cdcl"
   solver-version = 1
