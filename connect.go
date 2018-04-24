@@ -175,40 +175,52 @@ func (c *Connection) Run() error {
 		}
 	}
 
-	if c.Local && c.Server == "" {
-		c.Server = "localhost"
-		p, err := peerdiscovery.New(peerdiscovery.Settings{
+	if c.IsSender {
+		if c.Code == "" {
+			c.Code = GetRandomName()
+		}
+		log.Debug("settings payload to ", c.Code)
+		p, _ := peerdiscovery.New(peerdiscovery.Settings{
 			Limit:     1,
 			TimeLimit: 600 * time.Second,
-			Delay:     500 * time.Millisecond,
+			Delay:     50 * time.Millisecond,
 			Payload:   []byte(c.Code),
 		})
-		if err != nil {
-			return err
-		}
-		if c.IsSender {
-			go p.Discover()
-		} else {
-			fmt.Print("Finding local croc relay...")
-			discovered, err := p.Discover()
-			if err != nil {
-				return err
+		go func() {
+			discovered, _ := p.Discover()
+			if len(discovered) > 0 {
+				log.Debugf("discovered by '%+v'", discovered[0])
+				c.runClient("localhost")
+				os.Exit(1)
+			} else {
+				log.Debug("discovered by no one")
 			}
-			if len(discovered) == 0 {
-				return errors.New("could not find server")
-			}
+		}()
+	} else {
+		p, _ := peerdiscovery.New(peerdiscovery.Settings{
+			Limit:     1,
+			TimeLimit: 1 * time.Second,
+			Delay:     50 * time.Millisecond,
+			Payload:   []byte(c.Code),
+		})
+		fmt.Print("Finding local croc relay...")
+		discovered, _ := p.Discover()
+		if len(discovered) > 0 {
 			c.Server = discovered[0].Address
 			fmt.Println(discovered[0].Address)
 			c.Code = string(discovered[0].Payload)
+			log.Debugf("discovered code '%s'", c.Code)
+			time.Sleep(200 * time.Millisecond)
 		}
 	}
 
-	if c.Local && c.IsSender {
-		log.Debug("starting relay")
+	if c.IsSender {
+		log.Debug("starting relay in case local connections")
 		relay := NewRelay(&AppConfig{
 			Debug: c.Debug,
 		})
 		go relay.Run()
+		time.Sleep(200 * time.Millisecond)
 	}
 
 	log.Debug("checking code validity")
@@ -288,14 +300,13 @@ func (c *Connection) Run() error {
 		} else {
 			fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
 		}
-
 	}
 
-	return c.runClient()
+	return c.runClient(c.Server)
 }
 
 // runClient spawns threads for parallel uplink/downlink via TCP
-func (c *Connection) runClient() error {
+func (c *Connection) runClient(serverName string) error {
 	c.HashedCode = Hash(c.Code)
 	c.NumberOfConnections = MAX_NUMBER_THREADS
 	var wg sync.WaitGroup
@@ -323,12 +334,12 @@ func (c *Connection) runClient() error {
 		go func(id int) {
 			defer wg.Done()
 			port := strconv.Itoa(27001 + id)
-			connection, err := net.Dial("tcp", c.Server+":"+port)
+			connection, err := net.Dial("tcp", serverName+":"+port)
 			if err != nil {
-				if c.Server == "cowyo.com" {
+				if serverName == "cowyo.com" {
 					fmt.Println("\nCheck http://bit.ly/croc-relay to see if the public server is down or contact the webmaster: @yakczar")
 				} else {
-					fmt.Fprintf(os.Stderr, "\nCould not connect to relay %s\n", c.Server)
+					fmt.Fprintf(os.Stderr, "\nCould not connect to relay %s\n", serverName)
 				}
 				os.Exit(1)
 			}
