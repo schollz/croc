@@ -74,13 +74,6 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.rate = config.Rate
 	c.Local = config.Local
 
-	if c.Local {
-		c.DontEncrypt = true
-		if c.Server == "cowyo.com" {
-			c.Server = ""
-		}
-	}
-
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
 		config.File = "stdin"
@@ -167,60 +160,7 @@ func (c *Connection) Run() error {
 	}()
 	defer c.cleanup()
 
-	if c.Local {
-		c.DontEncrypt = true
-		c.Yes = true
-		if c.Code == "" {
-			c.Code = strings.Split(GetRandomName(), "-")[0]
-		}
-	}
-
-	if c.Local && c.Server == "" {
-		c.Server = "localhost"
-		p, err := peerdiscovery.New(peerdiscovery.Settings{
-			Limit:     1,
-			TimeLimit: 600 * time.Second,
-			Delay:     500 * time.Millisecond,
-			Payload:   []byte(c.Code),
-		})
-		if err != nil {
-			return err
-		}
-		if c.IsSender {
-			go p.Discover()
-		} else {
-			fmt.Print("Finding local croc relay...")
-			discovered, err := p.Discover()
-			if err != nil {
-				return err
-			}
-			if len(discovered) == 0 {
-				return errors.New("could not find server")
-			}
-			c.Server = discovered[0].Address
-			fmt.Println(discovered[0].Address)
-			c.Code = string(discovered[0].Payload)
-		}
-	}
-
-	if c.Local && c.IsSender {
-		log.Debug("starting relay")
-		relay := NewRelay(&AppConfig{
-			Debug: c.Debug,
-		})
-		go relay.Run()
-	}
-
-	log.Debug("checking code validity")
-	if len(c.Code) == 0 {
-		if c.IsSender {
-			c.Code = GetRandomName()
-		} else {
-			c.Code = getInput("Enter receive code: ")
-		}
-		log.Debug("changed code to ", c.Code)
-	}
-
+	// calculate number of threads
 	c.NumberOfConnections = MAX_NUMBER_THREADS
 	if c.IsSender {
 		fsize, err := FileSize(path.Join(c.File.Path, c.File.Name))
@@ -233,7 +173,19 @@ func (c *Connection) Run() error {
 		}
 	}
 
+	runClientError := make(chan error)
 	if c.IsSender {
+		if c.Code == "" {
+			c.Code = GetRandomName()
+		}
+
+		log.Debug("starting relay in case local connections")
+		relay := NewRelay(&AppConfig{
+			Debug: c.Debug,
+		})
+		go relay.Run()
+		time.Sleep(200 * time.Millisecond)
+
 		if c.DontEncrypt {
 			// don't encrypt
 			CopyFile(path.Join(c.File.Path, c.File.Name), c.File.Name+".enc")
@@ -281,21 +233,48 @@ func (c *Connection) Run() error {
 			fmt.Fprintf(os.Stderr, "Sending %s file named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name)
 
 		}
-		if c.Local {
-			fmt.Fprintf(os.Stderr, "Receive with: croc --local\n")
-			fmt.Fprintf(os.Stderr, "or            croc --local --server %s --code %s\n", GetLocalIP(), c.Code)
+		fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
 
-		} else {
-			fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
-		}
-
+		// broadcast local connection from sender
+		log.Debug("settings payload to ", c.Code)
+		go func() {
+			go peerdiscovery.Discover(peerdiscovery.Settings{
+				Limit:     1,
+				TimeLimit: 600 * time.Second,
+				Delay:     50 * time.Millisecond,
+				Payload:   []byte(c.Code),
+			})
+			runClientError <- c.runClient("localhost")
+		}()
 	}
 
-	return c.runClient()
+	log.Debug("checking code validity")
+	if len(c.Code) == 0 && !c.IsSender {
+		log.Debug("Finding local croc relay...")
+		discovered, _ := peerdiscovery.Discover(peerdiscovery.Settings{
+			Limit:     1,
+			TimeLimit: 1 * time.Second,
+			Delay:     50 * time.Millisecond,
+			Payload:   []byte(c.Code),
+		})
+		if len(discovered) > 0 {
+			c.Server = discovered[0].Address
+			log.Debug(discovered[0].Address)
+			c.Code = string(discovered[0].Payload)
+			log.Debugf("discovered code '%s'", c.Code)
+			time.Sleep(200 * time.Millisecond)
+		} else {
+			c.Code = getInput("Enter receive code: ")
+			log.Debug("changed code to ", c.Code)
+		}
+	}
+
+	go func() { runClientError <- c.runClient(c.Server) }()
+	return <-runClientError
 }
 
 // runClient spawns threads for parallel uplink/downlink via TCP
-func (c *Connection) runClient() error {
+func (c *Connection) runClient(serverName string) error {
 	c.HashedCode = Hash(c.Code)
 	c.NumberOfConnections = MAX_NUMBER_THREADS
 	var wg sync.WaitGroup
@@ -323,12 +302,12 @@ func (c *Connection) runClient() error {
 		go func(id int) {
 			defer wg.Done()
 			port := strconv.Itoa(27001 + id)
-			connection, err := net.Dial("tcp", c.Server+":"+port)
+			connection, err := net.Dial("tcp", serverName+":"+port)
 			if err != nil {
-				if c.Server == "cowyo.com" {
+				if serverName == "cowyo.com" {
 					fmt.Println("\nCheck http://bit.ly/croc-relay to see if the public server is down or contact the webmaster: @yakczar")
 				} else {
-					fmt.Fprintf(os.Stderr, "\nCould not connect to relay %s\n", c.Server)
+					fmt.Fprintf(os.Stderr, "\nCould not connect to relay %s\n", serverName)
 				}
 				os.Exit(1)
 			}
@@ -337,15 +316,15 @@ func (c *Connection) runClient() error {
 			message := receiveMessage(connection)
 			log.Debugf("relay says: %s", message)
 			if c.IsSender {
-				log.Debugf("telling relay: %s", "s."+c.Code)
+				log.Debugf("telling relay (%s): %s", c.Server, "s."+c.Code)
 				metaData, err := json.Marshal(c.File)
 				if err != nil {
 					log.Error(err)
 				}
-				encryptedMetaData, salt, iv := Encrypt(metaData, c.Code, c.DontEncrypt)
+				encryptedMetaData, salt, iv := Encrypt(metaData, c.Code)
 				sendMessage("s."+c.HashedCode+"."+hex.EncodeToString(encryptedMetaData)+"-"+salt+"-"+iv, connection)
 			} else {
-				log.Debugf("telling relay: %s", "r."+c.Code)
+				log.Debugf("telling relay (%s): %s", c.Server, "r."+c.Code)
 				if c.Wait {
 					// tell server to wait for sender
 					sendMessage("r."+c.HashedCode+".0.0.0", connection)
@@ -409,6 +388,8 @@ func (c *Connection) runClient() error {
 						responses.Unlock()
 						time.Sleep(1 * time.Second)
 						return
+					} else if strings.Split(sendersAddress, ":")[0] == "127.0.0.1" {
+						sendersAddress = strings.Replace(sendersAddress, "127.0.0.1", c.Server, 1)
 					}
 					// have the main thread ask for the okay
 					if id == 0 {
