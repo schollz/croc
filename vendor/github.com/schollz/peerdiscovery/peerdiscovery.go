@@ -26,11 +26,12 @@ type Settings struct {
 	// Limit is the number of peers to discover, use < 1 for unlimited.
 	Limit int
 	// Port is the port to broadcast on (the peers must also broadcast using the same port).
-	// The default port is 999.
+	// The default port is 9999.
 	Port string
 	// MulticastAddress specifies the multicast address.
 	// You should be able to use any between 224.0.0.0 to 239.255.255.255.
-	// By default it uses the Simple Service Discovery Protocol address (239.255.255.250).
+	// By default it uses the Simple Service Discovery Protocol
+	// address (239.255.255.250).
 	MulticastAddress string
 	// Payload is the bytes that are sent out with each broadcast. Must be short.
 	Payload []byte
@@ -44,23 +45,25 @@ type Settings struct {
 	multicastAddressNumbers []uint8
 }
 
-// PeerDiscovery is the object that can do the discovery for finding LAN peers.
-type PeerDiscovery struct {
+// peerDiscovery is the object that can do the discovery for finding LAN peers.
+type peerDiscovery struct {
 	settings Settings
+
 	received map[string][]byte
 	sync.RWMutex
 }
 
-// New returns a new PeerDiscovery object which can be used to discover peers.
+// initialize returns a new peerDiscovery object which can be used to discover peers.
 // The settings are optional. If any setting is not supplied, then defaults are used.
 // See the Settings for more information.
-func New(settings ...Settings) (p *PeerDiscovery, err error) {
-	p = new(PeerDiscovery)
+func initialize(settings Settings) (p *peerDiscovery, err error) {
+	p = new(peerDiscovery)
 	p.Lock()
 	defer p.Unlock()
-	if len(settings) > 0 {
-		p.settings = settings[0]
-	}
+
+	// initialize settings
+	p.settings = settings
+
 	// defaults
 	if p.settings.Port == "" {
 		p.settings.Port = "9999"
@@ -97,7 +100,16 @@ func New(settings ...Settings) (p *PeerDiscovery, err error) {
 // Discover will use the created settings to scan for LAN peers. It will return
 // an array of the discovered peers and their associate payloads. It will not
 // return broadcasts sent to itself.
-func (p *PeerDiscovery) Discover() (discoveries []Discovered, err error) {
+func Discover(settings ...Settings) (discoveries []Discovered, err error) {
+	s := Settings{}
+	if len(settings) > 0 {
+		s = settings[0]
+	}
+	p, err := initialize(s)
+	if err != nil {
+		return
+	}
+
 	p.RLock()
 	address := p.settings.MulticastAddress + ":" + p.settings.Port
 	portNum := p.settings.portNum
@@ -188,12 +200,13 @@ func (p *PeerDiscovery) Discover() (discoveries []Discovered, err error) {
 }
 
 const (
-	maxDatagramSize = 65507
+	// https://en.wikipedia.org/wiki/User_Datagram_Protocol#Packet_structure
+	maxDatagramSize = 66507
 )
 
 // Listen binds to the UDP address and port given and writes packets received
 // from that address to a buffer which is passed to a hander
-func (p *PeerDiscovery) listen() (recievedBytes []byte, err error) {
+func (p *peerDiscovery) listen() (recievedBytes []byte, err error) {
 	p.RLock()
 	address := p.settings.MulticastAddress + ":" + p.settings.Port
 	portNum := p.settings.portNum
