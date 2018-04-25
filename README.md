@@ -54,33 +54,6 @@ Received file written to some-file-or-folder (2.6 MB/s)
 
 Note, by default, you don't need any arguments for receiving! This makes it possible for you to just double click the executable to run (nice for those of us that aren't computer wizards).
 
-
-## Transfering files between local computers
-
-Its even easier if you want to transfer files between two computers on the same network.
-
-**Sender:**
-
-```
-$ croc -send some-file-or-folder -local
-```
-
-**Receiver:**
-
-```
-$ croc -local
-```
-
-Yes, when you run locally you don't even need to use a code. When you run locally, the *croc* receiver will use UDP broadcast packets to automatically find the correct IP address and code to use to transfer the file. When run locally, there is also no encryption so it is even faster.
-
-**Sender:**
-
-![Running locally](https://raw.githubusercontent.com/schollz/croc/master/logo/1.gif)
-
-**Receiver:**
-
-![Running locally](https://raw.githubusercontent.com/schollz/croc/master/logo/2.gif)
-
 ## Using *croc* in pipes
 
 You can easily use *croc* in pipes when you need to send data through stdin or get data from stdout.
@@ -111,7 +84,7 @@ Or, you can [install Go](https://golang.org/dl/) and build from source with `go 
 
 # How does it work?
 
-*croc* is similar to [magic-wormhole](https://github.com/warner/magic-wormhole#design) in spirit and design. Like *magic-wormhole*, *croc* generates a code phrase for you to share with your friend which allows secure end-to-end transfering of files and folders through a intermediary relay that  connects the TCP ports between the two computers.
+*croc* is similar to [magic-wormhole](https://github.com/warner/magic-wormhole#design) in spirit and design. Like *magic-wormhole*, *croc* generates a code phrase for you to share with your friend which allows secure end-to-end transfering of files and folders through a intermediary relay that  connects the TCP ports between the two computers. The standard relay is on a public IP address (default `cowyo.com`), but before transmitting the file the two instances of *croc* send out UDP broadcasts to determine if they are both on the local network, and use a local relay instead of the cloud relay in the case that they are both local.
 
 In *croc*, code phrase is 16 random bits that are [menemonic encoded](http://web.archive.org/web/20101031205747/http://www.tothink.com/mnemonic/). This code phrase is hashed using sha256 and sent to a relay which maps that key to that connection. When the relay finds a matching key for both the receiver and the sender (i.e. they both have the same code phrase), then the sender transmits the encrypted metadata to the receiver through the relay. Then the receiver decrypts and reviews the metadata (file name, size), and chooses whether to consent to the transfer.
 
