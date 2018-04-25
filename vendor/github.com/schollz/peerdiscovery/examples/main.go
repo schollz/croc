@@ -23,17 +23,14 @@ func main() {
 	}()
 
 	// discover peers
-	p, err := peerdiscovery.New(peerdiscovery.Settings{
+	discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
 		Limit:     -1,
 		Payload:   []byte(randStringBytesMaskImprSrc(10)),
 		Delay:     500 * time.Millisecond,
 		TimeLimit: 10 * time.Second,
 	})
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	discoveries, err := p.Discover()
+	// print out results
 	if err != nil {
 		log.Fatal(err)
 	} else {
