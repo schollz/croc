@@ -72,7 +72,6 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.UseStdout = config.UseStdout
 	c.Yes = config.Yes
 	c.rate = config.Rate
-	c.Local = config.Local
 
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
@@ -118,6 +117,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 		}
 		c.File.Name = path.Base(config.File)
 		c.File.Path = path.Dir(config.File)
+		c.File.Size, _ = FileSize(config.File)
 		c.IsSender = true
 	} else {
 		c.IsSender = false
@@ -178,6 +178,11 @@ func (c *Connection) Run() error {
 		if c.Code == "" {
 			c.Code = GetRandomName()
 		}
+		if c.File.IsDir {
+			fmt.Fprintf(os.Stderr, "Sending %s folder named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name[:len(c.File.Name)-4])
+		} else {
+			fmt.Fprintf(os.Stderr, "Sending %s file named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name)
+		}
 
 		log.Debug("starting relay in case local connections")
 		relay := NewRelay(&AppConfig{
@@ -227,12 +232,6 @@ func (c *Connection) Run() error {
 			}
 		}
 
-		if c.File.IsDir {
-			fmt.Fprintf(os.Stderr, "Sending %s folder named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name[:len(c.File.Name)-4])
-		} else {
-			fmt.Fprintf(os.Stderr, "Sending %s file named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name)
-
-		}
 		fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
 
 		// broadcast local connection from sender
