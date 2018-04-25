@@ -52,8 +52,8 @@
 [[projects]]
   name = "github.com/schollz/peerdiscovery"
   packages = ["."]
-  revision = "2665d149a222cb3cf607ef0cf70ce7909462c50f"
-  version = "v0.1.0"
+  revision = "94ddd4cf05a8a6052e334c69ac1cd86486de10af"
+  version = "v1.1.0"
 
 [[projects]]
   name = "github.com/schollz/progressbar"
@@ -88,41 +88,25 @@
 [[projects]]
   branch = "master"
   name = "github.com/yudai/hcl"
-  packages = [
-    ".",
-    "hcl",
-    "json"
-  ]
+  packages = [".","hcl","json"]
   revision = "5fa2393b3552119bf33a69adb1402a1160cba23d"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
-  packages = [
-    "pbkdf2",
-    "scrypt",
-    "ssh/terminal"
-  ]
+  packages = ["pbkdf2","scrypt","ssh/terminal"]
   revision = "2b6c08872f4b66da917bb4ce98df4f0307330f78"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
-  packages = [
-    "bpf",
-    "internal/iana",
-    "internal/socket",
-    "ipv4"
-  ]
+  packages = ["bpf","internal/iana","internal/socket","ipv4"]
   revision = "5f9ae10d9af5b1c89ae6904293b14b064d4ada23"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
-  packages = [
-    "unix",
-    "windows"
-  ]
+  packages = ["unix","windows"]
   revision = "79b0c6888797020a994db17c8510466c72fe75d9"
 
 [[projects]]
@@ -140,6 +124,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4145287e28323d22a74771b8f17cc9a94d13e6297e0de995820e1bc7953948d7"
+  inputs-digest = "93fd6df35a71aeabf37bf934c95bab3e099b86f74ad0479e0ce491695a996527"
   solver-name = "gps-cdcl"
   solver-version = 1

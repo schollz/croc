@@ -46,7 +46,7 @@
   name = "github.com/schollz/mnemonicode"
 
 [[constraint]]
-  version = "0.1.0"
+  version = "1.1.0"
   name = "github.com/schollz/peerdiscovery"
 
 [[constraint]]
