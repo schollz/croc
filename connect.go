@@ -72,6 +72,12 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.UseStdout = config.UseStdout
 	c.Yes = config.Yes
 	c.rate = config.Rate
+	c.Local = config.Local
+
+	if c.Local {
+		c.Yes = true
+		c.DontEncrypt = true
+	}
 
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
@@ -268,7 +274,9 @@ func (c *Connection) Run() error {
 		}
 	}
 
-	go func() { runClientError <- c.runClient(c.Server) }()
+	if !c.Local {
+		go func() { runClientError <- c.runClient(c.Server) }()
+	}
 	return <-runClientError
 }
 
@@ -304,10 +312,11 @@ func (c *Connection) runClient(serverName string) error {
 			connection, err := net.Dial("tcp", serverName+":"+port)
 			if err != nil {
 				if serverName == "cowyo.com" {
-					fmt.Println("\nCheck http://bit.ly/croc-relay to see if the public server is down or contact the webmaster: @yakczar")
+					fmt.Fprintf(os.Stderr, "\nCheck http://bit.ly/croc-relay to see if the public server is down or contact the webmaster: @yakczar")
 				} else {
 					fmt.Fprintf(os.Stderr, "\nCould not connect to relay %s\n", serverName)
 				}
+				fmt.Fprintf(os.Stderr, "Use --local to run locally")
 				os.Exit(1)
 			}
 			defer connection.Close()

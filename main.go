@@ -20,6 +20,7 @@ type AppConfig struct {
 	DontEncrypt         bool   `yaml:"no-encrypt"  flagName:"no-encrypt" flagSName:"g" flagDescribe:"Turn off encryption" default:"false"`
 	UseStdout           bool   `yaml:"stdout"  flagName:"stdout" flagSName:"o" flagDescribe:"Use stdout" default:"false"`
 	Yes                 bool   `yaml:"yes"  flagName:"yes" flagSName:"y" flagDescribe:"Automatically accept file" default:"false"`
+	Local               bool   `yaml:"local"  flagName:"local" flagSName:"lo" flagDescribe:"Use local relay when sending" default:"false"`
 	Server              string `yaml:"server"  flagName:"server" flagSName:"l" flagDescribe:"Croc relay to use" default:"cowyo.com"`
 	File                string `yaml:"send"  flagName:"send" flagSName:"s" flagDescribe:"File to send default:""`
 	Path                string `yaml:"save"  flagName:"save" flagSName:"p" flagDescribe:"Path to save to" default:""`
