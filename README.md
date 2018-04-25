@@ -3,7 +3,7 @@
     src="https://user-images.githubusercontent.com/6550035/31846899-2b8a7034-b5cf-11e7-9643-afe552226c59.png"
     width="100%" border="0" alt="croc">
 <br>
-<a href="https://travis-ci.org/schollz/croc"><img src="https://travis-ci.org/schollz/croc.svg?branch=master" alt="Build Status"></a>
+<a href="https://travis-ci.org/schollz/croc"><img src="https://travis-ci.org/schollz/croc.svg?branch=master&style=flat-square" alt="Build Status"></a>
 <a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-1.0.0-brightgreen.svg?style=flat-square" alt="Version"></a>
 <a href="https://goreportcard.com/report/github.com/schollz/croc"><img src="https://goreportcard.com/badge/github.com/schollz/croc" alt="Go Report Card"></a>
 </p>
