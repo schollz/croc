@@ -134,10 +134,10 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 
 	switch connectionType {
 	case "s": // sender connection
-		// if r.connections.IsSenderConnected(key) {
-		// 	sendMessage("no", connection)
-		// 	return
-		// }
+		if r.connections.IsSenderConnected(key) {
+			sendMessage("no", connection)
+			return
+		}
 
 		r.connections.Lock()
 		r.connections.metadata[key] = metaData
