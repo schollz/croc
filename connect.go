@@ -194,6 +194,7 @@ func (c *Connection) Run() error {
 		if c.Code == "" {
 			c.Code = GetRandomName()
 		}
+		fmt.Fprintf(os.Stderr, "Code is '%s'\n", c.Code)
 		if c.File.IsDir {
 			fmt.Fprintf(os.Stderr, "Sending %s folder named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name[:len(c.File.Name)-4])
 		} else {
