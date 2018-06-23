@@ -91,14 +91,10 @@ func (r *Relay) runServer() {
 }
 
 func (r *Relay) listenerThread(id int, wg *sync.WaitGroup) {
-	logger := log.WithFields(log.Fields{
-		"function": "listenerThread:" + strconv.Itoa(27000+id),
-	})
-
 	defer wg.Done()
 
 	if err := r.listener(id); err != nil {
-		logger.Error(err)
+		return
 	}
 }
 
@@ -179,7 +175,11 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		logger.Debug("telling sender ok")
 		sendMessage(receiversAddress, connection)
 		sendMessage(receiversPublicKey, connection)
+
 		// TODO ASK FOR OKAY HERE TOO
+		isokay := receiveMessage(connection)
+		logger.Debug(isokay)
+
 		logger.Debug("waiting for encrypted passphrase")
 		encryptedPassphrase := receiveMessage(connection)
 		r.connections.Lock()
@@ -214,6 +214,10 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		delete(r.connections.receiver, key)
 		delete(r.connections.metadata, key)
 		delete(r.connections.potentialReceivers, key)
+		delete(r.connections.spublicKey, key)
+		delete(r.connections.rpublicKey, key)
+		delete(r.connections.receiverReady, key)
+		delete(r.connections.passphrase, key)
 		r.connections.Unlock()
 		logger.Debug("deleted sender and receiver")
 	case "r", "c": // receiver
@@ -319,13 +323,22 @@ func receiveMessage(connection net.Conn) string {
 		"ip":   connection.RemoteAddr().String(),
 	})
 	messageByte := make([]byte, BUFFERSIZE)
-	err := connection.SetDeadline(time.Now().Add(60 * time.Minute))
+	err := connection.SetReadDeadline(time.Now().Add(60 * time.Minute))
+	if err != nil {
+		logger.Warn(err)
+	}
+	err = connection.SetDeadline(time.Now().Add(60 * time.Minute))
+	if err != nil {
+		logger.Warn(err)
+	}
+	err = connection.SetWriteDeadline(time.Now().Add(60 * time.Minute))
 	if err != nil {
 		logger.Warn(err)
 	}
 	_, err = connection.Read(messageByte)
 	if err != nil {
-		logger.Warn("read deadline, no response")
+		logger.Warn(err)
+		logger.Warn("no response")
 		return ""
 	}
 	return strings.TrimRight(string(messageByte), ":")

@@ -78,6 +78,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.rate = config.Rate
 	c.Local = config.Local
 	c.keypair, _ = keypair.New()
+	fmt.Fprintf(os.Stderr, "Your public key: %s\n", c.keypair.Public)
 
 	if c.Local {
 		c.Yes = true
@@ -134,6 +135,10 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 		c.IsSender = false
 		c.AskPath = config.PathSpec
 		c.Path = config.Path
+	}
+	c.File.IsEncrypted = true
+	if c.DontEncrypt {
+		c.File.IsEncrypted = false
 	}
 
 	if c.Debug {
@@ -202,27 +207,6 @@ func (c *Connection) Run() error {
 		go relay.Run()
 		time.Sleep(200 * time.Millisecond)
 
-		if c.DontEncrypt {
-			// don't encrypt
-			CopyFile(path.Join(c.File.Path, c.File.Name), c.File.Name+".enc")
-			c.File.IsEncrypted = false
-		} else {
-			// encrypt
-			log.Debug("encrypting...")
-			if err := EncryptFile(path.Join(c.File.Path, c.File.Name), c.File.Name+".enc", c.Code); err != nil {
-				return err
-			}
-			c.File.IsEncrypted = true
-		}
-		// split file into pieces to send
-		if err := SplitFile(c.File.Name+".enc", c.NumberOfConnections); err != nil {
-			return err
-		}
-		// remove the file now since we still have pieces
-		if err := os.Remove(c.File.Name + ".enc"); err != nil {
-			return err
-		}
-
 		// get file hash
 		var err error
 		c.File.Hash, err = HashFile(path.Join(c.File.Path, c.File.Name))
@@ -242,8 +226,6 @@ func (c *Connection) Run() error {
 				return err
 			}
 		}
-
-		fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
 
 		// broadcast local connection from sender
 		if c.Server == "" {
@@ -290,6 +272,7 @@ func (c *Connection) Run() error {
 
 // runClient spawns threads for parallel uplink/downlink via TCP
 func (c *Connection) runClient(serverName string) error {
+
 	c.HashedCode = Hash(c.Code)
 	c.NumberOfConnections = MAX_NUMBER_THREADS
 	var wg sync.WaitGroup
@@ -328,6 +311,18 @@ func (c *Connection) runClient(serverName string) error {
 				os.Exit(1)
 			}
 			defer connection.Close()
+			err = connection.SetReadDeadline(time.Now().Add(1 * time.Hour))
+			if err != nil {
+				log.Warn(err)
+			}
+			err = connection.SetDeadline(time.Now().Add(1 * time.Hour))
+			if err != nil {
+				log.Warn(err)
+			}
+			err = connection.SetWriteDeadline(time.Now().Add(1 * time.Hour))
+			if err != nil {
+				log.Warn(err)
+			}
 
 			message := receiveMessage(connection)
 			log.Debugf("relay says: %s", message)
@@ -370,15 +365,37 @@ func (c *Connection) runClient(serverName string) error {
 					// message is IP address, lets check next message
 					log.Debugf("[%d] got ok from relay: %s", id, message)
 					publicKeyRecipient := receiveMessage(connection)
+					// check if okay again
+					sendMessage("okay with sender", connection)
 					if id == 0 {
-						fmt.Fprintf(os.Stderr, "\nSending (->%s@%s)..\n", publicKeyRecipient, message)
-						// check if okay again
-						// TODO
-						encryptedPassword, err := c.keypair.Encrypt([]byte(RandStringBytesMaskImprSrc(20)), publicKeyRecipient)
+						passphraseString := RandStringBytesMaskImprSrc(20)
+						log.Debugf("passphrase: [%s]", passphraseString)
+						encryptedPassword, err := c.keypair.Encrypt([]byte(passphraseString), publicKeyRecipient)
 						if err != nil {
 							panic(err)
 						}
+
 						// encrypt files
+						if c.DontEncrypt {
+							// don't encrypt
+							CopyFile(path.Join(c.File.Path, c.File.Name), c.File.Name+".enc")
+							c.File.IsEncrypted = false
+						} else {
+							// encrypt
+							log.Debugf("encrypting file with passphrase [%s]", passphraseString)
+							if err := EncryptFile(path.Join(c.File.Path, c.File.Name), c.File.Name+".enc", passphraseString); err != nil {
+								panic(err)
+							}
+							c.File.IsEncrypted = true
+						}
+						// split file into pieces to send
+						if err := SplitFile(c.File.Name+".enc", c.NumberOfConnections); err != nil {
+							panic(err)
+						}
+						// remove the file now since we still have pieces
+						if err := os.Remove(c.File.Name + ".enc"); err != nil {
+							panic(err)
+						}
 
 						c.encryptedPassword = base64.StdEncoding.EncodeToString(encryptedPassword)
 					}
@@ -393,7 +410,9 @@ func (c *Connection) runClient(serverName string) error {
 					sendMessage(c.encryptedPassword, connection)
 					// wait for relay go
 					receiveMessage(connection)
-
+					if id == 0 {
+						fmt.Fprintf(os.Stderr, "\nSending (->%s@%s)..\n", publicKeyRecipient, message)
+					}
 					// wait for pipe to be made
 					time.Sleep(100 * time.Millisecond)
 					// Write data from file
@@ -453,6 +472,7 @@ func (c *Connection) runClient(serverName string) error {
 							fType = "folder"
 							fName = fName[:len(fName)-4]
 						}
+						fmt.Fprintf(os.Stderr, "Incoming file from "+publicKeySender+"\n")
 						if _, err := os.Stat(path.Join(c.Path, c.File.Name)); os.IsNotExist(err) {
 							fmt.Fprintf(os.Stderr, "Receiving %s (%s) into: %s\n", fType, humanize.Bytes(uint64(c.File.Size)), fName)
 						} else {
@@ -470,7 +490,6 @@ func (c *Connection) runClient(serverName string) error {
 							fmt.Fprintf(os.Stderr, "Will not overwrite file!")
 							os.Exit(1)
 						}
-						fmt.Fprintf(os.Stderr, "incoming file from "+publicKeySender+"\n")
 						getOK := "y"
 						if !c.Yes {
 							getOK = getInput("ok? (y/n): ")
@@ -502,12 +521,22 @@ func (c *Connection) runClient(serverName string) error {
 						sendMessage("not ok", connection)
 					} else {
 						sendMessage("ok", connection)
-						c.encryptedPassword = receiveMessage(connection)
-						log.Debugf("[%d] got encrypted passphrase: %s", id, c.encryptedPassword)
+						encryptedPassword := receiveMessage(connection)
+						log.Debugf("[%d] got encrypted passphrase: %s", id, encryptedPassword)
+						encryptedPasswordBytes, err := base64.StdEncoding.DecodeString(encryptedPassword)
+						if err != nil {
+							panic(err)
+						}
+						decryptedPassphrase, err := c.keypair.Decrypt(encryptedPasswordBytes, publicKeySender)
+						c.encryptedPassword = string(decryptedPassphrase)
+						log.Debugf("decrypted password to: %s", c.encryptedPassword)
+						if err != nil {
+							panic(err)
+						}
 						sendMessage("ok", connection)
 						log.Debug("receive file")
 						if id == 0 {
-							fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)..\n", sendersAddress)
+							fmt.Fprintf(os.Stderr, "\nReceiving (<-%s@%s)..\n", publicKeySender, sendersAddress)
 						}
 						responses.Lock()
 						responses.startTime = time.Now()
@@ -562,15 +591,20 @@ func (c *Connection) runClient(serverName string) error {
 		log.Debugf("Code: [%s]", c.Code)
 		if c.DontEncrypt {
 			if err := CopyFile(path.Join(c.Path, c.File.Name+".enc"), path.Join(c.Path, c.File.Name)); err != nil {
+				log.Error(err)
 				return err
 			}
 		} else {
+			log.Debugf("is encrypted: %+v", c.File.IsEncrypted)
 			if c.File.IsEncrypted {
-				if err := DecryptFile(path.Join(c.Path, c.File.Name+".enc"), path.Join(c.Path, c.File.Name), c.Code); err != nil {
+				log.Debugf("decrypting file with [%s]", c.encryptedPassword)
+				if err := DecryptFile(path.Join(c.Path, c.File.Name+".enc"), path.Join(c.Path, c.File.Name), c.encryptedPassword); err != nil {
+					log.Error(err)
 					return errors.Wrap(err, "Problem decrypting file")
 				}
 			} else {
 				if err := CopyFile(path.Join(c.Path, c.File.Name+".enc"), path.Join(c.Path, c.File.Name)); err != nil {
+					log.Error(err)
 					return errors.Wrap(err, "Problem copying file")
 				}
 			}
@@ -587,6 +621,7 @@ func (c *Connection) runClient(serverName string) error {
 		log.Debugf("\n\n\nrelayed hash: [%s]", c.File.Hash)
 
 		if c.File.Hash != fileHash {
+			log.Flush()
 			return fmt.Errorf("\nUh oh! %s is corrupted! Sorry, try again.\n", c.File.Name)
 		}
 		if c.File.IsDir { // if the file was originally a dir
