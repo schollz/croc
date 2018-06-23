@@ -144,7 +144,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	if c.Debug {
 		SetLogLevel("debug")
 	} else {
-		SetLogLevel("warn")
+		SetLogLevel("error")
 	}
 
 	return c, nil
@@ -296,6 +296,8 @@ func (c *Connection) runClient(serverName string) error {
 	responses.Lock()
 	responses.startTime = time.Now()
 	responses.Unlock()
+	var okToContinue bool
+	fileTransfered := false
 	for id := 0; id < c.NumberOfConnections; id++ {
 		go func(id int) {
 			defer wg.Done()
@@ -366,7 +368,36 @@ func (c *Connection) runClient(serverName string) error {
 					log.Debugf("[%d] got ok from relay: %s", id, message)
 					publicKeyRecipient := receiveMessage(connection)
 					// check if okay again
-					sendMessage("okay with sender", connection)
+					if id == 0 {
+						fmt.Fprintf(os.Stderr, "to %s\n", publicKeyRecipient)
+						getOK := "y"
+						if !c.Yes {
+							getOK = getInput("ok? (y/n): ")
+						}
+						responses.Lock()
+						responses.gotOK = true
+						responses.Unlock()
+						if getOK == "y" {
+							okToContinue = true
+						} else {
+							okToContinue = false
+						}
+					}
+					for {
+						responses.RLock()
+						ok := responses.gotOK
+						responses.RUnlock()
+						if ok {
+							break
+						}
+						time.Sleep(10 * time.Millisecond)
+					}
+					if okToContinue {
+						sendMessage("ok", connection)
+					} else {
+						sendMessage("no", connection)
+						return
+					}
 					if id == 0 {
 						passphraseString := RandStringBytesMaskImprSrc(20)
 						log.Debugf("passphrase: [%s]", passphraseString)
@@ -424,7 +455,9 @@ func (c *Connection) runClient(serverName string) error {
 						c.bar.Reset()
 					}
 					if err := c.sendFile(id, connection); err != nil {
-						log.Error(err)
+						log.Warn(err)
+					} else {
+						fileTransfered = true
 					}
 				}
 			} else { // this is a receiver
@@ -523,11 +556,21 @@ func (c *Connection) runClient(serverName string) error {
 						sendMessage("ok", connection)
 						encryptedPassword := receiveMessage(connection)
 						log.Debugf("[%d] got encrypted passphrase: %s", id, encryptedPassword)
+						if encryptedPassword == "" {
+							return
+						}
 						encryptedPasswordBytes, err := base64.StdEncoding.DecodeString(encryptedPassword)
 						if err != nil {
 							panic(err)
 						}
+						if publicKeySender == "" {
+							return
+						}
 						decryptedPassphrase, err := c.keypair.Decrypt(encryptedPasswordBytes, publicKeySender)
+						if err != nil {
+							log.Warn(err)
+							return
+						}
 						c.encryptedPassword = string(decryptedPassphrase)
 						log.Debugf("decrypted password to: %s", c.encryptedPassword)
 						if err != nil {
@@ -550,6 +593,8 @@ func (c *Connection) runClient(serverName string) error {
 						}
 						if err := c.receiveFile(id, connection); err != nil {
 							log.Debug(errors.Wrap(err, "no file to recieve"))
+						} else {
+							fileTransfered = true
 						}
 					}
 				}
@@ -567,7 +612,9 @@ func (c *Connection) runClient(serverName string) error {
 
 	timeSinceStart := time.Since(responses.startTime).Nanoseconds()
 
-	if c.IsSender {
+	if !fileTransfered {
+		fmt.Fprintf(os.Stderr, "\nNo mutual consent")
+	} else if c.IsSender {
 		if responses.gotTimeout {
 			fmt.Println("Timeout waiting for receiver")
 			return nil
@@ -576,7 +623,7 @@ func (c *Connection) runClient(serverName string) error {
 		if c.File.IsDir {
 			fileOrFolder = "Folder"
 		}
-		fmt.Printf("\n%s sent", fileOrFolder)
+		fmt.Fprintf(os.Stderr, "\n%s sent", fileOrFolder)
 	} else { // Is a Receiver
 		if responses.notPresent {
 			fmt.Println("Either code is incorrect or sender is not ready. Use -wait to wait until sender connects.")
@@ -777,7 +824,7 @@ func (c *Connection) sendFile(id int, connection net.Conn) error {
 			c.bar.Add(int(written))
 		}
 		if errWrite != nil {
-			log.Error(errWrite)
+			return errWrite
 		}
 		if err == io.EOF {
 			//End of file reached, break out of for loop

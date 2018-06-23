@@ -21,6 +21,7 @@ type connectionMap struct {
 	potentialReceivers map[string]struct{}
 	rpublicKey         map[string]string
 	spublicKey         map[string]string
+	sconsent           map[string]string
 	passphrase         map[string]string
 	receiverReady      map[string]bool
 	sync.RWMutex
@@ -71,6 +72,7 @@ func (r *Relay) Run() {
 	r.connections.spublicKey = make(map[string]string)
 	r.connections.rpublicKey = make(map[string]string)
 	r.connections.passphrase = make(map[string]string)
+	r.connections.sconsent = make(map[string]string)
 	r.connections.potentialReceivers = make(map[string]struct{})
 	r.connections.receiverReady = make(map[string]bool)
 	r.connections.Unlock()
@@ -139,6 +141,23 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 
 	switch connectionType {
 	case "s": // sender connection
+		defer func() {
+			r.connections.Lock()
+			// close connections
+			r.connections.sender[key].Close()
+			r.connections.receiver[key].Close()
+			// delete connctions
+			delete(r.connections.sender, key)
+			delete(r.connections.receiver, key)
+			delete(r.connections.metadata, key)
+			delete(r.connections.potentialReceivers, key)
+			delete(r.connections.spublicKey, key)
+			delete(r.connections.rpublicKey, key)
+			delete(r.connections.receiverReady, key)
+			delete(r.connections.passphrase, key)
+			r.connections.Unlock()
+			logger.Debug("deleted sender and receiver")
+		}()
 		if r.connections.IsSenderConnected(key) {
 			sendMessage("no", connection)
 			return
@@ -177,8 +196,14 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		sendMessage(receiversPublicKey, connection)
 
 		// TODO ASK FOR OKAY HERE TOO
-		isokay := receiveMessage(connection)
-		logger.Debug(isokay)
+		sconsent := receiveMessage(connection)
+		r.connections.Lock()
+		r.connections.sconsent[key] = sconsent
+		r.connections.Unlock()
+		logger.Debugf("got consent: %+v", sconsent)
+		if sconsent != "ok" {
+			return
+		}
 
 		logger.Debug("waiting for encrypted passphrase")
 		encryptedPassphrase := receiveMessage(connection)
@@ -205,21 +230,6 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		logger.Debug("piping connections")
 		Pipe(con1, con2)
 		logger.Debug("done piping")
-		r.connections.Lock()
-		// close connections
-		r.connections.sender[key].Close()
-		r.connections.receiver[key].Close()
-		// delete connctions
-		delete(r.connections.sender, key)
-		delete(r.connections.receiver, key)
-		delete(r.connections.metadata, key)
-		delete(r.connections.potentialReceivers, key)
-		delete(r.connections.spublicKey, key)
-		delete(r.connections.rpublicKey, key)
-		delete(r.connections.receiverReady, key)
-		delete(r.connections.passphrase, key)
-		r.connections.Unlock()
-		logger.Debug("deleted sender and receiver")
 	case "r", "c": // receiver
 		if r.connections.IsPotentialReceiverConnected(key) {
 			sendMessage("no", connection)
@@ -266,6 +276,24 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		sendMessage(r.connections.metadata[key]+"-"+sendersAddress, connection)
 		sendMessage(sendersPublicKey, connection)
 		r.connections.RUnlock()
+
+		// check for senders consent
+		sendersConsent := ""
+		for {
+			r.connections.RLock()
+			if _, ok := r.connections.sconsent[key]; ok {
+				sendersConsent = r.connections.sconsent[key]
+				logger.Debugf("got sender passphrase: %s", sendersConsent)
+			}
+			r.connections.RUnlock()
+			if sendersConsent != "" {
+				break
+			}
+		}
+		if sendersConsent != "ok" {
+			// TODO: delete everything
+			return
+		}
 
 		// now get passphrase
 		sendersPassphrase := ""
@@ -337,8 +365,8 @@ func receiveMessage(connection net.Conn) string {
 	}
 	_, err = connection.Read(messageByte)
 	if err != nil {
-		logger.Warn(err)
-		logger.Warn("no response")
+		logger.Debug(err)
+		logger.Debug("no response")
 		return ""
 	}
 	return strings.TrimRight(string(messageByte), ":")
