@@ -247,12 +247,15 @@ func (c *Connection) Run() error {
 	log.Debug("checking code validity")
 	if len(c.Code) == 0 && !c.IsSender {
 		log.Debug("Finding local croc relay...")
-		discovered, _ := peerdiscovery.Discover(peerdiscovery.Settings{
+		discovered, errDiscover := peerdiscovery.Discover(peerdiscovery.Settings{
 			Limit:     1,
 			TimeLimit: 1 * time.Second,
 			Delay:     50 * time.Millisecond,
 			Payload:   []byte(c.Code),
 		})
+		if errDiscover != nil {
+			log.Debug(errDiscover)
+		}
 		if len(discovered) > 0 {
 			c.Server = discovered[0].Address
 			log.Debug(discovered[0].Address)
