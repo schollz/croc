@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/schollz/messagebox/keypair"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar"
 	tarinator "github.com/schollz/tarinator-go"
@@ -43,6 +45,8 @@ type Connection struct {
 	Wait                bool
 	bar                 *progressbar.ProgressBar
 	rate                int
+	keypair             keypair.KeyPair
+	encryptedPassword   string
 }
 
 type FileMetaData struct {
@@ -73,6 +77,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.Yes = config.Yes
 	c.rate = config.Rate
 	c.Local = config.Local
+	c.keypair, _ = keypair.New()
 
 	if c.Local {
 		c.Yes = true
@@ -213,6 +218,10 @@ func (c *Connection) Run() error {
 		if err := SplitFile(c.File.Name+".enc", c.NumberOfConnections); err != nil {
 			return err
 		}
+		// remove the file now since we still have pieces
+		if err := os.Remove(c.File.Name + ".enc"); err != nil {
+			return err
+		}
 
 		// get file hash
 		var err error
@@ -221,12 +230,8 @@ func (c *Connection) Run() error {
 			return err
 		}
 		// get file size
-		c.File.Size, err = FileSize(c.File.Name + ".enc")
+		c.File.Size, err = FileSize(c.File.Name)
 		if err != nil {
-			return err
-		}
-		// remove the file now since we still have pieces
-		if err := os.Remove(c.File.Name + ".enc"); err != nil {
 			return err
 		}
 
@@ -241,16 +246,19 @@ func (c *Connection) Run() error {
 		fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
 
 		// broadcast local connection from sender
-		log.Debug("settings payload to ", c.Code)
-		go func() {
-			go peerdiscovery.Discover(peerdiscovery.Settings{
-				Limit:     1,
-				TimeLimit: 600 * time.Second,
-				Delay:     50 * time.Millisecond,
-				Payload:   []byte(c.Code),
-			})
-			runClientError <- c.runClient("localhost")
-		}()
+		if c.Server == "" {
+			log.Debug("settings payload to ", c.Code)
+			go func() {
+				go peerdiscovery.Discover(peerdiscovery.Settings{
+					Limit:     1,
+					TimeLimit: 600 * time.Second,
+					Delay:     50 * time.Millisecond,
+					Payload:   []byte(c.Code),
+				})
+				runClientError <- c.runClient("localhost")
+			}()
+
+		}
 	}
 
 	log.Debug("checking code validity")
@@ -330,19 +338,19 @@ func (c *Connection) runClient(serverName string) error {
 					log.Error(err)
 				}
 				encryptedMetaData, salt, iv := Encrypt(metaData, c.Code)
-				sendMessage("s."+c.HashedCode+"."+hex.EncodeToString(encryptedMetaData)+"-"+salt+"-"+iv, connection)
+				sendMessage("s."+c.keypair.Public+"."+c.HashedCode+"."+hex.EncodeToString(encryptedMetaData)+"-"+salt+"-"+iv, connection)
 			} else {
 				log.Debugf("telling relay (%s): %s", c.Server, "r."+c.Code)
 				if c.Wait {
 					// tell server to wait for sender
-					sendMessage("r."+c.HashedCode+".0.0.0", connection)
+					sendMessage("r."+c.keypair.Public+"."+c.HashedCode+".0.0.0", connection)
 				} else {
 					// tell server to cancel if sender doesn't exist
-					sendMessage("c."+c.HashedCode+".0.0.0", connection)
+					sendMessage("c."+c.keypair.Public+"."+c.HashedCode+".0.0.0", connection)
 				}
 			}
 			if c.IsSender { // this is a sender
-				log.Debug("waiting for ok from relay")
+				log.Debugf("[%d] waiting for ok from relay", id)
 				message = receiveMessage(connection)
 				if message == "timeout" {
 					responses.Lock()
@@ -359,10 +367,33 @@ func (c *Connection) runClient(serverName string) error {
 					responses.gotConnectionInUse = true
 					responses.Unlock()
 				} else {
-					log.Debug("got ok from relay")
+					// message is IP address, lets check next message
+					log.Debugf("[%d] got ok from relay: %s", id, message)
+					publicKeyRecipient := receiveMessage(connection)
 					if id == 0 {
-						fmt.Fprintf(os.Stderr, "\nSending (->%s)..\n", message)
+						fmt.Fprintf(os.Stderr, "\nSending (->%s@%s)..\n", publicKeyRecipient, message)
+						// check if okay again
+						// TODO
+						encryptedPassword, err := c.keypair.Encrypt([]byte(RandStringBytesMaskImprSrc(20)), publicKeyRecipient)
+						if err != nil {
+							panic(err)
+						}
+						// encrypt files
+
+						c.encryptedPassword = base64.StdEncoding.EncodeToString(encryptedPassword)
 					}
+					log.Debugf("[%d] waiting for 0 thread to encrypt", id)
+					for {
+						if c.encryptedPassword != "" {
+							break
+						}
+						time.Sleep(10 * time.Millisecond)
+					}
+					log.Debugf("sending encrypted passphrase: %s", c.encryptedPassword)
+					sendMessage(c.encryptedPassword, connection)
+					// wait for relay go
+					receiveMessage(connection)
+
 					// wait for pipe to be made
 					time.Sleep(100 * time.Millisecond)
 					// Write data from file
@@ -399,6 +430,9 @@ func (c *Connection) runClient(serverName string) error {
 					} else if strings.Split(sendersAddress, ":")[0] == "127.0.0.1" {
 						sendersAddress = strings.Replace(sendersAddress, "127.0.0.1", c.Server, 1)
 					}
+					// now get public key
+					publicKeySender := receiveMessage(connection)
+
 					// have the main thread ask for the okay
 					if id == 0 {
 						encryptedBytes, err := hex.DecodeString(encryptedData)
@@ -436,6 +470,7 @@ func (c *Connection) runClient(serverName string) error {
 							fmt.Fprintf(os.Stderr, "Will not overwrite file!")
 							os.Exit(1)
 						}
+						fmt.Fprintf(os.Stderr, "incoming file from "+publicKeySender+"\n")
 						getOK := "y"
 						if !c.Yes {
 							getOK = getInput("ok? (y/n): ")
@@ -466,6 +501,9 @@ func (c *Connection) runClient(serverName string) error {
 					if !gotOK {
 						sendMessage("not ok", connection)
 					} else {
+						sendMessage("ok", connection)
+						c.encryptedPassword = receiveMessage(connection)
+						log.Debugf("[%d] got encrypted passphrase: %s", id, c.encryptedPassword)
 						sendMessage("ok", connection)
 						log.Debug("receive file")
 						if id == 0 {
