@@ -615,6 +615,7 @@ func (c *Connection) runClient(serverName string) error {
 
 	if !fileTransfered {
 		fmt.Fprintf(os.Stderr, "\nNo mutual consent")
+		return nil
 	} else if c.IsSender {
 		if responses.gotTimeout {
 			fmt.Println("Timeout waiting for receiver")
