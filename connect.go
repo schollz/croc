@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/schollz/messagebox/keypair"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar"
 	tarinator "github.com/schollz/tarinator-go"
@@ -43,6 +45,8 @@ type Connection struct {
 	Wait                bool
 	bar                 *progressbar.ProgressBar
 	rate                int
+	keypair             keypair.KeyPair
+	encryptedPassword   string
 }
 
 type FileMetaData struct {
@@ -73,6 +77,8 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.Yes = config.Yes
 	c.rate = config.Rate
 	c.Local = config.Local
+	c.keypair, _ = keypair.New()
+	fmt.Fprintf(os.Stderr, "Your public key: %s\n", c.keypair.Public)
 
 	if c.Local {
 		c.Yes = true
@@ -130,11 +136,15 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 		c.AskPath = config.PathSpec
 		c.Path = config.Path
 	}
+	c.File.IsEncrypted = true
+	if c.DontEncrypt {
+		c.File.IsEncrypted = false
+	}
 
 	if c.Debug {
 		SetLogLevel("debug")
 	} else {
-		SetLogLevel("warn")
+		SetLogLevel("error")
 	}
 
 	return c, nil
@@ -184,6 +194,7 @@ func (c *Connection) Run() error {
 		if c.Code == "" {
 			c.Code = GetRandomName()
 		}
+		fmt.Fprintf(os.Stderr, "Code is '%s'\n", c.Code)
 		if c.File.IsDir {
 			fmt.Fprintf(os.Stderr, "Sending %s folder named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name[:len(c.File.Name)-4])
 		} else {
@@ -197,23 +208,6 @@ func (c *Connection) Run() error {
 		go relay.Run()
 		time.Sleep(200 * time.Millisecond)
 
-		if c.DontEncrypt {
-			// don't encrypt
-			CopyFile(path.Join(c.File.Path, c.File.Name), c.File.Name+".enc")
-			c.File.IsEncrypted = false
-		} else {
-			// encrypt
-			log.Debug("encrypting...")
-			if err := EncryptFile(path.Join(c.File.Path, c.File.Name), c.File.Name+".enc", c.Code); err != nil {
-				return err
-			}
-			c.File.IsEncrypted = true
-		}
-		// split file into pieces to send
-		if err := SplitFile(c.File.Name+".enc", c.NumberOfConnections); err != nil {
-			return err
-		}
-
 		// get file hash
 		var err error
 		c.File.Hash, err = HashFile(path.Join(c.File.Path, c.File.Name))
@@ -221,12 +215,8 @@ func (c *Connection) Run() error {
 			return err
 		}
 		// get file size
-		c.File.Size, err = FileSize(c.File.Name + ".enc")
+		c.File.Size, err = FileSize(c.File.Name)
 		if err != nil {
-			return err
-		}
-		// remove the file now since we still have pieces
-		if err := os.Remove(c.File.Name + ".enc"); err != nil {
 			return err
 		}
 
@@ -238,30 +228,34 @@ func (c *Connection) Run() error {
 			}
 		}
 
-		fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
-
-		// broadcast local connection from sender
-		log.Debug("settings payload to ", c.Code)
-		go func() {
-			go peerdiscovery.Discover(peerdiscovery.Settings{
-				Limit:     1,
-				TimeLimit: 600 * time.Second,
-				Delay:     50 * time.Millisecond,
-				Payload:   []byte(c.Code),
-			})
-			runClientError <- c.runClient("localhost")
-		}()
+		if c.Server != "localhost" {
+			// broadcast local connection from sender
+			log.Debug("settings payload to ", c.Code)
+			go func() {
+				log.Debug("listening for local croc relay...")
+				go peerdiscovery.Discover(peerdiscovery.Settings{
+					Limit:     1,
+					TimeLimit: 600 * time.Second,
+					Delay:     50 * time.Millisecond,
+					Payload:   []byte(c.Code),
+				})
+				runClientError <- c.runClient("localhost")
+			}()
+		}
 	}
 
 	log.Debug("checking code validity")
 	if len(c.Code) == 0 && !c.IsSender {
 		log.Debug("Finding local croc relay...")
-		discovered, _ := peerdiscovery.Discover(peerdiscovery.Settings{
+		discovered, errDiscover := peerdiscovery.Discover(peerdiscovery.Settings{
 			Limit:     1,
 			TimeLimit: 1 * time.Second,
 			Delay:     50 * time.Millisecond,
 			Payload:   []byte(c.Code),
 		})
+		if errDiscover != nil {
+			log.Debug(errDiscover)
+		}
 		if len(discovered) > 0 {
 			c.Server = discovered[0].Address
 			log.Debug(discovered[0].Address)
@@ -282,14 +276,14 @@ func (c *Connection) Run() error {
 
 // runClient spawns threads for parallel uplink/downlink via TCP
 func (c *Connection) runClient(serverName string) error {
+
 	c.HashedCode = Hash(c.Code)
 	c.NumberOfConnections = MAX_NUMBER_THREADS
 	var wg sync.WaitGroup
 	wg.Add(c.NumberOfConnections)
 
 	if !c.Debug {
-		c.bar = progressbar.New(c.File.Size)
-		c.bar.SetWriter(os.Stderr)
+		c.bar = progressbar.NewOptions(c.File.Size, progressbar.OptionSetWriter(os.Stderr))
 	}
 	type responsesStruct struct {
 		gotTimeout         bool
@@ -305,6 +299,8 @@ func (c *Connection) runClient(serverName string) error {
 	responses.Lock()
 	responses.startTime = time.Now()
 	responses.Unlock()
+	var okToContinue bool
+	fileTransfered := false
 	for id := 0; id < c.NumberOfConnections; id++ {
 		go func(id int) {
 			defer wg.Done()
@@ -320,6 +316,18 @@ func (c *Connection) runClient(serverName string) error {
 				os.Exit(1)
 			}
 			defer connection.Close()
+			err = connection.SetReadDeadline(time.Now().Add(1 * time.Hour))
+			if err != nil {
+				log.Warn(err)
+			}
+			err = connection.SetDeadline(time.Now().Add(1 * time.Hour))
+			if err != nil {
+				log.Warn(err)
+			}
+			err = connection.SetWriteDeadline(time.Now().Add(1 * time.Hour))
+			if err != nil {
+				log.Warn(err)
+			}
 
 			message := receiveMessage(connection)
 			log.Debugf("relay says: %s", message)
@@ -330,19 +338,19 @@ func (c *Connection) runClient(serverName string) error {
 					log.Error(err)
 				}
 				encryptedMetaData, salt, iv := Encrypt(metaData, c.Code)
-				sendMessage("s."+c.HashedCode+"."+hex.EncodeToString(encryptedMetaData)+"-"+salt+"-"+iv, connection)
+				sendMessage("s."+c.keypair.Public+"."+c.HashedCode+"."+hex.EncodeToString(encryptedMetaData)+"-"+salt+"-"+iv, connection)
 			} else {
 				log.Debugf("telling relay (%s): %s", c.Server, "r."+c.Code)
 				if c.Wait {
 					// tell server to wait for sender
-					sendMessage("r."+c.HashedCode+".0.0.0", connection)
+					sendMessage("r."+c.keypair.Public+"."+c.HashedCode+".0.0.0", connection)
 				} else {
 					// tell server to cancel if sender doesn't exist
-					sendMessage("c."+c.HashedCode+".0.0.0", connection)
+					sendMessage("c."+c.keypair.Public+"."+c.HashedCode+".0.0.0", connection)
 				}
 			}
 			if c.IsSender { // this is a sender
-				log.Debug("waiting for ok from relay")
+				log.Debugf("[%d] waiting for ok from relay", id)
 				message = receiveMessage(connection)
 				if message == "timeout" {
 					responses.Lock()
@@ -359,9 +367,85 @@ func (c *Connection) runClient(serverName string) error {
 					responses.gotConnectionInUse = true
 					responses.Unlock()
 				} else {
-					log.Debug("got ok from relay")
+					// message is IP address, lets check next message
+					log.Debugf("[%d] got ok from relay: %s", id, message)
+					publicKeyRecipient := receiveMessage(connection)
+					// check if okay again
 					if id == 0 {
-						fmt.Fprintf(os.Stderr, "\nSending (->%s)..\n", message)
+						fmt.Fprintf(os.Stderr, "to %s\n", publicKeyRecipient)
+						getOK := "y"
+						if !c.Yes {
+							getOK = getInput("ok? (y/n): ")
+						}
+						responses.Lock()
+						responses.gotOK = true
+						responses.Unlock()
+						if getOK == "y" {
+							okToContinue = true
+						} else {
+							okToContinue = false
+						}
+					}
+					for {
+						responses.RLock()
+						ok := responses.gotOK
+						responses.RUnlock()
+						if ok {
+							break
+						}
+						time.Sleep(10 * time.Millisecond)
+					}
+					if okToContinue {
+						sendMessage("ok", connection)
+					} else {
+						sendMessage("no", connection)
+						return
+					}
+					if id == 0 {
+						passphraseString := RandStringBytesMaskImprSrc(20)
+						log.Debugf("passphrase: [%s]", passphraseString)
+						encryptedPassword, err := c.keypair.Encrypt([]byte(passphraseString), publicKeyRecipient)
+						if err != nil {
+							panic(err)
+						}
+
+						// encrypt files
+						if c.DontEncrypt {
+							// don't encrypt
+							CopyFile(path.Join(c.File.Path, c.File.Name), c.File.Name+".enc")
+							c.File.IsEncrypted = false
+						} else {
+							// encrypt
+							log.Debugf("encrypting file with passphrase [%s]", passphraseString)
+							if err := EncryptFile(path.Join(c.File.Path, c.File.Name), c.File.Name+".enc", passphraseString); err != nil {
+								panic(err)
+							}
+							c.File.IsEncrypted = true
+						}
+						// split file into pieces to send
+						if err := SplitFile(c.File.Name+".enc", c.NumberOfConnections); err != nil {
+							panic(err)
+						}
+						// remove the file now since we still have pieces
+						if err := os.Remove(c.File.Name + ".enc"); err != nil {
+							panic(err)
+						}
+
+						c.encryptedPassword = base64.StdEncoding.EncodeToString(encryptedPassword)
+					}
+					log.Debugf("[%d] waiting for 0 thread to encrypt", id)
+					for {
+						if c.encryptedPassword != "" {
+							break
+						}
+						time.Sleep(10 * time.Millisecond)
+					}
+					log.Debugf("sending encrypted passphrase: %s", c.encryptedPassword)
+					sendMessage(c.encryptedPassword, connection)
+					// wait for relay go
+					receiveMessage(connection)
+					if id == 0 {
+						fmt.Fprintf(os.Stderr, "\nSending (->%s@%s)..\n", publicKeyRecipient, message)
 					}
 					// wait for pipe to be made
 					time.Sleep(100 * time.Millisecond)
@@ -374,12 +458,15 @@ func (c *Connection) runClient(serverName string) error {
 						c.bar.Reset()
 					}
 					if err := c.sendFile(id, connection); err != nil {
-						log.Error(err)
+						log.Warn(err)
+					} else {
+						fileTransfered = true
 					}
 				}
 			} else { // this is a receiver
 				log.Debug("waiting for meta data from sender")
 				message = receiveMessage(connection)
+				log.Debugf("message from server: %s", message)
 				if message == "no" {
 					if id == 0 {
 						fmt.Println("The specifed code is already in use by a sender.")
@@ -399,6 +486,9 @@ func (c *Connection) runClient(serverName string) error {
 					} else if strings.Split(sendersAddress, ":")[0] == "127.0.0.1" {
 						sendersAddress = strings.Replace(sendersAddress, "127.0.0.1", c.Server, 1)
 					}
+					// now get public key
+					publicKeySender := receiveMessage(connection)
+
 					// have the main thread ask for the okay
 					if id == 0 {
 						encryptedBytes, err := hex.DecodeString(encryptedData)
@@ -419,6 +509,7 @@ func (c *Connection) runClient(serverName string) error {
 							fType = "folder"
 							fName = fName[:len(fName)-4]
 						}
+						fmt.Fprintf(os.Stderr, "Incoming file from "+publicKeySender+"\n")
 						if _, err := os.Stat(path.Join(c.Path, c.File.Name)); os.IsNotExist(err) {
 							fmt.Fprintf(os.Stderr, "Receiving %s (%s) into: %s\n", fType, humanize.Bytes(uint64(c.File.Size)), fName)
 						} else {
@@ -467,15 +558,38 @@ func (c *Connection) runClient(serverName string) error {
 						sendMessage("not ok", connection)
 					} else {
 						sendMessage("ok", connection)
+						encryptedPassword := receiveMessage(connection)
+						log.Debugf("[%d] got encrypted passphrase: %s", id, encryptedPassword)
+						if encryptedPassword == "" {
+							return
+						}
+						encryptedPasswordBytes, err := base64.StdEncoding.DecodeString(encryptedPassword)
+						if err != nil {
+							panic(err)
+						}
+						if publicKeySender == "" {
+							return
+						}
+						decryptedPassphrase, err := c.keypair.Decrypt(encryptedPasswordBytes, publicKeySender)
+						if err != nil {
+							log.Warn(err)
+							return
+						}
+						c.encryptedPassword = string(decryptedPassphrase)
+						log.Debugf("decrypted password to: %s", c.encryptedPassword)
+						if err != nil {
+							panic(err)
+						}
+						sendMessage("ok", connection)
 						log.Debug("receive file")
 						if id == 0 {
-							fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)..\n", sendersAddress)
+							fmt.Fprintf(os.Stderr, "\nReceiving (<-%s@%s)..\n", publicKeySender, sendersAddress)
 						}
 						responses.Lock()
 						responses.startTime = time.Now()
 						responses.Unlock()
 						if !c.Debug && id == 0 {
-							c.bar.SetMax(c.File.Size)
+							c.bar.Finish()
 							c.bar.Reset()
 						} else {
 							// try to let the first thread start first
@@ -483,6 +597,8 @@ func (c *Connection) runClient(serverName string) error {
 						}
 						if err := c.receiveFile(id, connection); err != nil {
 							log.Debug(errors.Wrap(err, "no file to recieve"))
+						} else {
+							fileTransfered = true
 						}
 					}
 				}
@@ -504,15 +620,21 @@ func (c *Connection) runClient(serverName string) error {
 		if responses.gotTimeout {
 			fmt.Println("Timeout waiting for receiver")
 			return nil
+		} else if !fileTransfered {
+			fmt.Fprintf(os.Stderr, "\nNo mutual consent")
+			return nil
 		}
 		fileOrFolder := "File"
 		if c.File.IsDir {
 			fileOrFolder = "Folder"
 		}
-		fmt.Printf("\n%s sent", fileOrFolder)
+		fmt.Fprintf(os.Stderr, "\n%s sent", fileOrFolder)
 	} else { // Is a Receiver
 		if responses.notPresent {
 			fmt.Println("Either code is incorrect or sender is not ready. Use -wait to wait until sender connects.")
+			return nil
+		} else if !fileTransfered {
+			fmt.Fprintf(os.Stderr, "\nNo mutual consent")
 			return nil
 		}
 		if !responses.gotOK {
@@ -524,15 +646,20 @@ func (c *Connection) runClient(serverName string) error {
 		log.Debugf("Code: [%s]", c.Code)
 		if c.DontEncrypt {
 			if err := CopyFile(path.Join(c.Path, c.File.Name+".enc"), path.Join(c.Path, c.File.Name)); err != nil {
+				log.Error(err)
 				return err
 			}
 		} else {
+			log.Debugf("is encrypted: %+v", c.File.IsEncrypted)
 			if c.File.IsEncrypted {
-				if err := DecryptFile(path.Join(c.Path, c.File.Name+".enc"), path.Join(c.Path, c.File.Name), c.Code); err != nil {
+				log.Debugf("decrypting file with [%s]", c.encryptedPassword)
+				if err := DecryptFile(path.Join(c.Path, c.File.Name+".enc"), path.Join(c.Path, c.File.Name), c.encryptedPassword); err != nil {
+					log.Error(err)
 					return errors.Wrap(err, "Problem decrypting file")
 				}
 			} else {
 				if err := CopyFile(path.Join(c.Path, c.File.Name+".enc"), path.Join(c.Path, c.File.Name)); err != nil {
+					log.Error(err)
 					return errors.Wrap(err, "Problem copying file")
 				}
 			}
@@ -549,6 +676,7 @@ func (c *Connection) runClient(serverName string) error {
 		log.Debugf("\n\n\nrelayed hash: [%s]", c.File.Hash)
 
 		if c.File.Hash != fileHash {
+			log.Flush()
 			return fmt.Errorf("\nUh oh! %s is corrupted! Sorry, try again.\n", c.File.Name)
 		}
 		if c.File.IsDir { // if the file was originally a dir
@@ -704,7 +832,7 @@ func (c *Connection) sendFile(id int, connection net.Conn) error {
 			c.bar.Add(int(written))
 		}
 		if errWrite != nil {
-			log.Error(errWrite)
+			return errWrite
 		}
 		if err == io.EOF {
 			//End of file reached, break out of for loop
