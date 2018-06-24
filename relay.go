@@ -34,13 +34,6 @@ func (c *connectionMap) IsSenderConnected(key string) (found bool) {
 	return
 }
 
-func (c *connectionMap) IsPotentialReceiverConnected(key string) (found bool) {
-	c.RLock()
-	defer c.RUnlock()
-	_, found = c.potentialReceivers[key]
-	return
-}
-
 type Relay struct {
 	connections         connectionMap
 	Debug               bool
@@ -141,11 +134,16 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 
 	switch connectionType {
 	case "s": // sender connection
-		defer func() {
+		startTime := time.Now()
+		deleteAll := func() {
 			r.connections.Lock()
 			// close connections
-			r.connections.sender[key].Close()
-			r.connections.receiver[key].Close()
+			if _, ok := r.connections.sender[key]; ok {
+				r.connections.sender[key].Close()
+			}
+			if _, ok := r.connections.receiver[key]; ok {
+				r.connections.receiver[key].Close()
+			}
 			// delete connctions
 			delete(r.connections.sender, key)
 			delete(r.connections.receiver, key)
@@ -157,7 +155,9 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 			delete(r.connections.passphrase, key)
 			r.connections.Unlock()
 			logger.Debug("deleted sender and receiver")
-		}()
+		}
+		defer deleteAll()
+
 		if r.connections.IsSenderConnected(key) {
 			sendMessage("no", connection)
 			return
@@ -172,10 +172,11 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		receiversAddress := ""
 		receiversPublicKey := ""
 		isTimeout := time.Duration(0)
+		log.Debug("waiting for reciever for sender")
 		for {
 			if CONNECTION_TIMEOUT <= isTimeout {
 				sendMessage("timeout", connection)
-				break
+				return
 			}
 			r.connections.RLock()
 			if _, ok := r.connections.receiver[key]; ok {
@@ -212,6 +213,7 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		r.connections.Unlock()
 
 		// wait for receiver ready
+		startTime = time.Now()
 		for {
 			r.connections.RLock()
 			if _, ok := r.connections.receiverReady[key]; ok {
@@ -219,6 +221,9 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 				break
 			}
 			r.connections.RUnlock()
+			if time.Since(startTime) > 5*time.Minute {
+				return
+			}
 		}
 		// go reciever ready tell sender to go
 		sendMessage("go", connection)
@@ -231,12 +236,20 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		Pipe(con1, con2)
 		logger.Debug("done piping")
 	case "r", "c": // receiver
-		if r.connections.IsPotentialReceiverConnected(key) {
+		startTime := time.Now()
+		log.Debug("is receiver")
+
+		r.connections.RLock()
+		_, foundReceiver := r.connections.potentialReceivers[key]
+		r.connections.RUnlock()
+		if foundReceiver {
+			log.Debug("already have receiver")
 			sendMessage("no", connection)
 			return
 		}
 
 		// add as a potential receiver
+		logger.Debug("adding as potential reciever")
 		r.connections.Lock()
 		r.connections.potentialReceivers[key] = struct{}{}
 		r.connections.rpublicKey[key] = publicKey
@@ -245,8 +258,15 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 		// wait for sender's metadata
 		sendersAddress := ""
 		sendersPublicKey := ""
+		startTime = time.Now()
 		for {
 			r.connections.RLock()
+			// check if been deleted
+			if _, ok := r.connections.potentialReceivers[key]; !ok {
+				log.Debug("deleting and finishing")
+				r.connections.RUnlock()
+				return
+			}
 			if _, ok := r.connections.metadata[key]; ok {
 				if _, ok2 := r.connections.sender[key]; ok2 {
 					sendersAddress = r.connections.sender[key].RemoteAddr().String()
@@ -270,6 +290,9 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 				return
 			}
 			time.Sleep(100 * time.Millisecond)
+			if time.Since(startTime) > 5*time.Minute {
+				return
+			}
 		}
 		// send  meta data
 		r.connections.RLock()
@@ -279,15 +302,25 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 
 		// check for senders consent
 		sendersConsent := ""
+		startTime = time.Now()
 		for {
 			r.connections.RLock()
+			// check if been deleted
+			if _, ok := r.connections.potentialReceivers[key]; !ok {
+				log.Debug("deleting and finishing")
+				r.connections.RUnlock()
+				return
+			}
 			if _, ok := r.connections.sconsent[key]; ok {
 				sendersConsent = r.connections.sconsent[key]
-				logger.Debugf("got sender passphrase: %s", sendersConsent)
 			}
 			r.connections.RUnlock()
 			if sendersConsent != "" {
 				break
+			}
+			time.Sleep(100 * time.Millisecond)
+			if time.Since(startTime) > 5*time.Minute {
+				return
 			}
 		}
 		if sendersConsent != "ok" {
@@ -297,8 +330,16 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 
 		// now get passphrase
 		sendersPassphrase := ""
+		startTime = time.Now()
 		for {
 			r.connections.RLock()
+			// check if been deleted
+			if _, ok := r.connections.potentialReceivers[key]; !ok {
+				log.Debug("deleting and finishing")
+				r.connections.RUnlock()
+				return
+			}
+
 			if _, ok := r.connections.passphrase[key]; ok {
 				sendersPassphrase = r.connections.passphrase[key]
 				logger.Debugf("got sender passphrase: %s", sendersPassphrase)
@@ -307,6 +348,10 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 			if sendersPassphrase != "" {
 				break
 			}
+			if time.Since(startTime) > 5*time.Minute {
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
 		}
 
 		// check for receiver's consent
@@ -316,8 +361,16 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 			logger.Debug("got consent")
 			// wait for encrypted passphrase
 			encryptedPassphrase := ""
+			startTime = time.Now()
 			for {
 				r.connections.RLock()
+				// check if been deleted
+				if _, ok := r.connections.potentialReceivers[key]; !ok {
+					log.Debug("deleting and finishing")
+					r.connections.RUnlock()
+					return
+				}
+
 				if _, ok := r.connections.passphrase[key]; ok {
 					encryptedPassphrase = r.connections.passphrase[key]
 					logger.Debugf("got passphrase: %s", r.connections.passphrase[key])
@@ -326,7 +379,10 @@ func (r *Relay) clientCommuncation(id int, connection net.Conn) {
 				if encryptedPassphrase != "" {
 					break
 				}
-				time.Sleep(10 * time.Millisecond)
+				if time.Since(startTime) > 5*time.Minute {
+					return
+				}
+				time.Sleep(100 * time.Millisecond)
 			}
 			sendMessage(encryptedPassphrase, connection)
 		}
