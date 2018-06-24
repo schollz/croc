@@ -1,7 +1,6 @@
-
 # Gopkg.toml example
 #
-# Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
+# Refer to https://golang.github.io/dep/docs/Gopkg.toml.html
 # for detailed Gopkg.toml documentation.
 #
 # required = ["github.com/user/thing/cmd/thing"]
@@ -17,8 +16,13 @@
 #   source = "github.com/myfork/project2"
 #
 # [[override]]
-#  name = "github.com/x/y"
-#  version = "2.4.0"
+#   name = "github.com/x/y"
+#   version = "2.4.0"
+#
+# [prune]
+#   non-go = false
+#   go-tests = true
+#   unused-packages = true
 
 
 [[constraint]]
@@ -43,19 +47,23 @@
 
 [[constraint]]
   branch = "master"
-  name = "github.com/schollz/mnemonicode"
+  name = "github.com/schollz/messagebox"
 
 [[constraint]]
-  version = "1.1.0"
+  name = "github.com/schollz/mnemonicode"
+  version = "1.0.0"
+
+[[constraint]]
   name = "github.com/schollz/peerdiscovery"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/schollz/progressbar"
-  version = "0.6.0"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/schollz/tarinator-go"
-  version = "0.3.3"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/sirupsen/logrus"
@@ -80,3 +88,7 @@
 [[constraint]]
   name = "gopkg.in/yaml.v2"
   version = "2.2.1"
+
+[prune]
+  go-tests = true
+  unused-packages = true
