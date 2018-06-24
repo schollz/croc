@@ -232,6 +232,7 @@ func (c *Connection) Run() error {
 		if c.Server == "" {
 			log.Debug("settings payload to ", c.Code)
 			go func() {
+				log.Debug("listening for local croc relay...")
 				go peerdiscovery.Discover(peerdiscovery.Settings{
 					Limit:     1,
 					TimeLimit: 600 * time.Second,
