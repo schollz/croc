@@ -229,20 +229,17 @@ func (c *Connection) Run() error {
 		}
 
 		// broadcast local connection from sender
-		if c.Server == "" {
-			log.Debug("settings payload to ", c.Code)
-			go func() {
-				log.Debug("listening for local croc relay...")
-				go peerdiscovery.Discover(peerdiscovery.Settings{
-					Limit:     1,
-					TimeLimit: 600 * time.Second,
-					Delay:     50 * time.Millisecond,
-					Payload:   []byte(c.Code),
-				})
-				runClientError <- c.runClient("localhost")
-			}()
-
-		}
+		log.Debug("settings payload to ", c.Code)
+		go func() {
+			log.Debug("listening for local croc relay...")
+			go peerdiscovery.Discover(peerdiscovery.Settings{
+				Limit:     1,
+				TimeLimit: 600 * time.Second,
+				Delay:     50 * time.Millisecond,
+				Payload:   []byte(c.Code),
+			})
+			runClientError <- c.runClient("localhost")
+		}()
 	}
 
 	log.Debug("checking code validity")
