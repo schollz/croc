@@ -445,7 +445,7 @@ func (c *Connection) runClient(serverName string) error {
 					// wait for relay go
 					receiveMessage(connection)
 					if id == 0 {
-						fmt.Fprintf(os.Stderr, "\nSending (->%s@%s)..\n", publicKeyRecipient, message)
+						fmt.Fprintf(os.Stderr, "\nSending (->@%s)..\n", message)
 					}
 					// wait for pipe to be made
 					time.Sleep(100 * time.Millisecond)
@@ -583,7 +583,7 @@ func (c *Connection) runClient(serverName string) error {
 						sendMessage("ok", connection)
 						log.Debug("receive file")
 						if id == 0 {
-							fmt.Fprintf(os.Stderr, "\nReceiving (<-%s@%s)..\n", publicKeySender, sendersAddress)
+							fmt.Fprintf(os.Stderr, "\nReceiving (<-@%s)..\n", sendersAddress)
 						}
 						responses.Lock()
 						responses.startTime = time.Now()
