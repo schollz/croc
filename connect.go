@@ -96,6 +96,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	if len(config.File) > 0 {
 		config.File = filepath.Clean(config.File)
 		if config.File == "stdin" {
+			c.Yes = true
 			f, err := ioutil.TempFile(".", "croc-stdin-")
 			if err != nil {
 				return c, err
