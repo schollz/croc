@@ -2,11 +2,11 @@ language: go
 
 go:
   - 1.10
-  
+
 env:
   - "PATH=/home/travis/gopath/bin:$PATH"
 
 before_install:
-  - go get github.com/schollz/croc
+  - go get -v ./...
 script:
   - go test -v
