@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/Nightbug/go-base65536"
+  packages = ["."]
+  revision = "ba82e75856c3f7d4db92c6d98246cb4f7e9c1da8"
+  version = "1.0.0"
+
+[[projects]]
   name = "github.com/cihub/seelog"
   packages = ["."]
   revision = "d2c6e5aa9fbfdd1c624e140287063c7730654115"
@@ -38,6 +44,18 @@
   revision = "65899cf653ff022fe5c7fe504b439feed9e7e0fc"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/mitchellh/colorstring"
+  packages = ["."]
+  revision = "8631ce90f28644f54aeedcb3e389a85174e067d1"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/mr-tron/base58"
+  packages = ["base58"]
+  revision = "4df4dc6e86a912614d09719d10cad427b087cbfb"
+
+[[projects]]
   name = "github.com/pkg/errors"
   packages = ["."]
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
@@ -45,27 +63,33 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/schollz/messagebox"
+  packages = ["keypair"]
+  revision = "8bb214da539adf4b51b2c4ed0456e771d032d8eb"
+
+[[projects]]
   name = "github.com/schollz/mnemonicode"
   packages = ["."]
   revision = "15c9654387fad6d257aa28f9be57b9f124101955"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/schollz/peerdiscovery"
   packages = ["."]
-  revision = "94ddd4cf05a8a6052e334c69ac1cd86486de10af"
-  version = "v1.1.0"
+  revision = "2c99137c9f8ff3597c2325c3be232612867652e3"
+  version = "v1.2.0"
 
 [[projects]]
+  branch = "master"
   name = "github.com/schollz/progressbar"
   packages = ["."]
-  revision = "5441d79e9e64d6356575e1e296142ebba27949a7"
-  version = "v0.6.0"
+  revision = "cd5f4bc33956d41669a8920edb38a0f41abde270"
 
 [[projects]]
+  branch = "master"
   name = "github.com/schollz/tarinator-go"
   packages = ["."]
-  revision = "a8626a55d48dbb55141e51226eefa15c157a65a8"
-  version = "v0.3.3"
+  revision = "0eab2c92d3ce5cb04535445b0825b2120c4acf3f"
 
 [[projects]]
   name = "github.com/sirupsen/logrus"
@@ -88,26 +112,48 @@
 [[projects]]
   branch = "master"
   name = "github.com/yudai/hcl"
-  packages = [".","hcl","json"]
+  packages = [
+    ".",
+    "hcl",
+    "json"
+  ]
   revision = "5fa2393b3552119bf33a69adb1402a1160cba23d"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
-  packages = ["pbkdf2","scrypt","ssh/terminal"]
-  revision = "2b6c08872f4b66da917bb4ce98df4f0307330f78"
+  packages = [
+    "curve25519",
+    "internal/subtle",
+    "nacl/box",
+    "nacl/secretbox",
+    "pbkdf2",
+    "poly1305",
+    "salsa20/salsa",
+    "scrypt",
+    "ssh/terminal"
+  ]
+  revision = "a49355c7e3f8fe157a85be2f77e6e269a0f89602"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
-  packages = ["bpf","internal/iana","internal/socket","ipv4"]
-  revision = "5f9ae10d9af5b1c89ae6904293b14b064d4ada23"
+  packages = [
+    "bpf",
+    "internal/iana",
+    "internal/socket",
+    "ipv4"
+  ]
+  revision = "afe8f62b1d6bbd81f31868121a50b06d8188e1f9"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
-  packages = ["unix","windows"]
-  revision = "79b0c6888797020a994db17c8510466c72fe75d9"
+  packages = [
+    "unix",
+    "windows"
+  ]
+  revision = "63fc586f45fe72d95d5240a5d5eb95e6503907d3"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -124,6 +170,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "93fd6df35a71aeabf37bf934c95bab3e099b86f74ad0479e0ce491695a996527"
+  inputs-digest = "61c77dae1b7a75c24ba182fc04218815b058280c4a96d39a8b16d3a851ecbbc6"
   solver-name = "gps-cdcl"
   solver-version = 1
