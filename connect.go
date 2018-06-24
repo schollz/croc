@@ -117,6 +117,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 			fmt.Println("Compressing folder...")
 
 			// we "tarify" the file
+			log.Debugf("compressing %s to %s", config.File, path.Base(config.File)+".tar")
 			err = tarinator.Tarinate([]string{config.File}, path.Base(config.File)+".tar")
 			if err != nil {
 				return c, err
@@ -131,6 +132,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 		c.File.Path = path.Dir(config.File)
 		c.File.Size, _ = FileSize(config.File)
 		c.IsSender = true
+		log.Debugf("file: %+v", c.File)
 	} else {
 		c.IsSender = false
 		c.AskPath = config.PathSpec
@@ -218,14 +220,6 @@ func (c *Connection) Run() error {
 		c.File.Size, err = FileSize(c.File.Name)
 		if err != nil {
 			return err
-		}
-
-		// remove compressed archive
-		if c.File.IsDir {
-			log.Debug("removing archive: " + c.File.Name)
-			if err := os.Remove(c.File.Name); err != nil {
-				return err
-			}
 		}
 
 		if c.Server != "localhost" {
@@ -416,7 +410,7 @@ func (c *Connection) runClient(serverName string) error {
 							c.File.IsEncrypted = false
 						} else {
 							// encrypt
-							log.Debugf("encrypting file with passphrase [%s]", passphraseString)
+							log.Debugf("encrypting %s with passphrase [%s]", path.Join(c.File.Path, c.File.Name), passphraseString)
 							if err := EncryptFile(path.Join(c.File.Path, c.File.Name), c.File.Name+".enc", passphraseString); err != nil {
 								panic(err)
 							}
@@ -431,6 +425,13 @@ func (c *Connection) runClient(serverName string) error {
 							panic(err)
 						}
 
+						// remove compressed archive
+						if c.File.IsDir {
+							log.Debug("removing archive: " + c.File.Name)
+							if err := os.Remove(c.File.Name); err != nil {
+								log.Error(err)
+							}
+						}
 						c.encryptedPassword = base64.StdEncoding.EncodeToString(encryptedPassword)
 					}
 					log.Debugf("[%d] waiting for 0 thread to encrypt", id)
