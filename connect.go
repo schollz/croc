@@ -589,8 +589,7 @@ func (c *Connection) runClient(serverName string) error {
 						responses.startTime = time.Now()
 						responses.Unlock()
 						if !c.Debug && id == 0 {
-							c.bar.Finish()
-							c.bar.Reset()
+							c.bar = progressbar.NewOptions(c.File.Size, progressbar.OptionSetWriter(os.Stderr))
 						} else {
 							// try to let the first thread start first
 							time.Sleep(10 * time.Millisecond)
