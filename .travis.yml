@@ -1,7 +1,7 @@
 language: go
 
 go:
-  - 1.10
+  - tip
 
 env:
   - "PATH=/home/travis/gopath/bin:$PATH"
