@@ -622,6 +622,8 @@ func (c *Connection) runClient(serverName string) error {
 		} else if !fileTransfered {
 			fmt.Fprintf(os.Stderr, "\nNo mutual consent")
 			return nil
+		} else {
+			c.bar.Finish()
 		}
 		fileOrFolder := "File"
 		if c.File.IsDir {
@@ -635,6 +637,8 @@ func (c *Connection) runClient(serverName string) error {
 		} else if !fileTransfered {
 			fmt.Fprintf(os.Stderr, "\nNo mutual consent")
 			return nil
+		} else {
+			c.bar.Finish()
 		}
 		if !responses.gotOK {
 			return errors.New("Transfer interrupted")
