@@ -79,7 +79,11 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.Local = config.Local
 	c.keypair, _ = keypair.New()
 	fmt.Fprintf(os.Stderr, "Your public key: %s\n", c.keypair.Public)
-
+	if c.Debug {
+		SetLogLevel("debug")
+	} else {
+		SetLogLevel("error")
+	}
 	if c.Local {
 		c.Yes = true
 		c.DontEncrypt = true
@@ -141,12 +145,6 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.File.IsEncrypted = true
 	if c.DontEncrypt {
 		c.File.IsEncrypted = false
-	}
-
-	if c.Debug {
-		SetLogLevel("debug")
-	} else {
-		SetLogLevel("error")
 	}
 
 	return c, nil
