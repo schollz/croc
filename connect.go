@@ -228,18 +228,20 @@ func (c *Connection) Run() error {
 			}
 		}
 
-		// broadcast local connection from sender
-		log.Debug("settings payload to ", c.Code)
-		go func() {
-			log.Debug("listening for local croc relay...")
-			go peerdiscovery.Discover(peerdiscovery.Settings{
-				Limit:     1,
-				TimeLimit: 600 * time.Second,
-				Delay:     50 * time.Millisecond,
-				Payload:   []byte(c.Code),
-			})
-			runClientError <- c.runClient("localhost")
-		}()
+		if c.Server != "localhost" {
+			// broadcast local connection from sender
+			log.Debug("settings payload to ", c.Code)
+			go func() {
+				log.Debug("listening for local croc relay...")
+				go peerdiscovery.Discover(peerdiscovery.Settings{
+					Limit:     1,
+					TimeLimit: 600 * time.Second,
+					Delay:     50 * time.Millisecond,
+					Payload:   []byte(c.Code),
+				})
+				runClientError <- c.runClient("localhost")
+			}()
+		}
 	}
 
 	log.Debug("checking code validity")
@@ -464,6 +466,7 @@ func (c *Connection) runClient(serverName string) error {
 			} else { // this is a receiver
 				log.Debug("waiting for meta data from sender")
 				message = receiveMessage(connection)
+				log.Debugf("message from server: %s", message)
 				if message == "no" {
 					if id == 0 {
 						fmt.Println("The specifed code is already in use by a sender.")
@@ -586,7 +589,7 @@ func (c *Connection) runClient(serverName string) error {
 						responses.startTime = time.Now()
 						responses.Unlock()
 						if !c.Debug && id == 0 {
-							// c.bar.SetMax(c.File.Size)
+							c.bar.Finish()
 							c.bar.Reset()
 						} else {
 							// try to let the first thread start first
@@ -613,12 +616,12 @@ func (c *Connection) runClient(serverName string) error {
 
 	timeSinceStart := time.Since(responses.startTime).Nanoseconds()
 
-	if !fileTransfered {
-		fmt.Fprintf(os.Stderr, "\nNo mutual consent")
-		return nil
-	} else if c.IsSender {
+	if c.IsSender {
 		if responses.gotTimeout {
 			fmt.Println("Timeout waiting for receiver")
+			return nil
+		} else if !fileTransfered {
+			fmt.Fprintf(os.Stderr, "\nNo mutual consent")
 			return nil
 		}
 		fileOrFolder := "File"
@@ -629,6 +632,9 @@ func (c *Connection) runClient(serverName string) error {
 	} else { // Is a Receiver
 		if responses.notPresent {
 			fmt.Println("Either code is incorrect or sender is not ready. Use -wait to wait until sender connects.")
+			return nil
+		} else if !fileTransfered {
+			fmt.Fprintf(os.Stderr, "\nNo mutual consent")
 			return nil
 		}
 		if !responses.gotOK {
