@@ -6,7 +6,5 @@ go:
 env:
   - "PATH=/home/travis/gopath/bin:$PATH"
 
-before_install:
-  - go get -v ./...
 script:
   - go test -v
