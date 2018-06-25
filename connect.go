@@ -19,7 +19,9 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/schollz/messagebox/keypair"
+	homedir "github.com/mitchellh/go-homedir"
+	"github.com/schollz/croc/keypair"
+	"github.com/schollz/croc/randomstring"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar"
 	tarinator "github.com/schollz/tarinator-go"
@@ -77,8 +79,33 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.Yes = config.Yes
 	c.rate = config.Rate
 	c.Local = config.Local
-	c.keypair, _ = keypair.New()
+
+	// make or load keypair
+	homedir, err := homedir.Dir()
+	if err != nil {
+		return c, err
+	}
+	pathToCrocConfig := path.Join(homedir, ".config", "croc", "keys")
+	if _, errExists := os.Stat(pathToCrocConfig); os.IsNotExist(errExists) {
+		// path/to/whatever does not exist
+		os.MkdirAll(path.Join(homedir, ".config", "croc"), 0700)
+		keys, _ := keypair.New()
+		err = ioutil.WriteFile(pathToCrocConfig, []byte(keys.String()), 0644)
+		if err != nil {
+			return c, err
+		}
+	}
+	keypairBytes, err := ioutil.ReadFile(pathToCrocConfig)
+	if err != nil {
+		return c, err
+	}
+	c.keypair, err = keypair.Load(string(keypairBytes))
+	if err != nil {
+		return c, err
+	}
+
 	fmt.Fprintf(os.Stderr, "Your public key: %s\n", c.keypair.Public)
+
 	if c.Debug {
 		SetLogLevel("debug")
 	} else {
@@ -395,7 +422,10 @@ func (c *Connection) runClient(serverName string) error {
 						return
 					}
 					if id == 0 {
-						passphraseString := RandStringBytesMaskImprSrc(20)
+						passphraseString, err := randomstring.GenerateRandomString(30)
+						if err != nil {
+							panic(err)
+						}
 						log.Debugf("passphrase: [%s]", passphraseString)
 						encryptedPassword, err := c.keypair.Encrypt([]byte(passphraseString), publicKeyRecipient)
 						if err != nil {
