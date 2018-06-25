@@ -324,6 +324,7 @@ func (c *Connection) runClient(serverName string) error {
 		go func(id int) {
 			defer wg.Done()
 			port := strconv.Itoa(27001 + id)
+			log.Debugf("connecting to %s", serverName+":"+port)
 			connection, err := net.Dial("tcp", serverName+":"+port)
 			if err != nil {
 				if serverName == "cowyo.com" {
