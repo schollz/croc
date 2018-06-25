@@ -220,12 +220,12 @@ func (c *Connection) Run() error {
 		if c.Code == "" {
 			c.Code = GetRandomName()
 		}
-		fmt.Fprintf(os.Stderr, "Code is '%s'\n", c.Code)
 		if c.File.IsDir {
 			fmt.Fprintf(os.Stderr, "Sending %s folder named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name[:len(c.File.Name)-4])
 		} else {
 			fmt.Fprintf(os.Stderr, "Sending %s file named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name)
 		}
+		fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
 
 		log.Debug("starting relay in case local connections")
 		relay := NewRelay(&AppConfig{
@@ -391,7 +391,7 @@ func (c *Connection) runClient(serverName string) error {
 					publicKeyRecipient := receiveMessage(connection)
 					// check if okay again
 					if id == 0 {
-						fmt.Fprintf(os.Stderr, "to %s\n", publicKeyRecipient)
+						fmt.Fprintf(os.Stderr, "Send to public key: %s\n", publicKeyRecipient)
 						getOK := "y"
 						if !c.Yes {
 							getOK = getInput("ok? (y/n): ")
@@ -538,12 +538,12 @@ func (c *Connection) runClient(serverName string) error {
 							fType = "folder"
 							fName = fName[:len(fName)-4]
 						}
-						fmt.Fprintf(os.Stderr, "Incoming file from "+publicKeySender+"\n")
 						if _, err := os.Stat(path.Join(c.Path, c.File.Name)); os.IsNotExist(err) {
 							fmt.Fprintf(os.Stderr, "Receiving %s (%s) into: %s\n", fType, humanize.Bytes(uint64(c.File.Size)), fName)
 						} else {
 							fmt.Fprintf(os.Stderr, "Overwriting %s %s (%s)\n", fType, fName, humanize.Bytes(uint64(c.File.Size)))
 						}
+						fmt.Fprintf(os.Stderr, "from public key: "+publicKeySender+"\n")
 						var sentFileNames []string
 
 						if c.AskPath {
