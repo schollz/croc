@@ -35,6 +35,9 @@ _These two gifs should run in sync if you force-reload (Ctl+F5)_
 $ croc -send some-file-or-folder
 Sending 4.4 MB file named 'some-file-or-folder'
 Code is: cement-galaxy-alpha
+Your public key: F9Ky3WU2yG4y7KKppF4KnEhrmtY9ZlTsEMkqXfC1
+Send to public key: xHVRlQ2Yp6otQXBoLMcUJmmtNPXl7z8tOf019sGw
+ok? (y/n): y
 
 Sending (->[1]63982)..
   89% |███████████████████████████████████     | [12s:1s]
@@ -45,8 +48,10 @@ File sent (2.6 MB/s)
 
 ```
 $ croc
+Your public key: xHVRlQ2Yp6otQXBoLMcUJmmtNPXl7z8tOf019sGw
 Enter receive code: cement-galaxy-alpha
 Receiving file (4.4 MB) into: some-file-or-folder
+from public key: F9Ky3WU2yG4y7KKppF4KnEhrmtY9ZlTsEMkqXfC1
 ok? (y/n): y
 
 Receiving (<-[1]63975)..
