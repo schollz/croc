@@ -22,6 +22,7 @@ import (
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/schollz/croc/keypair"
 	"github.com/schollz/croc/randomstring"
+	"github.com/schollz/ischrooted"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar"
 	tarinator "github.com/schollz/tarinator-go"
@@ -246,7 +247,7 @@ func (c *Connection) Run() error {
 			return err
 		}
 
-		if c.Server != "localhost" {
+		if c.Server != "localhost" && !ischrooted.IsChrooted() {
 			// broadcast local connection from sender
 			log.Debug("settings payload to ", c.Code)
 			go func() {
