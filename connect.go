@@ -104,8 +104,6 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 		return c, err
 	}
 
-	fmt.Fprintf(os.Stderr, "Your public key: %s\n", c.keypair.Public)
-
 	if c.Debug {
 		SetLogLevel("debug")
 	} else {
@@ -263,6 +261,7 @@ func (c *Connection) Run() error {
 			}()
 		}
 	}
+	fmt.Fprintf(os.Stderr, "Your public key: %s\n", c.keypair.Public)
 
 	log.Debug("checking code validity")
 	if len(c.Code) == 0 && !c.IsSender {
