@@ -22,7 +22,6 @@ import (
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/schollz/croc/keypair"
 	"github.com/schollz/croc/randomstring"
-	"github.com/schollz/ischrooted"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar"
 	tarinator "github.com/schollz/tarinator-go"
@@ -247,7 +246,7 @@ func (c *Connection) Run() error {
 			return err
 		}
 
-		if c.Server != "localhost" && !ischrooted.IsChrooted() {
+		if c.Server != "localhost" {
 			// broadcast local connection from sender
 			log.Debug("settings payload to ", c.Code)
 			go func() {
@@ -277,11 +276,18 @@ func (c *Connection) Run() error {
 			log.Debug(errDiscover)
 		}
 		if len(discovered) > 0 {
-			c.Server = discovered[0].Address
-			log.Debug(discovered[0].Address)
-			c.Code = string(discovered[0].Payload)
-			log.Debugf("discovered code '%s'", c.Code)
-			time.Sleep(200 * time.Millisecond)
+			log.Debugf("discovered %s on %s", discovered[0].Payload, discovered[0].Address)
+			_, connectTimeout := net.DialTimeout("tcp", discovered[0].Address+":27001", 1*time.Second)
+			if connectTimeout == nil {
+				log.Debug("connected")
+				c.Server = discovered[0].Address
+				log.Debug(discovered[0].Address)
+				c.Code = string(discovered[0].Payload)
+				time.Sleep(200 * time.Millisecond)
+			} else {
+				log.Debug("could not connect")
+				c.Code = getInput("Enter receive code: ")
+			}
 		} else {
 			c.Code = getInput("Enter receive code: ")
 			log.Debug("changed code to ", c.Code)
