@@ -1,0 +1,54 @@
+{
+	"ImportPath": "github.com/yudai/gotty",
+	"GoVersion": "go1.9",
+	"GodepVersion": "v79",
+	"Deps": [
+		{
+			"ImportPath": "github.com/NYTimes/gziphandler",
+			"Rev": "967539e5e271a2bc9b3dcb1285078a1b1df105ae"
+		},
+		{
+			"ImportPath": "github.com/codegangsta/cli",
+			"Comment": "v1.19.1",
+			"Rev": "0bdeddeeb0f650497d603c4ad7b20cfe685682f6"
+		},
+		{
+			"ImportPath": "github.com/elazarl/go-bindata-assetfs",
+			"Rev": "d5cac425555ca5cf00694df246e04f05e6a55150"
+		},
+		{
+			"ImportPath": "github.com/fatih/structs",
+			"Rev": "a9f7daa9c2729e97450c2da2feda19130a367d8f"
+		},
+		{
+			"ImportPath": "github.com/gorilla/websocket",
+			"Rev": "b6ab76f1fe9803ee1d59e7e5b2a797c1fe897ce5"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/go-multierror",
+			"Rev": "56912fb08d85084aa318edcf2bba735b97cf35c5"
+		},
+		{
+			"ImportPath": "github.com/kr/pty",
+			"Comment": "release.r56-28-g5cf931e",
+			"Rev": "5cf931ef8f76dccd0910001d74a58a7fca84a83d"
+		},
+		{
+			"ImportPath": "github.com/pkg/errors",
+			"Comment": "v0.8.0-2-g248dadf",
+			"Rev": "248dadf4e9068a0b3e79f02ed0a610d935de5302"
+		},
+		{
+			"ImportPath": "github.com/yudai/hcl",
+			"Rev": "5fa2393b3552119bf33a69adb1402a1160cba23d"
+		},
+		{
+			"ImportPath": "github.com/yudai/hcl/hcl",
+			"Rev": "5fa2393b3552119bf33a69adb1402a1160cba23d"
+		},
+		{
+			"ImportPath": "github.com/yudai/hcl/json",
+			"Rev": "5fa2393b3552119bf33a69adb1402a1160cba23d"
+		}
+	]
+}

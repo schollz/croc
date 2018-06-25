@@ -46,10 +46,6 @@
   version = "0.8.0"
 
 [[constraint]]
-  branch = "master"
-  name = "github.com/schollz/messagebox"
-
-[[constraint]]
   name = "github.com/schollz/mnemonicode"
   version = "1.0.0"
 
