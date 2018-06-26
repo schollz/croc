@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/briandowns/spinner"
+  packages = ["."]
+  revision = "48dbb65d7bd5c74ab50d53d04c949f20e3d14944"
+  version = "1.0"
+
+[[projects]]
   name = "github.com/cihub/seelog"
   packages = ["."]
   revision = "d2c6e5aa9fbfdd1c624e140287063c7730654115"
@@ -18,6 +24,12 @@
   name = "github.com/dustin/go-humanize"
   packages = ["."]
   revision = "02af3965c54e8cacf948b97fef38925c4120652c"
+
+[[projects]]
+  name = "github.com/fatih/color"
+  packages = ["."]
+  revision = "5b77d2a35fb0ede96d138fc9a99f5c9b6aef11b4"
+  version = "v1.7.0"
 
 [[projects]]
   name = "github.com/fatih/structs"
@@ -42,6 +54,18 @@
   name = "github.com/mars9/crypt"
   packages = ["."]
   revision = "65899cf653ff022fe5c7fe504b439feed9e7e0fc"
+
+[[projects]]
+  name = "github.com/mattn/go-colorable"
+  packages = ["."]
+  revision = "167de6bfdfba052fa6b2d3664c8f5272e23c9072"
+  version = "v0.0.9"
+
+[[projects]]
+  name = "github.com/mattn/go-isatty"
+  packages = ["."]
+  revision = "0360b2af4f38e8d38c7fce2a9f4e702702d73a39"
+  version = "v0.0.3"
 
 [[projects]]
   branch = "master"
@@ -160,6 +184,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4bd860ee5e9b724cdb078b452e0b187c03bb5cf71588b09d224bef4d8d87be30"
+  inputs-digest = "cadd5f6ffb98a2a67dc6dcbec230d9c569a70eb9f9a1fb800281849bfb718c69"
   solver-name = "gps-cdcl"
   solver-version = 1
