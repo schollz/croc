@@ -1,0 +1,15 @@
+language: go
+go:
+  - 1.6.3
+  - 1.7.3
+env:
+  - GOARCH: amd64
+  - GOARCH: 386
+script:
+  - go test -v
+notifications:
+  email:
+    recipients:
+      - brian.downs@gmail.com
+    on_success: change
+    on_failure: always
