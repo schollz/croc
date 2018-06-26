@@ -20,6 +20,7 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/dustin/go-humanize"
+	"github.com/fatih/color"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/schollz/croc/keypair"
 	"github.com/schollz/croc/randomstring"
@@ -231,7 +232,10 @@ func (c *Connection) Run() error {
 		} else {
 			fmt.Fprintf(os.Stderr, "Sending %s file named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name)
 		}
-		fmt.Fprintf(os.Stderr, "Code is: %s\n\n", c.Code)
+		fmt.Fprintf(os.Stderr, "Code is: ")
+		color.New(color.FgHiGreen, color.Bold).Fprint(os.Stderr, c.Code)
+		fmt.Fprintf(os.Stderr, "\n\n")
+
 		c.spinner = spinner.New(spinner.CharSets[24], 100*time.Millisecond) // Build our new spinner
 		c.spinner.Suffix = " Waiting for recipient.."
 		c.spinner.Start()
@@ -408,8 +412,10 @@ func (c *Connection) runClient(serverName string) error {
 					// check if okay again
 					if id == 0 {
 						c.spinner.Stop()
-						fmt.Fprintf(os.Stderr, "Your public keyYour public key: %s\n", c.keypair.Public)
-						fmt.Fprintf(os.Stderr, "Recipient public key: %s\n", publicKeyRecipient)
+						fmt.Fprintf(os.Stderr, "Your public key: ")
+						color.New(color.FgHiRed).Fprintln(os.Stderr, c.keypair.Public)
+						fmt.Fprintf(os.Stderr, "Recipient public key: ")
+						color.New(color.FgHiYellow).Fprintln(os.Stderr, publicKeyRecipient)
 						getOK := "y"
 						if !c.Yes {
 							getOK = getInput("ok? (y/n): ")
