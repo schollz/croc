@@ -142,6 +142,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 		// check wether the file is a dir
 		info, err := os.Stat(config.File)
 		if err != nil {
+			log.Error(err)
 			return c, err
 		}
 
