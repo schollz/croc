@@ -3,14 +3,16 @@
     src="https://user-images.githubusercontent.com/6550035/31846899-2b8a7034-b5cf-11e7-9643-afe552226c59.png"
     width="100%" border="0" alt="croc">
 <br>
-<a href="https://travis-ci.org/schollz/croc"><img src="https://travis-ci.org/schollz/croc.svg?branch=master" alt="Build Status"></a>
-<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-1.0.0-brightgreen.svg?style=flat-square" alt="Version"></a>
-<a href="https://goreportcard.com/report/github.com/schollz/croc"><img src="https://goreportcard.com/badge/github.com/schollz/croc" alt="Go Report Card"></a>
+<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-β2.0.0-brightgreen.svg?style=flat-square" alt="Version"></a>
+<a href="https://saythanks.io/to/schollz"><img src="https://img.shields.io/badge/Say%20Thanks-!-yellow.svg?style=flat-square" alt="Go Report Card"></a>
 </p>
+
 
 <p align="center">Easily and securely transfer stuff from one computer to another.</p>
 
 *croc* allows any two computers to directly and securely transfer files and folders. When sending a file, *croc* generates a random code phrase which must be shared with the recipient so they can receive the file. The code phrase encrypts all data and metadata and also serves to authorize the connection between the two computers in a intermediary relay. The relay connects the TCP ports between the two computers and does not store any information (and all information passing through it is encrypted). 
+
+## New version released June 24th, 2018 - please upgrade if you are using the public relay.
 
 I hear you asking, *Why another open-source peer-to-peer file transfer utilities?* [There](https://github.com/cowbell/sharedrop) [are](https://github.com/webtorrent/instant.io) [great](https://github.com/kern/filepizza) [tools](https://github.com/warner/magic-wormhole) [that](https://github.com/zerotier/toss) [already](https://github.com/ipfs/go-ipfs) [do](https://github.com/zerotier/toss) [this](https://github.com/nils-werner/zget). But, after review, [I found it was useful to make another](https://schollz.github.io/sending-a-file/). Namely, *croc* has no dependencies (just [download a binary and run](https://github.com/schollz/croc/releases/latest)), it works on any operating system, and its blazingly fast because it does parallel transfer over multiple TCP ports.
 
@@ -33,6 +35,9 @@ _These two gifs should run in sync if you force-reload (Ctl+F5)_
 $ croc -send some-file-or-folder
 Sending 4.4 MB file named 'some-file-or-folder'
 Code is: cement-galaxy-alpha
+Your public key: F9Ky3WU2yG4y7KKppF4KnEhrmtY9ZlTsEMkqXfC1
+Send to public key: xHVRlQ2Yp6otQXBoLMcUJmmtNPXl7z8tOf019sGw
+ok? (y/n): y
 
 Sending (->[1]63982)..
   89% |███████████████████████████████████     | [12s:1s]
@@ -43,8 +48,10 @@ File sent (2.6 MB/s)
 
 ```
 $ croc
+Your public key: xHVRlQ2Yp6otQXBoLMcUJmmtNPXl7z8tOf019sGw
 Enter receive code: cement-galaxy-alpha
 Receiving file (4.4 MB) into: some-file-or-folder
+from public key: F9Ky3WU2yG4y7KKppF4KnEhrmtY9ZlTsEMkqXfC1
 ok? (y/n): y
 
 Receiving (<-[1]63975)..
@@ -53,33 +60,6 @@ Received file written to some-file-or-folder (2.6 MB/s)
 ```
 
 Note, by default, you don't need any arguments for receiving! This makes it possible for you to just double click the executable to run (nice for those of us that aren't computer wizards).
-
-
-## Transfering files between local computers
-
-Its even easier if you want to transfer files between two computers on the same network.
-
-**Sender:**
-
-```
-$ croc -send some-file-or-folder -local
-```
-
-**Receiver:**
-
-```
-$ croc -local
-```
-
-Yes, when you run locally you don't even need to use a code. When you run locally, the *croc* receiver will use UDP broadcast packets to automatically find the correct IP address and code to use to transfer the file. When run locally, there is also no encryption so it is even faster.
-
-**Sender:**
-
-![Running locally](https://raw.githubusercontent.com/schollz/croc/master/logo/1.gif)
-
-**Receiver:**
-
-![Running locally](https://raw.githubusercontent.com/schollz/croc/master/logo/2.gif)
 
 ## Using *croc* in pipes
 
@@ -111,15 +91,15 @@ Or, you can [install Go](https://golang.org/dl/) and build from source with `go 
 
 # How does it work?
 
-*croc* is similar to [magic-wormhole](https://github.com/warner/magic-wormhole#design) in spirit and design. Like *magic-wormhole*, *croc* generates a code phrase for you to share with your friend which allows secure end-to-end transfering of files and folders through a intermediary relay that  connects the TCP ports between the two computers.
+*croc* is similar to [magic-wormhole](https://github.com/warner/magic-wormhole#design) in spirit and design. Like *magic-wormhole*, *croc* generates a code phrase for you to share with your friend which allows secure end-to-end transfering of files and folders through a intermediary relay that connects the TCP ports between the two computers. The standard relay is on a public IP address (default `cowyo.com`), but before transmitting the file the two instances of *croc* send out UDP broadcasts to determine if they are both on the local network, and use a local relay instead of the cloud relay in the case that they are both local.
 
-In *croc*, code phrase is 16 random bits that are [menemonic encoded](http://web.archive.org/web/20101031205747/http://www.tothink.com/mnemonic/). This code phrase is hashed using sha256 and sent to a relay which maps that key to that connection. When the relay finds a matching key for both the receiver and the sender (i.e. they both have the same code phrase), then the sender transmits the encrypted metadata to the receiver through the relay. Then the receiver decrypts and reviews the metadata (file name, size), and chooses whether to consent to the transfer.
+The code phrase for transfering files is just three words which are 16 random bits that are [menemonic encoded](http://web.archive.org/web/20101031205747/http://www.tothink.com/mnemonic/). This code phrase is hashed using sha256 and sent to the relay which maps that hashed code phrase to that connection. When the relay finds a matching code phrase hash for both the receiver and the sender (i.e. they both have the same code phrase), then the sender transmits the encrypted metadata to the receiver through the relay. Then the receiver decrypts and reviews the metadata (file name, size), and chooses whether to consent to the transfer.
 
 After the receiver consents to the transfer, the sender transmits encrypted data through the relay. The relay setups up [Go channels](https://golang.org/doc/effective_go.html?h=chan#channels) for each connection which pipes all the data incoming from that sender's connection out to the receiver's connection. After the transmission the channels are destroyed and all the connection and meta data information is wiped from the relay server. The encrypted file data never is stored on the relay.
 
 **Encryption**
 
-Encryption uses pbkdf2 (see [RFC2898](http://www.ietf.org/rfc/rfc2898.txt)) where the code phrase shared between the sender and receiver is used as the passphrase. For each of the two encrypted data blocks (metadata stored on relay server, and file data transmitted), a random 8-byte salt is used and a IV is generated according to [NIST Recommendation for Block ciphers, Section 8.2](http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf).
+Encryption uses AES-256 with a pbkdf2 derived key (see [RFC2898](http://www.ietf.org/rfc/rfc2898.txt)) where the code phrase shared between the sender and receiver is used as the passphrase. For each of the two encrypted data blocks (metadata stored on relay server, and file data transmitted), a random 8-byte salt is used and a IV is generated according to [NIST Recommendation for Block ciphers, Section 8.2](http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf).
 
 **Decryption**
 

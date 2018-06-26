@@ -40,6 +40,7 @@ type Connection struct {
 	Path                string
 	IsSender            bool
 	AskPath             bool
+	NoLocal             bool
 	Debug               bool
 	DontEncrypt         bool
 	Yes                 bool
@@ -81,6 +82,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.Yes = config.Yes
 	c.rate = config.Rate
 	c.Local = config.Local
+	c.NoLocal = config.Local
 
 	// make or load keypair
 	homedir, err := homedir.Dir()
@@ -253,7 +255,7 @@ func (c *Connection) Run() error {
 			return err
 		}
 
-		if c.Server != "localhost" {
+		if c.Server != "localhost" && !c.NoLocal {
 			// broadcast local connection from sender
 			log.Debug("settings payload to ", c.Code)
 			go func() {
