@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/dustin/go-humanize"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/schollz/croc/keypair"
@@ -49,6 +50,7 @@ type Connection struct {
 	rate                int
 	keypair             keypair.KeyPair
 	encryptedPassword   string
+	spinner             *spinner.Spinner
 }
 
 type FileMetaData struct {
@@ -144,7 +146,9 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 		}
 
 		if info.Mode().IsDir() { // if our file is a dir
-			fmt.Println("Compressing folder...")
+			c.spinner = spinner.New(spinner.CharSets[24], 100*time.Millisecond) // Build our new spinner
+			c.spinner.Suffix = " Compressing folder.."
+			c.spinner.Start()
 
 			// we "tarify" the file
 			log.Debugf("compressing %s to %s", config.File, path.Base(config.File)+".tar")
@@ -157,6 +161,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 			config.File = path.Base(config.File) + ".tar"
 			// we set the value IsDir to true
 			c.File.IsDir = true
+			c.spinner.Stop()
 		}
 		c.File.Name = path.Base(config.File)
 		c.File.Path = path.Dir(config.File)
@@ -225,7 +230,10 @@ func (c *Connection) Run() error {
 		} else {
 			fmt.Fprintf(os.Stderr, "Sending %s file named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name)
 		}
-		fmt.Fprintf(os.Stderr, "Code is: %s\n", c.Code)
+		fmt.Fprintf(os.Stderr, "Code is: %s\n\n", c.Code)
+		c.spinner = spinner.New(spinner.CharSets[24], 100*time.Millisecond) // Build our new spinner
+		c.spinner.Suffix = " Waiting for recipient.."
+		c.spinner.Start()
 
 		log.Debug("starting relay in case local connections")
 		relay := NewRelay(&AppConfig{
@@ -261,7 +269,6 @@ func (c *Connection) Run() error {
 			}()
 		}
 	}
-	fmt.Fprintf(os.Stderr, "Your public key: %s\n", c.keypair.Public)
 
 	log.Debug("checking code validity")
 	if len(c.Code) == 0 && !c.IsSender {
@@ -399,7 +406,9 @@ func (c *Connection) runClient(serverName string) error {
 					publicKeyRecipient := receiveMessage(connection)
 					// check if okay again
 					if id == 0 {
-						fmt.Fprintf(os.Stderr, "Send to public key: %s\n", publicKeyRecipient)
+						c.spinner.Stop()
+						fmt.Fprintf(os.Stderr, "Your public key: %s\n", c.keypair.Public)
+						fmt.Fprintf(os.Stderr, "Recipient public key: %s\n", publicKeyRecipient)
 						getOK := "y"
 						if !c.Yes {
 							getOK = getInput("ok? (y/n): ")
@@ -446,11 +455,15 @@ func (c *Connection) runClient(serverName string) error {
 							c.File.IsEncrypted = false
 						} else {
 							// encrypt
+							c.spinner = spinner.New(spinner.CharSets[24], 100*time.Millisecond) // Build our new spinner
+							c.spinner.Suffix = " Encrypting..."
+							c.spinner.Start()
 							log.Debugf("encrypting %s with passphrase [%s]", path.Join(c.File.Path, c.File.Name), passphraseString)
 							if err := EncryptFile(path.Join(c.File.Path, c.File.Name), c.File.Name+".enc", passphraseString); err != nil {
 								panic(err)
 							}
 							c.File.IsEncrypted = true
+							c.spinner.Stop()
 						}
 						// split file into pieces to send
 						if err := SplitFile(c.File.Name+".enc", c.NumberOfConnections); err != nil {
@@ -541,6 +554,7 @@ func (c *Connection) runClient(serverName string) error {
 						}
 						log.Debugf("meta data received: %v", c.File)
 						fType := "file"
+						c.Path = "."
 						fName := path.Join(c.Path, c.File.Name)
 						if c.File.IsDir {
 							fType = "folder"
@@ -551,7 +565,6 @@ func (c *Connection) runClient(serverName string) error {
 						} else {
 							fmt.Fprintf(os.Stderr, "Overwriting %s %s (%s)\n", fType, fName, humanize.Bytes(uint64(c.File.Size)))
 						}
-						fmt.Fprintf(os.Stderr, "from public key: "+publicKeySender+"\n")
 						var sentFileNames []string
 
 						if c.AskPath {
@@ -564,6 +577,8 @@ func (c *Connection) runClient(serverName string) error {
 							fmt.Fprintf(os.Stderr, "Will not overwrite file!")
 							os.Exit(1)
 						}
+						fmt.Fprintf(os.Stderr, "Your public key: %s\n", c.keypair.Public)
+						fmt.Fprintf(os.Stderr, "Sender public key: %s\n", publicKeySender)
 						getOK := "y"
 						if !c.Yes {
 							getOK = getInput("ok? (y/n): ")
@@ -692,8 +707,13 @@ func (c *Connection) runClient(serverName string) error {
 		} else {
 			log.Debugf("is encrypted: %+v", c.File.IsEncrypted)
 			if c.File.IsEncrypted {
+				c.spinner = spinner.New(spinner.CharSets[24], 100*time.Millisecond) // Build our new spinner
+				c.spinner.Suffix = " Decrypting file.."
+				c.spinner.Start()
 				log.Debugf("decrypting file with [%s]", c.encryptedPassword)
-				if err := DecryptFile(path.Join(c.Path, c.File.Name+".enc"), path.Join(c.Path, c.File.Name), c.encryptedPassword); err != nil {
+				err := DecryptFile(path.Join(c.Path, c.File.Name+".enc"), path.Join(c.Path, c.File.Name), c.encryptedPassword)
+				c.spinner.Stop()
+				if err != nil {
 					log.Error(err)
 					return errors.Wrap(err, "Problem decrypting file")
 				}
