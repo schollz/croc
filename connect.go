@@ -163,11 +163,9 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 			c.File.IsDir = true
 			c.spinner.Stop()
 		}
-		c.File.Name = path.Base(config.File)
-		c.File.Path = path.Dir(config.File)
+		c.File.Path, c.File.Name = path.Split(filepath.ToSlash(config.File))
 		c.File.Size, _ = FileSize(config.File)
 		c.IsSender = true
-		log.Debugf("file: %+v", c.File)
 	} else {
 		c.IsSender = false
 		c.AskPath = config.PathSpec
