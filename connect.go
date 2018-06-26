@@ -406,7 +406,7 @@ func (c *Connection) runClient(serverName string) error {
 					// check if okay again
 					if id == 0 {
 						c.spinner.Stop()
-						fmt.Fprintf(os.Stderr, "Your public key: %s\n", c.keypair.Public)
+						fmt.Fprintf(os.Stderr, "Your public keyYour public key: %s\n", c.keypair.Public)
 						fmt.Fprintf(os.Stderr, "Recipient public key: %s\n", publicKeyRecipient)
 						getOK := "y"
 						if !c.Yes {
@@ -560,9 +560,9 @@ func (c *Connection) runClient(serverName string) error {
 							fName = fName[:len(fName)-4]
 						}
 						if _, err := os.Stat(path.Join(c.Path, c.File.Name)); os.IsNotExist(err) {
-							fmt.Fprintf(os.Stderr, "Receiving %s (%s) into: %s\n", fType, humanize.Bytes(uint64(c.File.Size)), fName)
+							fmt.Fprintf(os.Stderr, "Receiving %s (%s) into: '%s'\n\n", fType, humanize.Bytes(uint64(c.File.Size)), fName)
 						} else {
-							fmt.Fprintf(os.Stderr, "Overwriting %s %s (%s)\n", fType, fName, humanize.Bytes(uint64(c.File.Size)))
+							fmt.Fprintf(os.Stderr, "Overwriting %s '%s' (%s)\n\n", fType, fName, humanize.Bytes(uint64(c.File.Size)))
 						}
 						var sentFileNames []string
 
@@ -752,13 +752,13 @@ func (c *Connection) runClient(serverName string) error {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(os.Stderr, "\nReceived folder written to %s", path.Join(c.Path, c.File.Name[:len(c.File.Name)-4]))
+			fmt.Fprintf(os.Stderr, "\nReceived folder written to '%s'", path.Join(c.Path, c.File.Name[:len(c.File.Name)-4]))
 		} else {
 			outputStream := path.Join(c.Path, c.File.Name)
 			if c.UseStdout {
 				outputStream = "stdout"
 			}
-			fmt.Fprintf(os.Stderr, "\nReceived file written to %s", outputStream)
+			fmt.Fprintf(os.Stderr, "\nReceived file written to '%s'", outputStream)
 			if c.UseStdout {
 				defer os.Remove(path.Join(c.Path, c.File.Name))
 				b, _ := ioutil.ReadFile(path.Join(c.Path, c.File.Name))
