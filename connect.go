@@ -263,7 +263,7 @@ func (c *Connection) Run() error {
 		} else {
 			color.New(color.FgHiGreen, color.Bold).Fprint(os.Stderr, c.Code)
 		}
-		fmt.Fprintf(os.Stderr, "\n\n")
+		fmt.Fprintf(os.Stderr, "\n")
 
 		c.spinner = spinner.New(spinner.CharSets[24], 100*time.Millisecond) // Build our new spinner
 		c.spinner.Suffix = " Waiting for recipient.."
@@ -444,7 +444,7 @@ func (c *Connection) runClient(serverName string) error {
 						c.spinner.Stop()
 						getOK := "y"
 						if _, knownKey := c.knownKeys[publicKeyRecipient]; !knownKey {
-							fmt.Fprintf(os.Stderr, "Your public key: ")
+							fmt.Fprintf(os.Stderr, "\nYour public key: ")
 							if runtime.GOOS == "windows" {
 								color.New(color.FgHiRed).Fprintln(color.Output, HashWords(c.keypair.Public))
 							} else {
@@ -634,7 +634,7 @@ func (c *Connection) runClient(serverName string) error {
 						}
 						getOK := "y"
 						if _, knownKey := c.knownKeys[publicKeySender]; !knownKey {
-							fmt.Fprintf(os.Stderr, "Your public key: ")
+							fmt.Fprintf(os.Stderr, "\nYour public key: ")
 							if runtime.GOOS == "windows" {
 								color.New(color.FgHiRed).Fprintln(color.Output, HashWords(c.keypair.Public))
 							} else {
