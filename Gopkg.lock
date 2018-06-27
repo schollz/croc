@@ -4,8 +4,8 @@
 [[projects]]
   name = "github.com/briandowns/spinner"
   packages = ["."]
-  revision = "48dbb65d7bd5c74ab50d53d04c949f20e3d14944"
-  version = "1.0"
+  revision = "5b875a9171af19dbde37e70a8fcbe2ebd7285e05"
+  version = "1.1"
 
 [[projects]]
   name = "github.com/cihub/seelog"
@@ -98,6 +98,12 @@
   version = "v1.0.0"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/schollz/bytetoword"
+  packages = ["."]
+  revision = "a75e6c9cd0e1fe6444905174c32d91aec9ce14f8"
+
+[[projects]]
   name = "github.com/schollz/mnemonicode"
   packages = ["."]
   revision = "15c9654387fad6d257aa28f9be57b9f124101955"
@@ -148,26 +154,48 @@
 [[projects]]
   branch = "master"
   name = "github.com/yudai/hcl"
-  packages = [".","hcl","json"]
+  packages = [
+    ".",
+    "hcl",
+    "json"
+  ]
   revision = "5fa2393b3552119bf33a69adb1402a1160cba23d"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
-  packages = ["curve25519","internal/subtle","nacl/box","nacl/secretbox","pbkdf2","poly1305","salsa20/salsa","scrypt","ssh/terminal"]
+  packages = [
+    "curve25519",
+    "internal/subtle",
+    "nacl/box",
+    "nacl/secretbox",
+    "pbkdf2",
+    "poly1305",
+    "salsa20/salsa",
+    "scrypt",
+    "ssh/terminal"
+  ]
   revision = "a49355c7e3f8fe157a85be2f77e6e269a0f89602"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
-  packages = ["bpf","internal/iana","internal/socket","ipv4"]
+  packages = [
+    "bpf",
+    "internal/iana",
+    "internal/socket",
+    "ipv4"
+  ]
   revision = "afe8f62b1d6bbd81f31868121a50b06d8188e1f9"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
-  packages = ["unix","windows"]
-  revision = "a200a19cb90b19de298170992778b1fda7217bd6"
+  packages = [
+    "unix",
+    "windows"
+  ]
+  revision = "c4afb3effaa53fd9a06ca61262dc7ce8df4c081b"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -184,6 +212,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "2a7904ad8b3751617f1723e2d66b80203d1450df18b27439262ea385beac62b8"
+  inputs-digest = "a89b8e32b8dbb85f236a17be149ba201f551f415791d1d6b95b203853fa7957c"
   solver-name = "gps-cdcl"
   solver-version = 1
