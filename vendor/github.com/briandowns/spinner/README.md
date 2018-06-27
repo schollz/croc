@@ -73,7 +73,7 @@ index | character set
 * Update the spinner character set
 * Update the spinner speed
 * Prefix or append text
-* Change spinner color
+* Change spinner color, background, and text attributes such as bold / italics
 * Get spinner status
 * Chain, pipe, redirect output
 * Output final string on spinner/indicator completion
@@ -145,6 +145,84 @@ s.Suffix = "  :appended text" // Append text after the spinner
 s.Color("red") // Set the spinner color to red
 ```
 
+You can specify both the background and foreground color, as well as additional attributes such as `bold` or `underline`.
+
+```Go
+s.Color("red", "bold") // Set the spinner color to a bold red
+```
+
+Or to set the background to black, the foreground to a bold red:
+
+```Go
+s.Color("bgBlack", "bold", "fgRed")
+```
+
+Below is the full color and attribute list:
+
+```
+// default colors
+red
+black
+green
+yellow
+blue
+magenta
+cyan
+white
+
+// attributes
+reset
+bold
+faint
+italic
+underline
+blinkslow
+blinkrapid
+reversevideo
+concealed
+crossedout
+
+// foreground text
+fgBlack
+fgRed
+fgGreen
+fgYellow
+fgBlue
+fgMagenta
+fgCyan
+fgWhite
+
+// foreground Hi-Intensity text
+fgHiBlack
+fgHiRed
+fgHiGreen
+fgHiYellow
+fgHiBlue
+fgHiMagenta
+fgHiCyan
+fgHiWhite
+
+// background text
+bgBlack
+bgRed
+bgGreen
+bgYellow
+bgBlue
+bgMagenta
+bgCyan
+bgWhite
+
+// background Hi-Intensity text
+bgHiBlack
+bgHiRed
+bgHiGreen
+bgHiYellow
+bgHiBlue
+bgHiMagenta
+bgHiCyan
+bgHiWhite
+```
+
 ## Generate a sequence of numbers
 
 ```Go
@@ -155,7 +233,7 @@ s := spinner.New(setOfDigits, 100*time.Millisecond)
 ## Get spinner status
 
 ```Go
-fmt.Println(s.ST)
+fmt.Println(s.Active())
 ```
 
 ## Unix pipe and redirect
