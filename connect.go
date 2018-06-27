@@ -775,6 +775,7 @@ func (c *Connection) runClient(serverName string) error {
 		} else {
 			log.Debugf("is encrypted: %+v", c.File.IsEncrypted)
 			if c.File.IsEncrypted {
+				fmt.Fprintf(os.Stderr, "\n")
 				c.spinner = spinner.New(spinner.CharSets[24], 100*time.Millisecond) // Build our new spinner
 				c.spinner.Suffix = " Decrypting file.."
 				c.spinner.Start()
@@ -821,7 +822,7 @@ func (c *Connection) runClient(serverName string) error {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(os.Stderr, "\nReceived folder written to '%s'", path.Join(c.Path, c.File.Name[:len(c.File.Name)-4]))
+			fmt.Fprintf(os.Stderr, "Received folder written to '%s'", path.Join(c.Path, c.File.Name[:len(c.File.Name)-4]))
 		} else {
 			outputStream := path.Join(c.Path, c.File.Name)
 			if c.UseStdout {
