@@ -3,11 +3,18 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"reflect"
+	"strconv"
 	"strings"
 
+	log "github.com/cihub/seelog"
+	"github.com/fatih/structs"
 	"github.com/urfave/cli"
 	"github.com/yudai/gotty/pkg/homedir"
+	"github.com/yudai/hcl"
+	yaml "gopkg.in/yaml.v2"
 )
 
 const BUFFERSIZE = 1024
@@ -33,6 +40,11 @@ type AppConfig struct {
 var email string
 var author string
 var version string
+
+func init() {
+
+	SetLogLevel("debug")
+}
 
 func main() {
 
@@ -110,4 +122,259 @@ func exit(err error, code int) {
 		fmt.Println(err)
 	}
 	os.Exit(code)
+}
+
+func ApplyDefaultValues(struct_ interface{}) (err error) {
+	o := structs.New(struct_)
+
+	for _, field := range o.Fields() {
+		defaultValue := field.Tag("default")
+		if defaultValue == "" {
+			continue
+		}
+		var val interface{}
+		switch field.Kind() {
+		case reflect.String:
+			val = defaultValue
+		case reflect.Bool:
+			if defaultValue == "true" {
+				val = true
+			} else if defaultValue == "false" {
+				val = false
+			} else {
+				return fmt.Errorf("invalid bool expression: %v, use true/false", defaultValue)
+			}
+		case reflect.Int:
+			val, err = strconv.Atoi(defaultValue)
+			if err != nil {
+				return err
+			}
+		default:
+			val = field.Value()
+		}
+		field.Set(val)
+	}
+	return nil
+}
+
+func GenerateFlags(options ...interface{}) (flags []cli.Flag, mappings map[string]string, err error) {
+	mappings = make(map[string]string)
+
+	for _, struct_ := range options {
+		o := structs.New(struct_)
+		for _, field := range o.Fields() {
+			flagName := field.Tag("flagName")
+			if flagName == "" {
+				continue
+			}
+			envName := "CROC_" + strings.ToUpper(strings.Join(strings.Split(flagName, "-"), "_"))
+			mappings[flagName] = field.Name()
+
+			flagShortName := field.Tag("flagSName")
+			if flagShortName != "" {
+				flagName += ", " + flagShortName
+			}
+
+			flagDescription := field.Tag("flagDescribe")
+
+			switch field.Kind() {
+			case reflect.String:
+				flags = append(flags, cli.StringFlag{
+					Name:   flagName,
+					Value:  field.Value().(string),
+					Usage:  flagDescription,
+					EnvVar: envName,
+				})
+			case reflect.Bool:
+				flags = append(flags, cli.BoolFlag{
+					Name:   flagName,
+					Usage:  flagDescription,
+					EnvVar: envName,
+				})
+			case reflect.Int:
+				flags = append(flags, cli.IntFlag{
+					Name:   flagName,
+					Value:  field.Value().(int),
+					Usage:  flagDescription,
+					EnvVar: envName,
+				})
+			}
+		}
+	}
+
+	return
+}
+
+func ApplyFlags(
+	flags []cli.Flag,
+	mappingHint map[string]string,
+	c *cli.Context,
+	options ...interface{},
+) {
+	objects := make([]*structs.Struct, len(options))
+	for i, struct_ := range options {
+		objects[i] = structs.New(struct_)
+	}
+
+	for flagName, fieldName := range mappingHint {
+		if !c.IsSet(flagName) {
+			continue
+		}
+		var field *structs.Field
+		var ok bool
+		for _, o := range objects {
+			field, ok = o.FieldOk(fieldName)
+			if ok {
+				break
+			}
+		}
+		if field == nil {
+			continue
+		}
+		var val interface{}
+		switch field.Kind() {
+		case reflect.String:
+			val = c.String(flagName)
+		case reflect.Bool:
+			val = c.Bool(flagName)
+		case reflect.Int:
+			val = c.Int(flagName)
+		}
+		field.Set(val)
+	}
+}
+
+func ApplyConfigFile(filePath string, options ...interface{}) error {
+	filePath = homedir.Expand(filePath)
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return err
+	}
+
+	fileString := []byte{}
+	log.Debugf("Loading config file at: %s", filePath)
+	fileString, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	for _, object := range options {
+		if err := hcl.Decode(object, string(fileString)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func ApplyConfigFileYaml(filePath string, options ...interface{}) error {
+	filePath = homedir.Expand(filePath)
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return err
+	}
+
+	fileString := []byte{}
+	log.Debugf("Loading config file at: %s", filePath)
+	fileString, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	for _, object := range options {
+		if err := yaml.Unmarshal(fileString, object); err != nil {
+			return err
+		}
+
+	}
+
+	return nil
+}
+
+func SaveConfigFileYaml(filePath string, options ...interface{}) error {
+	filePath = homedir.Expand(filePath)
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return err
+	}
+
+	fd, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return err
+	}
+	defer fd.Close()
+
+	for _, object := range options {
+		if byteString, err := yaml.Marshal(object); err != nil {
+			return err
+		} else {
+			fd.Write(byteString)
+		}
+	}
+
+	return nil
+}
+
+var helpTemplate = `
+                                ,_
+                               >' )
+                               ( ( \
+                                || \
+                 /^^^^\         ||
+    /^^\________/0     \        ||
+   (                    ` + "`" + `~+++,,_||__,,++~^^^^^^^
+ ...V^V^V^V^V^V^\...............................
+
+
+NAME:
+   {{.Name}} - {{.Usage}}
+
+USAGE:
+   {{.Name}} [options]
+
+VERSION:
+   {{.Version}}{{if or .Author .Email}}
+
+AUTHOR:{{if .Author}}
+  {{.Author}}{{if .Email}} - <{{.Email}}>{{end}}{{else}}
+  {{.Email}}{{end}}{{end}}
+
+OPTIONS:
+   {{range .Flags}}{{.}}
+   {{end}}
+`
+
+// SetLogLevel determines the log level
+func SetLogLevel(level string) (err error) {
+
+	// https://en.wikipedia.org/wiki/ANSI_escape_code#3/4_bit
+	// https://github.com/cihub/seelog/wiki/Log-levels
+	appConfig := `
+	<seelog minlevel="` + level + `">
+	<outputs formatid="stdout">
+	<filter levels="debug,trace">
+		<console formatid="debug"/>
+	</filter>
+	<filter levels="info">
+		<console formatid="info"/>
+	</filter>
+	<filter levels="critical,error">
+		<console formatid="error"/>
+	</filter>
+	<filter levels="warn">
+		<console formatid="warn"/>
+	</filter>
+	</outputs>
+	<formats>
+		<format id="stdout"   format="%Date %Time [%LEVEL] %File %FuncShort:%Line %Msg %n" />
+		<format id="debug"   format="%Date %Time %EscM(37)[%LEVEL]%EscM(0) %File %FuncShort:%Line %Msg %n" />
+		<format id="info"    format="%EscM(36)[%LEVEL]%EscM(0) %Msg %n" />
+		<format id="warn"    format="%Date %Time %EscM(33)[%LEVEL]%EscM(0) %File %FuncShort:%Line %Msg %n" />
+		<format id="error"   format="%Date %Time %EscM(31)[%LEVEL]%EscM(0) %File %FuncShort:%Line %Msg %n" />
+	</formats>
+	</seelog>
+	`
+	logger, err := log.LoggerFromConfigAsBytes([]byte(appConfig))
+	if err != nil {
+		return
+	}
+	log.ReplaceLogger(logger)
+	return
 }
