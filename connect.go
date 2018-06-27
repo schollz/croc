@@ -54,6 +54,8 @@ type Connection struct {
 	keypair             keypair.KeyPair
 	encryptedPassword   string
 	spinner             *spinner.Spinner
+	knownKeys           map[string]struct{}
+	partnerKey          string
 }
 
 type FileMetaData struct {
@@ -85,6 +87,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	c.rate = config.Rate
 	c.Local = config.Local
 	c.NoLocal = config.Local
+	c.partnerKey = ""
 
 	// make or load keypair
 	homedir, err := homedir.Dir()
@@ -101,11 +104,32 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 			return c, err
 		}
 	}
+	pathToCrocKnownKeys := path.Join(homedir, ".config", "croc", "known")
+	if _, errExists := os.Stat(pathToCrocKnownKeys); os.IsNotExist(errExists) {
+		// path/to/whatever does not exist
+		knownKeys := make(map[string]struct{})
+		bKnownKeys, err := json.MarshalIndent(knownKeys, "", " ")
+		if err != nil {
+			return c, err
+		}
+		err = ioutil.WriteFile(pathToCrocKnownKeys, bKnownKeys, 0644)
+		if err != nil {
+			return c, err
+		}
+	}
 	keypairBytes, err := ioutil.ReadFile(pathToCrocConfig)
 	if err != nil {
 		return c, err
 	}
 	c.keypair, err = keypair.Load(string(keypairBytes))
+	if err != nil {
+		return c, err
+	}
+	knownKeyBytes, err := ioutil.ReadFile(pathToCrocKnownKeys)
+	if err != nil {
+		return c, err
+	}
+	err = json.Unmarshal(knownKeyBytes, &c.knownKeys)
 	if err != nil {
 		return c, err
 	}
@@ -414,26 +438,28 @@ func (c *Connection) runClient(serverName string) error {
 					// message is IP address, lets check next message
 					log.Debugf("[%d] got ok from relay: %s", id, message)
 					publicKeyRecipient := receiveMessage(connection)
+					c.partnerKey = publicKeyRecipient
 					// check if okay again
 					if id == 0 {
 						c.spinner.Stop()
-						fmt.Fprintf(os.Stderr, "Your public key: ")
-						if runtime.GOOS == "windows" {
-							color.New(color.FgHiRed).Fprintln(color.Output, HashWords(c.keypair.Public))
-						} else {
-							color.New(color.FgHiRed).Fprintln(os.Stderr, HashWords(c.keypair.Public))
-						}
-
-						fmt.Fprintf(os.Stderr, "Recipient public key: ")
-						if runtime.GOOS == "windows" {
-							color.New(color.FgHiYellow).Fprintln(color.Output, HashWords(publicKeyRecipient))
-						} else {
-							color.New(color.FgHiYellow).Fprintln(os.Stderr, HashWords(publicKeyRecipient))
-						}
-
 						getOK := "y"
-						if !c.Yes {
-							getOK = getInput("ok? (y/n): ")
+						if _, knownKey := c.knownKeys[publicKeyRecipient]; !knownKey {
+							fmt.Fprintf(os.Stderr, "Your public key: ")
+							if runtime.GOOS == "windows" {
+								color.New(color.FgHiRed).Fprintln(color.Output, HashWords(c.keypair.Public))
+							} else {
+								color.New(color.FgHiRed).Fprintln(os.Stderr, HashWords(c.keypair.Public))
+							}
+
+							fmt.Fprintf(os.Stderr, "Recipient public key: ")
+							if runtime.GOOS == "windows" {
+								color.New(color.FgHiYellow).Fprintln(color.Output, HashWords(publicKeyRecipient))
+							} else {
+								color.New(color.FgHiYellow).Fprintln(os.Stderr, HashWords(publicKeyRecipient))
+							}
+							if !c.Yes {
+								getOK = getInput("ok? (y/n): ")
+							}
 						}
 						responses.Lock()
 						responses.gotOK = true
@@ -515,8 +541,14 @@ func (c *Connection) runClient(serverName string) error {
 					log.Debugf("sending encrypted passphrase: %s", c.encryptedPassword)
 					sendMessage(c.encryptedPassword, connection)
 					// wait for relay go
+					if id == 0 {
+						c.spinner = spinner.New(spinner.CharSets[24], 100*time.Millisecond) // Build our new spinner
+						c.spinner.Suffix = " Waiting on recipient..."
+						c.spinner.Start()
+					}
 					receiveMessage(connection)
 					if id == 0 {
+						c.spinner.Stop()
 						fmt.Fprintf(os.Stderr, "\nSending (->@%s)..\n", message)
 					}
 					// wait for pipe to be made
@@ -560,6 +592,7 @@ func (c *Connection) runClient(serverName string) error {
 					}
 					// now get public key
 					publicKeySender := receiveMessage(connection)
+					c.partnerKey = publicKeySender
 
 					// have the main thread ask for the okay
 					if id == 0 {
@@ -599,22 +632,24 @@ func (c *Connection) runClient(serverName string) error {
 							fmt.Fprintf(os.Stderr, "Will not overwrite file!")
 							os.Exit(1)
 						}
-						fmt.Fprintf(os.Stderr, "Your public key: ")
-						if runtime.GOOS == "windows" {
-							color.New(color.FgHiRed).Fprintln(color.Output, HashWords(c.keypair.Public))
-						} else {
-							color.New(color.FgHiRed).Fprintln(os.Stderr, HashWords(c.keypair.Public))
-						}
-
-						fmt.Fprintf(os.Stderr, "Sender public key: ")
-						if runtime.GOOS == "windows" {
-							color.New(color.FgHiYellow).Fprintln(color.Output, HashWords(publicKeySender))
-						} else {
-							color.New(color.FgHiYellow).Fprintln(os.Stderr, HashWords(publicKeySender))
-						}
 						getOK := "y"
-						if !c.Yes {
-							getOK = getInput("ok? (y/n): ")
+						if _, knownKey := c.knownKeys[publicKeySender]; !knownKey {
+							fmt.Fprintf(os.Stderr, "Your public key: ")
+							if runtime.GOOS == "windows" {
+								color.New(color.FgHiRed).Fprintln(color.Output, HashWords(c.keypair.Public))
+							} else {
+								color.New(color.FgHiRed).Fprintln(os.Stderr, HashWords(c.keypair.Public))
+							}
+
+							fmt.Fprintf(os.Stderr, "Sender public key: ")
+							if runtime.GOOS == "windows" {
+								color.New(color.FgHiYellow).Fprintln(color.Output, HashWords(publicKeySender))
+							} else {
+								color.New(color.FgHiYellow).Fprintln(os.Stderr, HashWords(publicKeySender))
+							}
+							if !c.Yes {
+								getOK = getInput("ok? (y/n): ")
+							}
 						}
 						if getOK == "y" {
 							responses.Lock()
@@ -797,6 +832,23 @@ func (c *Connection) runClient(serverName string) error {
 				defer os.Remove(path.Join(c.Path, c.File.Name))
 				b, _ := ioutil.ReadFile(path.Join(c.Path, c.File.Name))
 				fmt.Printf("%s", b)
+			}
+		}
+	}
+	if c.partnerKey != "" {
+		// save the partner for next time
+		homedir, _ := homedir.Dir()
+		pathToCrocKnownKeys := path.Join(homedir, ".config", "croc", "known")
+		_, haveKey := c.knownKeys[c.partnerKey]
+		if !haveKey {
+			c.knownKeys[c.partnerKey] = struct{}{}
+			bKnownKeys, err := json.MarshalIndent(c.knownKeys, "", " ")
+			if err != nil {
+				return err
+			}
+			err = ioutil.WriteFile(pathToCrocKnownKeys, bKnownKeys, 0644)
+			if err != nil {
+				return err
 			}
 		}
 	}
