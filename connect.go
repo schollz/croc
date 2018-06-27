@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -233,7 +234,11 @@ func (c *Connection) Run() error {
 			fmt.Fprintf(os.Stderr, "Sending %s file named '%s'\n", humanize.Bytes(uint64(c.File.Size)), c.File.Name)
 		}
 		fmt.Fprintf(os.Stderr, "Code is: ")
-		color.New(color.FgHiGreen, color.Bold).Fprint(os.Stderr, c.Code)
+		if runtime.GOOS == "windows" {
+			color.New(color.FgHiGreen, color.Bold).Fprint(color.Output, c.Code)
+		} else {
+			color.New(color.FgHiGreen, color.Bold).Fprint(os.Stderr, c.Code)
+		}
 		fmt.Fprintf(os.Stderr, "\n\n")
 
 		c.spinner = spinner.New(spinner.CharSets[24], 100*time.Millisecond) // Build our new spinner
@@ -413,9 +418,19 @@ func (c *Connection) runClient(serverName string) error {
 					if id == 0 {
 						c.spinner.Stop()
 						fmt.Fprintf(os.Stderr, "Your public key: ")
-						color.New(color.FgHiRed).Fprintln(os.Stderr, c.keypair.Public)
+						if runtime.GOOS == "windows" {
+							color.New(color.FgHiRed).Fprintln(color.Output, HashWords(c.keypair.Public))
+						} else {
+							color.New(color.FgHiRed).Fprintln(os.Stderr, HashWords(c.keypair.Public))
+						}
+
 						fmt.Fprintf(os.Stderr, "Recipient public key: ")
-						color.New(color.FgHiYellow).Fprintln(os.Stderr, publicKeyRecipient)
+						if runtime.GOOS == "windows" {
+							color.New(color.FgHiYellow).Fprintln(color.Output, HashWords(publicKeyRecipient))
+						} else {
+							color.New(color.FgHiYellow).Fprintln(os.Stderr, HashWords(publicKeyRecipient))
+						}
+
 						getOK := "y"
 						if !c.Yes {
 							getOK = getInput("ok? (y/n): ")
@@ -584,8 +599,19 @@ func (c *Connection) runClient(serverName string) error {
 							fmt.Fprintf(os.Stderr, "Will not overwrite file!")
 							os.Exit(1)
 						}
-						fmt.Fprintf(os.Stderr, "Your public key: %s\n", c.keypair.Public)
-						fmt.Fprintf(os.Stderr, "Sender public key: %s\n", publicKeySender)
+						fmt.Fprintf(os.Stderr, "Your public key: ")
+						if runtime.GOOS == "windows" {
+							color.New(color.FgHiRed).Fprintln(color.Output, HashWords(c.keypair.Public))
+						} else {
+							color.New(color.FgHiRed).Fprintln(os.Stderr, HashWords(c.keypair.Public))
+						}
+
+						fmt.Fprintf(os.Stderr, "Sender public key: ")
+						if runtime.GOOS == "windows" {
+							color.New(color.FgHiYellow).Fprintln(color.Output, HashWords(publicKeySender))
+						} else {
+							color.New(color.FgHiYellow).Fprintln(os.Stderr, HashWords(publicKeySender))
+						}
 						getOK := "y"
 						if !c.Yes {
 							getOK = getInput("ok? (y/n): ")
