@@ -12,7 +12,15 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/schollz/bytetoword"
 )
+
+// HashWords returns word after hashing
+func HashWords(s string) string {
+	hasher := md5.New()
+	hasher.Write([]byte(s))
+	return bytetoword.EncodeToString(hasher.Sum(nil))
+}
 
 // CatFiles copies data from n files to a single one and removes source files
 // if Debug mode is set to false
