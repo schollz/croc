@@ -150,6 +150,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	}
 	if len(config.File) > 0 {
 		config.File = filepath.Clean(config.File)
+		log.Debugf("config.File: %s", config.File)
 		if config.File == "stdin" {
 			c.Yes = true
 			f, err := ioutil.TempFile(".", "croc-stdin-")
@@ -204,7 +205,7 @@ func NewConnection(config *AppConfig) (*Connection, error) {
 	if c.DontEncrypt {
 		c.File.IsEncrypted = false
 	}
-
+	log.Debug("made new connection")
 	return c, nil
 }
 
@@ -223,6 +224,7 @@ func (c *Connection) cleanup() {
 }
 
 func (c *Connection) Run() error {
+	defer log.Flush()
 	// catch the Ctl+C
 	catchCtlC := make(chan os.Signal, 2)
 	signal.Notify(catchCtlC, os.Interrupt, syscall.SIGTERM)
@@ -239,6 +241,7 @@ func (c *Connection) Run() error {
 	if c.IsSender {
 		fsize, err := FileSize(path.Join(c.File.Path, c.File.Name))
 		if err != nil {
+			log.Error(err)
 			return err
 		}
 		if fsize < MAX_NUMBER_THREADS*BUFFERSIZE {
@@ -280,11 +283,13 @@ func (c *Connection) Run() error {
 		var err error
 		c.File.Hash, err = HashFile(path.Join(c.File.Path, c.File.Name))
 		if err != nil {
+			log.Error(err)
 			return err
 		}
 		// get file size
-		c.File.Size, err = FileSize(c.File.Name)
+		c.File.Size, err = FileSize(path.Join(c.File.Path, c.File.Name))
 		if err != nil {
+			log.Error(err)
 			return err
 		}
 

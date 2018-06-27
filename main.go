@@ -47,7 +47,7 @@ func init() {
 }
 
 func main() {
-
+	defer log.Flush()
 	app := cli.NewApp()
 	app.Name = "croc"
 	app.Version = version
@@ -97,12 +97,12 @@ func main() {
 		} else {
 			c, err := NewConnection(appOptions)
 			if err != nil {
-				fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
+				fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'NewConnection: %s'\n\n", err.Error())
 				return
 			}
 			err = c.Run()
 			if err != nil {
-				fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'%s'\n\n", err.Error())
+				fmt.Printf("Error! Please submit the following error to https://github.com/schollz/croc/issues:\n\n'Run: %s'\n\n", err.Error())
 			}
 		}
 	}
