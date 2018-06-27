@@ -263,7 +263,7 @@ func (c *Connection) Run() error {
 		} else {
 			color.New(color.FgHiGreen, color.Bold).Fprint(os.Stderr, c.Code)
 		}
-		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(os.Stderr, "\n\n")
 
 		c.spinner = spinner.New(spinner.CharSets[24], 100*time.Millisecond) // Build our new spinner
 		c.spinner.Suffix = " Waiting for recipient.."
@@ -616,9 +616,9 @@ func (c *Connection) runClient(serverName string) error {
 							fName = fName[:len(fName)-4]
 						}
 						if _, err := os.Stat(path.Join(c.Path, c.File.Name)); os.IsNotExist(err) {
-							fmt.Fprintf(os.Stderr, "Receiving %s (%s) into: '%s'\n\n", fType, humanize.Bytes(uint64(c.File.Size)), fName)
+							fmt.Fprintf(os.Stderr, "Receiving %s (%s) into: '%s'\n", fType, humanize.Bytes(uint64(c.File.Size)), fName)
 						} else {
-							fmt.Fprintf(os.Stderr, "Overwriting %s '%s' (%s)\n\n", fType, fName, humanize.Bytes(uint64(c.File.Size)))
+							fmt.Fprintf(os.Stderr, "Overwriting %s '%s' (%s)\n", fType, fName, humanize.Bytes(uint64(c.File.Size)))
 						}
 						var sentFileNames []string
 
