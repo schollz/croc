@@ -3,6 +3,7 @@ package croc
 import (
 	"crypto/elliptic"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -15,6 +16,11 @@ var (
 	// availableStates are the states available to the parties involved
 	availableStates = []string{"curve", "h_k", "hh_k", "x", "y"}
 )
+
+type relayState struct {
+	channel map[string]*channelData
+	sync.RWMutex
+}
 
 type channelData struct {
 	// Public

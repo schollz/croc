@@ -10,6 +10,10 @@ type Croc struct {
 	UseCompression      bool
 	CurveType           string
 	AllowLocalDiscovery bool
+
+	// private variables
+	// rs relay state is only for the relay
+	rs relayState
 }
 
 // Init will initialize the croc relay
@@ -27,11 +31,15 @@ func Init() (c *Croc) {
 
 // Relay initiates a relay
 func (c *Croc) Relay() error {
+	c.rs.Lock()
+	c.rs.channel = make(map[string]*channelData)
+	c.rs.Unlock()
+
 	// start relay
-	go startRelay(c.TcpPorts)
+	go c.startRelay(c.TcpPorts)
 
 	// start server
-	return startServer(c.TcpPorts, c.ServerPort)
+	return c.startServer(c.TcpPorts, c.ServerPort)
 }
 
 // Send will take an existing file or folder and send it through the croc relay
