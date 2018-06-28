@@ -1,7 +1,6 @@
 package croc
 
 import (
-	"bytes"
 	"crypto/elliptic"
 	"encoding/json"
 	"fmt"
@@ -27,17 +26,8 @@ func init() {
 	rs.Unlock()
 }
 
-const (
-	state_curve           = "curve"
-	state_hh_k            = "hh_k"
-	state_is_open         = "is_open"
-	state_recipient_ready = "recipient_ready"
-	state_sender_ready    = "sender_ready"
-	state_x               = "x"
-	state_y               = "y"
-)
-
-func RunRelay(port string) (err error) {
+func startServer(tcpPorts []string, port string) (err error) {
+	// start server
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(middleWareHandler(), gin.Recovery())
@@ -88,15 +78,13 @@ func RunRelay(port string) (err error) {
 			}
 
 			// return the current state
-			r.State = make(map[string][]byte)
-			for key := range rs.channel[p.Channel].State {
-				r.State[key] = rs.channel[p.Channel].State[key]
-			}
+			r.Data = rs.channel[p.Channel]
 
 			r.Message = fmt.Sprintf("assigned %d keys: %v", len(assignedKeys), assignedKeys)
 			return
 		}(c)
 		if err != nil {
+			log.Debugf("bad /channel: %s", err.Error())
 			r.Message = err.Error()
 			r.Success = false
 		}
@@ -132,7 +120,7 @@ func RunRelay(port string) (err error) {
 			if _, ok := rs.channel[p.Channel]; ok {
 				// channel is not empty
 				if rs.channel[p.Channel].uuids[p.Role] != "" {
-					err = errors.Errorf("channel is already occupied by role %d", p.Role)
+					err = errors.Errorf("channel '%s' already occupied by role %d", p.Channel, p.Role)
 					return
 				}
 			}
@@ -144,9 +132,10 @@ func RunRelay(port string) (err error) {
 			// assign UUID for the role in the channel
 			rs.channel[r.Channel].uuids[p.Role] = uuid4.New().String()
 			r.UUID = rs.channel[r.Channel].uuids[p.Role]
+			log.Debugf("(%s) %s has joined as role %d", r.Channel, r.UUID, p.Role)
 
-			// if channel is not open, determine curve
-			if bytes.Equal(rs.channel[r.Channel].State[state_is_open], []byte{0}) {
+			// if channel is not open, set curve
+			if !rs.channel[r.Channel].isopen {
 				switch curve := p.Curve; curve {
 				case "p224":
 					rs.channel[r.Channel].curve = elliptic.P224()
@@ -162,14 +151,17 @@ func RunRelay(port string) (err error) {
 					p.Curve = "p256"
 					rs.channel[r.Channel].curve = elliptic.P256()
 				}
-				rs.channel[r.Channel].State[state_curve] = []byte(p.Curve)
-				rs.channel[r.Channel].State[state_is_open] = []byte{1}
+				log.Debugf("(%s) using curve '%s'", r.Channel, p.Curve)
+				rs.channel[r.Channel].State["curve"] = []byte(p.Curve)
+				rs.channel[r.Channel].Ports = tcpPorts
+				rs.channel[r.Channel].isopen = true
 			}
 
 			r.Message = fmt.Sprintf("assigned role %d in channel '%s'", p.Role, r.Channel)
 			return
 		}(c)
 		if err != nil {
+			log.Debugf("bad /join: %s", err.Error())
 			r.Message = err.Error()
 			r.Success = false
 		}
@@ -184,8 +176,6 @@ func RunRelay(port string) (err error) {
 func middleWareHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		t := time.Now()
-		// Add base headers
-		// addCORS(c)
 		// Run next function
 		c.Next()
 		// Log request
