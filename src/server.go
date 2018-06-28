@@ -12,6 +12,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+func (c *Croc) updateChannel(p payloadChannel) (r response, err error) {
+
+}
+
 func (c *Croc) startServer(tcpPorts []string, port string) (err error) {
 	// start cleanup on dangling channels
 	go c.channelCleanup()

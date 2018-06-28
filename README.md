@@ -88,3 +88,51 @@ croc.New()
 croc.SetX().... Set parameters
 croc.Send(file)
 croc.Receive()
+
+
+# Conditions of state
+
+## Sender
+
+*Initialize*
+
+- Requests to join.
+- Generates X from pw.
+- Sender sends X to relay.
+
+*Is Y available?*
+
+- Use *Y* to generate its session key *k_A* and *H(k_A)*, and checks *H(H(k_A))*==*H(H(k_B))*. Abort here if it is incorrect.
+- Encrypts data using *k_A*. 
+- Connect to TCP ports of Relay.
+- Send the Relay authentication *H(k_A)*.
+
+*Are ports stapled?*
+
+- Send data over TCP
+
+
+## Recipient
+
+*Initialize*
+
+- Request to join
+
+*Is X available?*
+
+- Generate *Y*, session key *k_B*, and hashed session key *H(k_B)* using PAKE from secret *pw*.
+- Send the Relay *H(H(k_B))*
+
+*Is H(k_A) available?*
+
+- Verify that *H(k_A)* equals *H(k_B)*
+- Connect to TCP ports of Relay and listen.
+- Once file is received, Send close signal to Relay.
+
+
+## Relay
+
+*Is there a listener for sender and recipient?*
+
+- Staple connections.
+- Send out to all parties that connections are stapled.
