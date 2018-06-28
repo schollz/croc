@@ -10,14 +10,14 @@ import (
 	"github.com/pkg/errors"
 )
 
-func startRelay(ports []string) {
+func (c *Croc) startRelay(ports []string) {
 	var wg sync.WaitGroup
 	wg.Add(len(ports))
 	for _, port := range ports {
 		go func(port string, wg *sync.WaitGroup) {
 			defer wg.Done()
 			log.Debugf("listening on port %s", port)
-			if err := listener(port); err != nil {
+			if err := c.listener(port); err != nil {
 				log.Error(err)
 				return
 			}
@@ -26,7 +26,7 @@ func startRelay(ports []string) {
 	wg.Wait()
 }
 
-func listener(port string) (err error) {
+func (c *Croc) listener(port string) (err error) {
 	server, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
 		return errors.Wrap(err, "Error listening on :"+port)
@@ -40,7 +40,7 @@ func listener(port string) (err error) {
 		}
 		log.Debugf("client %s connected", connection.RemoteAddr().String())
 		go func(port string, connection net.Conn) {
-			errCommunication := clientCommuncation(port, connection)
+			errCommunication := c.clientCommuncation(port, connection)
 			if errCommunication != nil {
 				log.Warnf("relay-%s: %s", connection.RemoteAddr().String(), errCommunication.Error())
 			}
@@ -48,7 +48,7 @@ func listener(port string) (err error) {
 	}
 }
 
-func clientCommuncation(port string, connection net.Conn) (err error) {
+func (c *Croc) clientCommuncation(port string, connection net.Conn) (err error) {
 	var con1, con2 net.Conn
 
 	// get the channel and UUID from the client
@@ -67,27 +67,27 @@ func clientCommuncation(port string, connection net.Conn) (err error) {
 	log.Debugf("%s connected with channel %s and uuid %s", connection.RemoteAddr().String(), channel, uuid)
 
 	// validate channel and UUID
-	rs.Lock()
-	if _, ok := rs.channel[channel]; !ok {
-		rs.Unlock()
+	c.rs.Lock()
+	if _, ok := c.rs.channel[channel]; !ok {
+		c.rs.Unlock()
 		err = errors.Errorf("channel %s does not exist", channel)
 		return
 	}
-	if uuid != rs.channel[channel].uuids[0] &&
-		uuid != rs.channel[channel].uuids[1] {
-		rs.Unlock()
+	if uuid != c.rs.channel[channel].uuids[0] &&
+		uuid != c.rs.channel[channel].uuids[1] {
+		c.rs.Unlock()
 		err = errors.Errorf("uuid '%s' is invalid", uuid)
 		return
 	}
 	role := 0
-	if uuid == rs.channel[channel].uuids[1] {
+	if uuid == c.rs.channel[channel].uuids[1] {
 		role = 1
 	}
-	rs.channel[channel].connection[role] = connection
+	c.rs.channel[channel].connection[role] = connection
 
-	con1 = rs.channel[channel].connection[0]
-	con2 = rs.channel[channel].connection[1]
-	rs.Unlock()
+	con1 = c.rs.channel[channel].connection[0]
+	con2 = c.rs.channel[channel].connection[1]
+	c.rs.Unlock()
 
 	if con1 != nil && con2 != nil {
 		var wg sync.WaitGroup
@@ -100,9 +100,9 @@ func clientCommuncation(port string, connection net.Conn) (err error) {
 		// then set transfer ready
 		go func(channel string, wg *sync.WaitGroup) {
 			// set the channels to ready
-			rs.Lock()
-			rs.channel[channel].TransferReady = true
-			rs.Unlock()
+			c.rs.Lock()
+			c.rs.channel[channel].TransferReady = true
+			c.rs.Unlock()
 			wg.Done()
 		}(channel, &wg)
 		wg.Wait()
