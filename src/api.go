@@ -3,39 +3,35 @@ package croc
 import "time"
 
 type Croc struct {
-	tcpPorts       []string
-	serverPort     string
-	timeout        time.Duration
-	useEncryption  bool
-	useCompression bool
-	curveType      string
+	TcpPorts            []string
+	ServerPort          string
+	Timeout             time.Duration
+	UseEncryption       bool
+	UseCompression      bool
+	CurveType           string
+	AllowLocalDiscovery bool
 }
 
 // Init will initialize the croc relay
 func Init() (c *Croc) {
 	c = new(Croc)
-	c.tcpPorts = []string{"27001", "27002", "27003", "27004"}
-	c.serverPort = "8003"
-	c.timeout = 10 * time.Minute
-	c.useEncryption = true
-	c.useCompression = true
-	c.curveType = "p521"
+	c.TcpPorts = []string{"27001", "27002", "27003", "27004"}
+	c.ServerPort = "8003"
+	c.Timeout = 10 * time.Minute
+	c.UseEncryption = true
+	c.UseCompression = true
+	c.AllowLocalDiscovery = true
+	c.CurveType = "p521"
 	return
 }
-
-// TODO:
-// OptionTimeout
-// OptionCurve
-// OptionUseEncryption
-// OptionUseCompression
 
 // Relay initiates a relay
 func (c *Croc) Relay() error {
 	// start relay
-	go startRelay(c.tcpPorts)
+	go startRelay(c.TcpPorts)
 
 	// start server
-	return startServer(c.tcpPorts, c.serverPort)
+	return startServer(c.TcpPorts, c.ServerPort)
 }
 
 // Send will take an existing file or folder and send it through the croc relay
