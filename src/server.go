@@ -4,7 +4,6 @@ import (
 	"crypto/elliptic"
 	"encoding/json"
 	"fmt"
-	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -13,34 +12,21 @@ import (
 	"github.com/pkg/errors"
 )
 
-type relayState struct {
-	channel map[string]*channelData
-	sync.RWMutex
-}
-
-var rs relayState
-
-func init() {
-	rs.Lock()
-	rs.channel = make(map[string]*channelData)
-	rs.Unlock()
-}
-
-func startServer(tcpPorts []string, port string) (err error) {
+func (c *Croc) startServer(tcpPorts []string, port string) (err error) {
 	// start cleanup on dangling channels
-	go channelCleanup()
+	go c.channelCleanup()
 
 	// start server
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(middleWareHandler(), gin.Recovery())
-	r.POST("/channel", func(c *gin.Context) {
-		r, err := func(c *gin.Context) (r response, err error) {
-			rs.Lock()
-			defer rs.Unlock()
+	r.POST("/channel", func(cg *gin.Context) {
+		r, err := func(cg *gin.Context) (r response, err error) {
+			c.rs.Lock()
+			defer c.rs.Unlock()
 			r.Success = true
 			var p payloadChannel
-			err = c.ShouldBindJSON(&p)
+			err = cg.ShouldBindJSON(&p)
 			if err != nil {
 				log.Errorf("failed on payload %+v", p)
 				err = errors.Wrap(err, "problem parsing /channel")
@@ -48,21 +34,21 @@ func startServer(tcpPorts []string, port string) (err error) {
 			}
 
 			// determine if channel is invalid
-			if _, ok := rs.channel[p.Channel]; !ok {
+			if _, ok := c.rs.channel[p.Channel]; !ok {
 				err = errors.Errorf("channel '%s' does not exist", p.Channel)
 				return
 			}
 
 			// determine if UUID is invalid for channel
-			if p.UUID != rs.channel[p.Channel].uuids[0] &&
-				p.UUID != rs.channel[p.Channel].uuids[1] {
+			if p.UUID != c.rs.channel[p.Channel].uuids[0] &&
+				p.UUID != c.rs.channel[p.Channel].uuids[1] {
 				err = errors.Errorf("uuid '%s' is invalid", p.UUID)
 				return
 			}
 
 			// check if the action is to close the channel
 			if p.Close {
-				delete(rs.channel, p.Channel)
+				delete(c.rs.channel, p.Channel)
 				r.Message = "deleted " + p.Channel
 				return
 			}
@@ -74,34 +60,34 @@ func startServer(tcpPorts []string, port string) (err error) {
 				// add a check that the value of key is not enormous
 
 				// add only if it is a valid key
-				if _, ok := rs.channel[p.Channel].State[key]; ok {
+				if _, ok := c.rs.channel[p.Channel].State[key]; ok {
 					assignedKeys = append(assignedKeys, key)
-					rs.channel[p.Channel].State[key] = p.State[key]
+					c.rs.channel[p.Channel].State[key] = p.State[key]
 				}
 			}
 
 			// return the current state
-			r.Data = rs.channel[p.Channel]
+			r.Data = c.rs.channel[p.Channel]
 
 			r.Message = fmt.Sprintf("assigned %d keys: %v", len(assignedKeys), assignedKeys)
 			return
-		}(c)
+		}(cg)
 		if err != nil {
 			log.Debugf("bad /channel: %s", err.Error())
 			r.Message = err.Error()
 			r.Success = false
 		}
 		bR, _ := json.Marshal(r)
-		c.Data(200, "application/json", bR)
+		cg.Data(200, "application/json", bR)
 	})
-	r.POST("/join", func(c *gin.Context) {
-		r, err := func(c *gin.Context) (r response, err error) {
-			rs.Lock()
-			defer rs.Unlock()
+	r.POST("/join", func(cg *gin.Context) {
+		r, err := func(cg *gin.Context) (r response, err error) {
+			c.rs.Lock()
+			defer c.rs.Unlock()
 			r.Success = true
 
 			var p payloadOpen
-			err = c.ShouldBindJSON(&p)
+			err = cg.ShouldBindJSON(&p)
 			if err != nil {
 				log.Errorf("failed on payload %+v", p)
 				err = errors.Wrap(err, "problem parsing")
@@ -120,57 +106,57 @@ func startServer(tcpPorts []string, port string) (err error) {
 				// find an empty channel
 				p.Channel = "chou"
 			}
-			if _, ok := rs.channel[p.Channel]; ok {
+			if _, ok := c.rs.channel[p.Channel]; ok {
 				// channel is not empty
-				if rs.channel[p.Channel].uuids[p.Role] != "" {
+				if c.rs.channel[p.Channel].uuids[p.Role] != "" {
 					err = errors.Errorf("channel '%s' already occupied by role %d", p.Channel, p.Role)
 					return
 				}
 			}
 			r.Channel = p.Channel
-			if _, ok := rs.channel[r.Channel]; !ok {
-				rs.channel[r.Channel] = newChannelData(r.Channel)
+			if _, ok := c.rs.channel[r.Channel]; !ok {
+				c.rs.channel[r.Channel] = newChannelData(r.Channel)
 			}
 
 			// assign UUID for the role in the channel
-			rs.channel[r.Channel].uuids[p.Role] = uuid4.New().String()
-			r.UUID = rs.channel[r.Channel].uuids[p.Role]
+			c.rs.channel[r.Channel].uuids[p.Role] = uuid4.New().String()
+			r.UUID = c.rs.channel[r.Channel].uuids[p.Role]
 			log.Debugf("(%s) %s has joined as role %d", r.Channel, r.UUID, p.Role)
 
 			// if channel is not open, set initial parameters
-			if !rs.channel[r.Channel].isopen {
-				rs.channel[r.Channel].isopen = true
-				rs.channel[r.Channel].Ports = tcpPorts
-				rs.channel[r.Channel].startTime = time.Now()
+			if !c.rs.channel[r.Channel].isopen {
+				c.rs.channel[r.Channel].isopen = true
+				c.rs.channel[r.Channel].Ports = tcpPorts
+				c.rs.channel[r.Channel].startTime = time.Now()
 				switch curve := p.Curve; curve {
 				case "p224":
-					rs.channel[r.Channel].curve = elliptic.P224()
+					c.rs.channel[r.Channel].curve = elliptic.P224()
 				case "p256":
-					rs.channel[r.Channel].curve = elliptic.P256()
+					c.rs.channel[r.Channel].curve = elliptic.P256()
 				case "p384":
-					rs.channel[r.Channel].curve = elliptic.P384()
+					c.rs.channel[r.Channel].curve = elliptic.P384()
 				case "p521":
-					rs.channel[r.Channel].curve = elliptic.P521()
+					c.rs.channel[r.Channel].curve = elliptic.P521()
 				default:
 					// TODO:
 					// add SIEC
 					p.Curve = "p256"
-					rs.channel[r.Channel].curve = elliptic.P256()
+					c.rs.channel[r.Channel].curve = elliptic.P256()
 				}
 				log.Debugf("(%s) using curve '%s'", r.Channel, p.Curve)
-				rs.channel[r.Channel].State["curve"] = []byte(p.Curve)
+				c.rs.channel[r.Channel].State["curve"] = []byte(p.Curve)
 			}
 
 			r.Message = fmt.Sprintf("assigned role %d in channel '%s'", p.Role, r.Channel)
 			return
-		}(c)
+		}(cg)
 		if err != nil {
 			log.Debugf("bad /join: %s", err.Error())
 			r.Message = err.Error()
 			r.Success = false
 		}
 		bR, _ := json.Marshal(r)
-		c.Data(200, "application/json", bR)
+		cg.Data(200, "application/json", bR)
 	})
 	log.Infof("Running at http://0.0.0.0:" + port)
 	err = r.Run(":" + port)
@@ -178,32 +164,32 @@ func startServer(tcpPorts []string, port string) (err error) {
 }
 
 func middleWareHandler() gin.HandlerFunc {
-	return func(c *gin.Context) {
+	return func(cg *gin.Context) {
 		t := time.Now()
 		// Run next function
-		c.Next()
+		cg.Next()
 		// Log request
-		log.Infof("%v %v %v %s", c.Request.RemoteAddr, c.Request.Method, c.Request.URL, time.Since(t))
+		log.Infof("%v %v %v %s", cg.Request.RemoteAddr, cg.Request.Method, cg.Request.URL, time.Since(t))
 	}
 }
 
-func channelCleanup() {
+func (c *Croc) channelCleanup() {
 	maximumWait := 10 * time.Minute
 	for {
-		rs.Lock()
-		keys := make([]string, len(rs.channel))
+		c.rs.Lock()
+		keys := make([]string, len(c.rs.channel))
 		i := 0
-		for key := range rs.channel {
+		for key := range c.rs.channel {
 			keys[i] = key
 			i++
 		}
 		for _, key := range keys {
-			if time.Since(rs.channel[key].startTime) > maximumWait {
+			if time.Since(c.rs.channel[key].startTime) > maximumWait {
 				log.Debugf("channel %s has exceeded time, deleting", key)
-				delete(rs.channel, key)
+				delete(c.rs.channel, key)
 			}
 		}
-		rs.Unlock()
+		c.rs.Unlock()
 		time.Sleep(1 * time.Minute)
 	}
 }
