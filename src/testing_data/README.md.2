@@ -1,0 +1,38 @@
+tion is wiped from the relay server. The encrypted file data never is stored on the relay.
+
+**Encryption**
+
+Encryption uses AES-256 with a pbkdf2 derived key (see [RFC2898](http://www.ietf.org/rfc/rfc2898.txt)) where the code phrase shared between the sender and receiver is used as the passphrase. For each of the two encrypted data blocks (metadata stored on relay server, and file data transmitted), a random 8-byte salt is used and a IV is generated according to [NIST Recommendation for Block ciphers, Section 8.2](http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf).
+
+**Decryption**
+
+On the receiver's computer, each piece of received encrypted data is written to a separate file. These files are concatenated and then decrypted. The hash of the decrypted file is then checked against the hash transmitted from the sender (part of the meta data block).
+
+## Run your own relay
+
+*croc* relies on a TCP relay to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses a public relay at, `cowyo.com`, which has a 30-day uptime of 99.989% ([click here to check the current status of the public relay](https://stats.uptimerobot.com/lOwJYIgRm)).
+
+You can also run your own relay, it is very easy. On your server, `your-server.com`, just run
+
+```
+$ croc -relay
+```
+
+Now, when you use *croc* to send and receive you should add `-server your-server.com` to use your relay server. Make sure to open up TCP ports 27001-27009.
+
+# Contribute
+
+I am awed by all the [great contributions](#acknowledgements) made! If you feel like contributing, in any way, by all means you can send an Issue, a PR, ask a question, or tweet me ([@yakczar](http://ctt.ec/Rq054)).
+
+# License
+
+MIT
+
+# Acknowledgements
+
+Thanks...
+
+- ...[@warner](https://github.com/warner) for the [idea](https://github.com/warner/magic-wormhole).
+- ...[@tscholl2](https://github.com/tscholl2) for the [encryption gists](https://gist.github.com/tscholl2/dc7dc15dc132ea70a98e8542fefffa28).
+- ...[@skorokithakis](https://github.com/skorokithakis) for [code on proxying two connections](https://www.stavros.io/posts/proxying-two-connections-go/).
+- ...for making pull requests [@Girbons](https://github.com/Girbons), [@techtide](https://github.com/techtide), [@heymatthew](https://github.com/heymatthew), [@Lunsford94](https://github.com/Lunsford94), [@lummie](https://github.com/lummie), [@jesuiscamille](https://github.com/jesuiscamille), [@threefjord](https://github.com/threefjord), [@marcossegovia](https://github.com/marcossegovia), [@csleong98](https://github.com/csleong98), [@afotescu](https://github.com/afotescu), [@callmefever](https://github.com/callmefever), [@El-JojA](https://github.com/El-JojA), [@anatolyyyyyy](https://github.com/anatolyyyyyy), [@goggle](https://github.com/goggle), [@smileboywtu](https://github.com/smileboywtu)!
