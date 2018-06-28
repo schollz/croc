@@ -27,6 +27,9 @@ func init() {
 }
 
 func startServer(tcpPorts []string, port string) (err error) {
+	// start cleanup on dangling channels
+	go channelCleanup()
+
 	// start server
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
@@ -134,8 +137,11 @@ func startServer(tcpPorts []string, port string) (err error) {
 			r.UUID = rs.channel[r.Channel].uuids[p.Role]
 			log.Debugf("(%s) %s has joined as role %d", r.Channel, r.UUID, p.Role)
 
-			// if channel is not open, set curve
+			// if channel is not open, set initial parameters
 			if !rs.channel[r.Channel].isopen {
+				rs.channel[r.Channel].isopen = true
+				rs.channel[r.Channel].Ports = tcpPorts
+				rs.channel[r.Channel].startTime = time.Now()
 				switch curve := p.Curve; curve {
 				case "p224":
 					rs.channel[r.Channel].curve = elliptic.P224()
@@ -153,8 +159,6 @@ func startServer(tcpPorts []string, port string) (err error) {
 				}
 				log.Debugf("(%s) using curve '%s'", r.Channel, p.Curve)
 				rs.channel[r.Channel].State["curve"] = []byte(p.Curve)
-				rs.channel[r.Channel].Ports = tcpPorts
-				rs.channel[r.Channel].isopen = true
 			}
 
 			r.Message = fmt.Sprintf("assigned role %d in channel '%s'", p.Role, r.Channel)
@@ -180,5 +184,26 @@ func middleWareHandler() gin.HandlerFunc {
 		c.Next()
 		// Log request
 		log.Infof("%v %v %v %s", c.Request.RemoteAddr, c.Request.Method, c.Request.URL, time.Since(t))
+	}
+}
+
+func channelCleanup() {
+	maximumWait := 10 * time.Minute
+	for {
+		rs.Lock()
+		keys := make([]string, len(rs.channel))
+		i := 0
+		for key := range rs.channel {
+			keys[i] = key
+			i++
+		}
+		for _, key := range keys {
+			if time.Since(rs.channel[key].startTime) > maximumWait {
+				log.Debugf("channel %s has exceeded time, deleting", key)
+				delete(rs.channel, key)
+			}
+		}
+		rs.Unlock()
+		time.Sleep(1 * time.Minute)
 	}
 }
