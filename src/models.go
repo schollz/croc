@@ -3,6 +3,7 @@ package croc
 import (
 	"crypto/elliptic"
 	"net"
+	"time"
 )
 
 const (
@@ -36,6 +37,8 @@ type channelData struct {
 	curve elliptic.Curve
 	// connection information is stored when the clients do connect over TCP
 	connection [2]net.Conn
+	// startTime is the time that the channel was opened
+	startTime time.Time
 }
 
 type response struct {
