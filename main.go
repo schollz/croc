@@ -12,10 +12,12 @@ func main() {
 	flag.Parse()
 
 	c := croc.Init()
-	if *role == 0 {
+	if *role == -1 {
 		err = c.Relay()
-	} else if *role == 1 {
+	} else if *role == 0 {
 		err = c.Send("foo")
+	} else {
+		err = c.Receive()
 	}
 	if err != nil {
 		panic(err)
