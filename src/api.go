@@ -44,7 +44,7 @@ func (c *Croc) Relay() error {
 
 // Send will take an existing file or folder and send it through the croc relay
 func (c *Croc) Send(fname string) (err error) {
-
+	err = c.send(fname)
 	return
 }
 

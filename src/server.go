@@ -2,20 +2,48 @@ package croc
 
 import (
 	"crypto/elliptic"
-	"encoding/json"
-	"fmt"
+	"net/http"
 	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/frankenbeanies/uuid4"
-	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 )
 
-func (c *Croc) updateChannel(p payloadChannel) (r response, err error) {
+func (c *Croc) startServer(tcpPorts []string, port string) (err error) {
+	// start cleanup on dangling channels
+	go c.channelCleanup()
+
+	var upgrader = websocket.Upgrader{} // use default options
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Error("upgrade:", err)
+			return
+		}
+		defer ws.Close()
+		for {
+			var p payload
+			err := ws.ReadJSON(&p)
+			if err != nil {
+				log.Debugf("read:", err)
+				break
+			}
+			err = c.processPayload(ws, p)
+			if err != nil {
+				log.Warn("problem processing payload %+v: %s", err.Error())
+			}
+		}
+	})
+	log.Debugf("listening on port %s", c.ServerPort)
+	err = http.ListenAndServe(":"+c.ServerPort, nil)
+	return
+}
+
+func (c *Croc) updateChannel(p payload) (err error) {
 	c.rs.Lock()
 	defer c.rs.Unlock()
-	r.Success = true
 
 	// determine if channel is invalid
 	if _, ok := c.rs.channel[p.Channel]; !ok {
@@ -27,13 +55,6 @@ func (c *Croc) updateChannel(p payloadChannel) (r response, err error) {
 	if p.UUID != c.rs.channel[p.Channel].uuids[0] &&
 		p.UUID != c.rs.channel[p.Channel].uuids[1] {
 		err = errors.Errorf("uuid '%s' is invalid", p.UUID)
-		return
-	}
-
-	// check if the action is to close the channel
-	if p.Close {
-		delete(c.rs.channel, p.Channel)
-		r.Message = "deleted " + p.Channel
 		return
 	}
 
@@ -50,17 +71,13 @@ func (c *Croc) updateChannel(p payloadChannel) (r response, err error) {
 		}
 	}
 
-	// return the current state
-	r.Data = c.rs.channel[p.Channel]
-
-	r.Message = fmt.Sprintf("assigned %d keys: %v", len(assignedKeys), assignedKeys)
+	log.Debugf("assigned %d keys: %v", len(assignedKeys), assignedKeys)
 	return
 }
 
-func (c *Croc) joinChannel(p payloadChannel) (r response, err error) {
+func (c *Croc) joinChannel(ws *websocket.Conn, p payload) (channel string, err error) {
 	c.rs.Lock()
 	defer c.rs.Unlock()
-	r.Success = true
 
 	// determine if sender or recipient
 	if p.Role != 0 && p.Role != 1 {
@@ -81,50 +98,86 @@ func (c *Croc) joinChannel(p payloadChannel) (r response, err error) {
 			return
 		}
 	}
-	r.Channel = p.Channel
-	if _, ok := c.rs.channel[r.Channel]; !ok {
-		c.rs.channel[r.Channel] = newChannelData(r.Channel)
+	if _, ok := c.rs.channel[p.Channel]; !ok {
+		c.rs.channel[p.Channel] = newChannelData(p.Channel)
 	}
+	channel = p.Channel
 
 	// assign UUID for the role in the channel
-	c.rs.channel[r.Channel].uuids[p.Role] = uuid4.New().String()
-	r.UUID = c.rs.channel[r.Channel].uuids[p.Role]
-	log.Debugf("(%s) %s has joined as role %d", r.Channel, r.UUID, p.Role)
+	c.rs.channel[p.Channel].uuids[p.Role] = uuid4.New().String()
+	log.Debugf("(%s) %s has joined as role %d", p.Channel, c.rs.channel[p.Channel].uuids[p.Role], p.Role)
+	// send Channel+UUID back to the current person
+	err = ws.WriteJSON(channelData{
+		Channel: p.Channel,
+		UUID:    c.rs.channel[p.Channel].uuids[p.Role],
+	})
+	if err != nil {
+		return
+	}
 
 	// if channel is not open, set initial parameters
-	if !c.rs.channel[r.Channel].isopen {
-		c.rs.channel[r.Channel].isopen = true
-		c.rs.channel[r.Channel].Ports = tcpPorts
-		c.rs.channel[r.Channel].startTime = time.Now()
+	if !c.rs.channel[p.Channel].isopen {
+		c.rs.channel[p.Channel].isopen = true
+		c.rs.channel[p.Channel].Ports = c.TcpPorts
+		c.rs.channel[p.Channel].startTime = time.Now()
 		switch curve := p.Curve; curve {
 		case "p224":
-			c.rs.channel[r.Channel].curve = elliptic.P224()
+			c.rs.channel[p.Channel].curve = elliptic.P224()
 		case "p256":
-			c.rs.channel[r.Channel].curve = elliptic.P256()
+			c.rs.channel[p.Channel].curve = elliptic.P256()
 		case "p384":
-			c.rs.channel[r.Channel].curve = elliptic.P384()
+			c.rs.channel[p.Channel].curve = elliptic.P384()
 		case "p521":
-			c.rs.channel[r.Channel].curve = elliptic.P521()
+			c.rs.channel[p.Channel].curve = elliptic.P521()
 		default:
 			// TODO:
 			// add SIEC
 			p.Curve = "p256"
-			c.rs.channel[r.Channel].curve = elliptic.P256()
+			c.rs.channel[p.Channel].curve = elliptic.P256()
 		}
-		log.Debugf("(%s) using curve '%s'", r.Channel, p.Curve)
-		c.rs.channel[r.Channel].State["curve"] = []byte(p.Curve)
+		log.Debugf("(%s) using curve '%s'", p.Channel, p.Curve)
+		c.rs.channel[p.Channel].State["curve"] = []byte(p.Curve)
 	}
+	c.rs.channel[p.Channel].websocketConn[p.Role] = ws
 
-	r.Message = fmt.Sprintf("assigned role %d in channel '%s'", p.Role, r.Channel)
+	log.Debugf("assigned role %d in channel '%s'", p.Role, p.Channel)
 	return
 }
 
-func (c *Croc) startServer(tcpPorts []string, port string) (err error) {
-	// start cleanup on dangling channels
-	go c.channelCleanup()
+func (c *Croc) processPayload(ws *websocket.Conn, p payload) (err error) {
+	if p.Close {
+		c.rs.Lock()
+		delete(c.rs.channel, p.Channel)
+		c.rs.Unlock()
+		return
+	}
+
+	channel := p.Channel
+	if p.Open {
+		channel, err = c.joinChannel(ws, p)
+	} else if p.Update {
+		// update
+	}
 
 	// TODO:
-	// insert websockets here
+	// relay state logic here
+
+	// send out the data to both sender + receiver each time
+	c.rs.Lock()
+	if _, ok := c.rs.channel[channel]; ok {
+		for role, wsConn := range c.rs.channel[channel].websocketConn {
+			if wsConn == nil {
+				continue
+			}
+			log.Debugf("writing latest data %+v to %d", c.rs.channel[channel], role)
+			err = wsConn.WriteJSON(c.rs.channel[channel])
+			if err != nil {
+				log.Debugf("problem writing to role %d: %s", role, err.Error())
+			}
+		}
+	}
+	c.rs.Lock()
+	return
 }
 
 func (c *Croc) channelCleanup() {

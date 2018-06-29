@@ -36,6 +36,9 @@ type channelData struct {
 	// Ports returns which TCP ports to connect to
 	Ports []string `json:"ports"`
 
+	// UUID is sent out only to one person at a time
+	UUID string `json:"uuid"`
+
 	// Private
 	// isopen determine whether or not the channel has been opened
 	isopen bool
@@ -74,7 +77,8 @@ type payload struct {
 	Curve string `json:"curve"`
 
 	// Update set to true when updating
-	Update bool `json:"update"`
+	Update bool   `json:"update"`
+	UUID   string `json:"uuid"`
 	// State is the state information to be updated
 	State map[string][]byte `json:"state"`
 
@@ -84,7 +88,7 @@ type payload struct {
 
 func newChannelData(name string) (cd *channelData) {
 	cd = new(channelData)
-	cd.Name = name
+	cd.Channel = name
 	cd.State = make(map[string][]byte)
 	for _, state := range availableStates {
 		cd.State[state] = []byte{}
