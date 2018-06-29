@@ -5,6 +5,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 const (
@@ -24,8 +26,8 @@ type relayState struct {
 
 type channelData struct {
 	// Public
-	// Name is the name of the channel
-	Name string `json:"name,omitempty"`
+	// Channel is the name of the channel
+	Channel string `json:"channel,omitempty"`
 	// State contains state variables that are public to both parties
 	State map[string][]byte `json:"state"`
 	// TransferReady is set by the relaying when both parties have connected
@@ -43,6 +45,8 @@ type channelData struct {
 	curve elliptic.Curve
 	// connection information is stored when the clients do connect over TCP
 	connection [2]net.Conn
+	// websocket connections
+	websocketConn [2]*websocket.Conn
 	// startTime is the time that the channel was opened
 	startTime time.Time
 }
@@ -58,7 +62,9 @@ type response struct {
 	Message string `json:"message"`
 }
 
-type payloadOpen struct {
+type payload struct {
+	// Open set to true when trying to open
+	Open bool `json:"open"`
 	// Channel is used to designate the channel of interest
 	Channel string `json:"channel"`
 	// Role designates which role the person will take;
@@ -66,13 +72,14 @@ type payloadOpen struct {
 	Role int `json:"role"`
 	// Curve is the curve to be used.
 	Curve string `json:"curve"`
-}
 
-type payloadChannel struct {
-	Channel string            `json:"channel" binding:"required"`
-	UUID    string            `json:"uuid" binding:"required"`
-	State   map[string][]byte `json:"state"`
-	Close   bool              `json:"close"`
+	// Update set to true when updating
+	Update bool `json:"update"`
+	// State is the state information to be updated
+	State map[string][]byte `json:"state"`
+
+	// Close set to true when closing:
+	Close bool `json:"close"`
 }
 
 func newChannelData(name string) (cd *channelData) {
