@@ -32,15 +32,10 @@ func (c *Croc) startServer(tcpPorts []string, port string) (err error) {
 				if _, ok := err.(*websocket.CloseError); ok {
 					// on forced close, delete the channel
 					log.Debug("closed channel")
-					c.rs.Lock()
-					if _, ok := c.rs.channel[channel]; ok {
-						delete(c.rs.channel, channel)
-					}
-					c.rs.Unlock()
+					c.closeChannel(channel)
 				} else {
 					log.Debugf("read:", err)
 				}
-
 				break
 			}
 			channel, err = c.processPayload(ws, p)
@@ -48,9 +43,7 @@ func (c *Croc) startServer(tcpPorts []string, port string) (err error) {
 				// if error, send the error back and then delete the channel
 				log.Warn("problem processing payload %+v: %s", p, err.Error())
 				ws.WriteJSON(channelData{Error: err.Error()})
-				c.rs.Lock()
-				delete(c.rs.channel, p.Channel)
-				c.rs.Unlock()
+				c.closeChannel(channel)
 				return
 			}
 		}
@@ -95,6 +88,7 @@ func (c *Croc) updateChannel(p payload) (err error) {
 }
 
 func (c *Croc) joinChannel(ws *websocket.Conn, p payload) (channel string, err error) {
+	log.Debugf("joining channel %s", ws.RemoteAddr().String())
 	c.rs.Lock()
 	defer c.rs.Unlock()
 
@@ -117,6 +111,7 @@ func (c *Croc) joinChannel(ws *websocket.Conn, p payload) (channel string, err e
 			return
 		}
 	}
+	log.Debug("creating new channel")
 	if _, ok := c.rs.channel[p.Channel]; !ok {
 		c.rs.channel[p.Channel] = newChannelData(p.Channel)
 	}
@@ -140,7 +135,7 @@ func (c *Croc) joinChannel(ws *websocket.Conn, p payload) (channel string, err e
 		c.rs.channel[p.Channel].isopen = true
 		c.rs.channel[p.Channel].Ports = c.TcpPorts
 		c.rs.channel[p.Channel].startTime = time.Now()
-		p.Curve, c.rs.channel[p.Channel].curve = getCurve(p.Curve)
+		p.Curve, _ = getCurve(p.Curve)
 		log.Debugf("(%s) using curve '%s'", p.Channel, p.Curve)
 		c.rs.channel[p.Channel].State["curve"] = []byte(p.Curve)
 	}
@@ -150,15 +145,32 @@ func (c *Croc) joinChannel(ws *websocket.Conn, p payload) (channel string, err e
 	return
 }
 
+// closeChannel will shut down current open websockets and delete the channel information
+func (c *Croc) closeChannel(channel string) {
+	c.rs.Lock()
+	defer c.rs.Unlock()
+	// check if channel exists
+	if _, ok := c.rs.channel[channel]; !ok {
+		return
+	}
+	// close open connections
+	for _, wsConn := range c.rs.channel[channel].websocketConn {
+		if wsConn != nil {
+			wsConn.Close()
+		}
+	}
+	// delete
+	delete(c.rs.channel, channel)
+}
+
 func (c *Croc) processPayload(ws *websocket.Conn, p payload) (channel string, err error) {
+	log.Debugf("processing payload from %s", ws.RemoteAddr().String())
 	channel = p.Channel
 
 	// if the request is to close, delete the channel
 	if p.Close {
 		log.Debugf("closing channel %s", p.Channel)
-		c.rs.Lock()
-		delete(c.rs.channel, p.Channel)
-		c.rs.Unlock()
+		c.closeChannel(p.Channel)
 		return
 	}
 
@@ -200,7 +212,7 @@ func (c *Croc) processPayload(ws *websocket.Conn, p payload) (channel string, er
 			if wsConn == nil {
 				continue
 			}
-			log.Debugf("writing latest data %+v to %d", c.rs.channel[channel], role)
+			log.Debugf("writing latest data %+v to %d", c.rs.channel[channel].String2(), role)
 			err = wsConn.WriteJSON(c.rs.channel[channel])
 			if err != nil {
 				log.Debugf("problem writing to role %d: %s", role, err.Error())
@@ -221,13 +233,18 @@ func (c *Croc) channelCleanup() {
 			keys[i] = key
 			i++
 		}
+		channelsToDelete := []string{}
 		for _, key := range keys {
 			if time.Since(c.rs.channel[key].startTime) > maximumWait {
-				log.Debugf("channel %s has exceeded time, deleting", key)
-				delete(c.rs.channel, key)
+				channelsToDelete = append(channelsToDelete, key)
 			}
 		}
 		c.rs.Unlock()
+
+		for _, channel := range channelsToDelete {
+			log.Debugf("channel %s has exceeded time, deleting", channel)
+			c.closeChannel(channel)
+		}
 		time.Sleep(1 * time.Minute)
 	}
 }
