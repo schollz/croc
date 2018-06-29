@@ -1,7 +1,6 @@
 package croc
 
 import (
-	"crypto/elliptic"
 	"net/http"
 	"time"
 
@@ -141,21 +140,7 @@ func (c *Croc) joinChannel(ws *websocket.Conn, p payload) (channel string, err e
 		c.rs.channel[p.Channel].isopen = true
 		c.rs.channel[p.Channel].Ports = c.TcpPorts
 		c.rs.channel[p.Channel].startTime = time.Now()
-		switch curve := p.Curve; curve {
-		case "p224":
-			c.rs.channel[p.Channel].curve = elliptic.P224()
-		case "p256":
-			c.rs.channel[p.Channel].curve = elliptic.P256()
-		case "p384":
-			c.rs.channel[p.Channel].curve = elliptic.P384()
-		case "p521":
-			c.rs.channel[p.Channel].curve = elliptic.P521()
-		default:
-			// TODO:
-			// add SIEC
-			p.Curve = "p256"
-			c.rs.channel[p.Channel].curve = elliptic.P256()
-		}
+		p.Curve, c.rs.channel[p.Channel].curve = getCurve(p.Curve)
 		log.Debugf("(%s) using curve '%s'", p.Channel, p.Curve)
 		c.rs.channel[p.Channel].State["curve"] = []byte(p.Curve)
 	}
