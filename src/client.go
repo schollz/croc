@@ -1,6 +1,8 @@
 package croc
 
 import (
+	"bytes"
+	"crypto/rand"
 	"errors"
 	"net/url"
 	"os"
@@ -143,5 +145,23 @@ func (c *Croc) processState(cd channelData) (err error) {
 	// TODO:
 	// process the client state
 	log.Debugf("processing client state: %+v", c.cs.channel.String2())
+	if c.cs.channel.Role == 0 {
+		// processing for sender
+
+		// 		*Does X not exist?*
+		// - Generates X from pw.
+		// - Update relay with X.
+		if bytes.Equal(c.cs.channel.State["Xᵤ"], []byte{}) {
+			random1 := make([]byte, 8)
+			rand.Read(random1)
+			random2 := make([]byte, 8)
+			rand.Read(random2)
+			c.cs.channel.State["Uᵤ"], c.cs.channel.State["Uᵥ"] = []byte(c.cs.channel.curve.ScalarBaseMult(random1))
+			c.cs.channel.State["Vᵤ"], c.cs.channel.State["Vᵥ"] = []byte(c.cs.channel.curve.ScalarBaseMult(random2))
+		}
+
+	} else if c.cs.channel.Role == 1 {
+		// processing for recipient
+	}
 	return
 }
