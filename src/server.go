@@ -18,21 +18,41 @@ func (c *Croc) startServer(tcpPorts []string, port string) (err error) {
 	var upgrader = websocket.Upgrader{} // use default options
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		ws, err := upgrader.Upgrade(w, r, nil)
+		log.Debugf("connecting remote addr: %s", ws.RemoteAddr().String())
 		if err != nil {
 			log.Error("upgrade:", err)
 			return
 		}
 		defer ws.Close()
+		var channel string
 		for {
+			log.Debug("waiting for next message")
 			var p payload
 			err := ws.ReadJSON(&p)
 			if err != nil {
-				log.Debugf("read:", err)
+				if _, ok := err.(*websocket.CloseError); ok {
+					// on forced close, delete the channel
+					log.Debug("closed channel")
+					c.rs.Lock()
+					if _, ok := c.rs.channel[channel]; ok {
+						delete(c.rs.channel, channel)
+					}
+					c.rs.Unlock()
+				} else {
+					log.Debugf("read:", err)
+				}
+
 				break
 			}
-			err = c.processPayload(ws, p)
+			channel, err = c.processPayload(ws, p)
 			if err != nil {
-				log.Warn("problem processing payload %+v: %s", err.Error())
+				// if error, send the error back and then delete the channel
+				log.Warn("problem processing payload %+v: %s", p, err.Error())
+				ws.WriteJSON(channelData{Error: err.Error()})
+				c.rs.Lock()
+				delete(c.rs.channel, p.Channel)
+				c.rs.Unlock()
+				return
 			}
 		}
 	})
@@ -110,6 +130,7 @@ func (c *Croc) joinChannel(ws *websocket.Conn, p payload) (channel string, err e
 	err = ws.WriteJSON(channelData{
 		Channel: p.Channel,
 		UUID:    c.rs.channel[p.Channel].uuids[p.Role],
+		Role:    p.Role,
 	})
 	if err != nil {
 		return
@@ -144,19 +165,44 @@ func (c *Croc) joinChannel(ws *websocket.Conn, p payload) (channel string, err e
 	return
 }
 
-func (c *Croc) processPayload(ws *websocket.Conn, p payload) (err error) {
+func (c *Croc) processPayload(ws *websocket.Conn, p payload) (channel string, err error) {
+	channel = p.Channel
+
+	// if the request is to close, delete the channel
 	if p.Close {
+		log.Debugf("closing channel %s", p.Channel)
 		c.rs.Lock()
 		delete(c.rs.channel, p.Channel)
 		c.rs.Unlock()
 		return
 	}
 
-	channel := p.Channel
+	// if request is to Open, try to open
 	if p.Open {
 		channel, err = c.joinChannel(ws, p)
-	} else if p.Update {
+		if err != nil {
+			return
+		}
+	}
+
+	// check if open, otherwise return error
+	c.rs.Lock()
+	if _, ok := c.rs.channel[channel]; ok {
+		if !c.rs.channel[channel].isopen {
+			err = errors.Errorf("channel %s is not open, need to open first", channel)
+			c.rs.Unlock()
+			return
+		}
+	}
+	c.rs.Unlock()
+
+	// if the request is to Update, then update the state
+	if p.Update {
 		// update
+		err = c.updateChannel(p)
+		if err != nil {
+			return
+		}
 	}
 
 	// TODO:
@@ -176,7 +222,7 @@ func (c *Croc) processPayload(ws *websocket.Conn, p payload) (err error) {
 			}
 		}
 	}
-	c.rs.Lock()
+	c.rs.Unlock()
 	return
 }
 

@@ -19,8 +19,30 @@ var (
 	availableStates = []string{"curve", "h_k", "hh_k", "x", "y"}
 )
 
+type Croc struct {
+	TcpPorts            []string
+	ServerPort          string
+	Timeout             time.Duration
+	UseEncryption       bool
+	UseCompression      bool
+	CurveType           string
+	AllowLocalDiscovery bool
+
+	// private variables
+	// rs relay state is only for the relay
+	rs relayState
+
+	// cs keeps the client state
+	cs clientState
+}
+
 type relayState struct {
 	channel map[string]*channelData
+	sync.RWMutex
+}
+
+type clientState struct {
+	channel *channelData
 	sync.RWMutex
 }
 
@@ -36,8 +58,14 @@ type channelData struct {
 	// Ports returns which TCP ports to connect to
 	Ports []string `json:"ports"`
 
+	// Error is sent if there is an error
+	Error string `json:"error"`
+
+	// Sent on initialization
 	// UUID is sent out only to one person at a time
 	UUID string `json:"uuid"`
+	// Role is the role the person will play
+	Role int `json:"role"`
 
 	// Private
 	// isopen determine whether or not the channel has been opened
