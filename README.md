@@ -100,12 +100,13 @@ croc.Receive()
 - Generates X from pw.
 - Sender sends X to relay.
 
-*Is Y available?*
+*Is Y and Bcrypt(k_B) available?*
 
-- Use *Y* to generate its session key *k_A* and *H(k_A)*, and checks *H(H(k_A))*==*H(H(k_B))*. Abort here if it is incorrect.
+- Use *Y* to generate its session key *k_A*.
+- Check that Bcrypt(k_B) comes from k_A. Abort here if it is incorrect.
 - Encrypts data using *k_A*. 
 - Connect to TCP ports of Relay.
-- Send the Relay authentication *H(k_A)*.
+- Send the Relay authentication *Bcrypt(k_A)*.
 
 *Are ports stapled?*
 
@@ -121,11 +122,11 @@ croc.Receive()
 *Is X available?*
 
 - Generate *Y*, session key *k_B*, and hashed session key *H(k_B)* using PAKE from secret *pw*.
-- Send the Relay *H(H(k_B))*
+- Send the Relay *Bcrypt(k_B)*
 
-*Is H(k_A) available?*
+*Is Bcrypt(k_A) available?*
 
-- Verify that *H(k_A)* equals *H(k_B)*
+- Verify that *Bcrypt(k_A)* comes from k_B
 - Connect to TCP ports of Relay and listen.
 - Once file is received, Send close signal to Relay.
 
