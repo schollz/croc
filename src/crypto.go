@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	mathrand "math/rand"
@@ -27,7 +26,7 @@ func init() {
 func getRandomName() string {
 	result := []string{}
 	bs := make([]byte, 4)
-	binary.LittleEndian.PutUint32(bs, mathrand.Uint32())
+	rand.Read(bs)
 	result = mnemonicode.EncodeWordList(result, bs)
 	return strings.Join(result, "-")
 }

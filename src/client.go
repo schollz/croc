@@ -13,10 +13,15 @@ import (
 
 func (c *Croc) client(role int) (err error) {
 	defer log.Flush()
+	codePhrase := "chou"
 
 	// initialize the channel data for this client
 	c.cs.Lock()
 	c.cs.channel = newChannelData("")
+	c.cs.channel.codePhrase = codePhrase
+	c.cs.channel.Channel = codePhrase[:3]
+	channel := codePhrase[:3]
+	c.cs.channel.secret["pw"] = []byte(codePhrase[3:])
 	c.cs.Unlock()
 
 	interrupt := make(chan os.Signal, 1)
@@ -45,7 +50,7 @@ func (c *Croc) client(role int) (err error) {
 				log.Debugf("sender read error:", err)
 				return
 			}
-			log.Debugf("recv: %+v", cd)
+			log.Debugf("recv: %s", cd)
 			err = c.processState(cd)
 			if err != nil {
 				log.Warn(err)
@@ -57,10 +62,13 @@ func (c *Croc) client(role int) (err error) {
 	// initialize by joining as corresponding role
 	// TODO:
 	// allowing suggesting a channel
-	err = ws.WriteJSON(payload{
-		Open: true,
-		Role: role,
-	})
+	p := payload{
+		Open:    true,
+		Role:    role,
+		Channel: channel,
+	}
+	log.Debugf("sending opening payload: %+v", p)
+	err = ws.WriteJSON(p)
 	if err != nil {
 		log.Errorf("problem opening: %s", err.Error())
 		return
@@ -116,16 +124,16 @@ func (c *Croc) processState(cd channelData) (err error) {
 	// initialize if has UUID
 	if cd.UUID != "" {
 		c.cs.channel.UUID = cd.UUID
-		c.cs.channel.Ports = cd.Ports
 		c.cs.channel.Channel = cd.Channel
 		c.cs.channel.Role = cd.Role
-		c.cs.channel.Ports = cd.Ports
 		log.Debugf("initialized client state")
+		return
 	}
 	// copy over the rest of the state
 	if cd.TransferReady {
 		c.cs.channel.TransferReady = true
 	}
+	c.cs.channel.Ports = cd.Ports
 	for key := range cd.State {
 		c.cs.channel.State[key] = cd.State[key]
 	}
@@ -134,6 +142,6 @@ func (c *Croc) processState(cd channelData) (err error) {
 
 	// TODO:
 	// process the client state
-	log.Debugf("processing client state: %+v", c.cs.channel)
+	log.Debugf("processing client state: %+v", c.cs.channel.String2())
 	return
 }
