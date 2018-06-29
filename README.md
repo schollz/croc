@@ -97,8 +97,11 @@ croc.Receive()
 *Initialize*
 
 - Requests to join.
+
+*Does X not exist?*
+
 - Generates X from pw.
-- Sender sends X to relay.
+- Update relay with X.
 
 *Is Y and Bcrypt(k_B) available?*
 
@@ -106,7 +109,7 @@ croc.Receive()
 - Check that Bcrypt(k_B) comes from k_A. Abort here if it is incorrect.
 - Encrypts data using *k_A*. 
 - Connect to TCP ports of Relay.
-- Send the Relay authentication *Bcrypt(k_A)*.
+- Update relay with *Bcrypt(k_A)*.
 
 *Are ports stapled?*
 
