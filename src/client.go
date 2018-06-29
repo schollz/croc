@@ -129,6 +129,8 @@ func (c *Croc) processState(cd channelData) (err error) {
 	for key := range cd.State {
 		c.cs.channel.State[key] = cd.State[key]
 	}
+	// update the curve
+	_, c.cs.channel.curve = getCurve(string(c.cs.channel.State["curve"]))
 
 	// TODO:
 	// process the client state
