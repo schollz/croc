@@ -1,7 +1,9 @@
 package croc
 
 import (
+	"bytes"
 	"crypto/elliptic"
+	"encoding/json"
 	"net"
 	"sync"
 	"time"
@@ -15,9 +17,9 @@ const (
 )
 
 var (
-	// see PAKE setup for more info: https://play.golang.org/p/QLHvINK4qFG
+	// see PAKE setup for more info: https://play.golang.org/p/Sd0eTuuEIWu
 	// availableStates are the varaibles available to the parties involved
-	availableStates = []string{"curve", "Xᵤ", "Xᵥ", "Yᵤ", "Yᵥ", "Uᵤ", "Uᵥ", "Vᵤ", "Vᵥ", "HHBk", "HAk"}
+	availableStates = []string{"curve", "Xᵤ", "Xᵥ", "Yᵤ", "Yᵥ", "Uᵤ", "Uᵥ", "Vᵤ", "Vᵥ", "Bcrypt(Ak)", "Bcrypt(Bk)"}
 	// availableSecrets are the variables available only to a specific client, and not shared
 	availableSecrets = []string{"pw", "Upwᵤ", "Upwᵥ", "α", "αᵤ", "αᵥ", "Vpwᵤ", "Vpwᵥ", "β", "gβᵤ", "gβᵥ", "BZᵤ", "BZᵥ", "BZᵤ", "BZᵥ", "AZᵤ", "AZᵥ", "AZᵤ", "AZᵥ", "Bk", "Ak"}
 )
@@ -89,12 +91,12 @@ type channelData struct {
 
 	// Private
 	// client parameters
-
+	// codePhrase uses the first 3 characters to establish a channel, and the rest
+	// to form the passphrase
+	codePhrase string
 	// secret are the computed secretes
 	// contains "curve", "h_k", "hh_k", "x", "y"
-	secret map[string][]byte `json:"secret"`
-
-	// relay + client parameters
+	secret map[string][]byte
 	// curve is the type of elliptic curve used for PAKE
 	curve elliptic.Curve
 
@@ -111,15 +113,20 @@ type channelData struct {
 	startTime time.Time
 }
 
-type response struct {
-	// various responses
-	Channel string       `json:"channel,omitempty"`
-	UUID    string       `json:"uuid,omitempty"`
-	Data    *channelData `json:"data,omitempty"`
+func (cd channelData) String2() string {
+	for key := range cd.State {
+		if bytes.Equal(cd.State[key], []byte{}) {
+			delete(cd.State, key)
+		}
+	}
+	for key := range cd.secret {
+		if !bytes.Equal(cd.secret[key], []byte{}) {
+			cd.State[key] = cd.secret[key]
+		}
+	}
+	cdb, _ := json.Marshal(cd)
 
-	// constant responses
-	Success bool   `json:"success"`
-	Message string `json:"message"`
+	return string(cdb)
 }
 
 type payload struct {
