@@ -15,8 +15,11 @@ const (
 )
 
 var (
-	// availableStates are the states available to the parties involved
-	availableStates = []string{"curve", "h_k", "hh_k", "x", "y"}
+	// see PAKE setup for more info: https://play.golang.org/p/QLHvINK4qFG
+	// availableStates are the varaibles available to the parties involved
+	availableStates = []string{"curve", "Xᵤ", "Xᵥ", "Yᵤ", "Yᵥ", "Uᵤ", "Uᵥ", "Vᵤ", "Vᵥ", "HHBk", "HAk"}
+	// availableSecrets are the variables available only to a specific client, and not shared
+	availableSecrets = []string{"pw", "Upwᵤ", "Upwᵥ", "α", "αᵤ", "αᵥ", "Vpwᵤ", "Vpwᵥ", "β", "gβᵤ", "gβᵥ", "BZᵤ", "BZᵥ", "BZᵤ", "BZᵥ", "AZᵤ", "AZᵥ", "AZᵤ", "AZᵥ", "Bk", "Ak"}
 )
 
 type Croc struct {
@@ -34,6 +37,22 @@ type Croc struct {
 
 	// cs keeps the client state
 	cs clientState
+}
+
+// Init will initialize the croc relay
+func Init() (c *Croc) {
+	c = new(Croc)
+	c.TcpPorts = []string{"27001", "27002", "27003", "27004"}
+	c.ServerPort = "8003"
+	c.Timeout = 10 * time.Minute
+	c.UseEncryption = true
+	c.UseCompression = true
+	c.AllowLocalDiscovery = true
+	c.CurveType = "p521"
+	c.rs.Lock()
+	c.rs.channel = make(map[string]*channelData)
+	c.rs.Unlock()
+	return
 }
 
 type relayState struct {
@@ -69,12 +88,21 @@ type channelData struct {
 	Role int `json:"role"`
 
 	// Private
+	// client parameters
+
+	// secret are the computed secretes
+	// contains "curve", "h_k", "hh_k", "x", "y"
+	secret map[string][]byte `json:"secret"`
+
+	// relay + client parameters
+	// curve is the type of elliptic curve used for PAKE
+	curve elliptic.Curve
+
+	// relay parameters
 	// isopen determine whether or not the channel has been opened
 	isopen bool
 	// store a UUID of the parties to prevent other parties from joining
 	uuids [2]string // 0 is sender, 1 is recipient
-	// curve is the type of elliptic curve used for PAKE
-	curve elliptic.Curve
 	// connection information is stored when the clients do connect over TCP
 	connection [2]net.Conn
 	// websocket connections
@@ -119,8 +147,12 @@ func newChannelData(name string) (cd *channelData) {
 	cd = new(channelData)
 	cd.Channel = name
 	cd.State = make(map[string][]byte)
-	for _, state := range availableStates {
-		cd.State[state] = []byte{}
+	for _, s := range availableStates {
+		cd.State[s] = []byte{}
+	}
+	cd.secret = make(map[string][]byte)
+	for _, s := range availableSecrets {
+		cd.secret[s] = []byte{}
 	}
 	return
 }
