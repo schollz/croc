@@ -10,12 +10,14 @@ import (
 	"github.com/pkg/errors"
 )
 
+// startServer initiates the server which listens for websocket connections
 func (c *Croc) startServer(tcpPorts []string, port string) (err error) {
 	// start cleanup on dangling channels
 	go c.channelCleanup()
 
 	var upgrader = websocket.Upgrader{} // use default options
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// incoming websocket request
 		ws, err := upgrader.Upgrade(w, r, nil)
 		log.Debugf("connecting remote addr: %s", ws.RemoteAddr().String())
 		if err != nil {
@@ -23,6 +25,7 @@ func (c *Croc) startServer(tcpPorts []string, port string) (err error) {
 			return
 		}
 		defer ws.Close()
+
 		var channel string
 		for {
 			log.Debug("waiting for next message")
