@@ -1,6 +1,7 @@
 package croc
 
 import (
+	"crypto/elliptic"
 	"crypto/md5"
 	"fmt"
 	"io"
@@ -67,6 +68,26 @@ func splitFile(fileName string, numPieces int) (err error) {
 		}
 	}
 	return nil
+}
+
+func getCurve(s string) (curveString string, curve elliptic.Curve) {
+	curveString = s
+	switch s {
+	case "p224":
+		curve = elliptic.P224()
+	case "p256":
+		curve = elliptic.P256()
+	case "p384":
+		curve = elliptic.P384()
+	case "p521":
+		curve = elliptic.P521()
+	default:
+		// TODO:
+		// add SIEC
+		curveString = "p256"
+		curve = elliptic.P256()
+	}
+	return
 }
 
 // copyFile copies a file from src to dst. If src and dst files exist, and are

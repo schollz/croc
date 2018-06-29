@@ -51,6 +51,7 @@ type channelData struct {
 	// Channel is the name of the channel
 	Channel string `json:"channel,omitempty"`
 	// State contains state variables that are public to both parties
+	// contains "curve", "h_k", "hh_k", "x", "y"
 	State map[string][]byte `json:"state"`
 	// TransferReady is set by the relaying when both parties have connected
 	// with their credentials
@@ -61,7 +62,7 @@ type channelData struct {
 	// Error is sent if there is an error
 	Error string `json:"error"`
 
-	// Sent on initialization
+	// Sent on initialization, specific to a single user
 	// UUID is sent out only to one person at a time
 	UUID string `json:"uuid"`
 	// Role is the role the person will play
