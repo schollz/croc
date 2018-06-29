@@ -17,6 +17,9 @@ const (
 )
 
 var (
+	// TODO:
+	// MAKE EVERYTHING HERE PART OF THE CHANNELDATA!
+
 	// see PAKE setup for more info: https://play.golang.org/p/Sd0eTuuEIWu
 	// availableStates are the varaibles available to the parties involved
 	availableStates = []string{"curve", "Xᵤ", "Xᵥ", "Yᵤ", "Yᵥ", "Uᵤ", "Uᵥ", "Vᵤ", "Vᵥ", "Bcrypt(Ak)", "Bcrypt(Bk)"}
