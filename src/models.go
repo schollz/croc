@@ -16,17 +16,25 @@ const (
 )
 
 type Croc struct {
+	// Options for all
+	Debug bool
+
+	// Options for relay
+	ServerPort string
+	CurveType  string
+
 	// Options for connecting to server
 	TcpPorts         []string
 	WebsocketAddress string
-	ServerPort       string
 	Timeout          time.Duration
+	LocalOnly        bool
 
 	// Options for file transfering
 	UseEncryption       bool
 	UseCompression      bool
-	CurveType           string
 	AllowLocalDiscovery bool
+	Yes                 bool
+	Stdout              bool
 
 	// private variables
 	// rs relay state is only for the relay
@@ -57,6 +65,14 @@ func Init() (c *Croc) {
 	c.cs.channel = new(channelData)
 	c.rs.Unlock()
 	return
+}
+
+func (c *Croc) SetDebug(debug bool) {
+	if debug {
+		SetLogLevel("debug")
+	} else {
+		SetLogLevel("error")
+	}
 }
 
 type relayState struct {
