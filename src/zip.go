@@ -81,7 +81,7 @@ func zipFile(fname string, compress bool) (writtenFilename string, err error) {
 	defer os.Chdir(curdir)
 	os.Chdir(pathtofile)
 
-	newfile, err := ioutil.TempFile("/tmp/", "croc")
+	newfile, err := ioutil.TempFile(".", "croc-unencrypted")
 	if err != nil {
 		log.Error(err)
 		return
