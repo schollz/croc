@@ -1,14 +1,14 @@
 package pake
 
 import (
-	"crypto/elliptic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tscholl2/siec"
 )
 
 func TestPake(t *testing.T) {
-	curve := elliptic.P521() //siec.SIEC255()
+	curve := siec.SIEC255()
 	// successful (both have same k)
 	// initialize A
 	A, err := Init([]byte{1, 2, 3}, 0, curve)
