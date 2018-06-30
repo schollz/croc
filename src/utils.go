@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math"
 	"net"
 	"os"
@@ -201,4 +202,13 @@ func exists(name string) bool {
 		}
 	}
 	return true
+}
+
+func tempFileName(prefix string) string {
+	var f *os.File
+	f, _ = ioutil.TempFile(".", prefix)
+	name := f.Name()
+	f.Close()
+	os.Remove(name)
+	return name
 }
