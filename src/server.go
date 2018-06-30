@@ -13,7 +13,7 @@ import (
 )
 
 // startServer initiates the server which listens for websocket connections
-func (c *Croc) startServer(tcpPorts []string, port string) (err error) {
+func (c *Croc) startServer() (err error) {
 	// start cleanup on dangling channels
 	go c.channelCleanup()
 
