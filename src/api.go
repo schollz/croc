@@ -24,21 +24,23 @@ func (c *Croc) Relay() error {
 // Send will take an existing file or folder and send it through the croc relay
 func (c *Croc) Send(fname string, codephrase string) (err error) {
 	// start relay for listening
+	runClientError := make(chan error)
 	go func() {
-		d := c
+		d := Init()
 		d.ServerPort = "8140"
 		d.TcpPorts = []string{"27140", "27141"}
 		go d.startRelay()
 		go d.startServer()
-		// e := c
-		// time.Sleep(100 * time.Millisecond)
-		// e.WebsocketAddress = "ws://127.0.0.1:8140"
-		// go e.client(0, codephrase, fname)
+		e := Init()
+		e.WebsocketAddress = "ws://127.0.0.1:8140"
+		runClientError <- e.client(0, codephrase, fname)
 	}()
 
-	// start other client
-	c.WebsocketAddress = "ws://127.0.0.1:8140"
-	return c.client(0, codephrase, fname)
+	// start main client
+	go func() {
+		runClientError <- c.client(0, codephrase, fname)
+	}()
+	return <-runClientError
 }
 
 // Receive will receive something through the croc relay
