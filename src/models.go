@@ -44,13 +44,14 @@ type Croc struct {
 // Init will initialize the croc relay
 func Init() (c *Croc) {
 	c = new(Croc)
-	c.TcpPorts = []string{"27001", "27002", "27003", "27004"}
+	c.TcpPorts = []string{"27030", "27031", "27032", "27033"}
 	c.Timeout = 10 * time.Minute
 	c.UseEncryption = true
 	c.UseCompression = true
 	c.AllowLocalDiscovery = true
 	c.CurveType = "p521"
-	c.WebsocketAddress = "ws://localhost:8003"
+	c.WebsocketAddress = "wss://croc3.schollz.com"
+	c.ServerPort = "8130"
 	c.rs.Lock()
 	c.rs.channel = make(map[string]*channelData)
 	c.cs.channel = new(channelData)
