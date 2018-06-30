@@ -1,14 +1,16 @@
 package croc
 
 import (
-	"errors"
+	"net"
 	"net/url"
 	"os"
 	"os/signal"
+	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
+	"github.com/pkg/errors"
 	"github.com/schollz/croc/src/pake"
 )
 
@@ -85,36 +87,48 @@ func (c *Croc) client(role int, codePhrase string) (err error) {
 		return
 	}
 
-	for {
-		select {
-		case <-done:
-			return
-		case <-interrupt:
-			// send Close signal to relay on interrupt
-			log.Debugf("interrupt")
-			c.cs.Lock()
-			channel := c.cs.channel.Channel
-			uuid := c.cs.channel.UUID
-			c.cs.Unlock()
-			// Cleanly close the connection by sending a close message and then
-			// waiting (with timeout) for the server to close the connection.
-			log.Debug("sending close signal")
-			errWrite := ws.WriteJSON(channelData{
-				Channel: channel,
-				UUID:    uuid,
-				Close:   true,
-			})
-			if errWrite != nil {
-				log.Debugf("write close:", err)
-				return
-			}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func(wg *sync.WaitGroup) {
+		defer wg.Done()
+		for {
 			select {
 			case <-done:
-			case <-time.After(time.Second):
+				return
+			case <-interrupt:
+				// send Close signal to relay on interrupt
+				log.Debugf("interrupt")
+				c.cs.Lock()
+				channel := c.cs.channel.Channel
+				uuid := c.cs.channel.UUID
+				c.cs.Unlock()
+				// Cleanly close the connection by sending a close message and then
+				// waiting (with timeout) for the server to close the connection.
+				log.Debug("sending close signal")
+				errWrite := ws.WriteJSON(channelData{
+					Channel: channel,
+					UUID:    uuid,
+					Close:   true,
+				})
+				if errWrite != nil {
+					log.Debugf("write close:", err)
+					return
+				}
+				select {
+				case <-done:
+				case <-time.After(time.Second):
+				}
+				return
 			}
-			return
 		}
+	}(&wg)
+	wg.Wait()
+
+	c.cs.Lock()
+	if c.cs.channel.FileReceived {
+		log.Info("file recieved!")
 	}
+	c.cs.Unlock()
 	return
 }
 
@@ -130,6 +144,22 @@ func (c *Croc) processState(ws *websocket.Conn, cd channelData) (err error) {
 	// TODO:
 	// check if the state is not aligned (i.e. have h(k) but no hh(k))
 	// throw error if not aligned so it can exit
+
+	// if file received, then you are all done
+	if cd.FileReceived {
+		c.cs.channel.FileReceived = true
+		log.Debug("file recieved!")
+		log.Debug("sending close signal")
+		c.cs.channel.Close = true
+		ws.WriteJSON(c.cs.channel)
+		return
+	}
+
+	// if transfer ready then send file
+	if cd.TransferReady {
+		c.cs.channel.TransferReady = true
+		return
+	}
 
 	// first update the channel data
 	// initialize if has UUID
@@ -150,10 +180,9 @@ func (c *Croc) processState(ws *websocket.Conn, cd channelData) (err error) {
 		return
 	}
 	// copy over the rest of the state
-	if cd.TransferReady {
-		c.cs.channel.TransferReady = true
-	}
 	c.cs.channel.Ports = cd.Ports
+
+	// update the Pake
 	if cd.Pake != nil && cd.Pake.Role != c.cs.channel.Role {
 		log.Debugf("updating pake from %d", cd.Pake.Role)
 		if c.cs.channel.Pake.HkA == nil {
@@ -176,13 +205,100 @@ func (c *Croc) processState(ws *websocket.Conn, cd channelData) (err error) {
 		}
 	}
 
-	// TODO:
+	// TODO
 	// process the client state
-	log.Debugf("processing client state: %+v", c.cs.channel.String2())
-	if c.cs.channel.Role == 0 {
-		// processing for sender
-	} else if c.cs.channel.Role == 1 {
-		// processing for recipient
+	if c.cs.channel.Pake.IsVerified() && !c.cs.channel.isReady {
+		// spawn TCP connections
+		c.cs.channel.isReady = true
+		go func(role int) {
+			err = c.dialUp()
+			if err == nil {
+				if role == 1 {
+					c.cs.Lock()
+					c.cs.channel.Update = true
+					c.cs.channel.FileReceived = true
+					log.Debugf("got file successfully")
+					errWrite := ws.WriteJSON(c.cs.channel)
+					if errWrite != nil {
+						log.Error(errWrite)
+					}
+					c.cs.channel.Update = false
+					c.cs.Unlock()
+				}
+			} else {
+				log.Error(err)
+			}
+		}(c.cs.channel.Role)
+	}
+	return
+}
+
+func (c *Croc) dialUp() (err error) {
+	c.cs.Lock()
+	ports := c.cs.channel.Ports
+	channel := c.cs.channel.Channel
+	uuid := c.cs.channel.UUID
+	role := c.cs.channel.Role
+	c.cs.Unlock()
+	errorChan := make(chan error)
+	for i, port := range ports {
+		go func(channel, uuid, port string, i int) {
+			if i == 0 {
+				log.Debug("dialing up")
+			}
+			log.Debugf("connecting to %s", "localhost:"+port)
+			connection, err := net.Dial("tcp", "localhost:"+port)
+			if err != nil {
+				errorChan <- err
+				return
+			}
+			defer connection.Close()
+			connection.SetReadDeadline(time.Now().Add(1 * time.Hour))
+			connection.SetDeadline(time.Now().Add(1 * time.Hour))
+			connection.SetWriteDeadline(time.Now().Add(1 * time.Hour))
+			message, err := receiveMessage(connection)
+			if err != nil {
+				errorChan <- err
+				return
+			}
+			log.Debugf("relay says: %s", message)
+			err = sendMessage(channel, connection)
+			if err != nil {
+				errorChan <- err
+				return
+			}
+			err = sendMessage(uuid, connection)
+			if err != nil {
+				errorChan <- err
+				return
+			}
+
+			// wait for transfer to be ready
+			for {
+				c.cs.RLock()
+				ready := c.cs.channel.TransferReady
+				c.cs.RUnlock()
+				if ready {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+			if role == 0 {
+				log.Debug("send file")
+			} else {
+				log.Debug("receive file")
+			}
+			time.Sleep(3 * time.Second)
+			errorChan <- nil
+		}(channel, uuid, port, i)
+	}
+
+	// collect errors
+	for i := 0; i < len(ports); i++ {
+		errOne := <-errorChan
+		if errOne != nil {
+			log.Warn(errOne)
+		}
 	}
 	return
 }

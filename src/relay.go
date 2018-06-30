@@ -64,7 +64,7 @@ func (c *Croc) clientCommuncation(port string, connection net.Conn) (err error) 
 	if err != nil {
 		return
 	}
-	log.Debugf("%s connected with channel %s and uuid %s", connection.RemoteAddr().String(), channel, uuid)
+	log.Debugf("%s connected to port %s on channel %s and uuid %s", connection.RemoteAddr().String(), port, channel, uuid)
 
 	// validate channel and UUID
 	c.rs.Lock()
@@ -87,27 +87,34 @@ func (c *Croc) clientCommuncation(port string, connection net.Conn) (err error) 
 
 	con1 = c.rs.channel[channel].connection[0]
 	con2 = c.rs.channel[channel].connection[1]
+	ports := c.rs.channel[channel].Ports
 	c.rs.Unlock()
 
 	if con1 != nil && con2 != nil {
+		log.Debugf("beginning the piping")
 		var wg sync.WaitGroup
-		wg.Add(2)
-		// first start piping
+		wg.Add(1)
+
+		// start piping
 		go func(con1 net.Conn, con2 net.Conn, wg *sync.WaitGroup) {
 			pipe(con1, con2)
 			wg.Done()
+			log.Debug("done piping")
 		}(con1, con2, &wg)
-		// then set transfer ready
-		go func(channel string, wg *sync.WaitGroup) {
-			// set the channels to ready
+
+		if port == ports[0] {
+			// then set transfer ready
 			c.rs.Lock()
 			c.rs.channel[channel].TransferReady = true
+			c.rs.channel[channel].websocketConn[0].WriteJSON(c.rs.channel[channel])
+			c.rs.channel[channel].websocketConn[1].WriteJSON(c.rs.channel[channel])
 			c.rs.Unlock()
-			wg.Done()
-		}(channel, &wg)
+			log.Debugf("sent ready signal")
+		}
 		wg.Wait()
 		log.Debugf("finished transfer")
 	}
+	log.Debug("finished client communication")
 	return
 }
 
