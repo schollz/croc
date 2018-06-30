@@ -58,7 +58,8 @@ func (c *Croc) client(role int, codePhrase string, fname ...string) (err error) 
 	// connect to the websocket
 	// TODO:
 	// use predefined host and HTTPS, if exists
-	u := url.URL{Scheme: "ws", Host: "localhost:8003", Path: "/"}
+
+	u := url.URL{Scheme: strings.Split(c.WebsocketAddress, "://")[0], Host: strings.Split(c.WebsocketAddress, "://")[1], Path: "/"}
 	log.Debugf("connecting to %s", u.String())
 	ws, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {

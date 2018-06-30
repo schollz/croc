@@ -216,6 +216,7 @@ func (c *Croc) processReceivedFile() (err error) {
 		log.Error(err)
 		return
 	}
+	os.Remove(c.crocFile)
 	c.cs.channel.finishedHappy = true
 	return
 }
