@@ -67,6 +67,7 @@ func unzipFile(src, dest string) (err error) {
 }
 
 func zipFile(fname string, compress bool) (writtenFilename string, err error) {
+	log.Debugf("zipping %s with compression? %v", fname, compress)
 	pathtofile, filename := filepath.Split(fname)
 	curdir, err := os.Getwd()
 	if err != nil {
@@ -78,7 +79,8 @@ func zipFile(fname string, compress bool) (writtenFilename string, err error) {
 		log.Error(err)
 		return
 	}
-	newfile, err := ioutil.TempFile(".", "croc-zipped")
+	log.Debugf("current directory: %s", curdir)
+	newfile, err := ioutil.TempFile(curdir, "croc-zipped")
 	if err != nil {
 		log.Error(err)
 		return
@@ -87,6 +89,7 @@ func zipFile(fname string, compress bool) (writtenFilename string, err error) {
 	defer newfile.Close()
 
 	defer os.Chdir(curdir)
+	log.Debugf("changing dir to %s", pathtofile)
 	os.Chdir(pathtofile)
 
 	zipWriter := zip.NewWriter(newfile)
@@ -165,7 +168,7 @@ func zipFile(fname string, compress bool) (writtenFilename string, err error) {
 			log.Error(err)
 			return
 		}
-		_, err = io.Copy(writer, newfile)
+		_, err = io.Copy(writer, zipfile)
 		if err != nil {
 			log.Error(err)
 			return
