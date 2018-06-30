@@ -1,6 +1,7 @@
 package croc
 
 import (
+	"net"
 	"net/http"
 	"time"
 
@@ -77,6 +78,8 @@ func (c *Croc) updateChannel(cd channelData) (err error) {
 	// update each
 	c.rs.channel[cd.Channel].Error = cd.Error
 	c.rs.channel[cd.Channel].FileReceived = cd.FileReceived
+	c.rs.channel[cd.Channel].EncryptedFileMetaData = cd.EncryptedFileMetaData
+	c.rs.channel[cd.Channel].ReadyToRead = cd.ReadyToRead
 	if c.rs.channel[cd.Channel].Pake == nil {
 		c.rs.channel[cd.Channel].Pake = new(pake.Pake)
 	}
@@ -91,7 +94,6 @@ func (c *Croc) updateChannel(cd channelData) (err error) {
 	c.rs.channel[cd.Channel].Pake.Xᵥ = cd.Pake.Xᵥ
 	c.rs.channel[cd.Channel].Pake.Yᵤ = cd.Pake.Yᵤ
 	c.rs.channel[cd.Channel].Pake.Yᵥ = cd.Pake.Yᵥ
-	// TODO
 	return
 }
 
@@ -122,6 +124,7 @@ func (c *Croc) joinChannel(ws *websocket.Conn, cd channelData) (channel string, 
 	log.Debug("creating new channel")
 	if _, ok := c.rs.channel[cd.Channel]; !ok {
 		c.rs.channel[cd.Channel] = new(channelData)
+		c.rs.channel[cd.Channel].connection = make(map[string][2]net.Conn)
 	}
 	channel = cd.Channel
 

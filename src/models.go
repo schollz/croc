@@ -59,6 +59,18 @@ type clientState struct {
 	sync.RWMutex
 }
 
+type FileMetaData struct {
+	TempName           string
+	Name               string
+	Size               int
+	Hash               string
+	Path               string
+	IsDir              bool
+	IsEncrypted        bool
+	IsCompressed       bool
+	DeleteAfterSending bool
+}
+
 type channelData struct {
 	// Relay actions
 	// Open set to true when trying to open
@@ -81,9 +93,12 @@ type channelData struct {
 	Ports []string `json:"ports"`
 	// Curve is the type of elliptic curve to use
 	Curve string `json:"curve"`
-
+	// FileMetaData is sent after confirmed
+	EncryptedFileMetaData encryption `json:"encrypted_meta_data"`
 	// FileReceived specifies that everything was done right
 	FileReceived bool `json:"file_received"`
+	// ReadyToRead means that the recipient is ready to read
+	ReadyToRead bool `json:"ready_to_read"`
 	// Error is sent if there is an error
 	Error string `json:"error"`
 
@@ -101,9 +116,12 @@ type channelData struct {
 	// passPhrase is used to generate a session key
 	passPhrase string
 	// sessionKey
-	sessionKey []byte
-	isReady    bool
-	fileReady  bool
+	sessionKey      []byte
+	isReady         bool
+	fileReady       bool
+	fileMetaData    FileMetaData
+	notSentMetaData bool
+	finishedHappy   bool
 
 	// relay parameters
 	// isopen determine whether or not the channel has been opened
@@ -111,7 +129,7 @@ type channelData struct {
 	// store a UUID of the parties to prevent other parties from joining
 	uuids [2]string // 0 is sender, 1 is recipient
 	// connection information is stored when the clients do connect over TCP
-	connection [2]net.Conn
+	connection map[string][2]net.Conn
 	// websocket connections
 	websocketConn [2]*websocket.Conn
 	// startTime is the time that the channel was opened
