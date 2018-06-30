@@ -83,10 +83,19 @@ func (c *Croc) clientCommuncation(port string, connection net.Conn) (err error) 
 	if uuid == c.rs.channel[channel].uuids[1] {
 		role = 1
 	}
-	c.rs.channel[channel].connection[role] = connection
 
-	con1 = c.rs.channel[channel].connection[0]
-	con2 = c.rs.channel[channel].connection[1]
+	if _, ok := c.rs.channel[channel].connection[port]; !ok {
+		c.rs.channel[channel].connection[port] = [2]net.Conn{nil, nil}
+	}
+	con1 = c.rs.channel[channel].connection[port][0]
+	con2 = c.rs.channel[channel].connection[port][1]
+	if role == 0 {
+		con1 = connection
+	} else {
+		con2 = connection
+	}
+	log.Debug(c.rs.channel[channel].connection[port])
+	c.rs.channel[channel].connection[port] = [2]net.Conn{con1, con2}
 	ports := c.rs.channel[channel].Ports
 	c.rs.Unlock()
 
