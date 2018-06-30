@@ -8,6 +8,7 @@ import (
 	"github.com/frankenbeanies/uuid4"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
+	"github.com/schollz/croc/src/pake"
 )
 
 // startServer initiates the server which listens for websocket connections
@@ -29,8 +30,8 @@ func (c *Croc) startServer(tcpPorts []string, port string) (err error) {
 		var channel string
 		for {
 			log.Debug("waiting for next message")
-			var p payload
-			err := ws.ReadJSON(&p)
+			var cd channelData
+			err := ws.ReadJSON(&cd)
 			if err != nil {
 				if _, ok := err.(*websocket.CloseError); ok {
 					// on forced close, delete the channel
@@ -41,10 +42,10 @@ func (c *Croc) startServer(tcpPorts []string, port string) (err error) {
 				}
 				break
 			}
-			channel, err = c.processPayload(ws, p)
+			channel, err = c.processPayload(ws, cd)
 			if err != nil {
 				// if error, send the error back and then delete the channel
-				log.Warn("problem processing payload %+v: %s", p, err.Error())
+				log.Warn("problem processing payload %+v: %s", cd, err.Error())
 				ws.WriteJSON(channelData{Error: err.Error()})
 				c.closeChannel(channel)
 				return
@@ -56,95 +57,95 @@ func (c *Croc) startServer(tcpPorts []string, port string) (err error) {
 	return
 }
 
-func (c *Croc) updateChannel(p payload) (err error) {
+func (c *Croc) updateChannel(cd channelData) (err error) {
 	c.rs.Lock()
 	defer c.rs.Unlock()
 
 	// determine if channel is invalid
-	if _, ok := c.rs.channel[p.Channel]; !ok {
-		err = errors.Errorf("channel '%s' does not exist", p.Channel)
+	if _, ok := c.rs.channel[cd.Channel]; !ok {
+		err = errors.Errorf("channel '%s' does not exist", cd.Channel)
 		return
 	}
 
 	// determine if UUID is invalid for channel
-	if p.UUID != c.rs.channel[p.Channel].uuids[0] &&
-		p.UUID != c.rs.channel[p.Channel].uuids[1] {
-		err = errors.Errorf("uuid '%s' is invalid", p.UUID)
+	if cd.UUID != c.rs.channel[cd.Channel].uuids[0] &&
+		cd.UUID != c.rs.channel[cd.Channel].uuids[1] {
+		err = errors.Errorf("uuid '%s' is invalid", cd.UUID)
 		return
 	}
 
-	// assign each key provided
-	assignedKeys := []string{}
-	for key := range p.State {
-		// TODO:
-		// add a check that the value of key is not enormous
-
-		// add only if it is a valid key
-		if _, ok := c.rs.channel[p.Channel].State[key]; ok {
-			assignedKeys = append(assignedKeys, key)
-			c.rs.channel[p.Channel].State[key] = p.State[key]
-		}
+	// update each
+	if c.rs.channel[cd.Channel].Pake == nil {
+		c.rs.channel[cd.Channel].Pake = new(pake.Pake)
 	}
-
-	log.Debugf("assigned %d keys: %v", len(assignedKeys), assignedKeys)
+	c.rs.channel[cd.Channel].Pake.HkA = cd.Pake.HkA
+	c.rs.channel[cd.Channel].Pake.HkB = cd.Pake.HkB
+	c.rs.channel[cd.Channel].Pake.Role = cd.Pake.Role
+	c.rs.channel[cd.Channel].Pake.Uᵤ = cd.Pake.Uᵤ
+	c.rs.channel[cd.Channel].Pake.Uᵥ = cd.Pake.Uᵥ
+	c.rs.channel[cd.Channel].Pake.Vᵤ = cd.Pake.Vᵤ
+	c.rs.channel[cd.Channel].Pake.Vᵥ = cd.Pake.Vᵥ
+	c.rs.channel[cd.Channel].Pake.Xᵤ = cd.Pake.Xᵤ
+	c.rs.channel[cd.Channel].Pake.Xᵥ = cd.Pake.Xᵥ
+	c.rs.channel[cd.Channel].Pake.Yᵤ = cd.Pake.Yᵤ
+	c.rs.channel[cd.Channel].Pake.Yᵥ = cd.Pake.Yᵥ
+	// TODO
 	return
 }
 
-func (c *Croc) joinChannel(ws *websocket.Conn, p payload) (channel string, err error) {
+func (c *Croc) joinChannel(ws *websocket.Conn, cd channelData) (channel string, err error) {
 	log.Debugf("joining channel %s", ws.RemoteAddr().String())
 	c.rs.Lock()
 	defer c.rs.Unlock()
 
 	// determine if sender or recipient
-	if p.Role != 0 && p.Role != 1 {
-		err = errors.Errorf("no such role of %d", p.Role)
+	if cd.Role != 0 && cd.Role != 1 {
+		err = errors.Errorf("no such role of %d", cd.Role)
 		return
 	}
 
 	// determine channel
-	if p.Channel == "" {
+	if cd.Channel == "" {
 		// TODO:
 		// find an empty channel
-		p.Channel = "chou"
+		cd.Channel = "chou"
 	}
-	if _, ok := c.rs.channel[p.Channel]; ok {
+	if _, ok := c.rs.channel[cd.Channel]; ok {
 		// channel is not empty
-		if c.rs.channel[p.Channel].uuids[p.Role] != "" {
-			err = errors.Errorf("channel '%s' already occupied by role %d", p.Channel, p.Role)
+		if c.rs.channel[cd.Channel].uuids[cd.Role] != "" {
+			err = errors.Errorf("channel '%s' already occupied by role %d", cd.Channel, cd.Role)
 			return
 		}
 	}
 	log.Debug("creating new channel")
-	if _, ok := c.rs.channel[p.Channel]; !ok {
-		c.rs.channel[p.Channel] = newChannelData(p.Channel)
+	if _, ok := c.rs.channel[cd.Channel]; !ok {
+		c.rs.channel[cd.Channel] = new(channelData)
 	}
-	channel = p.Channel
+	channel = cd.Channel
 
 	// assign UUID for the role in the channel
-	c.rs.channel[p.Channel].uuids[p.Role] = uuid4.New().String()
-	log.Debugf("(%s) %s has joined as role %d", p.Channel, c.rs.channel[p.Channel].uuids[p.Role], p.Role)
+	c.rs.channel[cd.Channel].uuids[cd.Role] = uuid4.New().String()
+	log.Debugf("(%s) %s has joined as role %d", cd.Channel, c.rs.channel[cd.Channel].uuids[cd.Role], cd.Role)
 	// send Channel+UUID back to the current person
 	err = ws.WriteJSON(channelData{
-		Channel: p.Channel,
-		UUID:    c.rs.channel[p.Channel].uuids[p.Role],
-		Role:    p.Role,
+		Channel: cd.Channel,
+		UUID:    c.rs.channel[cd.Channel].uuids[cd.Role],
+		Role:    cd.Role,
 	})
 	if err != nil {
 		return
 	}
 
 	// if channel is not open, set initial parameters
-	if !c.rs.channel[p.Channel].isopen {
-		c.rs.channel[p.Channel].isopen = true
-		c.rs.channel[p.Channel].Ports = c.TcpPorts
-		c.rs.channel[p.Channel].startTime = time.Now()
-		p.Curve, _ = getCurve(p.Curve)
-		log.Debugf("(%s) using curve '%s'", p.Channel, p.Curve)
-		c.rs.channel[p.Channel].State["curve"] = []byte(p.Curve)
+	if !c.rs.channel[cd.Channel].isopen {
+		c.rs.channel[cd.Channel].isopen = true
+		c.rs.channel[cd.Channel].Ports = c.TcpPorts
+		c.rs.channel[cd.Channel].startTime = time.Now()
+		c.rs.channel[cd.Channel].Curve = "p256"
 	}
-	c.rs.channel[p.Channel].websocketConn[p.Role] = ws
+	c.rs.channel[cd.Channel].websocketConn[cd.Role] = ws
 
-	log.Debugf("assigned role %d in channel '%s'", p.Role, p.Channel)
+	log.Debugf("assigned role %d in channel '%s'", cd.Role, cd.Channel)
 	return
 }
 
@@ -166,20 +167,20 @@ func (c *Croc) closeChannel(channel string) {
 	delete(c.rs.channel, channel)
 }
 
-func (c *Croc) processPayload(ws *websocket.Conn, p payload) (channel string, err error) {
+func (c *Croc) processPayload(ws *websocket.Conn, cd channelData) (channel string, err error) {
 	log.Debugf("processing payload from %s", ws.RemoteAddr().String())
-	channel = p.Channel
+	channel = cd.Channel
 
 	// if the request is to close, delete the channel
-	if p.Close {
-		log.Debugf("closing channel %s", p.Channel)
-		c.closeChannel(p.Channel)
+	if cd.Close {
+		log.Debugf("closing channel %s", cd.Channel)
+		c.closeChannel(cd.Channel)
 		return
 	}
 
 	// if request is to Open, try to open
-	if p.Open {
-		channel, err = c.joinChannel(ws, p)
+	if cd.Open {
+		channel, err = c.joinChannel(ws, cd)
 		if err != nil {
 			return
 		}
@@ -197,9 +198,9 @@ func (c *Croc) processPayload(ws *websocket.Conn, p payload) (channel string, er
 	c.rs.Unlock()
 
 	// if the request is to Update, then update the state
-	if p.Update {
+	if cd.Update {
 		// update
-		err = c.updateChannel(p)
+		err = c.updateChannel(cd)
 		if err != nil {
 			return
 		}
