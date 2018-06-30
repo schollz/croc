@@ -28,15 +28,14 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 
 	c.cs.Lock()
 	c.cs.channel.codePhrase = codePhrase
-	if len(codePhrase) > 0 {
-		if len(codePhrase) < 4 {
-			err = errors.New("code phrase must be more than 4 characters")
-			c.cs.Unlock()
-			return
-		}
-	} else {
+	if len(codePhrase) == 0 {
 		// generate code phrase
 		codePhrase = getRandomName()
+	}
+	if len(codePhrase) < 4 {
+		err = errors.New("code phrase must be more than 4 characters")
+		c.cs.Unlock()
+		return
 	}
 	c.cs.channel.codePhrase = codePhrase
 	c.cs.channel.Channel = codePhrase[:3]
@@ -77,6 +76,11 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 		go d.startServer()
 		e := Init()
 		e.WebsocketAddress = "ws://127.0.0.1:8140"
+		e.cs.Lock()
+		c.cs.channel.codePhrase = codePhrase
+		c.cs.channel.Channel = codePhrase[:3]
+		c.cs.channel.passPhrase = codePhrase[3:]
+		e.cs.Unlock()
 		runClientError <- e.client(0, channel)
 	}()
 
@@ -89,26 +93,6 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 
 // Receive will receive something through the croc relay
 func (c *Croc) Receive(codePhrase string) (err error) {
-	// prepare codephrase
-	c.cs.Lock()
-	if len(codePhrase) == 0 {
-		// prompt codephrase
-		codePhrase = promptCodePhrase()
-	}
-	if len(codePhrase) < 4 {
-		err = errors.New("code phrase must be more than 4 characters")
-		c.cs.Unlock()
-		return
-	}
-	c.cs.channel.codePhrase = codePhrase
-	c.cs.channel.Channel = codePhrase[:3]
-	c.cs.channel.passPhrase = codePhrase[3:]
-	log.Debugf("codephrase: '%s'", codePhrase)
-	log.Debugf("channel: '%s'", c.cs.channel.Channel)
-	log.Debugf("passPhrase: '%s'", c.cs.channel.passPhrase)
-	channel := c.cs.channel.Channel
-	c.cs.Unlock()
-
 	// try to discovery codephrase and server through peer network
 	discovered, errDiscover := peerdiscovery.Discover(peerdiscovery.Settings{
 		Limit:     1,
@@ -133,6 +117,26 @@ func (c *Croc) Receive(codePhrase string) (err error) {
 	} else {
 		log.Debug("discovered no peers")
 	}
+
+	// prepare codephrase
+	c.cs.Lock()
+	if len(codePhrase) == 0 {
+		// prompt codephrase
+		codePhrase = promptCodePhrase()
+	}
+	if len(codePhrase) < 4 {
+		err = errors.New("code phrase must be more than 4 characters")
+		c.cs.Unlock()
+		return
+	}
+	c.cs.channel.codePhrase = codePhrase
+	c.cs.channel.Channel = codePhrase[:3]
+	c.cs.channel.passPhrase = codePhrase[3:]
+	log.Debugf("codephrase: '%s'", codePhrase)
+	log.Debugf("channel: '%s'", c.cs.channel.Channel)
+	log.Debugf("passPhrase: '%s'", c.cs.channel.passPhrase)
+	channel := c.cs.channel.Channel
+	c.cs.Unlock()
 
 	return c.client(1, channel)
 }
