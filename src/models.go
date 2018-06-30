@@ -73,7 +73,7 @@ type channelData struct {
 	Channel string `json:"channel,omitempty"`
 	// Pake contains the information for
 	// generating the session key over an insecure channel
-	Pake *pake.Pake
+	Pake *pake.Pake `json:"pake"`
 	// TransferReady is set by the relaying when both parties have connected
 	// with their credentials
 	TransferReady bool `json:"transfer_ready"`
@@ -82,6 +82,8 @@ type channelData struct {
 	// Curve is the type of elliptic curve to use
 	Curve string `json:"curve"`
 
+	// FileReceived specifies that everything was done right
+	FileReceived bool `json:"file_received"`
 	// Error is sent if there is an error
 	Error string `json:"error"`
 
@@ -100,7 +102,7 @@ type channelData struct {
 	passPhrase string
 	// sessionKey
 	sessionKey []byte
-	pakeDone   bool
+	isReady    bool
 
 	// relay parameters
 	// isopen determine whether or not the channel has been opened
