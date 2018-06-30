@@ -91,26 +91,18 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 func (c *Croc) Receive(codePhrase string) (err error) {
 	// prepare codephrase
 	c.cs.Lock()
-	c.cs.channel.codePhrase = codePhrase
-	if len(codePhrase) > 0 {
-		if len(codePhrase) < 4 {
-			err = errors.New("code phrase must be more than 4 characters")
-			c.cs.Unlock()
-			return
-		}
-		c.cs.channel.Channel = codePhrase[:3]
-		c.cs.channel.passPhrase = codePhrase[3:]
-	} else {
+	if len(codePhrase) == 0 {
 		// prompt codephrase
 		codePhrase = promptCodePhrase()
-		if len(codePhrase) < 4 {
-			err = errors.New("code phrase must be more than 4 characters")
-			c.cs.Unlock()
-			return
-		}
-		c.cs.channel.Channel = codePhrase[:3]
-		c.cs.channel.passPhrase = codePhrase[3:]
 	}
+	if len(codePhrase) < 4 {
+		err = errors.New("code phrase must be more than 4 characters")
+		c.cs.Unlock()
+		return
+	}
+	c.cs.channel.codePhrase = codePhrase
+	c.cs.channel.Channel = codePhrase[:3]
+	c.cs.channel.passPhrase = codePhrase[3:]
 	log.Debugf("codephrase: '%s'", codePhrase)
 	log.Debugf("channel: '%s'", c.cs.channel.Channel)
 	log.Debugf("passPhrase: '%s'", c.cs.channel.passPhrase)
