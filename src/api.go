@@ -15,21 +15,29 @@ func init() {
 // Relay initiates a relay
 func (c *Croc) Relay() error {
 	// start relay
-	go c.startRelay(c.TcpPorts)
+	go c.startRelay()
 
 	// start server
-	return c.startServer(c.TcpPorts, c.ServerPort)
+	return c.startServer()
 }
 
 // Send will take an existing file or folder and send it through the croc relay
 func (c *Croc) Send(fname string, codephrase string) (err error) {
 	// start relay for listening
 	go func() {
-		go c.startRelay([]string{"27140,27141"})
-		go c.startServer([]string{"27140,27141"}, "8140")
+		d := c
+		d.ServerPort = "8140"
+		d.TcpPorts = []string{"27140", "27141"}
+		go d.startRelay()
+		go d.startServer()
+		// e := c
+		// time.Sleep(100 * time.Millisecond)
+		// e.WebsocketAddress = "ws://127.0.0.1:8140"
+		// go e.client(0, codephrase, fname)
 	}()
 
-	// start client
+	// start other client
+	c.WebsocketAddress = "ws://127.0.0.1:8140"
 	return c.client(0, codephrase, fname)
 }
 
