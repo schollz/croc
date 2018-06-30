@@ -78,16 +78,16 @@ func zipFile(fname string, compress bool) (writtenFilename string, err error) {
 		log.Error(err)
 		return
 	}
-	defer os.Chdir(curdir)
-	os.Chdir(pathtofile)
-
-	newfile, err := ioutil.TempFile(".", "croc-unencrypted")
+	newfile, err := ioutil.TempFile(".", "croc-zipped")
 	if err != nil {
 		log.Error(err)
 		return
 	}
 	writtenFilename = newfile.Name()
 	defer newfile.Close()
+
+	defer os.Chdir(curdir)
+	os.Chdir(pathtofile)
 
 	zipWriter := zip.NewWriter(newfile)
 	zipWriter.RegisterCompressor(zip.Deflate, func(out io.Writer) (io.WriteCloser, error) {

@@ -97,15 +97,7 @@ func (c *Croc) getFilesReady() (err error) {
 		return
 	}
 	// encrypt file data
-	// create temporary filename
-	var f *os.File
-	f, err = ioutil.TempFile(".", "croc-encrypted")
-	if err != nil {
-		return
-	}
-	c.crocFileEncrypted = f.Name()
-	f.Close()
-	os.Remove(c.crocFileEncrypted)
+	c.crocFileEncrypted = tempFileName("croc-encrypted")
 	err = encryptFile(c.crocFile, c.crocFileEncrypted, passphrase)
 	if err != nil {
 		return
