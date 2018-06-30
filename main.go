@@ -16,7 +16,7 @@ func main() {
 	if *role == -1 {
 		err = c.Relay()
 	} else if *role == 0 {
-		err = c.Send("croc.exe", *passphrase)
+		err = c.Send("README.md", *passphrase)
 	} else {
 		err = c.Receive(*passphrase)
 	}
