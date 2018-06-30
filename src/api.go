@@ -76,11 +76,16 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 		go d.startServer()
 		e := Init()
 		e.WebsocketAddress = "ws://127.0.0.1:8140"
+		c.cs.Lock()
 		e.cs.Lock()
-		c.cs.channel.codePhrase = codePhrase
-		c.cs.channel.Channel = codePhrase[:3]
-		c.cs.channel.passPhrase = codePhrase[3:]
+		e.cs.channel.codePhrase = codePhrase
+		e.cs.channel.Channel = codePhrase[:3]
+		e.cs.channel.passPhrase = codePhrase[3:]
+		e.cs.channel.fileMetaData = c.cs.channel.fileMetaData
+		e.crocFile = c.crocFile
+		e.crocFileEncrypted = e.crocFileEncrypted
 		e.cs.Unlock()
+		c.cs.Unlock()
 		runClientError <- e.client(0, channel)
 	}()
 
