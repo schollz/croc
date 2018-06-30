@@ -2,6 +2,7 @@ package croc
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/url"
@@ -16,10 +17,48 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 	"github.com/schollz/croc/src/pake"
+	"github.com/schollz/progressbar"
 )
 
 func (c *Croc) client(role int, codePhrase string, fname ...string) (err error) {
 	defer log.Flush()
+	defer c.cleanup()
+	// initialize the channel data for this client
+	c.cs.Lock()
+	c.cs.channel.codePhrase = codePhrase
+	if len(codePhrase) > 0 {
+		if len(codePhrase) < 4 {
+			err = errors.New("code phrase must be more than 4 characters")
+			c.cs.Unlock()
+			return
+		}
+		c.cs.channel.Channel = codePhrase[:3]
+		c.cs.channel.passPhrase = codePhrase[3:]
+	} else {
+		// TODO
+		if role == 0 {
+			// generate code phrase
+			codePhrase = getRandomName()
+			dash := strings.Index(codePhrase, "-")
+			c.cs.channel.Channel = codePhrase[:dash]
+			c.cs.channel.passPhrase = codePhrase[dash:]
+		} else {
+			codePhrase = promptCodePhrase()
+			if len(codePhrase) < 4 {
+				err = errors.New("code phrase must be more than 4 characters")
+				c.cs.Unlock()
+				return
+			}
+			c.cs.channel.Channel = codePhrase[:3]
+			c.cs.channel.passPhrase = codePhrase[3:]
+		}
+		c.cs.channel.codePhrase = codePhrase
+	}
+	log.Debugf("codephrase: '%s'", codePhrase)
+	log.Debugf("channel: '%s'", c.cs.channel.Channel)
+	log.Debugf("passPhrase: '%s'", c.cs.channel.passPhrase)
+	channel := c.cs.channel.Channel
+	c.cs.Unlock()
 
 	if role == 0 {
 		if len(fname) == 0 {
@@ -31,26 +70,6 @@ func (c *Croc) client(role int, codePhrase string, fname ...string) (err error) 
 			return
 		}
 	}
-
-	// initialize the channel data for this client
-	c.cs.Lock()
-
-	c.cs.channel.codePhrase = codePhrase
-	if len(codePhrase) > 0 {
-		if len(codePhrase) < 4 {
-			err = errors.New("code phrase must be more than 4 characters")
-			return
-		}
-		c.cs.channel.Channel = codePhrase[:3]
-		c.cs.channel.passPhrase = codePhrase[3:]
-	} else {
-		// TODO
-		// generate code phrase
-		c.cs.channel.Channel = "chou"
-		c.cs.channel.passPhrase = codePhrase[3:]
-	}
-	channel := c.cs.channel.Channel
-	c.cs.Unlock()
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
@@ -83,7 +102,7 @@ func (c *Croc) client(role int, codePhrase string, fname ...string) (err error) 
 				log.Debugf("sender read error:", err)
 				return
 			}
-			//log.Debugf("recv: %s", cd.String2())
+			log.Debugf("recv: %s", cd.String2())
 			err = c.processState(cd)
 			if err != nil {
 				log.Warn(err)
@@ -150,6 +169,17 @@ func (c *Croc) client(role int, codePhrase string, fname ...string) (err error) 
 	c.cs.Lock()
 	if c.cs.channel.finishedHappy {
 		log.Info("file recieved!")
+		if c.cs.channel.Role == 0 {
+			fmt.Fprintf(os.Stderr, "\nTransfer complete.\n")
+		} else {
+			fmt.Fprintf(os.Stderr, "\nReceived file written to %s", c.cs.channel.fileMetaData.Name)
+		}
+	} else {
+		if c.cs.channel.Error != "" {
+			err = errors.New(c.cs.channel.Error)
+		} else {
+			err = errors.New("one party canceled, file not transfered")
+		}
 	}
 	c.cs.Unlock()
 	return
@@ -242,8 +272,6 @@ func (c *Croc) processState(cd channelData) (err error) {
 
 	// process the client state
 	if c.cs.channel.Pake.IsVerified() && !c.cs.channel.isReady && c.cs.channel.EncryptedFileMetaData.Encrypted != nil {
-		// TODO:
-		// check if the user still wants to recieve file
 
 		// decrypt the meta data
 		log.Debugf("encrypted meta data: %+v", c.cs.channel.EncryptedFileMetaData)
@@ -264,6 +292,18 @@ func (c *Croc) processState(cd channelData) (err error) {
 			return
 		}
 		log.Debugf("meta data: %+v", c.cs.channel.fileMetaData)
+
+		// check if the user still wants to receive the file
+		if c.cs.channel.Role == 1 {
+			if !c.Yes {
+				if !promptOkayToRecieve(c.cs.channel.fileMetaData) {
+					log.Debug("sending close signal")
+					c.cs.channel.Close = true
+					c.cs.channel.Error = "refusing file"
+					c.cs.channel.ws.WriteJSON(c.cs.channel)
+				}
+			}
+		}
 
 		// spawn TCP connections
 		c.cs.channel.isReady = true
@@ -344,9 +384,17 @@ func (c *Croc) dialUp() (err error) {
 				}
 				time.Sleep(10 * time.Millisecond)
 			}
-			c.cs.RLock()
+			if i == 0 {
+				c.cs.Lock()
+				c.bar = progressbar.NewOptions(c.cs.channel.fileMetaData.Size, progressbar.OptionSetWriter(os.Stderr))
+				c.cs.Unlock()
+				if role == 0 {
+					fmt.Fprintf(os.Stderr, "\nSending...\n")
+				} else {
+					fmt.Fprintf(os.Stderr, "\nReceiving...\n")
+				}
+			}
 
-			c.cs.RUnlock()
 			if role == 0 {
 				log.Debug("send file")
 				for {
@@ -360,7 +408,7 @@ func (c *Croc) dialUp() (err error) {
 				}
 				log.Debug("sending file")
 				filename := c.crocFileEncrypted + "." + strconv.Itoa(i)
-				err = sendFile(filename, i, connection)
+				err = c.sendFile(filename, i, connection)
 			} else {
 				go func() {
 					time.Sleep(10 * time.Millisecond)
@@ -378,8 +426,9 @@ func (c *Croc) dialUp() (err error) {
 				}()
 				receiveFileName := c.crocFileEncrypted + "." + strconv.Itoa(i)
 				log.Debugf("receiving file into %s", receiveFileName)
-				err = receiveFile(receiveFileName, i, connection)
+				err = c.receiveFile(receiveFileName, i, connection)
 			}
+			c.bar.Finish()
 			errorChan <- err
 		}(channel, uuid, port, i, errorChan)
 	}
@@ -398,7 +447,7 @@ func (c *Croc) dialUp() (err error) {
 	return
 }
 
-func receiveFile(filename string, id int, connection net.Conn) error {
+func (c *Croc) receiveFile(filename string, id int, connection net.Conn) error {
 	log.Debug("waiting for chunk size from sender")
 	fileSizeBuffer := make([]byte, 10)
 	connection.Read(fileSizeBuffer)
@@ -435,16 +484,19 @@ func receiveFile(filename string, id int, connection net.Conn) error {
 		}
 		written, _ := io.CopyN(newFile, connection, bufferSize)
 		receivedBytes += written
+		c.bar.Add(int(written))
+
 		if !receivedFirstBytes {
 			receivedFirstBytes = true
-			log.Debug(id, "Receieved first bytes!")
+			log.Debug(id, "Received first bytes!")
 		}
 	}
 	log.Debug(id, "received file")
 	return nil
 }
 
-func sendFile(filename string, id int, connection net.Conn) error {
+func (c *Croc) sendFile(filename string, id int, connection net.Conn) error {
+
 	// open encrypted file chunk, if it exists
 	log.Debug("opening encrypted file chunk: " + filename)
 	file, err := os.Open(filename)
@@ -481,6 +533,7 @@ func sendFile(filename string, id int, connection net.Conn) error {
 		_, err := file.Read(sendBuffer)
 		written, _ := connection.Write(sendBuffer)
 		totalBytesSent += written
+		c.bar.Add(written)
 		// if errWrite != nil {
 		// 	errWrite = errors.Wrap(errWrite, "problem writing to connection")
 		// 	return errWrite

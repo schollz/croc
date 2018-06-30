@@ -79,18 +79,16 @@ func main() {
 		fmt.Fprintf(c.App.Writer, "lipstick\nkiss\nme\nlipstick\nringo\n")
 	}
 	app.Action = func(c *cli.Context) error {
-		fmt.Printf("made it!\n")
-		return nil
+		return cr.Receive(c.Args().First())
 	}
 	app.Before = func(c *cli.Context) error {
 		cr = croc.Init()
 		cr.AllowLocalDiscovery = true
 		cr.WebsocketAddress = c.GlobalString("relay")
-		cr.Debug = c.GlobalBool("debug")
+		cr.SetDebug(c.GlobalBool("debug"))
 		cr.Yes = c.GlobalBool("yes")
 		cr.Stdout = c.GlobalBool("stdout")
 		cr.LocalOnly = c.GlobalBool("local")
-		cr.CodePhrase = c.GlobalString("code")
 		return nil
 	}
 
@@ -106,14 +104,11 @@ func send(c *cli.Context) error {
 	}
 	cr.UseCompression = c.GlobalBoolT("compress")
 	cr.UseEncryption = c.GlobalBoolT("encrypt")
-
-	fmt.Println("sending")
-	return nil
+	return cr.Send(c.Args().First(), c.GlobalString("code"))
 }
 
 func receive(c *cli.Context) error {
-	fmt.Println("receive")
-	return nil
+	return cr.Receive(c.GlobalString("code"))
 }
 
 func relay(c *cli.Context) error {
