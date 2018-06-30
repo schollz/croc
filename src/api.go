@@ -1,5 +1,9 @@
 package croc
 
+func init() {
+	SetLogLevel("debug")
+}
+
 // Relay initiates a relay
 func (c *Croc) Relay() error {
 	// start relay
