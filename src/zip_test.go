@@ -10,12 +10,12 @@ import (
 
 func TestZip(t *testing.T) {
 	defer log.Flush()
-	writtenFilename, err := zipFile("../testing_data", false)
+	writtenFilename, err := zipFile("../README.md", false)
 	assert.Nil(t, err)
 	defer os.Remove(writtenFilename)
 
 	err = unzipFile(writtenFilename, ".")
 	assert.Nil(t, err)
-	assert.True(t, exists("testing_data"))
-	os.RemoveAll("testing_data")
+	assert.True(t, exists("README.md"))
+	os.RemoveAll("README.md")
 }
