@@ -16,9 +16,13 @@ const (
 )
 
 type Croc struct {
-	TcpPorts            []string
-	ServerPort          string
-	Timeout             time.Duration
+	// Options for connecting to server
+	TcpPorts         []string
+	WebsocketAddress string
+	ServerPort       string
+	Timeout          time.Duration
+
+	// Options for file transfering
 	UseEncryption       bool
 	UseCompression      bool
 	CurveType           string
@@ -41,12 +45,12 @@ type Croc struct {
 func Init() (c *Croc) {
 	c = new(Croc)
 	c.TcpPorts = []string{"27001", "27002", "27003", "27004"}
-	c.ServerPort = "8003"
 	c.Timeout = 10 * time.Minute
 	c.UseEncryption = true
 	c.UseCompression = true
 	c.AllowLocalDiscovery = true
 	c.CurveType = "p521"
+	c.WebsocketAddress = "ws://localhost:8003"
 	c.rs.Lock()
 	c.rs.channel = make(map[string]*channelData)
 	c.cs.channel = new(channelData)
