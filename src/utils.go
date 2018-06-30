@@ -11,7 +11,10 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/schollz/croc/src/pake"
+
 	"github.com/pkg/errors"
+	"github.com/tscholl2/siec"
 )
 
 // catFiles copies data from n files to a single one and removes source files
@@ -71,7 +74,7 @@ func splitFile(fileName string, numPieces int) (err error) {
 	return nil
 }
 
-func getCurve(s string) (curve elliptic.Curve) {
+func getCurve(s string) (curve pake.EllipticCurve) {
 	switch s {
 	case "p224":
 		curve = elliptic.P224()
@@ -82,9 +85,7 @@ func getCurve(s string) (curve elliptic.Curve) {
 	case "p521":
 		curve = elliptic.P521()
 	default:
-		// TODO:
-		// add SIEC
-		curve = elliptic.P256()
+		curve = siec.SIEC255()
 	}
 	return
 }
