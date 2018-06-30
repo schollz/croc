@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	mathrand "math/rand"
 	"os"
@@ -31,9 +30,17 @@ func getRandomName() string {
 	return strings.Join(result, "-")
 }
 
-func encrypt(plaintext []byte, passphrase string, dontencrypt ...bool) (encrypted []byte, salt string, iv string) {
+type encryption struct {
+	Encrypted, Salt, IV []byte
+}
+
+func encrypt(plaintext []byte, passphrase []byte, dontencrypt ...bool) encryption {
 	if len(dontencrypt) > 0 && dontencrypt[0] {
-		return plaintext, "salt", "iv"
+		return encryption{
+			Encrypted: plaintext,
+			Salt:      []byte("salt"),
+			IV:        []byte("iv"),
+		}
 	}
 	key, saltBytes := deriveKey(passphrase, nil)
 	ivBytes := make([]byte, 12)
@@ -42,26 +49,26 @@ func encrypt(plaintext []byte, passphrase string, dontencrypt ...bool) (encrypte
 	rand.Read(ivBytes)
 	b, _ := aes.NewCipher(key)
 	aesgcm, _ := cipher.NewGCM(b)
-	encrypted = aesgcm.Seal(nil, ivBytes, plaintext, nil)
-	salt = hex.EncodeToString(saltBytes)
-	iv = hex.EncodeToString(ivBytes)
-	return
+	encrypted := aesgcm.Seal(nil, ivBytes, plaintext, nil)
+	return encryption{
+		Encrypted: encrypted,
+		Salt:      saltBytes,
+		IV:        ivBytes,
+	}
 }
 
-func decrypt(data []byte, passphrase string, salt string, iv string, dontencrypt ...bool) (plaintext []byte, err error) {
+func (e encryption) decrypt(passphrase []byte, dontencrypt ...bool) (plaintext []byte, err error) {
 	if len(dontencrypt) > 0 && dontencrypt[0] {
-		return data, nil
+		return e.Encrypted, nil
 	}
-	saltBytes, _ := hex.DecodeString(salt)
-	ivBytes, _ := hex.DecodeString(iv)
-	key, _ := deriveKey(passphrase, saltBytes)
+	key, _ := deriveKey(passphrase, e.Salt)
 	b, _ := aes.NewCipher(key)
 	aesgcm, _ := cipher.NewGCM(b)
-	plaintext, err = aesgcm.Open(nil, ivBytes, data, nil)
+	plaintext, err = aesgcm.Open(nil, e.IV, e.Encrypted, nil)
 	return
 }
 
-func deriveKey(passphrase string, salt []byte) ([]byte, []byte) {
+func deriveKey(passphrase []byte, salt []byte) ([]byte, []byte) {
 	if salt == nil {
 		salt = make([]byte, 8)
 		// http://www.ietf.org/rfc/rfc2898.txt
@@ -80,15 +87,15 @@ func hashBytes(data []byte) string {
 	return fmt.Sprintf("%x", sum)
 }
 
-func encryptFile(inputFilename string, outputFilename string, password string) error {
+func encryptFile(inputFilename string, outputFilename string, password []byte) error {
 	return cryptFile(inputFilename, outputFilename, password, true)
 }
 
-func decryptFile(inputFilename string, outputFilename string, password string) error {
+func decryptFile(inputFilename string, outputFilename string, password []byte) error {
 	return cryptFile(inputFilename, outputFilename, password, false)
 }
 
-func cryptFile(inputFilename string, outputFilename string, password string, encrypt bool) error {
+func cryptFile(inputFilename string, outputFilename string, password []byte, encrypt bool) error {
 	in, err := os.Open(inputFilename)
 	if err != nil {
 		return err
@@ -109,7 +116,7 @@ func cryptFile(inputFilename string, outputFilename string, password string, enc
 	c := &crypt.Crypter{
 		HashFunc: sha1.New,
 		HashSize: sha1.Size,
-		Key:      crypt.NewPbkdf2Key([]byte(password), 32),
+		Key:      crypt.NewPbkdf2Key(password, 32),
 	}
 	if encrypt {
 		if err := c.Encrypt(out, in); err != nil {
