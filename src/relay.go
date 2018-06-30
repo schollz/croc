@@ -10,7 +10,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (c *Croc) startRelay(ports []string) {
+func (c *Croc) startRelay() {
+	ports := c.TcpPorts
 	var wg sync.WaitGroup
 	wg.Add(len(ports))
 	for _, port := range ports {
