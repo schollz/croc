@@ -1,7 +1,6 @@
 package croc
 
 import (
-	"bytes"
 	"encoding/json"
 	"net"
 	"sync"
@@ -45,6 +44,7 @@ func Init() (c *Croc) {
 	c.CurveType = "p521"
 	c.rs.Lock()
 	c.rs.channel = make(map[string]*channelData)
+	c.cs.channel = new(channelData)
 	c.rs.Unlock()
 	return
 }
@@ -60,17 +60,27 @@ type clientState struct {
 }
 
 type channelData struct {
+	// Relay actions
+	// Open set to true when trying to open
+	Open bool `json:"open"`
+	// Update set to true when updating
+	Update bool `json:"update"`
+	// Close set to true when closing:
+	Close bool `json:"close"`
+
 	// Public
 	// Channel is the name of the channel
 	Channel string `json:"channel,omitempty"`
 	// Pake contains the information for
 	// generating the session key over an insecure channel
-	Pake pake.Pake
+	Pake *pake.Pake
 	// TransferReady is set by the relaying when both parties have connected
 	// with their credentials
 	TransferReady bool `json:"transfer_ready"`
 	// Ports returns which TCP ports to connect to
 	Ports []string `json:"ports"`
+	// Curve is the type of elliptic curve to use
+	Curve string `json:"curve"`
 
 	// Error is sent if there is an error
 	Error string `json:"error"`
@@ -90,6 +100,7 @@ type channelData struct {
 	passPhrase string
 	// sessionKey
 	sessionKey []byte
+	pakeDone   bool
 
 	// relay parameters
 	// isopen determine whether or not the channel has been opened
@@ -105,38 +116,6 @@ type channelData struct {
 }
 
 func (cd channelData) String2() string {
-	for key := range cd.State {
-		if bytes.Equal(cd.State[key], []byte{}) {
-			delete(cd.State, key)
-		}
-	}
-	for key := range cd.secret {
-		if !bytes.Equal(cd.secret[key], []byte{}) {
-			cd.State[key] = cd.secret[key]
-		}
-	}
 	cdb, _ := json.Marshal(cd)
-
 	return string(cdb)
-}
-
-type payload struct {
-	// Open set to true when trying to open
-	Open bool `json:"open"`
-	// Channel is used to designate the channel of interest
-	Channel string `json:"channel"`
-	// Role designates which role the person will take;
-	// 0 for sender and 1 for recipient.
-	Role int `json:"role"`
-	// Curve is the curve to be used.
-	Curve string `json:"curve"`
-
-	// Update set to true when updating
-	Update bool   `json:"update"`
-	UUID   string `json:"uuid"`
-	// State is the state information to be updated
-	State map[string][]byte `json:"state"`
-
-	// Close set to true when closing:
-	Close bool `json:"close"`
 }
