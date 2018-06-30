@@ -75,6 +75,8 @@ func (c *Croc) updateChannel(cd channelData) (err error) {
 	}
 
 	// update each
+	c.rs.channel[cd.Channel].Error = cd.Error
+	c.rs.channel[cd.Channel].FileReceived = cd.FileReceived
 	if c.rs.channel[cd.Channel].Pake == nil {
 		c.rs.channel[cd.Channel].Pake = new(pake.Pake)
 	}
