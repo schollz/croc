@@ -2,29 +2,18 @@ package croc
 
 import (
 	"bytes"
-	"crypto/elliptic"
 	"encoding/json"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/schollz/croc/src/pake"
 )
 
 const (
 	// maximum buffer size for initial TCP communication
 	bufferSize = 1024
-)
-
-var (
-	// TODO:
-	// MAKE EVERYTHING HERE PART OF THE CHANNELDATA!
-
-	// see PAKE setup for more info: https://play.golang.org/p/Sd0eTuuEIWu
-	// availableStates are the varaibles available to the parties involved
-	availableStates = []string{"curve", "Xᵤ", "Xᵥ", "Yᵤ", "Yᵥ", "Uᵤ", "Uᵥ", "Vᵤ", "Vᵥ", "Bcrypt(Ak)", "Bcrypt(Bk)"}
-	// availableSecrets are the variables available only to a specific client, and not shared
-	availableSecrets = []string{"pw", "Upwᵤ", "Upwᵥ", "α", "αᵤ", "αᵥ", "Vpwᵤ", "Vpwᵥ", "β", "gβᵤ", "gβᵥ", "BZᵤ", "BZᵥ", "BZᵤ", "BZᵥ", "AZᵤ", "AZᵥ", "AZᵤ", "AZᵥ", "Bk", "Ak"}
 )
 
 type Croc struct {
@@ -74,9 +63,9 @@ type channelData struct {
 	// Public
 	// Channel is the name of the channel
 	Channel string `json:"channel,omitempty"`
-	// State contains state variables that are public to both parties
-	// contains "curve", "h_k", "hh_k", "x", "y"
-	State map[string][]byte `json:"state"`
+	// Pake contains the information for
+	// generating the session key over an insecure channel
+	Pake pake.Pake
 	// TransferReady is set by the relaying when both parties have connected
 	// with their credentials
 	TransferReady bool `json:"transfer_ready"`
@@ -97,11 +86,10 @@ type channelData struct {
 	// codePhrase uses the first 3 characters to establish a channel, and the rest
 	// to form the passphrase
 	codePhrase string
-	// secret are the computed secretes
-	// contains "curve", "h_k", "hh_k", "x", "y"
-	secret map[string][]byte
-	// curve is the type of elliptic curve used for PAKE
-	curve elliptic.Curve
+	// passPhrase is used to generate a session key
+	passPhrase string
+	// sessionKey
+	sessionKey []byte
 
 	// relay parameters
 	// isopen determine whether or not the channel has been opened
@@ -151,18 +139,4 @@ type payload struct {
 
 	// Close set to true when closing:
 	Close bool `json:"close"`
-}
-
-func newChannelData(name string) (cd *channelData) {
-	cd = new(channelData)
-	cd.Channel = name
-	cd.State = make(map[string][]byte)
-	for _, s := range availableStates {
-		cd.State[s] = []byte{}
-	}
-	cd.secret = make(map[string][]byte)
-	for _, s := range availableSecrets {
-		cd.secret[s] = []byte{}
-	}
-	return
 }

@@ -1,8 +1,6 @@
 package croc
 
 import (
-	"bytes"
-	"crypto/rand"
 	"errors"
 	"net/url"
 	"os"
@@ -19,11 +17,15 @@ func (c *Croc) client(role int) (err error) {
 
 	// initialize the channel data for this client
 	c.cs.Lock()
-	c.cs.channel = newChannelData("")
 	c.cs.channel.codePhrase = codePhrase
-	c.cs.channel.Channel = codePhrase[:3]
-	channel := codePhrase[:3]
-	c.cs.channel.secret["pw"] = []byte(codePhrase[3:])
+	if len(codePhrase) > 0 {
+		if len(codePhrase) < 4 {
+			err = errors.New("code phrase must be more than 4 characters")
+			return
+		}
+		c.cs.channel.Channel = codePhrase[:3]
+		c.cs.channel.passPhrase = codePhrase[3:]
+	}
 	c.cs.Unlock()
 
 	interrupt := make(chan os.Signal, 1)
@@ -136,30 +138,12 @@ func (c *Croc) processState(cd channelData) (err error) {
 		c.cs.channel.TransferReady = true
 	}
 	c.cs.channel.Ports = cd.Ports
-	for key := range cd.State {
-		c.cs.channel.State[key] = cd.State[key]
-	}
-	// update the curve
-	_, c.cs.channel.curve = getCurve(string(c.cs.channel.State["curve"]))
 
 	// TODO:
 	// process the client state
 	log.Debugf("processing client state: %+v", c.cs.channel.String2())
 	if c.cs.channel.Role == 0 {
 		// processing for sender
-
-		// 		*Does X not exist?*
-		// - Generates X from pw.
-		// - Update relay with X.
-		if bytes.Equal(c.cs.channel.State["Xᵤ"], []byte{}) {
-			random1 := make([]byte, 8)
-			rand.Read(random1)
-			random2 := make([]byte, 8)
-			rand.Read(random2)
-			c.cs.channel.State["Uᵤ"], c.cs.channel.State["Uᵥ"] = []byte(c.cs.channel.curve.ScalarBaseMult(random1))
-			c.cs.channel.State["Vᵤ"], c.cs.channel.State["Vᵥ"] = []byte(c.cs.channel.curve.ScalarBaseMult(random2))
-		}
-
 	} else if c.cs.channel.Role == 1 {
 		// processing for recipient
 	}
