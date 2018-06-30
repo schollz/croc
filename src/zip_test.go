@@ -1,7 +1,6 @@
 package croc
 
 import (
-	"os"
 	"testing"
 
 	log "github.com/cihub/seelog"
@@ -12,10 +11,10 @@ func TestZip(t *testing.T) {
 	defer log.Flush()
 	writtenFilename, err := zipFile("../testing_data", false)
 	assert.Nil(t, err)
-	defer os.Remove(writtenFilename)
+	// defer os.Remove(writtenFilename)
 
 	err = unzipFile(writtenFilename, ".")
 	assert.Nil(t, err)
 	assert.True(t, exists("testing_data"))
-	os.RemoveAll("testing_data")
+	// os.RemoveAll("testing_data")
 }
