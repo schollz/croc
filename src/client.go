@@ -17,6 +17,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 	"github.com/schollz/croc/src/pake"
+	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar"
 )
 
@@ -61,6 +62,17 @@ func (c *Croc) client(role int, codePhrase string, fname ...string) (err error) 
 	c.cs.Unlock()
 
 	if role == 0 {
+		// start peer discovery
+		go func() {
+			log.Debug("listening for local croc relay...")
+			go peerdiscovery.Discover(peerdiscovery.Settings{
+				Limit:     1,
+				TimeLimit: 600 * time.Second,
+				Delay:     50 * time.Millisecond,
+				Payload:   []byte(codePhrase),
+			})
+		}()
+
 		if len(fname) == 0 {
 			err = errors.New("must include filename")
 			return
