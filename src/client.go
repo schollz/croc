@@ -22,7 +22,7 @@ import (
 
 var isPrinted bool
 
-func (c *Croc) client(role int, channel string) (err error) {
+func (c *Croc) client(role int, channel string, address ...string) (err error) {
 	defer log.Flush()
 	defer c.cleanup()
 	// initialize the channel data for this client
@@ -31,7 +31,12 @@ func (c *Croc) client(role int, channel string) (err error) {
 	signal.Notify(interrupt, os.Interrupt)
 
 	// connect to the websocket
-	u := url.URL{Scheme: strings.Split(c.WebsocketAddress, "://")[0], Host: strings.Split(c.WebsocketAddress, "://")[1], Path: "/"}
+	var u url.URL
+	if len(address) != 0 {
+		u = url.URL{Scheme: strings.Split(address[0], "://")[0], Host: strings.Split(address[0], "://")[1], Path: "/"}
+	} else {
+		u = url.URL{Scheme: strings.Split(c.WebsocketAddress, "://")[0], Host: strings.Split(c.WebsocketAddress, "://")[1], Path: "/"}
+	}
 	log.Debugf("connecting to %s", u.String())
 	ws, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
