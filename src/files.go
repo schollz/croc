@@ -40,6 +40,10 @@ func (c *Croc) processFile(src string) (err error) {
 		fd.Name = "stdin"
 		fd.DeleteAfterSending = true
 	} else {
+		if !exists(src) {
+			err = errors.Errorf("file/folder '%s' does not exist", src)
+			return
+		}
 		pathToFile, filename = filepath.Split(filepath.Clean(src))
 		fd.Name = filename
 	}
@@ -47,12 +51,17 @@ func (c *Croc) processFile(src string) (err error) {
 	// check wether the file is a dir
 	info, err := os.Stat(path.Join(pathToFile, filename))
 	if err != nil {
+		log.Error(err)
 		return
 	}
 	fd.IsDir = info.Mode().IsDir()
 
 	// zip file
 	c.crocFile, err = zipFile(path.Join(pathToFile, filename), c.UseCompression)
+	if err != nil {
+		log.Error(err)
+		return
+	}
 	fd.IsCompressed = c.UseCompression
 
 	fd.Hash, err = hashFile(c.crocFile)
