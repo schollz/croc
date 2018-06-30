@@ -70,8 +70,7 @@ func splitFile(fileName string, numPieces int) (err error) {
 	return nil
 }
 
-func getCurve(s string) (curveString string, curve elliptic.Curve) {
-	curveString = s
+func getCurve(s string) (curve elliptic.Curve) {
 	switch s {
 	case "p224":
 		curve = elliptic.P224()
@@ -84,7 +83,6 @@ func getCurve(s string) (curveString string, curve elliptic.Curve) {
 	default:
 		// TODO:
 		// add SIEC
-		curveString = "p256"
 		curve = elliptic.P256()
 	}
 	return

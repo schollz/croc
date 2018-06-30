@@ -9,14 +9,15 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
+	"github.com/schollz/croc/src/pake"
 )
 
-func (c *Croc) client(role int) (err error) {
+func (c *Croc) client(role int, codePhrase string) (err error) {
 	defer log.Flush()
-	codePhrase := "chou"
 
 	// initialize the channel data for this client
 	c.cs.Lock()
+
 	c.cs.channel.codePhrase = codePhrase
 	if len(codePhrase) > 0 {
 		if len(codePhrase) < 4 {
@@ -25,7 +26,13 @@ func (c *Croc) client(role int) (err error) {
 		}
 		c.cs.channel.Channel = codePhrase[:3]
 		c.cs.channel.passPhrase = codePhrase[3:]
+	} else {
+		// TODO
+		// generate code phrase
+		c.cs.channel.Channel = "chou"
+		c.cs.channel.passPhrase = codePhrase[3:]
 	}
+	channel := c.cs.channel.Channel
 	c.cs.Unlock()
 
 	interrupt := make(chan os.Signal, 1)
@@ -55,7 +62,7 @@ func (c *Croc) client(role int) (err error) {
 				return
 			}
 			log.Debugf("recv: %s", cd)
-			err = c.processState(cd)
+			err = c.processState(ws, cd)
 			if err != nil {
 				log.Warn(err)
 				return
@@ -66,7 +73,7 @@ func (c *Croc) client(role int) (err error) {
 	// initialize by joining as corresponding role
 	// TODO:
 	// allowing suggesting a channel
-	p := payload{
+	p := channelData{
 		Open:    true,
 		Role:    role,
 		Channel: channel,
@@ -92,7 +99,7 @@ func (c *Croc) client(role int) (err error) {
 			// Cleanly close the connection by sending a close message and then
 			// waiting (with timeout) for the server to close the connection.
 			log.Debug("sending close signal")
-			errWrite := ws.WriteJSON(payload{
+			errWrite := ws.WriteJSON(channelData{
 				Channel: channel,
 				UUID:    uuid,
 				Close:   true,
@@ -111,7 +118,7 @@ func (c *Croc) client(role int) (err error) {
 	return
 }
 
-func (c *Croc) processState(cd channelData) (err error) {
+func (c *Croc) processState(ws *websocket.Conn, cd channelData) (err error) {
 	c.cs.Lock()
 	defer c.cs.Unlock()
 
@@ -130,6 +137,15 @@ func (c *Croc) processState(cd channelData) (err error) {
 		c.cs.channel.UUID = cd.UUID
 		c.cs.channel.Channel = cd.Channel
 		c.cs.channel.Role = cd.Role
+		c.cs.channel.Curve = cd.Curve
+		c.cs.channel.Pake, err = pake.Init([]byte(c.cs.channel.passPhrase), cd.Role, getCurve(cd.Curve))
+		c.cs.channel.Update = true
+		log.Debugf("updating channel")
+		errWrite := ws.WriteJSON(c.cs.channel)
+		if errWrite != nil {
+			log.Error(errWrite)
+		}
+		c.cs.channel.Update = false
 		log.Debugf("initialized client state")
 		return
 	}
@@ -138,6 +154,27 @@ func (c *Croc) processState(cd channelData) (err error) {
 		c.cs.channel.TransferReady = true
 	}
 	c.cs.channel.Ports = cd.Ports
+	if cd.Pake != nil && cd.Pake.Role != c.cs.channel.Role {
+		log.Debugf("updating pake from %d", cd.Pake.Role)
+		if c.cs.channel.Pake.HkA == nil {
+			err = c.cs.channel.Pake.Update(cd.Pake.Bytes())
+			if err != nil {
+				log.Error(err)
+				log.Debug("sending close signal")
+				c.cs.channel.Close = true
+				c.cs.channel.Error = err.Error()
+				ws.WriteJSON(c.cs.channel)
+				return
+			}
+			c.cs.channel.Update = true
+			log.Debugf("updating channel")
+			errWrite := ws.WriteJSON(c.cs.channel)
+			if errWrite != nil {
+				log.Error(errWrite)
+			}
+			c.cs.channel.Update = false
+		}
+	}
 
 	// TODO:
 	// process the client state
