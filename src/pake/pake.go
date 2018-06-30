@@ -1,7 +1,6 @@
 package pake
 
 import (
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
@@ -20,6 +19,13 @@ import (
 // http://www.lothar.com/~warner/MagicWormhole-PyCon2016.pdf
 // Slide 11
 
+type EllipticCurve interface {
+	Add(x1, y1, x2, y2 *big.Int) (*big.Int, *big.Int)
+	ScalarBaseMult(k []byte) (*big.Int, *big.Int)
+	ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big.Int)
+	IsOnCurve(x, y *big.Int) bool
+}
+
 type Pake struct {
 	// Public variables
 	Role     int
@@ -30,7 +36,7 @@ type Pake struct {
 	HkA, HkB []byte
 
 	// Private variables
-	curve      elliptic.Curve
+	curve      EllipticCurve
 	pw         []byte
 	vpwᵤ, vpwᵥ *big.Int
 	upwᵤ, upwᵥ *big.Int
@@ -42,7 +48,7 @@ type Pake struct {
 	isVerified bool
 }
 
-func Init(pw []byte, role int, curve elliptic.Curve) (p *Pake, err error) {
+func Init(pw []byte, role int, curve EllipticCurve) (p *Pake, err error) {
 	p = new(Pake)
 	if role == 1 {
 		p.Role = 1
