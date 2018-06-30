@@ -3,7 +3,6 @@ package croc
 import (
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -276,17 +275,7 @@ func (c *Croc) spawnConnections(role int) (err error) {
 	err = c.dialUp()
 	if err == nil {
 		if role == 1 {
-			c.cs.Lock()
-			c.cs.channel.Update = true
-			c.cs.channel.finishedHappy = true
-			c.cs.channel.FileReceived = true
-			log.Debugf("got file successfully")
-			errWrite := c.cs.channel.ws.WriteJSON(c.cs.channel)
-			if errWrite != nil {
-				log.Error(errWrite)
-			}
-			c.cs.channel.Update = false
-			c.cs.Unlock()
+			err = c.processReceivedFile()
 		}
 	} else {
 		log.Error(err)
@@ -303,18 +292,13 @@ func (c *Croc) dialUp() (err error) {
 	c.cs.Unlock()
 	errorChan := make(chan error, len(ports))
 
-	// generate a receive filename
-	var f *os.File
-	f, err = ioutil.TempFile(".", "croc-received")
-	if err != nil {
-		return
+	if role == 1 {
+		// generate a receive filename
+		c.crocFileEncrypted = tempFileName("croc-received")
 	}
-	receiveFileName := f.Name()
-	f.Close()
-	os.Remove(receiveFileName)
 
 	for i, port := range ports {
-		go func(channel, uuid, port string, i int, errorChan chan error, receiveFileName string) {
+		go func(channel, uuid, port string, i int, errorChan chan error) {
 			if i == 0 {
 				log.Debug("dialing up")
 			}
@@ -390,11 +374,12 @@ func (c *Croc) dialUp() (err error) {
 					c.cs.Unlock()
 					log.Debug("receive file")
 				}()
-				receiveFileName += "." + strconv.Itoa(i)
+				receiveFileName := c.crocFileEncrypted + "." + strconv.Itoa(i)
+				log.Debugf("receiving file into %s", receiveFileName)
 				err = receiveFile(receiveFileName, i, connection)
 			}
 			errorChan <- err
-		}(channel, uuid, port, i, errorChan, receiveFileName)
+		}(channel, uuid, port, i, errorChan)
 	}
 
 	// collect errors

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -146,5 +147,75 @@ func (c *Croc) getFilesReady() (err error) {
 		c.cs.channel.fileReady = true
 		c.cs.Unlock()
 	}()
+	return
+}
+
+func (c *Croc) processReceivedFile() (err error) {
+	// cat the file received
+	c.cs.Lock()
+	defer c.cs.Unlock()
+	c.cs.channel.FileReceived = true
+	defer func() {
+		c.cs.channel.Update = true
+		errWrite := c.cs.channel.ws.WriteJSON(c.cs.channel)
+		if errWrite != nil {
+			log.Error(errWrite)
+			return
+		}
+		c.cs.channel.Update = false
+	}()
+
+	filesToCat := make([]string, len(c.cs.channel.Ports))
+	for i := range c.cs.channel.Ports {
+		filesToCat[i] = c.crocFileEncrypted + "." + strconv.Itoa(i)
+		log.Debugf("going to cat file %s", filesToCat[i])
+	}
+
+	// defer os.Remove(c.crocFile)
+	log.Debugf("catting file into %s", c.crocFile)
+	err = catFiles(filesToCat, c.crocFileEncrypted, true)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	// unencrypt
+	c.crocFile = tempFileName("croc-unencrypted")
+	var passphrase []byte
+	passphrase, err = c.cs.channel.Pake.SessionKey()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	err = decryptFile(c.crocFileEncrypted, c.crocFile, passphrase)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	os.Remove(c.crocFileEncrypted)
+
+	// check hash
+	log.Debug("checking hash")
+	var hashString string
+	hashString, err = hashFile(c.crocFile)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	if hashString == c.cs.channel.fileMetaData.Hash {
+		log.Debug("hashes match")
+	} else {
+		err = errors.Errorf("hashes do not match, %s != %s", c.cs.channel.fileMetaData.Hash, hashString)
+		log.Error(err)
+		return
+	}
+
+	// unzip file
+	err = unzipFile(c.crocFile, ".")
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	c.cs.channel.finishedHappy = true
 	return
 }
