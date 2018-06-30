@@ -76,6 +76,7 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 		go d.startServer()
 		e := Init()
 		e.WebsocketAddress = "ws://127.0.0.1:8140"
+		// copy over the information
 		c.cs.Lock()
 		e.cs.Lock()
 		e.cs.channel.codePhrase = codePhrase
