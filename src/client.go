@@ -204,6 +204,15 @@ func (c *Croc) processState(ws *websocket.Conn, cd channelData) (err error) {
 			c.cs.channel.Update = false
 		}
 	}
+	if c.cs.channel.Role == 0 && c.cs.channel.Pake.IsVerified() {
+		go func() {
+			// encrypt the files
+			// TODO
+			c.cs.Lock()
+			c.cs.channel.fileReady = true
+			c.cs.Unlock()
+		}()
+	}
 
 	// TODO
 	// process the client state
@@ -277,6 +286,9 @@ func (c *Croc) dialUp() (err error) {
 			for {
 				c.cs.RLock()
 				ready := c.cs.channel.TransferReady
+				if role == 0 {
+					ready = ready && c.cs.channel.fileReady
+				}
 				c.cs.RUnlock()
 				if ready {
 					break

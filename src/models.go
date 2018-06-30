@@ -103,6 +103,7 @@ type channelData struct {
 	// sessionKey
 	sessionKey []byte
 	isReady    bool
+	fileReady  bool
 
 	// relay parameters
 	// isopen determine whether or not the channel has been opened
