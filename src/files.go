@@ -10,7 +10,6 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 )
 
@@ -73,7 +72,7 @@ func (c *Croc) processFile(src string) (err error) {
 	return
 }
 
-func (c *Croc) getFilesReady(ws *websocket.Conn) (err error) {
+func (c *Croc) getFilesReady() (err error) {
 	c.cs.Lock()
 	defer c.cs.Unlock()
 	log.Debug("getting files ready")
@@ -135,7 +134,7 @@ func (c *Croc) getFilesReady(ws *websocket.Conn) (err error) {
 
 	c.cs.channel.Update = true
 	log.Debugf("updating channel")
-	errWrite := ws.WriteJSON(c.cs.channel)
+	errWrite := c.cs.channel.ws.WriteJSON(c.cs.channel)
 	if errWrite != nil {
 		log.Error(errWrite)
 	}

@@ -67,6 +67,10 @@ func (c *Croc) client(role int, codePhrase string, fname ...string) (err error) 
 		return
 	}
 	defer ws.Close()
+	// add websocket to locked channel
+	c.cs.Lock()
+	c.cs.channel.ws = ws
+	c.cs.Unlock()
 
 	// read in the messages and process them
 	done := make(chan struct{})
@@ -80,7 +84,7 @@ func (c *Croc) client(role int, codePhrase string, fname ...string) (err error) 
 				return
 			}
 			//log.Debugf("recv: %s", cd.String2())
-			err = c.processState(ws, cd)
+			err = c.processState(cd)
 			if err != nil {
 				log.Warn(err)
 				return
@@ -97,11 +101,14 @@ func (c *Croc) client(role int, codePhrase string, fname ...string) (err error) 
 		Channel: channel,
 	}
 	log.Debugf("sending opening payload: %+v", p)
-	err = ws.WriteJSON(p)
+	c.cs.Lock()
+	err = c.cs.channel.ws.WriteJSON(p)
 	if err != nil {
 		log.Errorf("problem opening: %s", err.Error())
+		c.cs.Unlock()
 		return
 	}
+	c.cs.Unlock()
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -117,7 +124,6 @@ func (c *Croc) client(role int, codePhrase string, fname ...string) (err error) 
 				c.cs.Lock()
 				channel := c.cs.channel.Channel
 				uuid := c.cs.channel.UUID
-				c.cs.Unlock()
 				// Cleanly close the connection by sending a close message and then
 				// waiting (with timeout) for the server to close the connection.
 				log.Debug("sending close signal")
@@ -126,6 +132,7 @@ func (c *Croc) client(role int, codePhrase string, fname ...string) (err error) 
 					UUID:    uuid,
 					Close:   true,
 				})
+				c.cs.Unlock()
 				if errWrite != nil {
 					log.Debugf("write close:", err)
 					return
@@ -148,7 +155,7 @@ func (c *Croc) client(role int, codePhrase string, fname ...string) (err error) 
 	return
 }
 
-func (c *Croc) processState(ws *websocket.Conn, cd channelData) (err error) {
+func (c *Croc) processState(cd channelData) (err error) {
 	c.cs.Lock()
 	defer c.cs.Unlock()
 
@@ -168,7 +175,7 @@ func (c *Croc) processState(ws *websocket.Conn, cd channelData) (err error) {
 		log.Debug("file recieved!")
 		log.Debug("sending close signal")
 		c.cs.channel.Close = true
-		ws.WriteJSON(c.cs.channel)
+		c.cs.channel.ws.WriteJSON(c.cs.channel)
 		return
 	}
 
@@ -194,7 +201,7 @@ func (c *Croc) processState(ws *websocket.Conn, cd channelData) (err error) {
 		c.cs.channel.Pake, err = pake.Init([]byte(c.cs.channel.passPhrase), cd.Role, getCurve(cd.Curve))
 		c.cs.channel.Update = true
 		log.Debugf("updating channel")
-		errWrite := ws.WriteJSON(c.cs.channel)
+		errWrite := c.cs.channel.ws.WriteJSON(c.cs.channel)
 		if errWrite != nil {
 			log.Error(errWrite)
 		}
@@ -216,12 +223,12 @@ func (c *Croc) processState(ws *websocket.Conn, cd channelData) (err error) {
 				log.Debug("sending close signal")
 				c.cs.channel.Close = true
 				c.cs.channel.Error = err.Error()
-				ws.WriteJSON(c.cs.channel)
+				c.cs.channel.ws.WriteJSON(c.cs.channel)
 				return
 			}
 			c.cs.channel.Update = true
 			log.Debugf("updating channel")
-			errWrite := ws.WriteJSON(c.cs.channel)
+			errWrite := c.cs.channel.ws.WriteJSON(c.cs.channel)
 			if errWrite != nil {
 				log.Error(errWrite)
 			}
@@ -229,7 +236,7 @@ func (c *Croc) processState(ws *websocket.Conn, cd channelData) (err error) {
 		}
 	}
 	if c.cs.channel.Role == 0 && c.cs.channel.Pake.IsVerified() && !c.cs.channel.notSentMetaData && !c.cs.channel.filesReady {
-		go c.getFilesReady(ws)
+		go c.getFilesReady()
 		c.cs.channel.filesReady = true
 	}
 
@@ -260,13 +267,13 @@ func (c *Croc) processState(ws *websocket.Conn, cd channelData) (err error) {
 
 		// spawn TCP connections
 		c.cs.channel.isReady = true
-		go c.spawnConnections(ws, c.cs.channel.Role)
+		go c.spawnConnections(c.cs.channel.Role)
 	}
 	return
 }
 
-func (c *Croc) spawnConnections(ws *websocket.Conn, role int) (err error) {
-	err = c.dialUp(ws)
+func (c *Croc) spawnConnections(role int) (err error) {
+	err = c.dialUp()
 	if err == nil {
 		if role == 1 {
 			c.cs.Lock()
@@ -274,7 +281,7 @@ func (c *Croc) spawnConnections(ws *websocket.Conn, role int) (err error) {
 			c.cs.channel.finishedHappy = true
 			c.cs.channel.FileReceived = true
 			log.Debugf("got file successfully")
-			errWrite := ws.WriteJSON(c.cs.channel)
+			errWrite := c.cs.channel.ws.WriteJSON(c.cs.channel)
 			if errWrite != nil {
 				log.Error(errWrite)
 			}
@@ -287,7 +294,7 @@ func (c *Croc) spawnConnections(ws *websocket.Conn, role int) (err error) {
 	return
 }
 
-func (c *Croc) dialUp(ws *websocket.Conn) (err error) {
+func (c *Croc) dialUp() (err error) {
 	c.cs.Lock()
 	ports := c.cs.channel.Ports
 	channel := c.cs.channel.Channel
@@ -375,7 +382,7 @@ func (c *Croc) dialUp(ws *websocket.Conn) (err error) {
 					log.Debugf("updating channel with ready to read")
 					c.cs.channel.Update = true
 					c.cs.channel.ReadyToRead = true
-					errWrite := ws.WriteJSON(c.cs.channel)
+					errWrite := c.cs.channel.ws.WriteJSON(c.cs.channel)
 					if errWrite != nil {
 						log.Error(errWrite)
 					}
@@ -397,7 +404,7 @@ func (c *Croc) dialUp(ws *websocket.Conn) (err error) {
 			log.Warn(errOne)
 			log.Debug("sending close signal")
 			c.cs.channel.Close = true
-			ws.WriteJSON(c.cs.channel)
+			c.cs.channel.ws.WriteJSON(c.cs.channel)
 		}
 	}
 	log.Debug("leaving dialup")
