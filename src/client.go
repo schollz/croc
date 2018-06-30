@@ -8,8 +8,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,7 +17,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 	"github.com/schollz/croc/src/pake"
-	tarinator "github.com/schollz/tarinator-go"
 )
 
 func (c *Croc) client(role int, codePhrase string, fname ...string) (err error) {
@@ -231,8 +228,9 @@ func (c *Croc) processState(ws *websocket.Conn, cd channelData) (err error) {
 			c.cs.channel.Update = false
 		}
 	}
-	if c.cs.channel.Role == 0 && c.cs.channel.Pake.IsVerified() && !c.cs.channel.notSentMetaData {
+	if c.cs.channel.Role == 0 && c.cs.channel.Pake.IsVerified() && !c.cs.channel.notSentMetaData && !c.cs.channel.filesReady {
 		go c.getFilesReady(ws)
+		c.cs.channel.filesReady = true
 	}
 
 	// process the client state
@@ -267,74 +265,6 @@ func (c *Croc) processState(ws *websocket.Conn, cd channelData) (err error) {
 	return
 }
 
-func (c *Croc) getFilesReady(ws *websocket.Conn) (err error) {
-	c.cs.Lock()
-	defer c.cs.Unlock()
-	c.cs.channel.notSentMetaData = true
-	// send metadata
-
-	// wait until data is ready
-	for {
-		if c.cs.channel.fileMetaData.Name != "" {
-			break
-		}
-		c.cs.Unlock()
-		time.Sleep(10 * time.Millisecond)
-		c.cs.Lock()
-	}
-
-	// get passphrase
-	var passphrase []byte
-	passphrase, err = c.cs.channel.Pake.SessionKey()
-	if err != nil {
-		return
-	}
-	// encrypt file data
-	err = encryptFile(path.Join(c.cs.channel.fileMetaData.Path, c.cs.channel.fileMetaData.Name), c.cs.channel.fileMetaData.Name+".enc", passphrase)
-	if err != nil {
-		return
-	}
-	c.cs.channel.fileMetaData.IsEncrypted = true
-	// split into pieces to send
-	if err = splitFile(c.cs.channel.fileMetaData.Name+".enc", len(c.cs.channel.Ports)); err != nil {
-		return
-	}
-	// remove the file now since we still have pieces
-	if err = os.Remove(c.cs.channel.fileMetaData.Name + ".enc"); err != nil {
-		return
-	}
-	// remove compressed archive
-	if c.cs.channel.fileMetaData.IsDir {
-		log.Debug("removing archive: " + c.cs.channel.fileMetaData.Name)
-		if err = os.Remove(c.cs.channel.fileMetaData.Name); err != nil {
-			return
-		}
-	}
-	// encrypt meta data
-	var metaDataBytes []byte
-	metaDataBytes, err = json.Marshal(c.cs.channel.fileMetaData)
-	if err != nil {
-		return
-	}
-	c.cs.channel.EncryptedFileMetaData = encrypt(metaDataBytes, passphrase)
-
-	c.cs.channel.Update = true
-	log.Debugf("updating channel")
-	errWrite := ws.WriteJSON(c.cs.channel)
-	if errWrite != nil {
-		log.Error(errWrite)
-	}
-	c.cs.channel.Update = false
-	go func() {
-		// encrypt the files
-		// TODO
-		c.cs.Lock()
-		c.cs.channel.fileReady = true
-		c.cs.Unlock()
-	}()
-	return
-}
-
 func (c *Croc) spawnConnections(ws *websocket.Conn, role int) (err error) {
 	err = c.dialUp(ws)
 	if err == nil {
@@ -365,8 +295,19 @@ func (c *Croc) dialUp(ws *websocket.Conn) (err error) {
 	role := c.cs.channel.Role
 	c.cs.Unlock()
 	errorChan := make(chan error, len(ports))
+
+	// generate a receive filename
+	var f *os.File
+	f, err = ioutil.TempFile(".", "croc-received")
+	if err != nil {
+		return
+	}
+	receiveFileName := f.Name()
+	f.Close()
+	os.Remove(receiveFileName)
+
 	for i, port := range ports {
-		go func(channel, uuid, port string, i int, errorChan chan error) {
+		go func(channel, uuid, port string, i int, errorChan chan error, receiveFileName string) {
 			if i == 0 {
 				log.Debug("dialing up")
 			}
@@ -411,7 +352,7 @@ func (c *Croc) dialUp(ws *websocket.Conn) (err error) {
 				time.Sleep(10 * time.Millisecond)
 			}
 			c.cs.RLock()
-			filename := c.cs.channel.fileMetaData.Name + ".enc." + strconv.Itoa(i)
+
 			c.cs.RUnlock()
 			if role == 0 {
 				log.Debug("send file")
@@ -425,6 +366,7 @@ func (c *Croc) dialUp(ws *websocket.Conn) (err error) {
 					time.Sleep(10 * time.Millisecond)
 				}
 				log.Debug("sending file")
+				filename := c.crocFileEncrypted + "." + strconv.Itoa(i)
 				err = sendFile(filename, i, connection)
 			} else {
 				go func() {
@@ -441,11 +383,11 @@ func (c *Croc) dialUp(ws *websocket.Conn) (err error) {
 					c.cs.Unlock()
 					log.Debug("receive file")
 				}()
-
-				err = receiveFile(filename, i, connection)
+				receiveFileName += "." + strconv.Itoa(i)
+				err = receiveFile(receiveFileName, i, connection)
 			}
 			errorChan <- err
-		}(channel, uuid, port, i, errorChan)
+		}(channel, uuid, port, i, errorChan, receiveFileName)
 	}
 
 	// collect errors
@@ -459,67 +401,6 @@ func (c *Croc) dialUp(ws *websocket.Conn) (err error) {
 		}
 	}
 	log.Debug("leaving dialup")
-	return
-}
-
-func (c *Croc) processFile(fname string) (err error) {
-
-	fd := FileMetaData{}
-
-	// first check if it is stdin
-	if fname == "stdin" {
-		var f *os.File
-		f, err = ioutil.TempFile(".", "croc-stdin-")
-		if err != nil {
-			return
-		}
-		_, err = io.Copy(f, os.Stdin)
-		if err != nil {
-			return
-		}
-		fname = f.Name()
-		err = f.Close()
-		if err != nil {
-			return
-		}
-		fd.DeleteAfterSending = true
-	}
-
-	fname = filepath.Clean(fname)
-	// check wether the file is a dir
-	info, err := os.Stat(fname)
-	if err != nil {
-		return
-	}
-
-	fd.Path, fd.Name = filepath.Split(fname)
-	if info.Mode().IsDir() {
-		// tar folder
-		err = tarinator.Tarinate([]string{fname}, fd.Name+".tar")
-		if err != nil {
-			log.Error(err)
-			return
-		}
-		fd.Name = fd.Name + ".tar"
-		fd.Path = "."
-		fd.IsDir = true
-		fname = path.Join(fd.Path, fd.Name)
-	}
-	fd.Hash, err = hashFile(fname)
-	if err != nil {
-		log.Error(err)
-		return err
-	}
-	fd.Size, err = fileSize(fname)
-	if err != nil {
-		err = errors.Wrap(err, "could not determine filesize")
-		log.Error(err)
-		return err
-	}
-
-	c.cs.Lock()
-	defer c.cs.Unlock()
-	c.cs.channel.fileMetaData = fd
 	return
 }
 
