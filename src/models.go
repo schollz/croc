@@ -30,6 +30,11 @@ type Croc struct {
 
 	// cs keeps the client state
 	cs clientState
+
+	// crocFile is the name of the file that is prepared to sent
+	crocFile string
+	// crocFileEncrypted is the name of the encrypted file
+	crocFileEncrypted string
 }
 
 // Init will initialize the croc relay
@@ -60,11 +65,9 @@ type clientState struct {
 }
 
 type FileMetaData struct {
-	TempName           string
 	Name               string
 	Size               int
 	Hash               string
-	Path               string
 	IsDir              bool
 	IsEncrypted        bool
 	IsCompressed       bool
@@ -122,6 +125,9 @@ type channelData struct {
 	fileMetaData    FileMetaData
 	notSentMetaData bool
 	finishedHappy   bool
+	filesReady      bool
+	// ws is the connection that the client has to the relay
+	ws *websocket.Conn
 
 	// relay parameters
 	// isopen determine whether or not the channel has been opened
