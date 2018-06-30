@@ -8,6 +8,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/schollz/croc/src/pake"
+	"github.com/schollz/progressbar"
 )
 
 const (
@@ -41,7 +42,8 @@ type Croc struct {
 	rs relayState
 
 	// cs keeps the client state
-	cs clientState
+	cs  clientState
+	bar *progressbar.ProgressBar
 
 	// crocFile is the name of the file that is prepared to sent
 	crocFile string
@@ -64,6 +66,7 @@ func Init() (c *Croc) {
 	c.rs.channel = make(map[string]*channelData)
 	c.cs.channel = new(channelData)
 	c.rs.Unlock()
+
 	return
 }
 

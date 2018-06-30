@@ -79,6 +79,7 @@ func (c *Croc) processFile(src string) (err error) {
 	c.cs.Lock()
 	defer c.cs.Unlock()
 	c.cs.channel.fileMetaData = fd
+	go showIntro(c.cs.channel.codePhrase, fd)
 	return
 }
 
