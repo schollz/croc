@@ -304,7 +304,8 @@ func (c *Croc) dialUp() (err error) {
 				log.Debug("dialing up")
 			}
 			log.Debugf("connecting to %s", "localhost:"+port)
-			connection, err := net.Dial("tcp", "localhost:"+port)
+			address := strings.Split(strings.Split(c.WebsocketAddress, "://")[1], ":")[0]
+			connection, err := net.Dial("tcp", address+":"+port)
 			if err != nil {
 				errorChan <- err
 				return
