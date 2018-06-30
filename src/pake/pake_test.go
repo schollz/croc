@@ -8,13 +8,14 @@ import (
 )
 
 func TestPake(t *testing.T) {
+	curve := elliptic.P521() //siec.SIEC255()
 	// successful (both have same k)
 	// initialize A
-	A, err := Init([]byte{1, 2, 3}, 0, elliptic.P256())
+	A, err := Init([]byte{1, 2, 3}, 0, curve)
 	assert.Nil(t, err)
 	assert.False(t, A.IsVerified())
 	// initialize B
-	B, err := Init([]byte{1, 2, 3}, 1, elliptic.P256())
+	B, err := Init([]byte{1, 2, 3}, 1, curve)
 	assert.Nil(t, err)
 	assert.False(t, B.IsVerified())
 	// send A's stuff to B
@@ -32,11 +33,11 @@ func TestPake(t *testing.T) {
 
 	// failure (both have different k)
 	// initialize A
-	A, err = Init([]byte{1, 2, 3}, 0, elliptic.P256())
+	A, err = Init([]byte{1, 2, 3}, 0, curve)
 	assert.Nil(t, err)
 	assert.False(t, A.IsVerified())
 	// initialize B
-	B, err = Init([]byte{4, 5, 6}, 1, elliptic.P256())
+	B, err = Init([]byte{4, 5, 6}, 1, curve)
 	assert.Nil(t, err)
 	assert.False(t, B.IsVerified())
 	// send A's stuff to B
