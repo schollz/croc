@@ -147,7 +147,7 @@ func (c *Croc) client(role int, channel string) (err error) {
 				if err != nil {
 					return
 				}
-				fmt.Print(bFile)
+				os.Stdout.Write(bFile)
 			}
 		}
 	} else {
