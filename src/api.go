@@ -106,8 +106,8 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 
 	var ri runInfo
 	ri = <-runClientError
-	if ri.err != nil && ri.bothConnected {
-		return
+	if ri.bothConnected {
+		return ri.err
 	}
 	ri = <-runClientError
 	return ri.err
