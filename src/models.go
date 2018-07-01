@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/schollz/croc/src/pake"
+	"github.com/schollz/pake"
 	"github.com/schollz/progressbar"
 )
 
