@@ -1,11 +1,60 @@
 package pake
 
 import (
+	"crypto/elliptic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tscholl2/siec"
 )
+
+func BenchmarkPakeSIEC255(b *testing.B) {
+	curve := siec.SIEC255()
+	for i := 0; i < b.N; i++ {
+		// initialize A
+		A, _ := Init([]byte{1, 2, 3}, 0, curve)
+		// initialize B
+		B, _ := Init([]byte{1, 2, 3}, 1, curve)
+		// send A's stuff to B
+		B.Update(A.Bytes())
+		// send B's stuff to A
+		A.Update(B.Bytes())
+		// send A's stuff back to B
+		B.Update(A.Bytes())
+	}
+}
+
+func BenchmarkPakeP521(b *testing.B) {
+	curve := elliptic.P521()
+	for i := 0; i < b.N; i++ {
+		// initialize A
+		A, _ := Init([]byte{1, 2, 3}, 0, curve)
+		// initialize B
+		B, _ := Init([]byte{1, 2, 3}, 1, curve)
+		// send A's stuff to B
+		B.Update(A.Bytes())
+		// send B's stuff to A
+		A.Update(B.Bytes())
+		// send A's stuff back to B
+		B.Update(A.Bytes())
+	}
+}
+
+func BenchmarkPakeP224(b *testing.B) {
+	curve := elliptic.P224()
+	for i := 0; i < b.N; i++ {
+		// initialize A
+		A, _ := Init([]byte{1, 2, 3}, 0, curve)
+		// initialize B
+		B, _ := Init([]byte{1, 2, 3}, 1, curve)
+		// send A's stuff to B
+		B.Update(A.Bytes())
+		// send B's stuff to A
+		A.Update(B.Bytes())
+		// send A's stuff back to B
+		B.Update(A.Bytes())
+	}
+}
 
 func TestPake(t *testing.T) {
 	curve := siec.SIEC255()
