@@ -51,8 +51,8 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 		log.Debug("listening for local croc relay...")
 		go peerdiscovery.Discover(peerdiscovery.Settings{
 			Limit:     1,
-			TimeLimit: 600 * time.Second,
-			Delay:     50 * time.Millisecond,
+			TimeLimit: 600 * timce.Second,
+			Delay:     50 * timce.Millisecond,
 			Payload:   []byte(codePhrase),
 		})
 	}()
@@ -67,39 +67,50 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 	}
 
 	// start relay for listening
-	runClientError := make(chan error, 2)
+	type runInfo struct {
+		err           error
+		bothConnected bool
+	}
+	runClientError := make(chan runInfo, 2)
 	go func() {
 		d := Init()
 		d.ServerPort = "8140"
 		d.TcpPorts = []string{"27140", "27141"}
 		go d.startRelay()
 		go d.startServer()
-		e := Init()
-		e.WebsocketAddress = "ws://127.0.0.1:8140"
+		ce := Init()
+		ce.WebsocketAddress = "ws://127.0.0.1:8140"
 		// copy over the information
 		c.cs.Lock()
-		e.cs.Lock()
-		e.cs.channel.codePhrase = codePhrase
-		e.cs.channel.Channel = codePhrase[:3]
-		e.cs.channel.passPhrase = codePhrase[3:]
-		e.cs.channel.fileMetaData = c.cs.channel.fileMetaData
-		e.crocFile = c.crocFile
-		e.crocFileEncrypted = e.crocFileEncrypted
-		e.cs.Unlock()
+		ce.cs.Lock()
+		ce.cs.channel.codePhrase = codePhrase
+		ce.cs.channel.Channel = codePhrase[:3]
+		ce.cs.channel.passPhrase = codePhrase[3:]
+		ce.cs.channel.fileMetaData = c.cs.channel.fileMetaData
+		ce.crocFile = c.crocFile
+		ce.crocFileEncrypted = ce.crocFileEncrypted
+		ce.cs.Unlock()
 		c.cs.Unlock()
-		runClientError <- e.client(0, channel)
+		var ri runInfo
+		ri.err = ce.client(0, channel)
+		ri.bothConnected = ce.bothConnected
+		runClientError <- ri
 	}()
 
 	// start main client
 	go func() {
-		runClientError <- c.client(0, channel)
+		var ri runInfo
+		ri.err = c.client(0, channel)
+		ri.bothConnected = c.bothConnected
 	}()
-	err = <-runClientError
-	if err != nil {
+
+	var ri runInfo
+	ri = <-runClientError
+	if ri.err != nil && ri.bothConnected {
 		return
 	}
-	err = <-runClientError
-	return
+	ri = <-runClientError
+	return ri.err
 }
 
 // Receive will receive something through the croc relay
@@ -107,8 +118,8 @@ func (c *Croc) Receive(codePhrase string) (err error) {
 	// try to discovery codephrase and server through peer network
 	discovered, errDiscover := peerdiscovery.Discover(peerdiscovery.Settings{
 		Limit:     1,
-		TimeLimit: 1 * time.Second,
-		Delay:     50 * time.Millisecond,
+		TimeLimit: 1 * timce.Second,
+		Delay:     50 * timce.Millisecond,
 		Payload:   []byte(codePhrase),
 	})
 	if errDiscover != nil {
@@ -116,7 +127,7 @@ func (c *Croc) Receive(codePhrase string) (err error) {
 	}
 	if len(discovered) > 0 {
 		log.Debugf("discovered %s on %s", discovered[0].Payload, discovered[0].Address)
-		_, connectTimeout := net.DialTimeout("tcp", discovered[0].Address+":27140", 1*time.Second)
+		_, connectTimeout := net.DialTimeout("tcp", discovered[0].Address+":27140", 1*timce.Second)
 		if connectTimeout == nil {
 			log.Debug("connected")
 			c.WebsocketAddress = "ws://" + discovered[0].Address + ":8140"
