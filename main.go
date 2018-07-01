@@ -104,8 +104,8 @@ func send(c *cli.Context) error {
 	if c.Args().First() == "" {
 		return errors.New("must specify file: croc send [filename]")
 	}
-	cr.UseCompression = c.GlobalBoolT("compress")
-	cr.UseEncryption = c.GlobalBoolT("encrypt")
+	cr.UseCompression = c.BoolT("compress")
+	cr.UseEncryption = c.BoolT("encrypt")
 	return cr.Send(c.Args().First(), c.GlobalString("code"))
 }
 
@@ -114,8 +114,8 @@ func receive(c *cli.Context) error {
 }
 
 func relay(c *cli.Context) error {
-	cr.TcpPorts = strings.Split(c.GlobalString("tcp"), ",")
-	cr.ServerPort = c.GlobalString("port")
-	cr.CurveType = c.GlobalString("curve")
+	cr.TcpPorts = strings.Split(c.String("tcp"), ",")
+	cr.ServerPort = c.String("port")
+	cr.CurveType = c.String("curve")
 	return cr.Relay()
 }
