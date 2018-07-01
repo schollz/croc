@@ -203,6 +203,7 @@ func (c *Croc) processState(cd channelData) (err error) {
 	// copy over the rest of the state
 	c.cs.channel.Ports = cd.Ports
 	c.cs.channel.EncryptedFileMetaData = cd.EncryptedFileMetaData
+	c.cs.channel.Addresses = cd.Addresses
 
 	// update the Pake
 	if cd.Pake != nil && cd.Pake.Role != c.cs.channel.Role {

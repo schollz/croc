@@ -128,6 +128,8 @@ type channelData struct {
 	ReadyToRead bool `json:"ready_to_read"`
 	// Error is sent if there is an error
 	Error string `json:"error"`
+	// Addresses of the sender and recipient, as determined by the relay
+	Addresses [2]string `json:"addresses"`
 
 	// Sent on initialization, specific to a single user
 	// UUID is sent out only to one person at a time
