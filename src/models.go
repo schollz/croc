@@ -29,6 +29,7 @@ type Croc struct {
 	WebsocketAddress string
 	Timeout          time.Duration
 	LocalOnly        bool
+	NoLocal          bool
 
 	// Options for file transfering
 	UseEncryption       bool
