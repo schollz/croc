@@ -25,7 +25,6 @@ var isPrinted bool
 
 func (c *Croc) client(role int, channel string) (err error) {
 	defer log.Flush()
-	defer c.cleanup()
 	// initialize the channel data for this client
 
 	interrupt := make(chan os.Signal, 1)
@@ -64,7 +63,7 @@ func (c *Croc) client(role int, channel string) (err error) {
 				log.Debugf("sender read error:", err)
 				return
 			}
-			log.Debugf("recv: %s", cd.String2())
+			// log.Debugf("recv: %s", cd.String2())
 			err = c.processState(cd)
 			if err != nil {
 				log.Warn(err)
