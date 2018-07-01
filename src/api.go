@@ -51,8 +51,8 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 		log.Debug("listening for local croc relay...")
 		go peerdiscovery.Discover(peerdiscovery.Settings{
 			Limit:     1,
-			TimeLimit: 600 * timce.Second,
-			Delay:     50 * timce.Millisecond,
+			TimeLimit: 600 * time.Second,
+			Delay:     50 * time.Millisecond,
 			Payload:   []byte(codePhrase),
 		})
 	}()
@@ -118,8 +118,8 @@ func (c *Croc) Receive(codePhrase string) (err error) {
 	// try to discovery codephrase and server through peer network
 	discovered, errDiscover := peerdiscovery.Discover(peerdiscovery.Settings{
 		Limit:     1,
-		TimeLimit: 1 * timce.Second,
-		Delay:     50 * timce.Millisecond,
+		TimeLimit: 1 * time.Second,
+		Delay:     50 * time.Millisecond,
 		Payload:   []byte(codePhrase),
 	})
 	if errDiscover != nil {
@@ -127,7 +127,7 @@ func (c *Croc) Receive(codePhrase string) (err error) {
 	}
 	if len(discovered) > 0 {
 		log.Debugf("discovered %s on %s", discovered[0].Payload, discovered[0].Address)
-		_, connectTimeout := net.DialTimeout("tcp", discovered[0].Address+":27140", 1*timce.Second)
+		_, connectTimeout := net.DialTimeout("tcp", discovered[0].Address+":27140", 1*time.Second)
 		if connectTimeout == nil {
 			log.Debug("connected")
 			c.WebsocketAddress = "ws://" + discovered[0].Address + ":8140"
