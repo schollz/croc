@@ -84,6 +84,7 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 		d.TcpPorts = []string{"27140", "27141"}
 		go d.startRelay()
 		go d.startServer()
+		time.Sleep(100 * time.Millisecond)
 		ce := Init()
 		ce.WebsocketAddress = "ws://127.0.0.1:8140"
 		// copy over the information

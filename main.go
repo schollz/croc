@@ -103,12 +103,19 @@ func main() {
 }
 
 func send(c *cli.Context) error {
-	if c.Args().First() == "" {
+	stat, _ := os.Stdin.Stat()
+	var fname string
+	if (stat.Mode() & os.ModeCharDevice) == 0 {
+		fname = "stdin"
+	} else {
+		fname = c.Args().First()
+	}
+	if fname == "" {
 		return errors.New("must specify file: croc send [filename]")
 	}
 	cr.UseCompression = c.BoolT("compress")
 	cr.UseEncryption = c.BoolT("encrypt")
-	return cr.Send(c.Args().First(), c.GlobalString("code"))
+	return cr.Send(fname, c.GlobalString("code"))
 }
 
 func receive(c *cli.Context) error {
