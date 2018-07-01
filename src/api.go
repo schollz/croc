@@ -67,7 +67,7 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 	}
 
 	// start relay for listening
-	runClientError := make(chan error)
+	runClientError := make(chan error, 2)
 	go func() {
 		d := Init()
 		d.ServerPort = "8140"
@@ -94,7 +94,12 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 	go func() {
 		runClientError <- c.client(0, channel)
 	}()
-	return <-runClientError
+	err = <-runClientError
+	if err != nil {
+		return
+	}
+	err = <-runClientError
+	return
 }
 
 // Receive will receive something through the croc relay

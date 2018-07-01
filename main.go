@@ -117,6 +117,5 @@ func relay(c *cli.Context) error {
 	cr.TcpPorts = strings.Split(c.GlobalString("tcp"), ",")
 	cr.ServerPort = c.GlobalString("port")
 	cr.CurveType = c.GlobalString("curve")
-	fmt.Println("relay")
-	return nil
+	return cr.Relay()
 }
