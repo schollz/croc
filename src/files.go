@@ -15,6 +15,10 @@ import (
 )
 
 func (c *Croc) processFile(src string) (err error) {
+	log.Debug("processing file")
+	defer func() {
+		log.Debug("finished processing file")
+	}()
 	fd := FileMetaData{}
 
 	// pathToFile and filename are the files that should be used internally
@@ -84,9 +88,12 @@ func (c *Croc) processFile(src string) (err error) {
 }
 
 func (c *Croc) getFilesReady() (err error) {
+	log.Debug("getting files ready")
+	defer func() {
+		log.Debug("files ready")
+	}()
 	c.cs.Lock()
 	defer c.cs.Unlock()
-	log.Debug("getting files ready")
 	c.cs.channel.notSentMetaData = true
 	// send metadata
 
@@ -104,26 +111,31 @@ func (c *Croc) getFilesReady() (err error) {
 	var passphrase []byte
 	passphrase, err = c.cs.channel.Pake.SessionKey()
 	if err != nil {
+		log.Error(err)
 		return
 	}
 	// encrypt file data
 	c.crocFileEncrypted = tempFileName("croc-encrypted")
 	err = encryptFile(c.crocFile, c.crocFileEncrypted, passphrase)
 	if err != nil {
+		log.Error(err)
 		return
 	}
 	// remove the unencrypted versoin
 	if err = os.Remove(c.crocFile); err != nil {
+		log.Error(err)
 		return
 	}
 	c.cs.channel.fileMetaData.IsEncrypted = true
 	// split into pieces to send
 	log.Debugf("splitting %s", c.crocFileEncrypted)
 	if err = splitFile(c.crocFileEncrypted, len(c.cs.channel.Ports)); err != nil {
+		log.Error(err)
 		return
 	}
 	// remove the file now since we still have pieces
 	if err = os.Remove(c.crocFileEncrypted); err != nil {
+		log.Error(err)
 		return
 	}
 
@@ -131,20 +143,19 @@ func (c *Croc) getFilesReady() (err error) {
 	var metaDataBytes []byte
 	metaDataBytes, err = json.Marshal(c.cs.channel.fileMetaData)
 	if err != nil {
+		log.Error(err)
 		return
 	}
 	c.cs.channel.EncryptedFileMetaData = encrypt(metaDataBytes, passphrase)
 
 	c.cs.channel.Update = true
-	log.Debugf("updating channel")
+	log.Debugf("updating channel with file information")
 	errWrite := c.cs.channel.ws.WriteJSON(c.cs.channel)
 	if errWrite != nil {
 		log.Error(errWrite)
 	}
 	c.cs.channel.Update = false
 	go func() {
-		// encrypt the files
-		// TODO
 		c.cs.Lock()
 		c.cs.channel.fileReady = true
 		c.cs.Unlock()
