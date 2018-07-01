@@ -14,13 +14,18 @@ func promptCodePhrase() string {
 }
 
 func promptOkayToRecieve(f FileMetaData) (ok bool) {
+	overwritingOrReceiving := "Receiving"
+	if exists(f.Name) {
+		overwritingOrReceiving = "Overwriting"
+	}
 	fileOrFolder := "file"
 	if f.IsDir {
 		fileOrFolder = "folder"
 	}
 	return "y" == getInput(fmt.Sprintf(
-		`Receiving %s (%s) into: %s
+		`%s %s (%s) into: %s
 ok? (y/N): `,
+		overwritingOrReceiving,
 		fileOrFolder,
 		humanize.Bytes(uint64(f.Size)),
 		f.Name,
