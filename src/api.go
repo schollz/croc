@@ -25,7 +25,7 @@ func (c *Croc) Relay() error {
 // Send will take an existing file or folder and send it through the croc relay
 func (c *Croc) Send(fname string, codePhrase string) (err error) {
 	// prepare code phrase
-
+	defer c.cleanup()
 	c.cs.Lock()
 	c.cs.channel.codePhrase = codePhrase
 	if len(codePhrase) == 0 {
@@ -125,6 +125,7 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 
 // Receive will receive something through the croc relay
 func (c *Croc) Receive(codePhrase string) (err error) {
+	defer c.cleanup()
 	if !c.NoLocal {
 		// try to discovery codephrase and server through peer network
 		discovered, errDiscover := peerdiscovery.Discover(peerdiscovery.Settings{
