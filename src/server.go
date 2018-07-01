@@ -20,9 +20,9 @@ func (c *Croc) startServer() (err error) {
 	var upgrader = websocket.Upgrader{} // use default options
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// incoming websocket request
-		log.Debugf("connecting remote addr: %+v", r)
+		log.Debugf("connecting remote addr: %+v", r.RemoteAddr)
 		ws, err := upgrader.Upgrade(w, r, nil)
-		address := ws.RemoteAddr().String()
+		address := r.RemoteAddr
 		if _, ok := r.Header["X-Forwarded-For"]; ok {
 			address = r.Header["X-Forwarded-For"][0]
 		}
