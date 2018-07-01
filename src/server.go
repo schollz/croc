@@ -20,6 +20,7 @@ func (c *Croc) startServer() (err error) {
 	var upgrader = websocket.Upgrader{} // use default options
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// incoming websocket request
+		log.Debugf("connecting remote addr: %+v", r)
 		ws, err := upgrader.Upgrade(w, r, nil)
 		log.Debugf("connecting remote addr: %s", ws.RemoteAddr().String())
 		if err != nil {
@@ -150,7 +151,7 @@ func (c *Croc) joinChannel(ws *websocket.Conn, cd channelData) (channel string, 
 	}
 	c.rs.channel[cd.Channel].websocketConn[cd.Role] = ws
 	// assign the name
-	c.rs.channel[cd.Channel].Addresses[cd.Role] = ws.RemoteAddr().Network()
+	c.rs.channel[cd.Channel].Addresses[cd.Role] = ws.RemoteAddr().String()
 	log.Debugf("assigned role %d in channel '%s'", cd.Role, cd.Channel)
 	return
 }
