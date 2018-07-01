@@ -22,7 +22,7 @@ import (
 
 var isPrinted bool
 
-func (c *Croc) client(role int, channel string, address ...string) (err error) {
+func (c *Croc) client(role int, channel string) (err error) {
 	defer log.Flush()
 	defer c.cleanup()
 	// initialize the channel data for this client
@@ -31,16 +31,19 @@ func (c *Croc) client(role int, channel string, address ...string) (err error) {
 	signal.Notify(interrupt, os.Interrupt)
 
 	// connect to the websocket
-	var u url.URL
-	if len(address) != 0 {
-		u = url.URL{Scheme: strings.Split(address[0], "://")[0], Host: strings.Split(address[0], "://")[1], Path: "/"}
-	} else {
-		u = url.URL{Scheme: strings.Split(c.WebsocketAddress, "://")[0], Host: strings.Split(c.WebsocketAddress, "://")[1], Path: "/"}
-	}
+	u := url.URL{Scheme: strings.Split(c.WebsocketAddress, "://")[0], Host: strings.Split(c.WebsocketAddress, "://")[1], Path: "/"}
 	log.Debugf("connecting to %s", u.String())
 	ws, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
-		log.Error("dial:", err)
+		// don't return error if sender can't connect, so
+		// that croc can be used locally without
+		// an internet connection
+		if role == 0 {
+			log.Debugf("dial %s error: %s", c.WebsocketAddress, err.Error())
+			err = nil
+		} else {
+			log.Error("dial:", err)
+		}
 		return
 	}
 	defer ws.Close()
