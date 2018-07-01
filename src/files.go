@@ -41,7 +41,7 @@ func (c *Croc) processFile(src string) (err error) {
 			return
 		}
 		// fd.Name is what the user will see
-		fd.Name = "stdin"
+		fd.Name = filename
 		fd.DeleteAfterSending = true
 	} else {
 		if !exists(src) {
