@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -101,7 +102,8 @@ func (c *Croc) client(role int, channel string) (err error) {
 			case <-interrupt:
 				// send Close signal to relay on interrupt
 				log.Debugf("interrupt")
-				c.cs.Lock()
+				c.cs.RWMutex.
+					c.cs.Lock()
 				channel := c.cs.channel.Channel
 				uuid := c.cs.channel.UUID
 				// Cleanly close the connection by sending a close message and then
@@ -134,7 +136,20 @@ func (c *Croc) client(role int, channel string) (err error) {
 		if c.cs.channel.Role == 0 {
 			fmt.Fprintf(os.Stderr, "\nTransfer complete.\n")
 		} else {
-			fmt.Fprintf(os.Stderr, "\nReceived file written to %s", c.cs.channel.fileMetaData.Name)
+			folderOrFile := "file"
+			if c.cs.channel.fileMetaData.IsDir {
+				folderOrFile = "folder"
+			}
+			fmt.Fprintf(os.Stderr, "\nReceived %s written to %s", folderOrFile, c.cs.channel.fileMetaData.Name)
+			// push to stdout if required
+			if c.Stdout && !c.cs.channel.fileMetaData.IsDir {
+				var bFile []byte
+				bFile, err = ioutil.ReadFile(c.cs.channel.fileMetaData.Name)
+				if err != nil {
+					return
+				}
+				fmt.Print(bFile)
+			}
 		}
 	} else {
 		if c.cs.channel.Error != "" {
