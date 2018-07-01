@@ -29,6 +29,9 @@ func (c *Croc) startServer() (err error) {
 		if _, ok := r.Header["X-Real-Ip"]; ok {
 			address = r.Header["X-Real-Ip"][0]
 		}
+		c.rs.Lock()
+		c.rs.ips[ws.RemoteAddr().String()] = address
+		c.rs.Unlock()
 		log.Debugf("connecting remote addr: %s", address)
 		if err != nil {
 			log.Error("upgrade:", err)
@@ -158,7 +161,7 @@ func (c *Croc) joinChannel(ws *websocket.Conn, cd channelData) (channel string, 
 	}
 	c.rs.channel[cd.Channel].websocketConn[cd.Role] = ws
 	// assign the name
-	c.rs.channel[cd.Channel].Addresses[cd.Role] = ws.RemoteAddr().String()
+	c.rs.channel[cd.Channel].Addresses[cd.Role] = c.rs.ips[ws.RemoteAddr().String()]
 	log.Debugf("assigned role %d in channel '%s'", cd.Role, cd.Channel)
 	return
 }
@@ -175,6 +178,7 @@ func (c *Croc) closeChannel(channel string) {
 	for _, wsConn := range c.rs.channel[channel].websocketConn {
 		if wsConn != nil {
 			wsConn.Close()
+			delete(c.rs.ips, wsConn.RemoteAddr().String())
 		}
 	}
 	// delete

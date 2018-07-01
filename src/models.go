@@ -64,6 +64,7 @@ func Init() (c *Croc) {
 	c.ServerPort = "8130"
 	c.rs.Lock()
 	c.rs.channel = make(map[string]*channelData)
+	c.rs.ips = make(map[string]string)
 	c.cs.channel = new(channelData)
 	c.rs.Unlock()
 
@@ -79,6 +80,7 @@ func (c *Croc) SetDebug(debug bool) {
 }
 
 type relayState struct {
+	ips     map[string]string
 	channel map[string]*channelData
 	sync.RWMutex
 }
