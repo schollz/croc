@@ -143,7 +143,8 @@ type channelData struct {
 	// passPhrase is used to generate a session key
 	passPhrase string
 	// sessionKey
-	sessionKey      []byte
+	sessionKey []byte
+	// isReady specifies whether the current client
 	isReady         bool
 	fileReady       bool
 	fileMetaData    FileMetaData
