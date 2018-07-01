@@ -150,8 +150,7 @@ func (c *Croc) joinChannel(ws *websocket.Conn, cd channelData) (channel string, 
 	}
 	c.rs.channel[cd.Channel].websocketConn[cd.Role] = ws
 	// assign the name
-	c.rs.channel[cd.Channel].Addresses[cd.Role] = ws.RemoteAddr().String()
-
+	c.rs.channel[cd.Channel].Addresses[cd.Role] = ws.RemoteAddr().Network()
 	log.Debugf("assigned role %d in channel '%s'", cd.Role, cd.Channel)
 	return
 }
