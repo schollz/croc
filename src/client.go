@@ -139,15 +139,19 @@ func (c *Croc) client(role int, channel string) (err error) {
 			if c.cs.channel.fileMetaData.IsDir {
 				folderOrFile = "folder"
 			}
-			fmt.Fprintf(os.Stderr, "\nReceived %s written to %s", folderOrFile, c.cs.channel.fileMetaData.Name)
 			// push to stdout if required
 			if c.Stdout && !c.cs.channel.fileMetaData.IsDir {
+				fmt.Fprintf(os.Stderr, "\nReceived %s written to %s", folderOrFile, "stdout")
 				var bFile []byte
 				bFile, err = ioutil.ReadFile(c.cs.channel.fileMetaData.Name)
 				if err != nil {
 					return
 				}
 				os.Stdout.Write(bFile)
+				os.Remove(c.cs.channel.fileMetaData.Name)
+			} else {
+
+				fmt.Fprintf(os.Stderr, "\nReceived %s written to %s", folderOrFile, c.cs.channel.fileMetaData.Name)
 			}
 		}
 	} else {
