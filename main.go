@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	croc "github.com/schollz/croc/src"
@@ -57,6 +58,7 @@ func main() {
 			Flags: []cli.Flag{
 				cli.StringFlag{Name: "tcp", Value: "27130,27131,27132,27133", Usage: "ports for the tcp connections"},
 				cli.StringFlag{Name: "port", Value: "8130", Usage: "port that the websocket listens on"},
+				cli.StringFlag{Name: "curve", Value: "siec", Usage: "specify elliptic curve to use (p224, p256, p384, p521, siec)"},
 			},
 			HelpName: "croc relay",
 			Action: func(c *cli.Context) error {
@@ -112,6 +114,9 @@ func receive(c *cli.Context) error {
 }
 
 func relay(c *cli.Context) error {
+	cr.TcpPorts = strings.Split(c.GlobalString("tcp"), ",")
+	cr.ServerPort = c.GlobalString("port")
+	cr.CurveType = c.GlobalString("curve")
 	fmt.Println("relay")
 	return nil
 }
