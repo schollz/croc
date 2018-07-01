@@ -127,6 +127,7 @@ func (c *Croc) client(role int, channel string) (err error) {
 	}(&wg)
 	wg.Wait()
 
+	log.Debug("waiting for unlock")
 	c.cs.Lock()
 	if c.cs.channel.finishedHappy {
 		log.Info("file recieved!")
@@ -143,6 +144,7 @@ func (c *Croc) client(role int, channel string) (err error) {
 		}
 	}
 	c.cs.Unlock()
+	log.Debug("returning")
 	return
 }
 

@@ -48,6 +48,9 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 
 	// start peer discovery
 	go func() {
+		if c.NoLocal {
+			return
+		}
 		log.Debug("listening for local croc relay...")
 		go peerdiscovery.Discover(peerdiscovery.Settings{
 			Limit:     1,
@@ -73,6 +76,9 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 	}
 	runClientError := make(chan runInfo, 2)
 	go func() {
+		if c.NoLocal {
+			return
+		}
 		d := Init()
 		d.ServerPort = "8140"
 		d.TcpPorts = []string{"27140", "27141"}
@@ -99,14 +105,18 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 
 	// start main client
 	go func() {
+		if c.LocalOnly {
+			return
+		}
 		var ri runInfo
 		ri.err = c.client(0, channel)
 		ri.bothConnected = c.bothConnected
+		runClientError <- ri
 	}()
 
 	var ri runInfo
 	ri = <-runClientError
-	if ri.bothConnected {
+	if ri.bothConnected || c.LocalOnly || c.NoLocal {
 		return ri.err
 	}
 	ri = <-runClientError
@@ -115,29 +125,31 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 
 // Receive will receive something through the croc relay
 func (c *Croc) Receive(codePhrase string) (err error) {
-	// try to discovery codephrase and server through peer network
-	discovered, errDiscover := peerdiscovery.Discover(peerdiscovery.Settings{
-		Limit:     1,
-		TimeLimit: 1 * time.Second,
-		Delay:     50 * time.Millisecond,
-		Payload:   []byte(codePhrase),
-	})
-	if errDiscover != nil {
-		log.Debug(errDiscover)
-	}
-	if len(discovered) > 0 {
-		log.Debugf("discovered %s on %s", discovered[0].Payload, discovered[0].Address)
-		_, connectTimeout := net.DialTimeout("tcp", discovered[0].Address+":27140", 1*time.Second)
-		if connectTimeout == nil {
-			log.Debug("connected")
-			c.WebsocketAddress = "ws://" + discovered[0].Address + ":8140"
-			log.Debug(discovered[0].Address)
-			codePhrase = string(discovered[0].Payload)
-		} else {
-			log.Debug("but could not connect to ports")
+	if !c.NoLocal {
+		// try to discovery codephrase and server through peer network
+		discovered, errDiscover := peerdiscovery.Discover(peerdiscovery.Settings{
+			Limit:     1,
+			TimeLimit: 1 * time.Second,
+			Delay:     50 * time.Millisecond,
+			Payload:   []byte(codePhrase),
+		})
+		if errDiscover != nil {
+			log.Debug(errDiscover)
 		}
-	} else {
-		log.Debug("discovered no peers")
+		if len(discovered) > 0 {
+			log.Debugf("discovered %s on %s", discovered[0].Payload, discovered[0].Address)
+			_, connectTimeout := net.DialTimeout("tcp", discovered[0].Address+":27140", 1*time.Second)
+			if connectTimeout == nil {
+				log.Debug("connected")
+				c.WebsocketAddress = "ws://" + discovered[0].Address + ":8140"
+				log.Debug(discovered[0].Address)
+				codePhrase = string(discovered[0].Payload)
+			} else {
+				log.Debug("but could not connect to ports")
+			}
+		} else {
+			log.Debug("discovered no peers")
+		}
 	}
 
 	// prepare codephrase

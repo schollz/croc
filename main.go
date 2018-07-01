@@ -69,6 +69,7 @@ func main() {
 	app.Flags = []cli.Flag{
 		cli.StringFlag{Name: "relay", Value: "ws://croc3.schollz.com"},
 		cli.StringFlag{Name: "code, c", Usage: "codephrase used to connect to relay"},
+		cli.BoolFlag{Name: "no-local", Usage: "disable local mode"},
 		cli.BoolFlag{Name: "local", Usage: "use only local mode"},
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
@@ -91,6 +92,7 @@ func main() {
 		cr.Yes = c.GlobalBool("yes")
 		cr.Stdout = c.GlobalBool("stdout")
 		cr.LocalOnly = c.GlobalBool("local")
+		cr.NoLocal = c.GlobalBool("no-local")
 		return nil
 	}
 
