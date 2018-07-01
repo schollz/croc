@@ -102,8 +102,7 @@ func (c *Croc) client(role int, channel string) (err error) {
 			case <-interrupt:
 				// send Close signal to relay on interrupt
 				log.Debugf("interrupt")
-				c.cs.RWMutex.
-					c.cs.Lock()
+				c.cs.Lock()
 				channel := c.cs.channel.Channel
 				uuid := c.cs.channel.UUID
 				// Cleanly close the connection by sending a close message and then
