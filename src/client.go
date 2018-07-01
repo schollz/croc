@@ -352,12 +352,12 @@ func (c *Croc) dialUp() (err error) {
 			if i == 0 {
 				c.cs.Lock()
 				c.bar = progressbar.NewOptions(c.cs.channel.fileMetaData.Size, progressbar.OptionSetWriter(os.Stderr))
-				c.cs.Unlock()
 				if role == 0 {
-					fmt.Fprintf(os.Stderr, "\nSending...\n")
+					fmt.Fprintf(os.Stderr, "\nSending (->%s)...\n", c.cs.channel.Addresses[1])
 				} else {
-					fmt.Fprintf(os.Stderr, "\nReceiving...\n")
+					fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)...\n", c.cs.channel.Addresses[0])
 				}
+				c.cs.Unlock()
 			}
 
 			if role == 0 {
