@@ -67,7 +67,7 @@ func main() {
 		},
 	}
 	app.Flags = []cli.Flag{
-		cli.StringFlag{Name: "relay", Value: "wss://croc3.schollz.com"},
+		cli.StringFlag{Name: "relay", Value: "ws://croc3.schollz.com"},
 		cli.StringFlag{Name: "code, c", Usage: "codephrase used to connect to relay"},
 		cli.BoolFlag{Name: "local", Usage: "use only local mode"},
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
