@@ -9,7 +9,7 @@ import (
 	"github.com/frankenbeanies/uuid4"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
-	"github.com/schollz/croc/src/pake"
+	"github.com/schollz/pake"
 )
 
 // startServer initiates the server which listens for websocket connections

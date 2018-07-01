@@ -16,7 +16,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
-	"github.com/schollz/croc/src/pake"
+	"github.com/schollz/pake"
 	"github.com/schollz/progressbar"
 )
 

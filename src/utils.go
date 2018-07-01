@@ -11,7 +11,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/schollz/croc/src/pake"
+	"github.com/schollz/pake"
 
 	"github.com/pkg/errors"
 	"github.com/tscholl2/siec"
