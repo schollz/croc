@@ -49,6 +49,8 @@ type Croc struct {
 	crocFile string
 	// crocFileEncrypted is the name of the encrypted file
 	crocFileEncrypted string
+	// bothConnected
+	bothConnected bool
 }
 
 // Init will initialize the croc relay
@@ -155,6 +157,7 @@ type channelData struct {
 	notSentMetaData bool
 	finishedHappy   bool
 	filesReady      bool
+
 	// ws is the connection that the client has to the relay
 	ws *websocket.Conn
 
