@@ -63,7 +63,7 @@ func (c *Croc) client(role int, channel string) (err error) {
 				log.Debugf("sender read error:", err)
 				return
 			}
-			// log.Debugf("recv: %s", cd.String2())
+			log.Debugf("recv: %s", cd.String2())
 			err = c.processState(cd)
 			if err != nil {
 				log.Warn(err)
@@ -225,6 +225,7 @@ func (c *Croc) processState(cd channelData) (err error) {
 	c.cs.channel.Addresses = cd.Addresses
 	if c.cs.channel.Role == 0 && c.isLocal {
 		c.cs.channel.Addresses[0] = getLocalIP()
+		log.Debugf("local IP: %s", c.cs.channel.Addresses[0])
 	}
 	c.bothConnected = cd.Addresses[0] != "" && cd.Addresses[1] != ""
 
