@@ -34,8 +34,8 @@ func main() {
 			Description: "send a file over the relay",
 			ArgsUsage:   "[filename]",
 			Flags: []cli.Flag{
-				cli.BoolTFlag{Name: "compress, o"},
-				cli.BoolTFlag{Name: "encrypt, e"},
+				cli.BoolFlag{Name: "no-compress, o"},
+				cli.BoolFlag{Name: "no-encrypt, e"},
 			},
 			HelpName: "croc send",
 			Action: func(c *cli.Context) error {
@@ -113,8 +113,8 @@ func send(c *cli.Context) error {
 	if fname == "" {
 		return errors.New("must specify file: croc send [filename]")
 	}
-	cr.UseCompression = c.BoolT("compress")
-	cr.UseEncryption = c.BoolT("encrypt")
+	cr.UseCompression = !c.Bool("no-compress")
+	cr.UseEncryption = !c.Bool("no-encrypt")
 	return cr.Send(fname, c.GlobalString("code"))
 }
 
