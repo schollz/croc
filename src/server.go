@@ -105,6 +105,7 @@ func (c *Croc) updateChannel(cd channelData) (err error) {
 	c.rs.channel[cd.Channel].Pake.Xᵥ = cd.Pake.Xᵥ
 	c.rs.channel[cd.Channel].Pake.Yᵤ = cd.Pake.Yᵤ
 	c.rs.channel[cd.Channel].Pake.Yᵥ = cd.Pake.Yᵥ
+	c.rs.channel[cd.Channel].Addresses = cd.Addresses
 	return
 }
 
