@@ -67,6 +67,7 @@ func (c *Croc) processFile(src string) (err error) {
 		return
 	}
 	fd.IsCompressed = c.UseCompression
+	fd.IsEncrypted = c.UseEncryption
 
 	fd.Hash, err = hashFile(c.crocFile)
 	if err != nil {
@@ -204,13 +205,16 @@ func (c *Croc) processReceivedFile() (err error) {
 		log.Error(err)
 		return
 	}
-	if c.UseEncryption {
+	// decrypt if was encrypted on the other side
+	if c.cs.channel.fileMetaData.IsEncrypted {
 		err = decryptFile(c.crocFileEncrypted, c.crocFile, passphrase)
 		if err != nil {
 			log.Error(err)
 			return
 		}
 		os.Remove(c.crocFileEncrypted)
+	} else {
+		c.crocFile = c.crocFileEncrypted
 	}
 
 	// check hash
