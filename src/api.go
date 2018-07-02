@@ -56,7 +56,7 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 			Limit:     1,
 			TimeLimit: 600 * time.Second,
 			Delay:     50 * time.Millisecond,
-			Payload:   []byte(codePhrase),
+			Payload:   []byte(codePhrase[:3]),
 		})
 	}()
 
@@ -138,7 +138,7 @@ func (c *Croc) Receive(codePhrase string) (err error) {
 			Limit:     1,
 			TimeLimit: 1 * time.Second,
 			Delay:     50 * time.Millisecond,
-			Payload:   []byte(codePhrase),
+			Payload:   []byte(codePhrase[:3]),
 		})
 		if errDiscover != nil {
 			log.Debug(errDiscover)
