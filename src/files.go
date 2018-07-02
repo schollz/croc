@@ -114,19 +114,23 @@ func (c *Croc) getFilesReady() (err error) {
 		log.Error(err)
 		return
 	}
-	// encrypt file data
-	c.crocFileEncrypted = tempFileName("croc-encrypted")
-	err = encryptFile(c.crocFile, c.crocFileEncrypted, passphrase)
-	if err != nil {
-		log.Error(err)
-		return
+	if c.UseEncryption {
+		// encrypt file data
+		c.crocFileEncrypted = tempFileName("croc-encrypted")
+		err = encryptFile(c.crocFile, c.crocFileEncrypted, passphrase)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		// remove the unencrypted versoin
+		if err = os.Remove(c.crocFile); err != nil {
+			log.Error(err)
+			return
+		}
+		c.cs.channel.fileMetaData.IsEncrypted = true
+	} else {
+		c.crocFileEncrypted = c.crocFile
 	}
-	// remove the unencrypted versoin
-	if err = os.Remove(c.crocFile); err != nil {
-		log.Error(err)
-		return
-	}
-	c.cs.channel.fileMetaData.IsEncrypted = true
 	// split into pieces to send
 	log.Debugf("splitting %s", c.crocFileEncrypted)
 	if err = splitFile(c.crocFileEncrypted, len(c.cs.channel.Ports)); err != nil {
@@ -200,12 +204,14 @@ func (c *Croc) processReceivedFile() (err error) {
 		log.Error(err)
 		return
 	}
-	err = decryptFile(c.crocFileEncrypted, c.crocFile, passphrase)
-	if err != nil {
-		log.Error(err)
-		return
+	if c.UseEncryption {
+		err = decryptFile(c.crocFileEncrypted, c.crocFile, passphrase)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		os.Remove(c.crocFileEncrypted)
 	}
-	os.Remove(c.crocFileEncrypted)
 
 	// check hash
 	log.Debug("checking hash")
