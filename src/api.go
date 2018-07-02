@@ -147,7 +147,7 @@ func (c *Croc) Receive(codePhrase string) (err error) {
 				c.WebsocketAddress = "ws://" + discovered[0].Address + ":8140"
 				c.isLocal = true
 				log.Debug(discovered[0].Address)
-				codePhrase = string(discovered[0].Payload)
+				// codePhrase = string(discovered[0].Payload)
 			} else {
 				log.Debug("but could not connect to ports")
 			}
