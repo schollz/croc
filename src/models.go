@@ -39,6 +39,12 @@ type Croc struct {
 	Stdout              bool
 
 	// private variables
+
+	// localIP address
+	localIP string
+	// is using local relay
+	isLocal bool
+
 	// rs relay state is only for the relay
 	rs relayState
 
@@ -70,7 +76,7 @@ func Init() (c *Croc) {
 	c.rs.ips = make(map[string]string)
 	c.cs.channel = new(channelData)
 	c.rs.Unlock()
-
+	c.localIP = getLocalIP()
 	return
 }
 

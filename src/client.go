@@ -223,6 +223,9 @@ func (c *Croc) processState(cd channelData) (err error) {
 	c.cs.channel.Ports = cd.Ports
 	c.cs.channel.EncryptedFileMetaData = cd.EncryptedFileMetaData
 	c.cs.channel.Addresses = cd.Addresses
+	if c.cs.channel.Role == 0 && c.isLocal {
+		c.cs.channel.Addresses[0] = getLocalIP()
+	}
 	c.bothConnected = cd.Addresses[0] != "" && cd.Addresses[1] != ""
 
 	// update the Pake
