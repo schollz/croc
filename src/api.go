@@ -96,6 +96,7 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 		ce.cs.channel.fileMetaData = c.cs.channel.fileMetaData
 		ce.crocFile = c.crocFile
 		ce.crocFileEncrypted = ce.crocFileEncrypted
+		ce.isLocal = true
 		ce.cs.Unlock()
 		c.cs.Unlock()
 		var ri runInfo
@@ -144,6 +145,7 @@ func (c *Croc) Receive(codePhrase string) (err error) {
 			if connectTimeout == nil {
 				log.Debug("connected")
 				c.WebsocketAddress = "ws://" + discovered[0].Address + ":8140"
+				c.isLocal = true
 				log.Debug(discovered[0].Address)
 				codePhrase = string(discovered[0].Payload)
 			} else {
