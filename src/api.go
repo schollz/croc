@@ -99,6 +99,10 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 		ce.isLocal = true
 		ce.cs.Unlock()
 		c.cs.Unlock()
+		defer func() {
+			// delete croc files
+			ce.cleanup()
+		}()
 		var ri runInfo
 		ri.err = ce.client(0, channel)
 		ri.bothConnected = ce.bothConnected
