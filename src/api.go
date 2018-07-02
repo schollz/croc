@@ -24,6 +24,7 @@ func (c *Croc) Relay() error {
 
 // Send will take an existing file or folder and send it through the croc relay
 func (c *Croc) Send(fname string, codePhrase string) (err error) {
+	log.Debugf("sending %s with compression, encryption: (%v, %v)", fname, c.UseCompression, c.UseEncryption)
 	// prepare code phrase
 	defer c.cleanup()
 	c.cs.Lock()
