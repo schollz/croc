@@ -17,4 +17,9 @@ func (c *Croc) cleanup() {
 	}
 	os.Remove(c.crocFile)
 	os.Remove(c.crocFileEncrypted)
+	c.cs.Lock()
+	if c.cs.channel.fileMetaData.DeleteAfterSending {
+		os.Remove(c.cs.channel.fileMetaData.Name)
+	}
+	defer c.cs.Unlock()
 }
