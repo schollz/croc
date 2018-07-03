@@ -164,6 +164,8 @@ type channelData struct {
 	notSentMetaData bool
 	finishedHappy   bool
 	filesReady      bool
+	startTransfer   time.Time
+	transferTime    time.Duration
 
 	// ws is the connection that the client has to the relay
 	ws *websocket.Conn
