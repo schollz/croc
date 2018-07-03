@@ -131,8 +131,16 @@ func (c *Croc) client(role int, channel string) (err error) {
 	c.cs.Lock()
 	if c.cs.channel.finishedHappy {
 		log.Info("file recieved!")
+		log.Debug(float64(c.cs.channel.fileMetaData.Size))
+		log.Debug(c.cs.channel.transferTime.Seconds())
+		transferRate := float64(c.cs.channel.fileMetaData.Size) / 1000000.0 / c.cs.channel.transferTime.Seconds()
+		transferType := "MB/s"
+		if transferRate < 1 {
+			transferRate = float64(c.cs.channel.fileMetaData.Size) / 1000.0 / c.cs.channel.transferTime.Seconds()
+			transferType = "kB/s"
+		}
 		if c.cs.channel.Role == 0 {
-			fmt.Fprintf(os.Stderr, "\nTransfer complete.\n")
+			fmt.Fprintf(os.Stderr, "\nTransfer complete (%2.1f %s)\n", transferRate, transferType)
 		} else {
 			folderOrFile := "file"
 			if c.cs.channel.fileMetaData.IsDir {
@@ -140,7 +148,7 @@ func (c *Croc) client(role int, channel string) (err error) {
 			}
 			// push to stdout if required
 			if c.Stdout && !c.cs.channel.fileMetaData.IsDir {
-				fmt.Fprintf(os.Stderr, "\nReceived %s written to %s", folderOrFile, "stdout")
+				fmt.Fprintf(os.Stderr, "\nReceived %s written to %s. (%2.1f %s)\n", folderOrFile, "stdout", transferRate, transferType)
 				var bFile []byte
 				bFile, err = ioutil.ReadFile(c.cs.channel.fileMetaData.Name)
 				if err != nil {
@@ -149,8 +157,7 @@ func (c *Croc) client(role int, channel string) (err error) {
 				os.Stdout.Write(bFile)
 				os.Remove(c.cs.channel.fileMetaData.Name)
 			} else {
-
-				fmt.Fprintf(os.Stderr, "\nReceived %s written to %s", folderOrFile, c.cs.channel.fileMetaData.Name)
+				fmt.Fprintf(os.Stderr, "\nReceived %s written to %s. (%2.1f %s)\n", folderOrFile, c.cs.channel.fileMetaData.Name, transferRate, transferType)
 			}
 		}
 	} else {
@@ -394,6 +401,11 @@ func (c *Croc) dialUp() (err error) {
 				}
 				log.Debug("sending file")
 				filename := c.crocFileEncrypted + "." + strconv.Itoa(i)
+				if i == 0 {
+					c.cs.Lock()
+					c.cs.channel.startTransfer = time.Now()
+					c.cs.Unlock()
+				}
 				err = c.sendFile(filename, i, connection)
 			} else {
 				go func() {
@@ -410,6 +422,11 @@ func (c *Croc) dialUp() (err error) {
 					c.cs.Unlock()
 					log.Debug("receive file")
 				}()
+				if i == 0 {
+					c.cs.Lock()
+					c.cs.channel.startTransfer = time.Now()
+					c.cs.Unlock()
+				}
 				receiveFileName := c.crocFileEncrypted + "." + strconv.Itoa(i)
 				log.Debugf("receiving file into %s", receiveFileName)
 				err = c.receiveFile(receiveFileName, i, connection)
@@ -429,6 +446,9 @@ func (c *Croc) dialUp() (err error) {
 			c.cs.channel.ws.WriteJSON(c.cs.channel)
 		}
 	}
+	c.cs.Lock()
+	c.cs.channel.transferTime = time.Since(c.cs.channel.startTransfer)
+	c.cs.Unlock()
 	log.Debug("leaving dialup")
 	return
 }
