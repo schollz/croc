@@ -1,0 +1,34 @@
+# .goreleaser.yml
+# Build customization
+builds:
+  - binary: croc
+    goos:
+      - windows
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm
+      - 386
+    goarm:
+      - 6
+    ignore:
+      - goos: darwin
+        goarch: arm
+      - goos: windows
+        goarch: arm
+      - goos: darwin
+        goarch: 386
+    env:
+      - CGO_ENABLED=0
+archive:
+  replacements:
+    amd64: 64bit
+    386: 32bit
+    darwin: OSX
+    linux_arm: raspberry_pi
+  format_overrides:
+     - goos: windows
+       format: zip
+     - goos: darwin
+       format: zip
