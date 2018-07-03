@@ -137,9 +137,9 @@ func (c *Croc) Receive(codePhrase string) (err error) {
 		// try to discovery codephrase and server through peer network
 		discovered, errDiscover := peerdiscovery.Discover(peerdiscovery.Settings{
 			Limit:     1,
-			TimeLimit: 1 * time.Second,
+			TimeLimit: 300 * time.Millisecond,
 			Delay:     50 * time.Millisecond,
-			Payload:   []byte(codePhrase[:3]),
+			Payload:   []byte("checking"),
 		})
 		if errDiscover != nil {
 			log.Debug(errDiscover)
