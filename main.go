@@ -114,7 +114,7 @@ func main() {
 		fmt.Fprintf(c.App.Writer, "lipstick\nkiss\nme\nlipstick\nringo\n")
 	}
 	app.Action = func(c *cli.Context) error {
-		return cr.Receive(c.Args().First())
+		return receive(c)
 	}
 	app.Before = func(c *cli.Context) error {
 		cr = croc.Init()
