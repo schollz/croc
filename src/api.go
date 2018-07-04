@@ -133,6 +133,7 @@ func (c *Croc) Send(fname string, codePhrase string) (err error) {
 // Receive will receive something through the croc relay
 func (c *Croc) Receive(codePhrase string) (err error) {
 	defer c.cleanup()
+	log.Debugf("receiving with code phrase: %s", codePhrase)
 	if !c.NoLocal {
 		// try to discovery codephrase and server through peer network
 		discovered, errDiscover := peerdiscovery.Discover(peerdiscovery.Settings{
