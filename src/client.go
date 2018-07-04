@@ -505,6 +505,7 @@ func (c *Croc) sendFile(filename string, id int, connection net.Conn) error {
 
 	// open encrypted file chunk, if it exists
 	log.Debug("opening encrypted file chunk: " + filename)
+	defer os.Remove(filename)
 	file, err := os.Open(filename)
 	if err != nil {
 		log.Error(err)
