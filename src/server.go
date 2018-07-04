@@ -1,6 +1,7 @@
 package croc
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -19,6 +20,11 @@ func (c *Croc) startServer() (err error) {
 
 	var upgrader = websocket.Upgrader{} // use default options
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// check if HEAD request
+		if r.Method == "HEAD" {
+			fmt.Fprintf(w, "ok")
+			return
+		}
 		// incoming websocket request
 		log.Debugf("connecting remote addr: %+v", r.RemoteAddr)
 		ws, err := upgrader.Upgrade(w, r, nil)
@@ -65,6 +71,7 @@ func (c *Croc) startServer() (err error) {
 		}
 	})
 	log.Debugf("listening on port %s", c.ServerPort)
+	fmt.Printf("listening on port %s\n", c.ServerPort)
 	err = http.ListenAndServe(":"+c.ServerPort, nil)
 	return
 }
