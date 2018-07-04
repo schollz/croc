@@ -71,7 +71,6 @@ func (c *Croc) startServer() (err error) {
 		}
 	})
 	log.Debugf("listening on port %s", c.ServerPort)
-	fmt.Printf("listening on port %s\n", c.ServerPort)
 	err = http.ListenAndServe(":"+c.ServerPort, nil)
 	return
 }
