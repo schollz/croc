@@ -19,15 +19,15 @@ I hear you asking, *Why another open-source peer-to-peer file transfer utilities
 
 # Example
 
-<!-- _These two gifs should run in sync if you force-reload (Ctl+F5)_
+_These two gifs should run in sync if you force-reload (Ctl+F5)_
 
 **Sender:**
 
-![send](https://raw.githubusercontent.com/schollz/croc/master/logo/sender2.gif)
+![send](https://raw.githubusercontent.com/schollz/croc/master/src/testing_data/sender.gif)
 
 **Receiver:**
 
-![receive](https://raw.githubusercontent.com/schollz/croc/master/logo/receiver2.gif) -->
+![receive](https://raw.githubusercontent.com/schollz/croc/master/src/testing_data/recipient.gif)
 
 
 **Sender:**
