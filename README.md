@@ -13,8 +13,6 @@
 
 *croc* allows any two computers to directly and securely transfer files and folders. When sending a file, *croc* generates a random code phrase which must be shared with the recipient so they can receive the file. The code phrase encrypts all data and metadata and also serves to authorize the connection between the two computers in a intermediary relay. The relay connects the TCP ports between the two computers and does not store any information (and all information passing through it is encrypted). 
 
-**New version released July 3rd, 2018 - this version is in beta.**
-
 I hear you asking, *Why another open-source peer-to-peer file transfer utilities?* [There](https://github.com/cowbell/sharedrop) [are](https://github.com/webtorrent/instant.io) [great](https://github.com/kern/filepizza) [tools](https://github.com/warner/magic-wormhole) [that](https://github.com/zerotier/toss) [already](https://github.com/ipfs/go-ipfs) [do](https://github.com/zerotier/toss) [this](https://github.com/nils-werner/zget). But, after review, [I found it was useful to make another](https://schollz.github.io/sending-a-file/). Namely, *croc* has no dependencies (just [download a binary and run](https://github.com/schollz/croc/releases/latest)), it works on any operating system, and its blazingly fast because it does parallel transfer over multiple TCP ports.
 
 # Example
@@ -34,11 +32,11 @@ _These two gifs should run in sync if you force-reload (Ctl+F5)_
 
 ```
 $ croc send some-file-or-folder
-Sending 4.4 MB file named 'some-file-or-folder'
-Code is: cement-galaxy-alpha
+Sending 1.1 MB file named 'some-file-or-folder'
+Code is: fidel-parent-insect
 On the other computer please run
 
-croc cement-galaxy-alpha
+croc fidel-parent-insect
 
 Sending (->[1]63982)..
   89% |███████████████████████████████████     | [12s:1s]
@@ -49,8 +47,8 @@ Transfer complete.
 
 ```
 $ croc
-Enter receive code: cement-galaxy-alpha
-Receiving file (4.4 MB) into: some-file-or-folder
+Enter receive code: fidel-parent-insect
+Receiving file (1.1 MB) into: some-file-or-folder
 ok? (y/N): y
 
 Receiving (<-[1]63975)..
@@ -78,7 +76,7 @@ In this case *croc* will automatically use the stdin data and send and assign a 
 $ croc --code code-phrase --yes --stdout receive
 ```
 
-Here the reciever specified the code (`--code`) so it will not be prompted, and also specified `--yes` so the file will be automatically accepted. The output goes to stdout when flagged with `--stdout`.
+Here the receiver specified the code (`--code`) so it will not be prompted, and also specified `--yes` so the file will be automatically accepted. The output goes to stdout when flagged with `--stdout`.
 
 
 # Install
@@ -91,7 +89,7 @@ Or, you can [install Go](https://golang.org/dl/) and build from source with `go 
 
 # How does it work? 
 
-*croc* is similar to [magic-wormhole](https://github.com/warner/magic-wormhole#design) in spirit. Like *magic-wormhole*, *croc* generates a code phrase for you to share with your friend which allows secure end-to-end transferring of files and folders through a intermediary relay that connects the TCP ports between the two computers. Like *magic-wormhole*, security is enabled by performing password-authenticated key exchange (PAKE) with the weak code phrase to generate a session key on both machines without passing any private information between the two. The session key is then verified and used to encrypt the content with AES-256. If at any point the PAKE fails, an error will be reported and the file will not be transferred. More details on the PAKE transfer can be found at [github.com/schollz/pake](https://github.com/schollz/pake).
+*croc* is similar to [magic-wormhole](https://github.com/warner/magic-wormhole#design) in spirit and design. Like *magic-wormhole*, *croc* generates a code phrase for you to share with your friend which allows secure end-to-end transferring of files and folders through a intermediary relay that connects the TCP ports between the two computers. Also like *magic-wormhole*, security is enabled by performing password-authenticated key exchange (PAKE) with the weak code phrase to generate a session key on both machines without passing any private information between the two. The session key is then verified and used to encrypt the content with AES-256. If at any point the PAKE fails, an error will be reported and the file will not be transferred. More details on the PAKE transfer can be found at [github.com/schollz/pake](https://github.com/schollz/pake).
 
 ## Relay 
 
