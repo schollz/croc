@@ -3,15 +3,20 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"math/rand"
 	"os"
+	"path"
 	"strings"
 	"time"
 
+	homedir "github.com/mitchellh/go-homedir"
 	croc "github.com/schollz/croc/src"
 	"github.com/urfave/cli"
 )
 
 var version string
+var codePhrase string
 
 var cr *croc.Croc
 
@@ -40,6 +45,33 @@ func main() {
 			HelpName: "croc send",
 			Action: func(c *cli.Context) error {
 				return send(c)
+			},
+		},
+		cli.Command{
+			Name:        "gen",
+			Usage:       "generate a permanent key",
+			Description: "generates a permanent key that is used each time",
+			HelpName:    "croc gen",
+			ArgsUsage:   "[key]",
+			Flags: []cli.Flag{
+				cli.BoolFlag{Name: "new", Usage: "overwrite key if it exists"},
+			},
+			Action: func(c *cli.Context) error {
+				homedir, err := homedir.Dir()
+				if err != nil {
+					return err
+				}
+				if codePhrase == "" || c.Bool("new") {
+					codePhrase = randStringBytesMaskImprSrc(50)
+					if c.Args().First() != "" {
+						codePhrase = c.Args().First()
+					}
+					os.MkdirAll(path.Join(homedir, ".config", "croc"), 0644)
+					err = ioutil.WriteFile(path.Join(homedir, ".config", "croc", "key"), []byte(codePhrase), 0644)
+				}
+				fmt.Printf("your permanent key: %s\n", codePhrase)
+				fmt.Println("use -new if you want to regenerate your key")
+				return err
 			},
 		},
 		cli.Command{
@@ -93,6 +125,20 @@ func main() {
 		cr.Stdout = c.GlobalBool("stdout")
 		cr.LocalOnly = c.GlobalBool("local")
 		cr.NoLocal = c.GlobalBool("no-local")
+
+		// check if permanent code phrase is here
+		homedir, err := homedir.Dir()
+		if err != nil {
+			return err
+		}
+		keyFile := path.Join(homedir, ".config", "croc", "key")
+		if _, err := os.Stat(keyFile); err == nil {
+			codePhraseBytes, err := ioutil.ReadFile(keyFile)
+			if err == nil {
+				codePhrase = string(codePhraseBytes)
+			}
+		}
+
 		return nil
 	}
 
@@ -115,11 +161,17 @@ func send(c *cli.Context) error {
 	}
 	cr.UseCompression = !c.Bool("no-compress")
 	cr.UseEncryption = !c.Bool("no-encrypt")
-	return cr.Send(fname, c.GlobalString("code"))
+	if c.GlobalString("code") != "" {
+		codePhrase = c.GlobalString("code")
+	}
+	return cr.Send(fname, codePhrase)
 }
 
 func receive(c *cli.Context) error {
-	return cr.Receive(c.GlobalString("code"))
+	if c.GlobalString("code") != "" {
+		codePhrase = c.GlobalString("code")
+	}
+	return cr.Receive(codePhrase)
 }
 
 func relay(c *cli.Context) error {
@@ -127,4 +179,32 @@ func relay(c *cli.Context) error {
 	cr.ServerPort = c.String("port")
 	cr.CurveType = c.String("curve")
 	return cr.Relay()
+}
+
+// needed for croc gen
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const (
+	letterIdxBits = 6                    // 6 bits to represent a letter index
+	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
+	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
+)
+
+var src = rand.NewSource(time.Now().UnixNano())
+
+func randStringBytesMaskImprSrc(n int) string {
+	b := make([]byte, n)
+	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
+	for i, cache, remain := n-1, src.Int63(), letterIdxMax; i >= 0; {
+		if remain == 0 {
+			cache, remain = src.Int63(), letterIdxMax
+		}
+		if idx := int(cache & letterIdxMask); idx < len(letterBytes) {
+			b[i] = letterBytes[idx]
+			i--
+		}
+		cache >>= letterIdxBits
+		remain--
+	}
+
+	return string(b)
 }
