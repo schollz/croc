@@ -29,6 +29,13 @@ func (c *Croc) client(role int, channel string) (err error) {
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
+	if role == 1 {
+		c.cs.Lock()
+		c.cs.channel.spin.Suffix = " connecting..."
+		c.cs.channel.spin.Start()
+		c.cs.Unlock()
+
+	}
 
 	// connect to the websocket
 	u := url.URL{Scheme: strings.Split(c.WebsocketAddress, "://")[0], Host: strings.Split(c.WebsocketAddress, "://")[1], Path: "/"}
@@ -50,6 +57,12 @@ func (c *Croc) client(role int, channel string) (err error) {
 	// add websocket to locked channel
 	c.cs.Lock()
 	c.cs.channel.ws = ws
+	if role == 1 {
+		c.cs.channel.spin.Stop()
+		c.cs.channel.spin.Suffix = " waiting for other..."
+		c.cs.channel.spin.Start()
+		c.cs.channel.waitingForOther = true
+	}
 	c.cs.Unlock()
 
 	// read in the messages and process them
@@ -235,6 +248,11 @@ func (c *Croc) processState(cd channelData) (err error) {
 		log.Debugf("local IP: %s", c.cs.channel.Addresses[0])
 	}
 	c.bothConnected = cd.Addresses[0] != "" && cd.Addresses[1] != ""
+	if c.cs.channel.Role == 1 && c.cs.channel.waitingForOther {
+		c.cs.channel.waitingForOther = false
+		c.cs.channel.spin.Stop()
+		c.cs.channel.waitingForPake = true
+	}
 
 	// update the Pake
 	if cd.Pake != nil && cd.Pake.Role != c.cs.channel.Role {
@@ -261,6 +279,10 @@ func (c *Croc) processState(cd channelData) (err error) {
 	if c.cs.channel.Role == 0 && c.cs.channel.Pake.IsVerified() && !c.cs.channel.notSentMetaData && !c.cs.channel.filesReady {
 		go c.getFilesReady()
 		c.cs.channel.filesReady = true
+	}
+	if c.cs.channel.Role == 1 && c.cs.channel.Pake.IsVerified() && c.cs.channel.waitingForPake {
+		c.cs.channel.waitingForPake = false
+		c.cs.channel.spin.Stop()
 	}
 
 	// process the client state
@@ -301,6 +323,21 @@ func (c *Croc) processState(cd channelData) (err error) {
 		// spawn TCP connections
 		c.cs.channel.isReady = true
 		go c.spawnConnections(c.cs.channel.Role)
+	}
+
+	// process spinner
+	if c.cs.channel.Role == 1 && !c.cs.channel.spin.Active() {
+		doStart := true
+		if c.cs.channel.waitingForOther {
+			c.cs.channel.spin.Suffix = " waiting for other..."
+		} else if c.cs.channel.waitingForPake {
+			c.cs.channel.spin.Suffix = " performing PAKE..."
+		} else {
+			doStart = false
+		}
+		if doStart {
+			c.cs.channel.spin.Start()
+		}
 	}
 	return
 }
