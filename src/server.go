@@ -28,6 +28,11 @@ func (c *Croc) startServer() (err error) {
 		// incoming websocket request
 		log.Debugf("connecting remote addr: %+v", r.RemoteAddr)
 		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Debugf("err in websocket: %s", err.Error())
+			fmt.Fprintf(w, "?")
+			return
+		}
 		address := r.RemoteAddr
 		if _, ok := r.Header["X-Forwarded-For"]; ok {
 			address = r.Header["X-Forwarded-For"][0]
@@ -35,6 +40,8 @@ func (c *Croc) startServer() (err error) {
 		if _, ok := r.Header["X-Real-Ip"]; ok {
 			address = r.Header["X-Real-Ip"][0]
 		}
+		log.Debugf("ws address: %s", ws.RemoteAddr().String())
+		log.Debug("getting lock")
 		c.rs.Lock()
 		c.rs.ips[ws.RemoteAddr().String()] = address
 		c.rs.Unlock()
