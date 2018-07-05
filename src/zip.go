@@ -95,7 +95,7 @@ func zipFile(fname string, compress bool) (writtenFilename string, err error) {
 	zipWriter := zip.NewWriter(newfile)
 	zipWriter.RegisterCompressor(zip.Deflate, func(out io.Writer) (io.WriteCloser, error) {
 		if compress {
-			return flate.NewWriter(out, flate.BestCompression)
+			return flate.NewWriter(out, flate.BestSpeed)
 		} else {
 			return flate.NewWriter(out, flate.NoCompression)
 		}
