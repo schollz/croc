@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/gorilla/websocket"
 	"github.com/schollz/pake"
 	"github.com/schollz/progressbar"
@@ -75,6 +76,7 @@ func Init() (c *Croc) {
 	c.rs.channel = make(map[string]*channelData)
 	c.rs.ips = make(map[string]string)
 	c.cs.channel = new(channelData)
+	c.cs.channel.spin = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 	c.rs.Unlock()
 	c.localIP = getLocalIP()
 	return
@@ -166,6 +168,12 @@ type channelData struct {
 	filesReady      bool
 	startTransfer   time.Time
 	transferTime    time.Duration
+
+	// spin is the spinner for the recipient
+	spin                 *spinner.Spinner
+	waitingForConnection bool
+	waitingForOther      bool
+	waitingForPake       bool
 
 	// ws is the connection that the client has to the relay
 	ws *websocket.Conn
