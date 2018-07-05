@@ -61,11 +61,13 @@ func (c *Croc) processFile(src string) (err error) {
 	fd.IsDir = info.Mode().IsDir()
 
 	// zip file
+	log.Debug("zipping file")
 	c.crocFile, err = zipFile(path.Join(pathToFile, filename), c.UseCompression)
 	if err != nil {
 		log.Error(err)
 		return
 	}
+	log.Debug("...finished zipping")
 	fd.IsCompressed = c.UseCompression
 	fd.IsEncrypted = c.UseEncryption
 
