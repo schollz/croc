@@ -144,7 +144,7 @@ func main() {
 
 	err := app.Run(os.Args)
 	if err != nil {
-		fmt.Printf("error: %s", err.Error())
+		fmt.Printf("\nerror: %s", err.Error())
 	}
 }
 
