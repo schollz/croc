@@ -248,9 +248,11 @@ func (c *Croc) processState(cd channelData) (err error) {
 		log.Debugf("local IP: %s", c.cs.channel.Addresses[0])
 	}
 	c.bothConnected = cd.Addresses[0] != "" && cd.Addresses[1] != ""
-	if c.cs.channel.Role == 1 && c.cs.channel.waitingForOther {
+	if !c.cs.channel.waitingForPake && c.bothConnected {
 		c.cs.channel.waitingForOther = false
-		c.cs.channel.spin.Stop()
+		if c.cs.channel.spin.Active() {
+			c.cs.channel.spin.Stop()
+		}
 		c.cs.channel.waitingForPake = true
 	}
 
@@ -280,9 +282,12 @@ func (c *Croc) processState(cd channelData) (err error) {
 		go c.getFilesReady()
 		c.cs.channel.filesReady = true
 	}
-	if c.cs.channel.Role == 1 && c.cs.channel.Pake.IsVerified() && c.cs.channel.waitingForPake {
+	if c.cs.channel.Pake.IsVerified() && c.cs.channel.waitingForPake {
 		c.cs.channel.waitingForPake = false
 		c.cs.channel.spin.Stop()
+		if c.cs.channel.Role == 0 {
+			c.cs.channel.waitingForRecipient = true
+		}
 	}
 
 	// process the client state
@@ -326,12 +331,14 @@ func (c *Croc) processState(cd channelData) (err error) {
 	}
 
 	// process spinner
-	if c.cs.channel.Role == 1 && !c.cs.channel.spin.Active() {
+	if !c.cs.channel.spin.Active() {
 		doStart := true
 		if c.cs.channel.waitingForOther {
 			c.cs.channel.spin.Suffix = " waiting for other..."
 		} else if c.cs.channel.waitingForPake {
 			c.cs.channel.spin.Suffix = " performing PAKE..."
+		} else if c.cs.channel.waitingForRecipient {
+			c.cs.channel.spin.Suffix = " waiting for ok..."
 		} else {
 			doStart = false
 		}
@@ -416,6 +423,11 @@ func (c *Croc) dialUp() (err error) {
 			}
 			if i == 0 {
 				c.cs.Lock()
+				if c.cs.channel.waitingForRecipient {
+					c.cs.channel.spin.Stop()
+					c.cs.channel.waitingForRecipient = false
+					fmt.Print("                      ")
+				}
 				c.bar = progressbar.NewOptions(c.cs.channel.fileMetaData.Size, progressbar.OptionSetWriter(os.Stderr))
 				if role == 0 {
 					fmt.Fprintf(os.Stderr, "\nSending (->%s)...\n", c.cs.channel.Addresses[1])
