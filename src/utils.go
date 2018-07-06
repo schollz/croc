@@ -32,6 +32,7 @@ func catFiles(files []string, outfile string, remove bool) error {
 		}
 		_, err = io.Copy(finished, fh)
 		if err != nil {
+			fh.Close()
 			return errors.Wrap(err, "CatFiles copy: ")
 		}
 		fh.Close()
