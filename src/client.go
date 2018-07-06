@@ -531,6 +531,9 @@ func (c *Croc) receiveFile(filename string, id int, connection net.Conn) error {
 	var receivedBytes int64
 	receivedFirstBytes := false
 	for {
+		if c.cleanupTime {
+			break
+		}
 		if (chunkSize - receivedBytes) < bufferSize {
 			log.Debugf("%d at the end: %d < %d", id, (chunkSize - receivedBytes), bufferSize)
 			io.CopyN(newFile, connection, (chunkSize - receivedBytes))
@@ -558,13 +561,13 @@ func (c *Croc) sendFile(filename string, id int, connection net.Conn) error {
 
 	// open encrypted file chunk, if it exists
 	log.Debug("opening encrypted file chunk: " + filename)
-	defer os.Remove(filename)
 	file, err := os.Open(filename)
 	if err != nil {
 		log.Error(err)
 		return nil
 	}
 	defer file.Close()
+	defer os.Remove(filename)
 
 	// determine and send the file size to client
 	fi, err := file.Stat()
@@ -590,6 +593,9 @@ func (c *Croc) sendFile(filename string, id int, connection net.Conn) error {
 	sendBuffer := make([]byte, bufferSize)
 	totalBytesSent := 0
 	for range throttle.C {
+		if c.cleanupTime {
+			break
+		}
 		_, err := file.Read(sendBuffer)
 		written, _ := connection.Write(sendBuffer)
 		totalBytesSent += written
@@ -607,7 +613,5 @@ func (c *Croc) sendFile(filename string, id int, connection net.Conn) error {
 	}
 	log.Debug("file is sent")
 	log.Debug("removing piece")
-	os.Remove(filename)
-
 	return err
 }
