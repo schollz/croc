@@ -60,7 +60,8 @@ type Croc struct {
 	// bothConnected
 	bothConnected bool
 	// cleanupTime tells processes to close up
-	cleanupTime bool
+	cleanupTime  bool
+	normalFinish bool
 }
 
 // Init will initialize the croc relay
