@@ -171,6 +171,9 @@ func receive(c *cli.Context) error {
 	if c.GlobalString("code") != "" {
 		codePhrase = c.GlobalString("code")
 	}
+	if c.Args().First() != "" {
+		codePhrase = c.Args().First()
+	}
 	return cr.Receive(codePhrase)
 }
 
