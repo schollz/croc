@@ -428,7 +428,11 @@ func (c *Croc) dialUp() (err error) {
 					c.cs.channel.waitingForRecipient = false
 					fmt.Print("                      ")
 				}
-				c.bar = progressbar.NewOptions(c.cs.channel.fileMetaData.Size, progressbar.OptionSetWriter(os.Stderr))
+				c.bar = progressbar.NewOptions(
+					c.cs.channel.fileMetaData.Size,
+					progressbar.OptionSetWriter(os.Stderr),
+					progressbar.OptionSetBytes(c.cs.channel.fileMetaData.Size),
+				)
 				if role == 0 {
 					fmt.Fprintf(os.Stderr, "\nSending (->%s)...\n", c.cs.channel.Addresses[1])
 				} else {
