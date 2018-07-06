@@ -8,8 +8,10 @@ import (
 
 func (c *Croc) cleanup() {
 	c.cleanupTime = true
-	time.Sleep(250 * time.Millisecond) // race condition, wait for
-	// sending/receiving to finish
+	if !c.normalFinish {
+		time.Sleep(1000 * time.Millisecond) // race condition, wait for
+		// sending/receiving to finish
+	}
 	// erase all the croc files and their possible numbers
 	for i := 0; i < 16; i++ {
 		fname := c.crocFile + "." + strconv.Itoa(i)
