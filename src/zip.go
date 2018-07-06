@@ -30,6 +30,7 @@ func unzipFile(src, dest string) (err error) {
 		// Store filename/path for returning and using later on
 		fpath := filepath.Join(dest, f.Name)
 		log.Debugf("unzipping %s", fpath)
+		fpath = filepath.FromSlash(fpath)
 
 		if f.FileInfo().IsDir() {
 
@@ -144,6 +145,8 @@ func zipFile(fname string, compress bool) (writtenFilename string, err error) {
 			} else {
 				header.Method = zip.Deflate
 			}
+
+			header.Name = filepath.ToSlash(header.Name)
 
 			writer, err = zipWriter.CreateHeader(header)
 			if err != nil {
