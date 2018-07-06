@@ -228,7 +228,7 @@ func (c *Croc) processState(cd channelData) (err error) {
 		c.cs.channel.Channel = cd.Channel
 		c.cs.channel.Role = cd.Role
 		c.cs.channel.Curve = cd.Curve
-		c.cs.channel.Pake, err = pake.Init([]byte(c.cs.channel.passPhrase), cd.Role, getCurve(cd.Curve))
+		c.cs.channel.Pake, err = pake.Init([]byte(c.cs.channel.passPhrase), cd.Role, getCurve(cd.Curve), 10*time.Millisecond)
 		c.cs.channel.Update = true
 		log.Debugf("updating channel")
 		errWrite := c.cs.channel.ws.WriteJSON(c.cs.channel)
