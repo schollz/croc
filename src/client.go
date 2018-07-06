@@ -503,6 +503,7 @@ func (c *Croc) dialUp() (err error) {
 	c.cs.channel.transferTime = time.Since(c.cs.channel.startTransfer)
 	c.cs.Unlock()
 	log.Debug("leaving dialup")
+	c.normalFinish = true
 	return
 }
 
