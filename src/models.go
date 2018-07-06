@@ -59,6 +59,8 @@ type Croc struct {
 	crocFileEncrypted string
 	// bothConnected
 	bothConnected bool
+	// cleanupTime tells processes to close up
+	cleanupTime bool
 }
 
 // Init will initialize the croc relay
