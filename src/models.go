@@ -174,6 +174,7 @@ type channelData struct {
 	waitingForConnection bool
 	waitingForOther      bool
 	waitingForPake       bool
+	waitingForRecipient  bool
 
 	// ws is the connection that the client has to the relay
 	ws *websocket.Conn
