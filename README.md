@@ -15,7 +15,7 @@
 
 I hear you asking, *Why another open-source peer-to-peer file transfer utilities?* [There](https://github.com/cowbell/sharedrop) [are](https://github.com/webtorrent/instant.io) [great](https://github.com/kern/filepizza) [tools](https://github.com/warner/magic-wormhole) [that](https://github.com/zerotier/toss) [already](https://github.com/ipfs/go-ipfs) [do](https://github.com/zerotier/toss) [this](https://github.com/nils-werner/zget). But, after review, [I found it was useful to make another](https://schollz.github.io/sending-a-file/). Namely, *croc* has no dependencies (just [download a binary and run](https://github.com/schollz/croc/releases/latest)), it works on any operating system, and its blazingly fast because it does parallel transfer over multiple TCP ports.
 
-# Example
+## Example
 
 _These two gifs should run in sync if you force-reload (Ctl+F5)_
 
@@ -28,86 +28,92 @@ _These two gifs should run in sync if you force-reload (Ctl+F5)_
 ![receive](https://raw.githubusercontent.com/schollz/croc/master/src/testing_data/recipient.gif)
 
 
-**Sender:**
-
-```
-$ croc send some-file-or-folder
-Sending 1.1 MB file named 'some-file-or-folder'
-Code is: fidel-parent-insect
-On the other computer please run
-
-croc fidel-parent-insect
-
-Sending (->[1]63982)..
-  89% |███████████████████████████████████     | [12s:1s]
-Transfer complete.
-```
-
-**Receiver:**
-
-```
-$ croc
-Enter receive code: fidel-parent-insect
-Receiving file (1.1 MB) into: some-file-or-folder
-ok? (y/N): y
-
-Receiving (<-[1]63975)..
-  97% |██████████████████████████████████████  | [13s:0s]
-Received file written to some-file-or-folder
-```
-
-Note, by default, you don't need any arguments for receiving! This makes it possible for you to just double click the executable to run (nice for those of us that aren't computer wizards).
-
-## Using *croc* in pipes
-
-You can easily use *croc* in pipes when you need to send data through stdin or get data from stdout.
-
-**Sender:**
-
-```
-$ cat some_file_or_folder | croc send
-```
-
-In this case *croc* will automatically use the stdin data and send and assign a filename like "croc-stdin-123456789".
-
-**Receiver:**
-
-```
-$ croc --code code-phrase --yes --stdout receive
-```
-
-Here the receiver specified the code (`--code`) so it will not be prompted, and also specified `--yes` so the file will be automatically accepted. The output goes to stdout when flagged with `--stdout`.
-
-
-# Install
+## Install
 
 [Download the latest release for your system](https://github.com/schollz/croc/releases/latest).
 
 Or, you can [install Go](https://golang.org/dl/) and build from source with `go get github.com/schollz/croc`.
 
 
+## Usage 
 
-# How does it work? 
+The basic usage is to just do 
 
-*croc* is similar to [magic-wormhole](https://github.com/warner/magic-wormhole#design) in spirit and design. Like *magic-wormhole*, *croc* generates a code phrase for you to share with your friend which allows secure end-to-end transferring of files and folders through a intermediary relay that connects the TCP ports between the two computers. Also like *magic-wormhole*, security is enabled by performing password-authenticated key exchange (PAKE) with the weak code phrase to generate a session key on both machines without passing any private information between the two. The session key is then verified and used to encrypt the content with AES-256. If at any point the PAKE fails, an error will be reported and the file will not be transferred. More details on the PAKE transfer can be found at [github.com/schollz/pake](https://github.com/schollz/pake).
+```
+$ croc send FILE
+```
 
-## Relay 
+to send and then on the other computer you can just do 
 
-*croc* relies on a TCP relay to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses a public relay at, `wss://croc3.schollz.com`. You can also run your own relay, it is very easy. On your server, `your-server.com`, just run
+```
+$ croc [code phrase]
+```
+
+to receive (you'll be prompted to enter the code phrase). Note, by default, you don't need any arguments for receiving, instead you will be prompted to enter the code phrase. This makes it possible for you to just double click the executable to run (nice for those of us that aren't computer wizards).
+
+### Custom code phrase
+
+You can send with your own code phrase (must be more than 4 characters).
+
+```
+$ croc send --code [code phrase] [filename]
+```
+
+### Use locally
+
+*croc* automatically will attempt to start a local connection on your LAN to transfer the file much faster. It uses [peer discovery](https://github.com/schollz/peerdiscovery), basically broadcasting a message on the local subnet to see if another *croc* user wants to receive the file. *croc* will utilize the first incoming connection from either the local network or the public relay and follow through with PAKE.
+
+You can change this behavior by forcing *croc* to use only local connections (`--local`) or force to use the public relay only (`--no-local`):
+
+```
+$ croc --local/--no-local send [filename]
+```
+
+### Using pipes - stdin and stdout
+
+You can easily use *croc* in pipes when you need to send data through stdin or get data from stdout. To send you can just use pipes:
+
+```
+$ cat [filename] | croc send
+```
+
+In this case *croc* will automatically use the stdin data and send and assign a filename like "croc-stdin-123456789". To receive to stdout at you can always just use the `-yes` and `-stdout` flags which will automatically approve the transfer and pipe it out to stdout. 
+
+```
+$ croc -yes -stdout [code phrase] > out
+```
+
+All of the other text printed to the console is going to `stderr` so it will not interfere with the message going to stdout.
+
+### Self-host relay
+
+The relay is needed to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses a public relay at, `wss://croc3.schollz.com`. You can also run your own relay, it is very easy, just run:
 
 ```
 $ croc relay
 ```
 
-Now, when you use *croc* to send and receive you should add `-server your-server.com` to use your relay server. Make sure to open up TCP ports (see `croc relay --help` for which ports to open).
+Make sure to open up TCP ports (see `croc relay --help` for which ports to open). You can also define your own ports with `-tcp` and `-port`. Relays can also be customized to which elliptic curve they will use (default is siec).
 
-# Contribute
+You can send files using your relay by entering `-relay` to change the relay that you are using if you want to custom host your own.
 
-I am awed by all the [great contributions](#acknowledgements) made! If you feel like contributing, in any way, by all means you can send an Issue, a PR, ask a question, or tweet me ([@yakczar](http://ctt.ec/Rq054)).
+```
+$ croc -relay "ws://myrelay.example.com" send [filename]
+```
 
 
 
-# Protocol
+
+## How does it work? 
+
+*croc* is similar to [magic-wormhole](https://github.com/warner/magic-wormhole#design) in spirit and design. Like *magic-wormhole*, *croc* generates a code phrase for you to share with your friend which allows secure end-to-end transferring of files and folders through a intermediary relay that connects the TCP ports between the two computers. Also like *magic-wormhole*, security is enabled by performing password-authenticated key exchange (PAKE) with the weak code phrase to generate a session key on both machines without passing any private information between the two. The session key is then verified and used to encrypt the content and meta-data with AES-256. If at any point the PAKE fails, an error will be reported and the file will not be transferred. More details on the PAKE transfer can be found at [github.com/schollz/pake](https://github.com/schollz/pake) and below in the [protocol](#protocol).
+
+The intermediary relay uses websockets to have bidirectional communication with potential senders and recipients. Only one sender and one recipient is allowed in a channel at once. The relay helps to deliver the PAKE information, and once both parties agree, it will staple the connections between the sender and recipient and pipe all incoming TCP data from the sender to the recipient. 
+
+When sending a file with *croc*, a local relay is initiated which will try to discover local peers for connection. If a recipient is found locally, then the local connections are used and the public relay is never used. This way, *croc* can be used without a public internet connection (i.e. to transfer files over LAN).
+
+
+## Protocol 
 
 This is an outline of the protocol used here. The basic PAKE protocol is from [Dan Boneh and Victor Shoup's crypto book](https://crypto.stanford.edu/%7Edabo/cryptobook/BonehShoup_0_4.pdf) (pg 789, "PAKE2 protocol).
 
@@ -189,11 +195,13 @@ The websocket implementation means that each client and relay follows their spec
 
 
 
-# License
+## License
 
 MIT
 
-# Acknowledgements
+## Acknowledgements
+
+I am awed by all the [great contributions](#acknowledgements) made! If you feel like contributing, in any way, by all means you can send an Issue, a PR, ask a question, or tweet me ([@yakczar](http://ctt.ec/Rq054)).
 
 Thanks...
 

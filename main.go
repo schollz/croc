@@ -35,21 +35,13 @@ func main() {
 			Description: "send a file over the relay",
 			ArgsUsage:   "[filename]",
 			Flags: []cli.Flag{
-				cli.BoolFlag{Name: "no-compress, o"},
-				cli.BoolFlag{Name: "no-encrypt, e"},
+				cli.BoolFlag{Name: "no-compress, o", Usage: "disable compression"},
+				cli.BoolFlag{Name: "no-encrypt, e", Usage: "disable encryption"},
+				cli.StringFlag{Name: "code, c", Usage: "codephrase used to connect to relay"},
 			},
 			HelpName: "croc send",
 			Action: func(c *cli.Context) error {
 				return send(c)
-			},
-		},
-		{
-			Name:        "receive",
-			Usage:       "receive a file",
-			Description: "receve a file over the relay",
-			HelpName:    "croc receive",
-			Action: func(c *cli.Context) error {
-				return receive(c)
 			},
 		},
 		{
@@ -69,7 +61,6 @@ func main() {
 	}
 	app.Flags = []cli.Flag{
 		cli.StringFlag{Name: "relay", Value: "wss://croc3.schollz.com"},
-		cli.StringFlag{Name: "code, c", Usage: "codephrase used to connect to relay"},
 		cli.BoolFlag{Name: "no-local", Usage: "disable local mode"},
 		cli.BoolFlag{Name: "local", Usage: "use only local mode"},
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
@@ -80,7 +71,7 @@ func main() {
 	app.HideHelp = false
 	app.HideVersion = false
 	app.BashComplete = func(c *cli.Context) {
-		fmt.Fprintf(c.App.Writer, "lipstick\nkiss\nme\nlipstick\nringo\n")
+		fmt.Fprintf(c.App.Writer, "send\nreceive\relay")
 	}
 	app.Action = func(c *cli.Context) error {
 		return receive(c)
@@ -116,8 +107,8 @@ func send(c *cli.Context) error {
 	}
 	cr.UseCompression = !c.Bool("no-compress")
 	cr.UseEncryption = !c.Bool("no-encrypt")
-	if c.GlobalString("code") != "" {
-		codePhrase = c.GlobalString("code")
+	if c.String("code") != "" {
+		codePhrase = c.String("code")
 	}
 	return cr.Send(fname, codePhrase)
 }
