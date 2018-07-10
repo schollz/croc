@@ -484,7 +484,6 @@ func (c *Croc) dialUp() (err error) {
 				log.Debugf("receiving file into %s", receiveFileName)
 				err = c.receiveFile(receiveFileName, i, connection)
 			}
-			c.bar.Finish()
 			errorChan <- err
 		}(channel, uuid, port, i, errorChan)
 	}
@@ -499,6 +498,9 @@ func (c *Croc) dialUp() (err error) {
 			c.cs.channel.ws.WriteJSON(c.cs.channel)
 		}
 	}
+	// close bar
+	c.bar.Finish()
+	// measure transfer time
 	c.cs.Lock()
 	c.cs.channel.transferTime = time.Since(c.cs.channel.startTransfer)
 	c.cs.Unlock()
