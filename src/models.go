@@ -68,7 +68,7 @@ type Croc struct {
 func Init() (c *Croc) {
 	c = new(Croc)
 	c.TcpPorts = []string{"27030", "27031", "27032", "27033"}
-	c.Timeout = 10 * time.Minute
+	c.Timeout = 3 * time.Hour
 	c.UseEncryption = true
 	c.UseCompression = true
 	c.AllowLocalDiscovery = true
