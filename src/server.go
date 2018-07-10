@@ -265,7 +265,7 @@ func (c *Croc) processPayload(ws *websocket.Conn, cd channelData) (channel strin
 }
 
 func (c *Croc) channelCleanup() {
-	maximumWait := 10 * time.Minute
+	maximumWait := 3 * time.Hour
 	for {
 		c.rs.Lock()
 		keys := make([]string, len(c.rs.channel))

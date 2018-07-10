@@ -388,9 +388,9 @@ func (c *Croc) dialUp() (err error) {
 				return
 			}
 			defer connection.Close()
-			connection.SetReadDeadline(time.Now().Add(1 * time.Hour))
-			connection.SetDeadline(time.Now().Add(1 * time.Hour))
-			connection.SetWriteDeadline(time.Now().Add(1 * time.Hour))
+			connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
+			connection.SetDeadline(time.Now().Add(3 * time.Hour))
+			connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
 			message, err := receiveMessage(connection)
 			if err != nil {
 				errorChan <- err
