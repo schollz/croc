@@ -18,7 +18,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 	"github.com/schollz/pake"
-	"github.com/schollz/progressbar"
+	"github.com/schollz/progressbar/v2"
 )
 
 var isPrinted bool
