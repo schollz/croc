@@ -9,7 +9,7 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/gorilla/websocket"
 	"github.com/schollz/pake"
-	"github.com/schollz/progressbar"
+	"github.com/schollz/progressbar/v2"
 )
 
 const (
