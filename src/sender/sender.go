@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/briandowns/spinner"
+
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
@@ -52,7 +54,8 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 	if err != nil {
 		return err
 	}
-	// get stats
+
+	// get stats about the file
 	fstats := models.FileStats{filename, fstat.Size(), fstat.ModTime(), fstat.IsDir(), fstat.Name()}
 	if fstats.IsDir {
 		// zip the directory
@@ -80,6 +83,11 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 	// get ready to generate session key
 	var sessionKey []byte
 
+	// start a spinner
+	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+	spin.Suffix = " wating for recipient..."
+	spin.Start()
+
 	// pick an elliptic curve
 	curve := siec.SIEC255()
 	// both parties should have a weak key
@@ -102,6 +110,9 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 		log.Debugf("got %d: %s", messageType, message)
 		switch step {
 		case 0:
+			spin.Stop()
+			spin.Suffix = " performing PAKE..."
+			spin.Start()
 			log.Debugf("[%d] first, P sends u to Q", step)
 			c.WriteMessage(websocket.BinaryMessage, P.Bytes())
 		case 1:
@@ -126,10 +137,14 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 			log.Debugf("%s\n", fstatsBytes)
 			c.WriteMessage(websocket.BinaryMessage, fstatsBytes)
 		case 3:
+			spin.Stop()
+
 			log.Debugf("[%d] recipient declares readiness for file data", step)
 			if !bytes.Equal(message, []byte("ready")) {
 				return errors.New("recipient refused file")
 			}
+
+			fmt.Fprintf(os.Stderr, "Sending...\n")
 			// send file, compure hash simultaneously
 			buffer := make([]byte, 1024*512)
 			bar := progressbar.NewOptions(
