@@ -29,10 +29,10 @@ import (
 var DebugLevel string
 
 // Send is the async call to send data
-func Send(done chan struct{}, c *websocket.Conn, fname string, codephrase string) {
+func Send(done chan struct{}, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) {
 	logger.SetLogLevel(DebugLevel)
 	log.Debugf("sending %s", fname)
-	err := send(c, fname, codephrase)
+	err := send(c, fname, codephrase, useCompression, useEncryption)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "websocket: close 100") {
 			err = nil
@@ -41,7 +41,7 @@ func Send(done chan struct{}, c *websocket.Conn, fname string, codephrase string
 	done <- struct{}{}
 }
 
-func send(c *websocket.Conn, fname string, codephrase string) (err error) {
+func send(c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) (err error) {
 	var f *os.File
 	var fstats models.FileStats
 	var fileHash []byte
@@ -88,7 +88,15 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 			if err != nil {
 				return err
 			}
-			fstats = models.FileStats{filename, fstat.Size(), fstat.ModTime(), fstat.IsDir(), fstat.Name()}
+			fstats = models.FileStats{
+				Name:         filename,
+				Size:         fstat.Size(),
+				ModTime:      fstat.ModTime(),
+				IsDir:        fstat.IsDir(),
+				SentName:     fstat.Name(),
+				IsCompressed: useCompression,
+				IsEncrypted:  useEncryption,
+			}
 			if fstats.IsDir {
 				// zip the directory
 				fstats.SentName, err = zipper.ZipFile(fname, true)
@@ -170,11 +178,15 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 				bar.Add(bytesread)
 				if bytesread > 0 {
 					// do compression
-					compressedBytes := compress.Compress(buffer[:bytesread])
-					// compressedBytes := buffer[:bytesread]
+					var compressedBytes []byte
+					if useCompression {
+						compressedBytes = compress.Compress(buffer[:bytesread])
+					} else {
+						compressedBytes = buffer[:bytesread]
+					}
 
 					// do encryption
-					enc := crypt.Encrypt(compressedBytes, sessionKey, true)
+					enc := crypt.Encrypt(compressedBytes, sessionKey, !useEncryption)
 					encBytes, err := json.Marshal(enc)
 					if err != nil {
 						return err
