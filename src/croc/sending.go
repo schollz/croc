@@ -1,6 +1,7 @@
 package croc
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -68,50 +69,33 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 // Receive the file
 func (c *Croc) Receive(codephrase string) (err error) {
 	log.Debug("receiving")
-	waitingFor := 2
-	errChan := make(chan error)
+
+	// use local relay first
+	if !c.NoLocal {
+		// try to discovery codephrase and server through peer network
+		discovered, errDiscover := peerdiscovery.Discover(peerdiscovery.Settings{
+			Limit:     1,
+			TimeLimit: 300 * time.Millisecond,
+			Delay:     50 * time.Millisecond,
+			Payload:   []byte("checking"),
+		})
+		if errDiscover != nil {
+			log.Debug(errDiscover)
+		}
+		if len(discovered) > 0 {
+			log.Debugf("discovered %s:%s", discovered[0].Address, discovered[0].Payload)
+			return c.sendReceive(fmt.Sprintf("ws://%s:%s", discovered[0].Address, discovered[0].Payload), "", codephrase, false)
+		} else {
+			log.Debug("discovered no peers")
+		}
+	}
 
 	// use public relay
 	if !c.LocalOnly {
-		go func() {
-			// atttempt to connect to public relay
-			errChan <- c.sendReceive(c.WebsocketAddress, "", codephrase, false)
-		}()
-	} else {
-		waitingFor = 1
+		return c.sendReceive(c.WebsocketAddress, "", codephrase, false)
 	}
 
-	// use local relay
-	if !c.NoLocal {
-		go func() {
-			// try to discovery codephrase and server through peer network
-			discovered, errDiscover := peerdiscovery.Discover(peerdiscovery.Settings{
-				Limit:     1,
-				TimeLimit: 300 * time.Millisecond,
-				Delay:     50 * time.Millisecond,
-				Payload:   []byte("checking"),
-			})
-			if errDiscover != nil {
-				log.Debug(errDiscover)
-			}
-			if len(discovered) > 0 {
-				log.Debugf("discovered %s:%s", discovered[0].Address, discovered[0].Payload)
-				errChan <- c.sendReceive(fmt.Sprintf("ws://%s:%s", discovered[0].Address, discovered[0].Payload), "", codephrase, false)
-			} else {
-				log.Debug("discovered no peers")
-				waitingFor = 1
-			}
-		}()
-	} else {
-		waitingFor = 1
-	}
-
-	err = <-errChan
-	if err == nil || waitingFor == 1 {
-		return
-	}
-	log.Debug(err)
-	return <-errChan
+	return errors.New("must use local or public relay")
 }
 
 func (c *Croc) sendReceive(websocketAddress, fname, codephrase string, isSender bool) (err error) {
