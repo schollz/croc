@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/schollz/croc/src/zipper"
+
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
 	"github.com/schollz/croc/src/compress"
@@ -160,7 +162,13 @@ func receive(c *websocket.Conn, codephrase string) (err error) {
 					log.Debugf("got hash: %x", message)
 					if bytes.Equal(hash256, message) {
 						c.WriteMessage(websocket.BinaryMessage, []byte("ok"))
-						return nil
+						// open directory
+						if fstats.IsDir {
+							err = zipper.UnzipFile(fstats.SentName, fstats.Name)
+						} else {
+							err = nil
+						}
+						return err
 					} else {
 						c.WriteMessage(websocket.BinaryMessage, []byte("not"))
 						return errors.New("file corrupted")
