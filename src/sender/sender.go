@@ -44,6 +44,7 @@ func Send(done chan struct{}, c *websocket.Conn, fname string, codephrase string
 func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 	var f *os.File
 	var fstats models.FileStats
+	var fileHash []byte
 
 	// normalize the file name
 	fname, err = filepath.Abs(fname)
@@ -156,7 +157,7 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 
 			fmt.Fprintf(os.Stderr, "Sending...\n")
 			// send file, compure hash simultaneously
-			buffer := make([]byte, 1024*1024*4)
+			buffer := make([]byte, 1024*512)
 			bar := progressbar.NewOptions(
 				int(fstats.Size),
 				progressbar.OptionSetRenderBlankState(true),
@@ -184,12 +185,12 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 						err = errors.Wrap(err, "problem writing message")
 						return err
 					}
-					// wait for ok
-					c.ReadMessage()
+					// // wait for ok
+					// c.ReadMessage()
 				}
 				if err != nil {
 					if err != io.EOF {
-						fmt.Println(err)
+						log.Error(err)
 					}
 					break
 				}
@@ -197,14 +198,18 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 
 			bar.Finish()
 			log.Debug("send hash to finish file")
-			fileHash, err := utils.HashFile(fname)
+			fileHash, err = utils.HashFile(fname)
 			if err != nil {
 				return err
 			}
-			c.WriteMessage(websocket.TextMessage, fileHash)
 		case 4:
+			if !bytes.HasPrefix(message, []byte("hash:")) {
+				continue
+			}
+			c.WriteMessage(websocket.BinaryMessage, fileHash)
+			message = bytes.TrimPrefix(message, []byte("hash:"))
 			log.Debugf("[%d] determing whether it went ok", step)
-			if bytes.Equal(message, []byte("ok")) {
+			if bytes.Equal(message, fileHash) {
 				log.Debug("file transfered successfully")
 				fmt.Fprintf(os.Stderr, "\nTransfer complete")
 				return nil
