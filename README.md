@@ -21,11 +21,11 @@ _These two gifs should run in sync if you force-reload (Ctl+F5)_
 
 **Sender:**
 
-![send](https://raw.githubusercontent.com/schollz/croc/master/src/testing_data/sender.gif)
+![send](https://github.com/schollz/croc/blob/6af10ad871d929ace4664ac8c1e4acc37d01b323/src/testing_data/sender.gif)
 
 **Receiver:**
 
-![receive](https://raw.githubusercontent.com/schollz/croc/master/src/testing_data/recipient.gif)
+![receive](https://github.com/schollz/croc/blob/6af10ad871d929ace4664ac8c1e4acc37d01b323/src/testing_data/recipient.gif)
 
 
 ## Install
@@ -87,13 +87,13 @@ All of the other text printed to the console is going to `stderr` so it will not
 
 ### Self-host relay
 
-The relay is needed to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses a public relay at, `wss://croc3.schollz.com`. You can also run your own relay, it is very easy, just run:
+The relay is needed to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses a public relay at, `ws://198.199.67.130:8153`. You can also run your own relay, it is very easy, just run:
 
 ```
 $ croc relay
 ```
 
-Make sure to open up TCP ports (see `croc relay --help` for which ports to open). You can also define your own ports with `-tcp` and `-port`. Relays can also be customized to which elliptic curve they will use (default is siec).
+Make sure to open up TCP ports (see `croc relay --help` for which ports to open). Relays can also be customized to which elliptic curve they will use (default is siec).
 
 You can send files using your relay by entering `-relay` to change the relay that you are using if you want to custom host your own.
 
