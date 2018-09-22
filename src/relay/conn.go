@@ -55,7 +55,7 @@ func (s subscription) readPump() {
 		messageType, msg, err := c.ws.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
-				log.Errorf("error: %v", err)
+				log.Debugf("unexpected close: %v", err)
 			}
 			break
 		}
