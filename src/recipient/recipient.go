@@ -162,17 +162,18 @@ func receive(c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool
 				if err != nil {
 					return err
 				}
-				decrypted, err := enc.Decrypt(sessionKey, true)
+				decrypted, err := enc.Decrypt(sessionKey, !fstats.IsEncrypted)
 				if err != nil {
 					return err
 				}
 
 				// do decompression
-				decompressed := compress.Decompress(decrypted)
-				// decompressed := decrypted
+				if fstats.IsCompressed {
+					decrypted = compress.Decompress(decrypted)
+				}
 
 				// write to file
-				n, err := f.Write(decompressed)
+				n, err := f.Write(decrypted)
 				if err != nil {
 					return err
 				}

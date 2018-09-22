@@ -141,7 +141,7 @@ func (c *Croc) sendReceive(websocketAddress, fname, codephrase string, isSender 
 
 	if isSender {
 		// start peerdiscovery relay server
-		go sender.Send(done, sock, fname, codephrase)
+		go sender.Send(done, sock, fname, codephrase, c.UseCompression, c.UseEncryption)
 	} else {
 		go recipient.Receive(done, sock, codephrase, c.NoRecipientPrompt, c.Stdout)
 	}
