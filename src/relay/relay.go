@@ -14,7 +14,7 @@ func Run(port string) (err error) {
 	logger.SetLogLevel(DebugLevel)
 
 	go h.run()
-	log.Info("running relay on " + port)
+	log.Debug("running relay on " + port)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		serveWs(w, r)
 	})
