@@ -95,7 +95,7 @@ func (c *Croc) Receive(codephrase string) (err error) {
 				log.Debug(errDiscover)
 			}
 			if len(discovered) > 0 {
-				log.Debugf("discovered %s on %s", discovered[0].Payload, discovered[0].Address)
+				log.Debugf("discovered %s:%s", discovered[0].Address, discovered[0].Payload)
 				errChan <- c.sendReceive(fmt.Sprintf("ws://%s:%s", discovered[0].Address, discovered[0].Payload), "", codephrase, false)
 			} else {
 				log.Debug("discovered no peers")
