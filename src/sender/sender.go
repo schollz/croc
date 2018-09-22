@@ -179,7 +179,7 @@ func send(c *websocket.Conn, fname string, codephrase string, useCompression boo
 				if bytesread > 0 {
 					// do compression
 					var compressedBytes []byte
-					if useCompression {
+					if useCompression && !fstats.IsDir {
 						compressedBytes = compress.Compress(buffer[:bytesread])
 					} else {
 						compressedBytes = buffer[:bytesread]
