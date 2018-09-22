@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
+	humanize "github.com/dustin/go-humanize"
 	"github.com/schollz/croc/src/zipper"
 
 	log "github.com/cihub/seelog"
@@ -93,11 +94,34 @@ func receive(c *websocket.Conn, codephrase string) (err error) {
 		case 2:
 			spin.Stop()
 
+			// unmarshal the file info
 			log.Debugf("[%d] recieve file info", step)
 			err = json.Unmarshal(message, &fstats)
 			if err != nil {
 				return err
 			}
+
+			// prompt user if its okay to receive file
+			overwritingOrReceiving := "Receiving"
+			if utils.Exists(fstats.Name) {
+				overwritingOrReceiving = "Overwriting"
+			}
+			fileOrFolder := "file"
+			if fstats.IsDir {
+				fileOrFolder = "folder"
+			}
+			if "y" != utils.GetInput(fmt.Sprintf(
+				`%s %s (%s) into: %s
+		ok? (y/N): `,
+				overwritingOrReceiving,
+				fileOrFolder,
+				humanize.Bytes(uint64(fstats.Size)),
+				fstats.Name,
+			)) {
+				fmt.Fprintf(os.Stderr, "cancelling request")
+				return nil
+			}
+
 			// await file
 			f, err := os.Create(fstats.SentName)
 			if err != nil {
