@@ -110,11 +110,13 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 		log.Debugf("got %d: %s", messageType, message)
 		switch step {
 		case 0:
+			// send pake data
+			log.Debugf("[%d] first, P sends u to Q", step)
+			c.WriteMessage(websocket.BinaryMessage, P.Bytes())
+			// start PAKE spinnner
 			spin.Stop()
 			spin.Suffix = " performing PAKE..."
 			spin.Start()
-			log.Debugf("[%d] first, P sends u to Q", step)
-			c.WriteMessage(websocket.BinaryMessage, P.Bytes())
 		case 1:
 			// P recieves H(k),v from Q
 			log.Debugf("[%d] P computes k, H(k), sends H(k) to Q", step)
