@@ -89,8 +89,6 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 
 	// start a spinner
 	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
-	spin.Suffix = " wating for recipient..."
-	spin.Start()
 
 	// pick an elliptic curve
 	curve := siec.SIEC255()
@@ -118,7 +116,6 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 			log.Debugf("[%d] first, P sends u to Q", step)
 			c.WriteMessage(websocket.BinaryMessage, P.Bytes())
 			// start PAKE spinnner
-			spin.Stop()
 			spin.Suffix = " performing PAKE..."
 			spin.Start()
 		case 1:
@@ -131,6 +128,11 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 			sessionKey, _ = P.SessionKey()
 			// check(err)
 			log.Debugf("%x\n", sessionKey)
+
+			// wait for readiness
+			spin.Stop()
+			spin.Suffix = " waiting for recipient ok..."
+			spin.Start()
 		case 2:
 			log.Debugf("[%d] recipient declares readiness for file info", step)
 			if !bytes.Equal(message, []byte("ready")) {
