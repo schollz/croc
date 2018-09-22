@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/schollz/croc/src/croc"
+	"github.com/schollz/utils"
 	"github.com/urfave/cli"
 )
 
@@ -106,6 +107,10 @@ func send(c *cli.Context) error {
 	cr.UseEncryption = !c.Bool("no-encrypt")
 	if c.String("code") != "" {
 		codePhrase = c.String("code")
+	}
+	if len(codePhrase) == 0 {
+		// generate code phrase
+		codePhrase = utils.GetRandomName()
 	}
 	return cr.Send(fname, codePhrase)
 }
