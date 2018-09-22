@@ -1,4 +1,4 @@
-package croc
+package logger
 
 import (
 	log "github.com/cihub/seelog"
