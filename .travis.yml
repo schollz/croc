@@ -7,4 +7,4 @@ env:
   - "PATH=/home/travis/gopath/bin:$PATH"
 
 script:
-  - go test -v ./...
+  - go build -v
