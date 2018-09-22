@@ -168,7 +168,7 @@ func receive(c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool
 				}
 
 				// do decompression
-				if fstats.IsCompressed {
+				if fstats.IsCompressed && !fstats.IsDir {
 					decrypted = compress.Decompress(decrypted)
 				}
 
