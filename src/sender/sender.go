@@ -57,6 +57,8 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 	if fstats.IsDir {
 		// zip the directory
 		fstats.SentName, err = zipper.ZipFile(fname, true)
+		// remove the file when leaving
+		defer os.Remove(fstats.SentName)
 		fname = fstats.SentName
 		if err != nil {
 			return

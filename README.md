@@ -4,7 +4,7 @@
     src="https://user-images.githubusercontent.com/6550035/31846899-2b8a7034-b5cf-11e7-9643-afe552226c59.png"
     width="100%" border="0" alt="croc">
 <br>
-<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-3.0.7-brightgreen.svg?style=flat-square" alt="Version"></a>
+<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-4.0.0-brightgreen.svg?style=flat-square" alt="Version"></a>
 <a href="https://saythanks.io/to/schollz"><img src="https://img.shields.io/badge/Say%20Thanks-!-yellow.svg?style=flat-square" alt="Go Report Card"></a>
 </p>
 
@@ -102,8 +102,6 @@ $ croc -relay "ws://myrelay.example.com" send [filename]
 ```
 
 
-
-
 ## How does it work? 
 
 *croc* is similar to [magic-wormhole](https://github.com/warner/magic-wormhole#design) in spirit and design. Like *magic-wormhole*, *croc* generates a code phrase for you to share with your friend which allows secure end-to-end transferring of files and folders through a intermediary relay that connects the TCP ports between the two computers. Also like *magic-wormhole*, security is enabled by performing password-authenticated key exchange (PAKE) with the weak code phrase to generate a session key on both machines without passing any private information between the two. The session key is then verified and used to encrypt the content and meta-data with AES-256. If at any point the PAKE fails, an error will be reported and the file will not be transferred. More details on the PAKE transfer can be found at [github.com/schollz/pake](https://github.com/schollz/pake) and below in the [protocol](#protocol).
@@ -111,89 +109,6 @@ $ croc -relay "ws://myrelay.example.com" send [filename]
 The intermediary relay uses websockets to have bidirectional communication with potential senders and recipients. Only one sender and one recipient is allowed in a channel at once. The relay helps to deliver the PAKE information, and once both parties agree, it will staple the connections between the sender and recipient and pipe all incoming TCP data from the sender to the recipient. 
 
 When sending a file with *croc*, a local relay is initiated which will try to discover local peers for connection. If a recipient is found locally, then the local connections are used and the public relay is never used. This way, *croc* can be used without a public internet connection (i.e. to transfer files over LAN).
-
-
-## Protocol 
-
-This is an outline of the protocol used here. The basic PAKE protocol is from [Dan Boneh and Victor Shoup's crypto book](https://crypto.stanford.edu/%7Edabo/cryptobook/BonehShoup_0_4.pdf) (pg 789, "PAKE2 protocol).
-
-![Basic PAKE](https://camo.githubusercontent.com/b85a5f63469a2f986ce4d280862b46b00ff6605c/68747470733a2f2f692e696d6775722e636f6d2f73376f515756502e706e67)
-
-1. **Sender** requests new channel and receives empty channel from **Relay**, or obtains the channel they request (or an error if it is already occupied).
-2. **Sender** generates *u* using PAKE from secret *pw*.
-3. **Sender** sends *u* to **Relay** and the type of curve being used. Returns error if channel is already occupied by sender, otherwise it uses it.
-4. **Sender** communicates channel + secret *pw* to **Recipient** (human interaction).
-5. **Recipient** connects to channel and receives UUID.
-6. **Recipient** requests *u* from **Relay** using the channel. Returns error if it doesn't exist yet.
-7. **Recipient** generates *v*, session key *k_B*, and hashed session key *H(k_B)* using PAKE from secret *pw*.
-8. **Recipient** sends *v*, *H(H(k_B))* to **Relay**.
-9. **Sender** requests *v*, *H(H(k_B))* from **Relay**.
-10. **Sender** uses *v* to generate its session key *k_A* and *H(k_A)*, and checks *H(H(k_A))*==*H(H(k_B))*. **Sender** aborts here if it is incorrect.
-11. **Sender** gives the **Relay** authentication *H(k_A)*.
-12. **Recipient** requests *H(k_A)* from relay and checks against its own. If it doesn't match, then bail.
-13. **Sender** connects to **Relay** tcp ports and identifies itself using channel+UUID.
-14. **Sender** encrypts data with *k*.
-15. **Recipient** connects to **Relay** tcp ports and identifies itself using channel+UUID.
-16. **Relay** realizes it has both recipient and sender for the same channel so it staples their connections. Sets *stapled* to `true`.
-17. **Sender** asks **Relay** whether connections are stapled.
-18. **Sender** sends data over TCP.
-19. **Recipient** closes relay when finished. Anyone participating in the channel can close the relay at any time. Any of the routes except the first ones will return errors if stuff doesn't exist.
-
-
-### Conditions of state
-
-The websocket implementation means that each client and relay follows their specific state machine conditions.
-
-#### Sender
-
-*Initialize*
-
-- Requests to join.
-
-*Does X not exist?*
-
-- Generates X from pw.
-- Update relay with X.
-
-*Is Y and Bcrypt(k_B) available?*
-
-- Use *v* to generate its session key *k_A*.
-- Check that Bcrypt(k_B) comes from k_A. Abort here if it is incorrect.
-- Encrypts data using *k_A*. 
-- Connect to TCP ports of Relay.
-- Update relay with *Bcrypt(k_A)*.
-
-*Are ports stapled?*
-
-- Send data over TCP
-
-
-#### Recipient
-
-*Initialize*
-
-- Request to join
-
-*Is X available?*
-
-- Generate *v*, session key *k_B*, and hashed session key *H(k_B)* using PAKE from secret *pw*.
-- Send the Relay *Bcrypt(k_B)*
-
-*Is Bcrypt(k_A) available?*
-
-- Verify that *Bcrypt(k_A)* comes from k_B
-- Connect to TCP ports of Relay and listen.
-- Once file is received, Send close signal to Relay.
-
-
-#### Relay
-
-*Is there a listener for sender and recipient?*
-
-- Staple connections.
-- Send out to all parties that connections are stapled.
-
-
 
 ## License
 
