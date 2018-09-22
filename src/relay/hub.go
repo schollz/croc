@@ -62,6 +62,7 @@ func (h *hub) run() {
 				for connection := range h.rooms.rooms[s.room] {
 					close(connection.send)
 				}
+				log.Debugf("deleting room %s", s.room)
 				delete(h.rooms.rooms, s.room)
 			}
 			h.rooms.Unlock()
@@ -71,6 +72,7 @@ func (h *hub) run() {
 			for connection := range h.rooms.rooms[s.room] {
 				close(connection.send)
 			}
+			log.Debugf("deleting room %s", s.room)
 			delete(h.rooms.rooms, s.room)
 			h.rooms.Unlock()
 		case m := <-h.broadcast:
@@ -86,6 +88,7 @@ func (h *hub) run() {
 					close(c.send)
 					delete(connections, c)
 					if len(connections) == 0 {
+						log.Debugf("deleting room %s", m.room)
 						delete(h.rooms.rooms, m.room)
 					}
 				}
