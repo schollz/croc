@@ -7,4 +7,5 @@ type FileStats struct {
 	Size    int64
 	ModTime time.Time
 	IsDir   bool
+	DirName string
 }
