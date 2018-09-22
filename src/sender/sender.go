@@ -37,11 +37,6 @@ func Send(done chan struct{}, c *websocket.Conn, fname string, codephrase string
 		if strings.HasPrefix(err.Error(), "websocket: close 100") {
 			err = nil
 		}
-		if err == nil {
-			fmt.Fprintf(os.Stderr, "Transfer complete")
-		} else {
-			fmt.Fprintf(os.Stderr, err.Error())
-		}
 	}
 	done <- struct{}{}
 }
@@ -204,8 +199,10 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 			log.Debugf("[%d] determing whether it went ok", step)
 			if bytes.Equal(message, []byte("ok")) {
 				log.Debug("file transfered successfully")
+				fmt.Fprintf(os.Stderr, "\nTransfer complete")
 				return nil
 			} else {
+				fmt.Fprintf(os.Stderr, "\nTransfer corrupted")
 				return errors.New("file not transfered succesfully")
 			}
 		default:
