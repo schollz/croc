@@ -6,8 +6,9 @@ import (
 	"os"
 )
 
+// HashFile returns the md5 hash of a file
 func HashFile(fname string) (hash256 []byte, err error) {
-	f, err := os.Open("file.txt")
+	f, err := os.Open(fname)
 	if err != nil {
 		return
 	}

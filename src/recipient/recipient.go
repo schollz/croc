@@ -89,8 +89,9 @@ func receive(c *websocket.Conn, codephrase string) (err error) {
 				return err
 			}
 			// await file
-			f, err := os.Create("out")
+			f, err := os.Create(fstats.Name)
 			if err != nil {
+				log.Error(err)
 				return err
 			}
 			bytesWritten := 0
@@ -149,8 +150,9 @@ func receive(c *websocket.Conn, codephrase string) (err error) {
 					bar.Finish()
 
 					// check hash
-					hash256, err := utils.HashFile("out")
+					hash256, err := utils.HashFile(fstats.Name)
 					if err != nil {
+						log.Error(err)
 						return err
 					}
 
