@@ -156,7 +156,7 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 
 			fmt.Fprintf(os.Stderr, "Sending...\n")
 			// send file, compure hash simultaneously
-			buffer := make([]byte, 1024*512)
+			buffer := make([]byte, 1024*1024*4)
 			bar := progressbar.NewOptions(
 				int(fstats.Size),
 				progressbar.OptionSetRenderBlankState(true),

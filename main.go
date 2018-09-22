@@ -144,6 +144,8 @@ func send(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	fname, _ = filepath.Abs(fname)
+	fname = filepath.Clean(fname)
 	_, filename := filepath.Split(fname)
 	fileOrFolder := "file"
 	fsize := finfo.Size()
@@ -155,7 +157,7 @@ func send(c *cli.Context) error {
 		}
 	}
 	fmt.Fprintf(os.Stderr,
-		"Sending %s %s name '%s'\nCode is: %s\nOn the other computer, please run:\n\ncroc %s\n\n",
+		"Sending %s %s named '%s'\nCode is: %s\nOn the other computer, please run:\n\ncroc %s\n\n",
 		humanize.Bytes(uint64(fsize)),
 		fileOrFolder,
 		filename,
