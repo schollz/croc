@@ -99,7 +99,8 @@ func (s *subscription) writePump() {
 func serveWs(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.ErrorStr(err)
+		log.Error(err)
+		return
 	}
 	vals := r.URL.Query()
 	room := "default"

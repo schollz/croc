@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -17,23 +18,27 @@ import (
 	"github.com/schollz/croc/src/models"
 	"github.com/schollz/croc/src/utils"
 	"github.com/schollz/pake"
-	"github.com/schollz/progressbar"
+	"github.com/schollz/progressbar/v2"
 	"github.com/tscholl2/siec"
 )
 
 var DebugLevel string
 
 // Send is the async call to send data
-func Send(done chan struct{}, c *websocket.Conn, fname string) {
+func Send(done chan struct{}, c *websocket.Conn, fname string, codephrase string) {
 	logger.SetLogLevel(DebugLevel)
-	err := send(c, fname)
+	log.Debugf("sending %s", fname)
+	err := send(c, fname, codephrase)
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "websocket: close 1005") {
+			return
+		}
 		log.Error(err)
 	}
 	done <- struct{}{}
 }
 
-func send(c *websocket.Conn, fname string) (err error) {
+func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 	var f *os.File
 	var fstats models.FileStats
 	var sessionKey []byte
@@ -41,7 +46,7 @@ func send(c *websocket.Conn, fname string) (err error) {
 	// pick an elliptic curve
 	curve := siec.SIEC255()
 	// both parties should have a weak key
-	pw := []byte{1, 2, 3}
+	pw := []byte(codephrase)
 	// initialize sender P ("0" indicates sender)
 	P, err := pake.Init(pw, 0, curve, 100*time.Millisecond)
 	if err != nil {
@@ -147,6 +152,7 @@ func send(c *websocket.Conn, fname string) (err error) {
 			log.Debugf("[%d] determing whether it went ok", step)
 			if bytes.Equal(message, []byte("ok")) {
 				log.Debug("file transfered successfully")
+				return nil
 			} else {
 				return errors.New("file not transfered succesfully")
 			}
