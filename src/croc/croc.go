@@ -14,6 +14,8 @@ import (
 type Croc struct {
 	// Options for all
 	Debug bool
+	// ShowText will display text on the stderr
+	ShowText bool
 
 	// Options for relay
 	ServerPort string

@@ -85,6 +85,7 @@ func main() {
 		cr.Stdout = c.GlobalBool("stdout")
 		cr.LocalOnly = c.GlobalBool("local")
 		cr.NoLocal = c.GlobalBool("no-local")
+		cr.ShowText = true
 		return nil
 	}
 
