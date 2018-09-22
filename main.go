@@ -141,9 +141,6 @@ func send(c *cli.Context) error {
 		codePhrase,
 	)
 	err = cr.Send(fname, codePhrase)
-	if err == nil {
-		fmt.Fprintf(os.Stderr, "\nTransfer complete")
-	}
 	return err
 }
 

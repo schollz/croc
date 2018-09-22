@@ -35,9 +35,13 @@ func Send(done chan struct{}, c *websocket.Conn, fname string, codephrase string
 	err := send(c, fname, codephrase)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "websocket: close 100") {
-			return
+			err = nil
 		}
-		log.Error(err)
+		if err == nil {
+			fmt.Fprintf(os.Stderr, "Transfer complete")
+		} else {
+			fmt.Fprintf(os.Stderr, err.Error())
+		}
 	}
 	done <- struct{}{}
 }

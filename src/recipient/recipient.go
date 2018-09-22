@@ -43,6 +43,7 @@ func Receive(done chan struct{}, c *websocket.Conn, codephrase string) {
 func receive(c *websocket.Conn, codephrase string) (err error) {
 	var fstats models.FileStats
 	var sessionKey []byte
+	var transferTime time.Duration
 
 	// start a spinner
 	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
@@ -128,7 +129,7 @@ func receive(c *websocket.Conn, codephrase string) (err error) {
 				return err
 			}
 			bytesWritten := 0
-			fmt.Fprintf(os.Stderr, "Receiving...\n")
+			fmt.Fprintf(os.Stderr, "\nReceiving...\n")
 			bar := progressbar.NewOptions(
 				int(fstats.Size),
 				progressbar.OptionSetRenderBlankState(true),
@@ -136,6 +137,7 @@ func receive(c *websocket.Conn, codephrase string) (err error) {
 				progressbar.OptionSetWriter(os.Stderr),
 			)
 			c.WriteMessage(websocket.BinaryMessage, []byte("ready"))
+			startTime := time.Now()
 			for {
 				messageType, message, err := c.ReadMessage()
 				if err != nil {
@@ -174,6 +176,7 @@ func receive(c *websocket.Conn, codephrase string) (err error) {
 					bar.Add(n)
 				} else {
 					// we are finished
+					transferTime = time.Since(startTime)
 
 					// close file
 					err = f.Close()
@@ -203,6 +206,19 @@ func receive(c *websocket.Conn, codephrase string) (err error) {
 							}
 						} else {
 							err = nil
+						}
+						if err == nil {
+							transferRate := float64(fstats.Size) / 1000000.0 / transferTime.Seconds()
+							transferType := "MB/s"
+							if transferRate < 1 {
+								transferRate = float64(fstats.Size) / 1000.0 / transferTime.Seconds()
+								transferType = "kB/s"
+							}
+							folderOrFile := "file"
+							if fstats.IsDir {
+								folderOrFile = "folder"
+							}
+							fmt.Fprintf(os.Stderr, "\nReceived %s written to %s (%2.1f %s)\n", folderOrFile, fstats.Name, transferRate, transferType)
 						}
 						return err
 					} else {
