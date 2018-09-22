@@ -7,6 +7,7 @@ import (
 	"github.com/schollz/croc/src/recipient"
 	"github.com/schollz/croc/src/relay"
 	"github.com/schollz/croc/src/sender"
+	"github.com/schollz/croc/src/zipper"
 )
 
 // Croc options
@@ -61,5 +62,6 @@ func Init(debug bool) (c *Croc) {
 	sender.DebugLevel = debugLevel
 	recipient.DebugLevel = debugLevel
 	relay.DebugLevel = debugLevel
+	zipper.DebugLevel = debugLevel
 	return
 }
