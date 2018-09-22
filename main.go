@@ -117,7 +117,6 @@ func send(c *cli.Context) error {
 		}
 		fname = f.Name()
 		defer func() {
-			log.Println("removing %s", fname)
 			err = os.Remove(fname)
 			if err != nil {
 				log.Println(err)
