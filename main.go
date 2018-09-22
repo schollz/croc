@@ -64,7 +64,7 @@ func main() {
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
-		cli.StringFlag{Name: "port", Value: "8152", Usage: "port that the websocket listens on"},
+		cli.StringFlag{Name: "port", Value: "8153", Usage: "port that the websocket listens on"},
 		cli.StringFlag{Name: "curve", Value: "siec", Usage: "specify elliptic curve to use (p224, p256, p384, p521, siec)"},
 	}
 	app.EnableBashCompletion = true
