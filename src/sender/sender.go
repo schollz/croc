@@ -136,6 +136,7 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 				int(fstats.Size),
 				progressbar.OptionSetRenderBlankState(true),
 				progressbar.OptionSetBytes(int(fstats.Size)),
+				progressbar.OptionSetWriter(os.Stderr),
 			)
 			for {
 				bytesread, err := f.Read(buffer)

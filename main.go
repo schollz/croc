@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
+	humanize "github.com/dustin/go-humanize"
 	"github.com/schollz/croc/src/croc"
 	"github.com/schollz/utils"
 	"github.com/urfave/cli"
@@ -112,6 +114,30 @@ func send(c *cli.Context) error {
 		// generate code phrase
 		codePhrase = utils.GetRandomName()
 	}
+
+	// print the text
+	finfo, err := os.Stat(fname)
+	if err != nil {
+		return err
+	}
+	_, filename := filepath.Split(fname)
+	fileOrFolder := "file"
+	fsize := finfo.Size()
+	if finfo.IsDir() {
+		fileOrFolder = "folder"
+		fsize, err = dirSize(fname)
+		if err != nil {
+			return err
+		}
+	}
+	fmt.Fprintf(os.Stderr,
+		"Sending %s %s name '%s'\nCode is: %s\nOn the other computer, please run:\n\ncroc %s",
+		humanize.Bytes(uint64(fsize)),
+		fileOrFolder,
+		filename,
+		codePhrase,
+		codePhrase,
+	)
 	return cr.Send(fname, codePhrase)
 }
 
@@ -129,4 +155,15 @@ func relay(c *cli.Context) error {
 	cr.ServerPort = c.String("port")
 	cr.CurveType = c.String("curve")
 	return cr.Relay()
+}
+
+func dirSize(path string) (int64, error) {
+	var size int64
+	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if !info.IsDir() {
+			size += info.Size()
+		}
+		return err
+	})
+	return size, err
 }
