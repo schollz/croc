@@ -28,7 +28,7 @@ func Receive(done chan struct{}, c *websocket.Conn, codephrase string) {
 	logger.SetLogLevel(DebugLevel)
 	err := receive(c, codephrase)
 	if err != nil {
-		if strings.HasPrefix(err.Error(), "websocket: close 1005") {
+		if strings.HasPrefix(err.Error(), "websocket: close 100") {
 			return
 		}
 		log.Error(err)

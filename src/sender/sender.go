@@ -30,7 +30,7 @@ func Send(done chan struct{}, c *websocket.Conn, fname string, codephrase string
 	log.Debugf("sending %s", fname)
 	err := send(c, fname, codephrase)
 	if err != nil {
-		if strings.HasPrefix(err.Error(), "websocket: close 1005") {
+		if strings.HasPrefix(err.Error(), "websocket: close 100") {
 			return
 		}
 		log.Error(err)
