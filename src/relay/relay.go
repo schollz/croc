@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"fmt"
 	"net/http"
 
 	log "github.com/cihub/seelog"
@@ -17,6 +18,9 @@ func Run(port string) (err error) {
 	log.Debug("running relay on " + port)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		serveWs(w, r)
+	})
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "ok")
 	})
 	err = http.ListenAndServe(":"+port, nil)
 	return

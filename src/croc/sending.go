@@ -3,6 +3,7 @@ package croc
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"time"
@@ -85,7 +86,20 @@ func (c *Croc) Receive(codephrase string) (err error) {
 		}
 		if len(discovered) > 0 {
 			log.Debugf("discovered %s:%s", discovered[0].Address, discovered[0].Payload)
-			return c.sendReceive(fmt.Sprintf("ws://%s:%s", discovered[0].Address, discovered[0].Payload), "", codephrase, false)
+			// see if we can actually connect to it
+			timeout := time.Duration(200 * time.Millisecond)
+			client := http.Client{
+				Timeout: timeout,
+			}
+			resp, err := client.Get(fmt.Sprintf("http://%s:%s/", discovered[0].Address, discovered[0].Payload))
+			if err == nil {
+				if resp.StatusCode == http.StatusOK {
+					// we connected, so use this
+					return c.sendReceive(fmt.Sprintf("ws://%s:%s", discovered[0].Address, discovered[0].Payload), "", codephrase, false)
+				}
+			} else {
+				log.Debugf("could not connect: %s", err.Error())
+			}
 		} else {
 			log.Debug("discovered no peers")
 		}
@@ -93,6 +107,7 @@ func (c *Croc) Receive(codephrase string) (err error) {
 
 	// use public relay
 	if !c.LocalOnly {
+		log.Debug("using public relay")
 		return c.sendReceive(c.WebsocketAddress, "", codephrase, false)
 	}
 
