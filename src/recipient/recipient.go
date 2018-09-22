@@ -165,6 +165,9 @@ func receive(c *websocket.Conn, codephrase string) (err error) {
 						// open directory
 						if fstats.IsDir {
 							err = zipper.UnzipFile(fstats.SentName, ".")
+							if DebugLevel != "debug" {
+								os.Remove(fstats.SentName)
+							}
 						} else {
 							err = nil
 						}
