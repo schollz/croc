@@ -9,7 +9,7 @@ import (
 
 	humanize "github.com/dustin/go-humanize"
 	"github.com/schollz/croc/src/croc"
-	"github.com/schollz/utils"
+	"github.com/schollz/croc/src/utils"
 	"github.com/urfave/cli"
 )
 
@@ -153,6 +153,9 @@ func receive(c *cli.Context) error {
 	}
 	if c.Args().First() != "" {
 		codePhrase = c.Args().First()
+	}
+	if codePhrase == "" {
+		codePhrase = utils.GetInput("Enter receive code: ")
 	}
 	return cr.Receive(codePhrase)
 }
