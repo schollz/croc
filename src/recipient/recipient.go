@@ -164,7 +164,7 @@ func receive(c *websocket.Conn, codephrase string) (err error) {
 						c.WriteMessage(websocket.BinaryMessage, []byte("ok"))
 						// open directory
 						if fstats.IsDir {
-							err = zipper.UnzipFile(fstats.SentName, fstats.Name)
+							err = zipper.UnzipFile(fstats.SentName, ".")
 						} else {
 							err = nil
 						}
