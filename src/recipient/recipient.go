@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/briandowns/spinner"
 	humanize "github.com/dustin/go-humanize"
 
 	log "github.com/cihub/seelog"
@@ -23,6 +22,7 @@ import (
 	"github.com/schollz/croc/src/zipper"
 	"github.com/schollz/pake"
 	"github.com/schollz/progressbar/v2"
+	"github.com/schollz/spinner"
 	"github.com/tscholl2/siec"
 )
 
