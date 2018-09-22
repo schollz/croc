@@ -39,8 +39,22 @@ func Send(done chan struct{}, c *websocket.Conn, fname string, codephrase string
 }
 
 func send(c *websocket.Conn, fname string, codephrase string) (err error) {
-	var f *os.File
-	var fstats models.FileStats
+	// check that the file exists
+	f, err := os.Open(fname)
+	if err != nil {
+		return
+	}
+	fstat, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	fstats := models.FileStats{fstat.Name(), fstat.Size(), fstat.ModTime(), fstat.IsDir()}
+	if fstats.IsDir {
+		// zip the directory
+
+	}
+
+	// get ready to generate session key
 	var sessionKey []byte
 
 	// pick an elliptic curve
@@ -82,15 +96,6 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 			if !bytes.Equal(message, []byte("ready")) {
 				return errors.New("recipient refused file")
 			}
-			f, err = os.Open(fname)
-			if err != nil {
-				return
-			}
-			fstat, err := f.Stat()
-			if err != nil {
-				return err
-			}
-			fstats = models.FileStats{fstat.Name(), fstat.Size(), fstat.ModTime(), fstat.IsDir()}
 			fstatsBytes, err := json.Marshal(fstats)
 			if err != nil {
 				return err
