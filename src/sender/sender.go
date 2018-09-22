@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/briandowns/spinner"
-
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
@@ -23,6 +21,7 @@ import (
 	"github.com/schollz/croc/src/zipper"
 	"github.com/schollz/pake"
 	"github.com/schollz/progressbar/v2"
+	"github.com/schollz/spinner"
 	"github.com/tscholl2/siec"
 )
 
