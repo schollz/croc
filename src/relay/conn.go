@@ -81,14 +81,19 @@ func (s *subscription) writePump() {
 		select {
 		case message, ok := <-c.send:
 			if !ok {
-				c.write(websocket.CloseMessage, []byte{})
+				err := c.write(websocket.CloseMessage, []byte{})
+				if err != nil {
+					log.Debug(err)
+				}
 				return
 			}
 			if err := c.write(message.messageType, message.data); err != nil {
+				log.Debug(err)
 				return
 			}
 		case <-ticker.C:
 			if err := c.write(websocket.PingMessage, []byte{}); err != nil {
+				log.Debug(err)
 				return
 			}
 		}
@@ -99,7 +104,7 @@ func (s *subscription) writePump() {
 func serveWs(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Error(err)
+		log.Debug(err)
 		return
 	}
 	vals := r.URL.Query()
