@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -41,6 +42,8 @@ func Send(done chan struct{}, c *websocket.Conn, fname string, codephrase string
 
 func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 	// check that the file exists
+	fname, err = filepath.Abs(fname)
+	_, filename := filepath.Split(fname)
 	f, err := os.Open(fname)
 	if err != nil {
 		return
@@ -50,10 +53,11 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 		return err
 	}
 	// get stats
-	fstats := models.FileStats{fstat.Name(), fstat.Size(), fstat.ModTime(), fstat.IsDir(), fstat.Name()}
+	fstats := models.FileStats{filename, fstat.Size(), fstat.ModTime(), fstat.IsDir(), fstat.Name()}
 	if fstats.IsDir {
 		// zip the directory
 		fstats.SentName, err = zipper.ZipFile(fname, true)
+		fname = fstats.SentName
 		if err != nil {
 			return
 		}
@@ -165,7 +169,7 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 
 			bar.Finish()
 			log.Debug("send hash to finish file")
-			fileHash, err := utils.HashFile(fstats.SentName)
+			fileHash, err := utils.HashFile(fname)
 			if err != nil {
 				return err
 			}
