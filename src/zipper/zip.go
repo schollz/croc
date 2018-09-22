@@ -77,10 +77,13 @@ func UnzipFile(src, dest string) (err error) {
 	return
 }
 
-// ZipFile will zip the file
+// ZipFile will zip the folder
 func ZipFile(fname string, compress bool) (writtenFilename string, err error) {
 	logger.SetLogLevel(DebugLevel)
-
+	fname, err = filepath.Abs(fname)
+	if err != nil {
+		return
+	}
 	log.Debugf("zipping %s with compression? %v", fname, compress)
 	pathtofile, filename := filepath.Split(fname)
 	curdir, err := os.Getwd()
