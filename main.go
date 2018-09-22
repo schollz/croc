@@ -50,11 +50,8 @@ func main() {
 			Name:        "relay",
 			Usage:       "start a croc relay",
 			Description: "the croc relay will handle websocket and TCP connections",
-			Flags: []cli.Flag{
-				cli.StringFlag{Name: "port", Value: "8152", Usage: "port that the websocket listens on"},
-				cli.StringFlag{Name: "curve", Value: "siec", Usage: "specify elliptic curve to use (p224, p256, p384, p521, siec)"},
-			},
-			HelpName: "croc relay",
+			Flags:       []cli.Flag{},
+			HelpName:    "croc relay",
 			Action: func(c *cli.Context) error {
 				return relay(c)
 			},
@@ -67,6 +64,8 @@ func main() {
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
+		cli.StringFlag{Name: "port", Value: "8152", Usage: "port that the websocket listens on"},
+		cli.StringFlag{Name: "curve", Value: "siec", Usage: "specify elliptic curve to use (p224, p256, p384, p521, siec)"},
 	}
 	app.EnableBashCompletion = true
 	app.HideHelp = false
@@ -86,6 +85,8 @@ func main() {
 		cr.LocalOnly = c.GlobalBool("local")
 		cr.NoLocal = c.GlobalBool("no-local")
 		cr.ShowText = true
+		cr.ServerPort = c.String("port")
+		cr.CurveType = c.String("curve")
 		return nil
 	}
 
@@ -157,8 +158,6 @@ func receive(c *cli.Context) error {
 }
 
 func relay(c *cli.Context) error {
-	cr.ServerPort = c.String("port")
-	cr.CurveType = c.String("curve")
 	return cr.Relay()
 }
 
