@@ -50,7 +50,7 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 		return err
 	}
 	// get stats
-	fstats := models.FileStats{fstat.Name(), fstat.Size(), fstat.ModTime(), fstat.IsDir(), fstats.Name()}
+	fstats := models.FileStats{fstat.Name(), fstat.Size(), fstat.ModTime(), fstat.IsDir(), fstat.Name()}
 	if fstats.IsDir {
 		// zip the directory
 		fstats.SentName, err = zipper.ZipFile(fname, true)
@@ -165,7 +165,7 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 
 			bar.Finish()
 			log.Debug("send hash to finish file")
-			fileHash, err := utils.HashFile(fname)
+			fileHash, err := utils.HashFile(fstats.SentName)
 			if err != nil {
 				return err
 			}
