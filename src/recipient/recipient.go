@@ -110,15 +110,14 @@ func receive(c *websocket.Conn, codephrase string) (err error) {
 			if fstats.IsDir {
 				fileOrFolder = "folder"
 			}
-			if "y" != utils.GetInput(fmt.Sprintf(
-				`%s %s (%s) into: %s
-		ok? (y/N): `,
+			if "y" != utils.GetInput(fmt.Sprintf("%s %s (%s) into: %s\nok? (y/N): ",
 				overwritingOrReceiving,
 				fileOrFolder,
 				humanize.Bytes(uint64(fstats.Size)),
 				fstats.Name,
 			)) {
 				fmt.Fprintf(os.Stderr, "cancelling request")
+				c.WriteMessage(websocket.BinaryMessage, []byte("no"))
 				return nil
 			}
 
