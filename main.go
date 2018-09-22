@@ -61,7 +61,7 @@ func main() {
 		},
 	}
 	app.Flags = []cli.Flag{
-		cli.StringFlag{Name: "relay", Value: "ws://croc4.schollz.com"},
+		cli.StringFlag{Name: "relay", Value: "ws://198.199.67.130:8153"},
 		cli.BoolFlag{Name: "no-local", Usage: "disable local mode"},
 		cli.BoolFlag{Name: "local", Usage: "use only local mode"},
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
