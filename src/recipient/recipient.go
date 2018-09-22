@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/schollz/croc/src/zipper"
 
 	log "github.com/cihub/seelog"
@@ -41,6 +42,11 @@ func Receive(done chan struct{}, c *websocket.Conn, codephrase string) {
 func receive(c *websocket.Conn, codephrase string) (err error) {
 	var fstats models.FileStats
 	var sessionKey []byte
+
+	// start a spinner
+	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+	spin.Suffix = " performing PAKE..."
+	spin.Start()
 
 	// pick an elliptic curve
 	curve := siec.SIEC255()
@@ -85,6 +91,8 @@ func receive(c *websocket.Conn, codephrase string) (err error) {
 			log.Debugf("%x\n", sessionKey)
 			c.WriteMessage(websocket.BinaryMessage, []byte("ready"))
 		case 2:
+			spin.Stop()
+
 			log.Debugf("[%d] recieve file info", step)
 			err = json.Unmarshal(message, &fstats)
 			if err != nil {
@@ -97,6 +105,7 @@ func receive(c *websocket.Conn, codephrase string) (err error) {
 				return err
 			}
 			bytesWritten := 0
+			fmt.Fprintf(os.Stderr, "Receiving...\n")
 			bar := progressbar.NewOptions(
 				int(fstats.Size),
 				progressbar.OptionSetRenderBlankState(true),

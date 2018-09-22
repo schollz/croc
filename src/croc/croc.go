@@ -38,8 +38,6 @@ type Croc struct {
 	Filename   string
 	Codephrase string
 
-	// private variables
-
 	// localIP address
 	localIP string
 	// is using local relay
