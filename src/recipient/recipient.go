@@ -28,9 +28,9 @@ import (
 var DebugLevel string
 
 // Receive is the async operation to receive a file
-func Receive(done chan struct{}, c *websocket.Conn, codephrase string) {
+func Receive(done chan struct{}, c *websocket.Conn, codephrase string, noPrompt bool) {
 	logger.SetLogLevel(DebugLevel)
-	err := receive(c, codephrase)
+	err := receive(c, codephrase, noPrompt)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "websocket: close 100") {
 			return
@@ -40,7 +40,7 @@ func Receive(done chan struct{}, c *websocket.Conn, codephrase string) {
 	done <- struct{}{}
 }
 
-func receive(c *websocket.Conn, codephrase string) (err error) {
+func receive(c *websocket.Conn, codephrase string, noPrompt bool) (err error) {
 	var fstats models.FileStats
 	var sessionKey []byte
 	var transferTime time.Duration
@@ -111,15 +111,18 @@ func receive(c *websocket.Conn, codephrase string) (err error) {
 			if fstats.IsDir {
 				fileOrFolder = "folder"
 			}
-			if "y" != utils.GetInput(fmt.Sprintf("%s %s (%s) into: %s\nok? (y/N): ",
+			fmt.Fprintf(os.Stderr, "%s %s (%s) into: %s\n",
 				overwritingOrReceiving,
 				fileOrFolder,
 				humanize.Bytes(uint64(fstats.Size)),
 				fstats.Name,
-			)) {
-				fmt.Fprintf(os.Stderr, "cancelling request")
-				c.WriteMessage(websocket.BinaryMessage, []byte("no"))
-				return nil
+			)
+			if !noPrompt {
+				if "y" != utils.GetInput("ok? (y/N): ") {
+					fmt.Fprintf(os.Stderr, "cancelling request")
+					c.WriteMessage(websocket.BinaryMessage, []byte("no"))
+					return nil
+				}
 			}
 
 			// await file

@@ -80,7 +80,7 @@ func main() {
 		cr = croc.Init(c.GlobalBool("debug"))
 		cr.AllowLocalDiscovery = true
 		cr.WebsocketAddress = c.GlobalString("relay")
-		cr.Yes = c.GlobalBool("yes")
+		cr.NoRecipientPrompt = c.GlobalBool("yes")
 		cr.Stdout = c.GlobalBool("stdout")
 		cr.LocalOnly = c.GlobalBool("local")
 		cr.NoLocal = c.GlobalBool("no-local")

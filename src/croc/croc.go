@@ -31,7 +31,7 @@ type Croc struct {
 	UseEncryption       bool
 	UseCompression      bool
 	AllowLocalDiscovery bool
-	Yes                 bool
+	NoRecipientPrompt   bool
 	Stdout              bool
 
 	// Parameters for file transfer
