@@ -131,14 +131,18 @@ func send(c *cli.Context) error {
 		}
 	}
 	fmt.Fprintf(os.Stderr,
-		"Sending %s %s name '%s'\nCode is: %s\nOn the other computer, please run:\n\ncroc %s",
+		"Sending %s %s name '%s'\nCode is: %s\nOn the other computer, please run:\n\ncroc %s\n\n",
 		humanize.Bytes(uint64(fsize)),
 		fileOrFolder,
 		filename,
 		codePhrase,
 		codePhrase,
 	)
-	return cr.Send(fname, codePhrase)
+	err = cr.Send(fname, codePhrase)
+	if err == nil {
+		fmt.Fprintf(os.Stderr, "\nTransfer complete")
+	}
+	return err
 }
 
 func receive(c *cli.Context) error {
