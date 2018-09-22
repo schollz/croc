@@ -11,7 +11,6 @@ import (
 
 	"github.com/briandowns/spinner"
 	humanize "github.com/dustin/go-humanize"
-	"github.com/schollz/croc/src/zipper"
 
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
@@ -20,6 +19,7 @@ import (
 	"github.com/schollz/croc/src/logger"
 	"github.com/schollz/croc/src/models"
 	"github.com/schollz/croc/src/utils"
+	"github.com/schollz/croc/src/zipper"
 	"github.com/schollz/pake"
 	"github.com/schollz/progressbar/v2"
 	"github.com/tscholl2/siec"
@@ -44,6 +44,7 @@ func receive(c *websocket.Conn, codephrase string, noPrompt bool) (err error) {
 	var fstats models.FileStats
 	var sessionKey []byte
 	var transferTime time.Duration
+	var hash256 []byte
 
 	// start a spinner
 	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
@@ -146,90 +147,97 @@ func receive(c *websocket.Conn, codephrase string, noPrompt bool) (err error) {
 				if err != nil {
 					return err
 				}
-				if messageType == websocket.PongMessage || messageType == websocket.PingMessage {
+				if messageType != websocket.BinaryMessage {
 					continue
 				}
-				if messageType == websocket.BinaryMessage {
-					// tell the sender that we recieved this packet
-					c.WriteMessage(websocket.BinaryMessage, []byte("ok"))
 
-					// do decryption
-					var enc crypt.Encryption
-					err = json.Unmarshal(message, &enc)
-					if err != nil {
-						return err
-					}
-					decrypted, err := enc.Decrypt(sessionKey, true)
-					if err != nil {
-						return err
-					}
+				// // tell the sender that we recieved this packet
+				// c.WriteMessage(websocket.BinaryMessage, []byte("ok"))
 
-					// do decompression
-					decompressed := compress.Decompress(decrypted)
-					// decompressed := decrypted
+				// do decryption
+				var enc crypt.Encryption
+				err = json.Unmarshal(message, &enc)
+				if err != nil {
+					return err
+				}
+				decrypted, err := enc.Decrypt(sessionKey, true)
+				if err != nil {
+					return err
+				}
 
-					// write to file
-					n, err := f.Write(decompressed)
-					if err != nil {
-						return err
-					}
-					// update the bytes written
-					bytesWritten += n
-					// update the progress bar
-					bar.Add(n)
-				} else {
-					// we are finished
-					transferTime = time.Since(startTime)
+				// do decompression
+				decompressed := compress.Decompress(decrypted)
+				// decompressed := decrypted
 
-					// close file
-					err = f.Close()
-					if err != nil {
-						return err
-					}
+				// write to file
+				n, err := f.Write(decompressed)
+				if err != nil {
+					return err
+				}
+				// update the bytes written
+				bytesWritten += n
+				// update the progress bar
+				bar.Add(n)
 
-					// finish bar
-					bar.Finish()
-
-					// check hash
-					hash256, err := utils.HashFile(fstats.SentName)
-					if err != nil {
-						log.Error(err)
-						return err
-					}
-
-					// check success hash(myfile) == hash(theirfile)
-					log.Debugf("got hash: %x", message)
-					if bytes.Equal(hash256, message) {
-						c.WriteMessage(websocket.BinaryMessage, []byte("ok"))
-						// open directory
-						if fstats.IsDir {
-							err = zipper.UnzipFile(fstats.SentName, ".")
-							if DebugLevel != "debug" {
-								os.Remove(fstats.SentName)
-							}
-						} else {
-							err = nil
-						}
-						if err == nil {
-							transferRate := float64(fstats.Size) / 1000000.0 / transferTime.Seconds()
-							transferType := "MB/s"
-							if transferRate < 1 {
-								transferRate = float64(fstats.Size) / 1000.0 / transferTime.Seconds()
-								transferType = "kB/s"
-							}
-							folderOrFile := "file"
-							if fstats.IsDir {
-								folderOrFile = "folder"
-							}
-							fmt.Fprintf(os.Stderr, "\nReceived %s written to %s (%2.1f %s)\n", folderOrFile, fstats.Name, transferRate, transferType)
-						}
-						return err
-					} else {
-						c.WriteMessage(websocket.BinaryMessage, []byte("not"))
-						return errors.New("file corrupted")
-					}
+				if int64(bytesWritten) == fstats.Size {
+					break
 				}
 			}
+
+			c.WriteMessage(websocket.BinaryMessage, []byte("done"))
+			// we are finished
+			transferTime = time.Since(startTime)
+
+			// close file
+			err = f.Close()
+			if err != nil {
+				return err
+			}
+
+			// finish bar
+			bar.Finish()
+
+			// check hash
+			hash256, err = utils.HashFile(fstats.SentName)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+			// tell the sender the hash so they can quit
+			c.WriteMessage(websocket.BinaryMessage, append([]byte("hash:"), hash256...))
+		case 3:
+			// receive the hash from the sender so we can check it and quit
+			log.Debugf("got hash: %x", message)
+			if bytes.Equal(hash256, message) {
+				c.WriteMessage(websocket.BinaryMessage, []byte("ok"))
+				// open directory
+				if fstats.IsDir {
+					err = zipper.UnzipFile(fstats.SentName, ".")
+					if DebugLevel != "debug" {
+						os.Remove(fstats.SentName)
+					}
+				} else {
+					err = nil
+				}
+				if err == nil {
+					transferRate := float64(fstats.Size) / 1000000.0 / transferTime.Seconds()
+					transferType := "MB/s"
+					if transferRate < 1 {
+						transferRate = float64(fstats.Size) / 1000.0 / transferTime.Seconds()
+						transferType = "kB/s"
+					}
+					folderOrFile := "file"
+					if fstats.IsDir {
+						folderOrFile = "folder"
+					}
+					fmt.Fprintf(os.Stderr, "\nReceived %s written to %s (%2.1f %s)\n", folderOrFile, fstats.Name, transferRate, transferType)
+				}
+				return err
+			} else {
+				c.WriteMessage(websocket.BinaryMessage, []byte("not"))
+				return errors.New("file corrupted")
+			}
+
 		default:
 			return fmt.Errorf("unknown step")
 		}
