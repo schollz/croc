@@ -17,6 +17,7 @@ import (
 	"github.com/schollz/croc/src/logger"
 	"github.com/schollz/croc/src/models"
 	"github.com/schollz/croc/src/utils"
+	"github.com/schollz/croc/src/zipper"
 	"github.com/schollz/pake"
 	"github.com/schollz/progressbar/v2"
 	"github.com/tscholl2/siec"
@@ -48,10 +49,25 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 	if err != nil {
 		return err
 	}
-	fstats := models.FileStats{fstat.Name(), fstat.Size(), fstat.ModTime(), fstat.IsDir()}
+	fstats := models.FileStats{fstat.Name(), fstat.Size(), fstat.ModTime(), fstat.IsDir(), ""}
 	if fstats.IsDir {
 		// zip the directory
-
+		fstats.DirName, err = zipper.ZipFile(fname, true)
+		if err != nil {
+			return
+		}
+		f.Close()
+		// reopen file
+		f, err = os.Open(fstats.DirName)
+		if err != nil {
+			return
+		}
+		fstat, err := f.Stat()
+		if err != nil {
+			return err
+		}
+		// get new size
+		fstats.Size = fstat.Size()
 	}
 
 	// get ready to generate session key
