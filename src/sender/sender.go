@@ -49,16 +49,17 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 	if err != nil {
 		return err
 	}
-	fstats := models.FileStats{fstat.Name(), fstat.Size(), fstat.ModTime(), fstat.IsDir(), ""}
+	// get stats
+	fstats := models.FileStats{fstat.Name(), fstat.Size(), fstat.ModTime(), fstat.IsDir(), fstats.Name()}
 	if fstats.IsDir {
 		// zip the directory
-		fstats.DirName, err = zipper.ZipFile(fname, true)
+		fstats.SentName, err = zipper.ZipFile(fname, true)
 		if err != nil {
 			return
 		}
 		f.Close()
 		// reopen file
-		f, err = os.Open(fstats.DirName)
+		f, err = os.Open(fstats.SentName)
 		if err != nil {
 			return
 		}
