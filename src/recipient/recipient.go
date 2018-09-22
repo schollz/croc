@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -16,31 +17,33 @@ import (
 	"github.com/schollz/croc/src/models"
 	"github.com/schollz/croc/src/utils"
 	"github.com/schollz/pake"
-	"github.com/schollz/progressbar"
+	"github.com/schollz/progressbar/v2"
 	"github.com/tscholl2/siec"
 )
 
 var DebugLevel string
 
 // Receive is the async operation to receive a file
-func Receive(done chan struct{}, c *websocket.Conn) {
+func Receive(done chan struct{}, c *websocket.Conn, codephrase string) {
 	logger.SetLogLevel(DebugLevel)
-
-	err := receive(c)
+	err := receive(c, codephrase)
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "websocket: close 1005") {
+			return
+		}
 		log.Error(err)
 	}
 	done <- struct{}{}
 }
 
-func receive(c *websocket.Conn) (err error) {
+func receive(c *websocket.Conn, codephrase string) (err error) {
 	var fstats models.FileStats
 	var sessionKey []byte
 
 	// pick an elliptic curve
 	curve := siec.SIEC255()
 	// both parties should have a weak key
-	pw := []byte{1, 2, 3}
+	pw := []byte(codephrase)
 
 	// initialize recipient Q ("1" indicates recipient)
 	Q, err := pake.Init(pw, 1, curve, 100*time.Millisecond)

@@ -1,6 +1,13 @@
 package croc
 
-import "time"
+import (
+	"time"
+
+	"github.com/schollz/croc/src/logger"
+	"github.com/schollz/croc/src/recipient"
+	"github.com/schollz/croc/src/relay"
+	"github.com/schollz/croc/src/sender"
+)
 
 // Croc options
 type Croc struct {
@@ -24,6 +31,10 @@ type Croc struct {
 	Yes                 bool
 	Stdout              bool
 
+	// Parameters for file transfer
+	Filename   string
+	Codephrase string
+
 	// private variables
 
 	// localIP address
@@ -31,4 +42,24 @@ type Croc struct {
 	// is using local relay
 	isLocal      bool
 	normalFinish bool
+}
+
+// Init will initiate with the default parameters
+func Init(debug bool) (c *Croc) {
+	c = new(Croc)
+	c.ServerPort = "8152"
+	c.CurveType = "siec"
+	c.UseCompression = true
+	c.UseEncryption = true
+	c.AllowLocalDiscovery = true
+	debugLevel := "info"
+	if debug {
+		debugLevel = "debug"
+		c.Debug = true
+	}
+	logger.SetLogLevel(debugLevel)
+	sender.DebugLevel = debugLevel
+	recipient.DebugLevel = debugLevel
+	relay.DebugLevel = debugLevel
+	return
 }
