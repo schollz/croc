@@ -42,42 +42,15 @@ func Send(done chan struct{}, c *websocket.Conn, fname string, codephrase string
 }
 
 func send(c *websocket.Conn, fname string, codephrase string) (err error) {
-	// check that the file exists
+	var f *os.File
+	var fstats models.FileStats
+
+	// normalize the file name
 	fname, err = filepath.Abs(fname)
-	_, filename := filepath.Split(fname)
-	f, err := os.Open(fname)
-	if err != nil {
-		return
-	}
-	fstat, err := f.Stat()
 	if err != nil {
 		return err
 	}
-
-	// get stats about the file
-	fstats := models.FileStats{filename, fstat.Size(), fstat.ModTime(), fstat.IsDir(), fstat.Name()}
-	if fstats.IsDir {
-		// zip the directory
-		fstats.SentName, err = zipper.ZipFile(fname, true)
-		// remove the file when leaving
-		defer os.Remove(fstats.SentName)
-		fname = fstats.SentName
-		if err != nil {
-			return
-		}
-		f.Close()
-		// reopen file
-		f, err = os.Open(fstats.SentName)
-		if err != nil {
-			return
-		}
-		fstat, err := f.Stat()
-		if err != nil {
-			return err
-		}
-		// get new size
-		fstats.Size = fstat.Size()
-	}
+	_, filename := filepath.Split(fname)
 
 	// get ready to generate session key
 	var sessionKey []byte
@@ -107,6 +80,40 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 		log.Debugf("got %d: %s", messageType, message)
 		switch step {
 		case 0:
+			// recipient might want file! gather file information
+			// get stats about the file
+			fstat, err := os.Stat(fname)
+			if err != nil {
+				return err
+			}
+			fstats = models.FileStats{filename, fstat.Size(), fstat.ModTime(), fstat.IsDir(), fstat.Name()}
+			if fstats.IsDir {
+				// zip the directory
+				fstats.SentName, err = zipper.ZipFile(fname, true)
+				// remove the file when leaving
+				defer os.Remove(fstats.SentName)
+				fname = fstats.SentName
+
+				fstat, err := os.Stat(fname)
+				if err != nil {
+					return err
+				}
+				// get new size
+				fstats.Size = fstat.Size()
+			}
+
+			// open the file
+			f, err = os.Open(fname)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				err = f.Close()
+				if err != nil {
+					log.Debugf("problem closing file: %s", err.Error())
+				}
+			}()
+
 			// send pake data
 			log.Debugf("[%d] first, P sends u to Q", step)
 			c.WriteMessage(websocket.BinaryMessage, P.Bytes())

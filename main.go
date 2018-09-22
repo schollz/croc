@@ -3,6 +3,9 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -100,7 +103,26 @@ func send(c *cli.Context) error {
 	stat, _ := os.Stdin.Stat()
 	var fname string
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		fname = "stdin"
+		f, err := ioutil.TempFile(".", "croc-stdin-")
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(f, os.Stdin)
+		if err != nil {
+			return err
+		}
+		err = f.Close()
+		if err != nil {
+			return err
+		}
+		fname = f.Name()
+		defer func() {
+			log.Println("removing %s", fname)
+			err = os.Remove(fname)
+			if err != nil {
+				log.Println(err)
+			}
+		}()
 	} else {
 		fname = c.Args().First()
 	}
@@ -140,8 +162,7 @@ func send(c *cli.Context) error {
 		codePhrase,
 		codePhrase,
 	)
-	err = cr.Send(fname, codePhrase)
-	return err
+	return cr.Send(fname, codePhrase)
 }
 
 func receive(c *cli.Context) error {

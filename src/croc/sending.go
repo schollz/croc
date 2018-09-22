@@ -60,6 +60,7 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 
 	err = <-errChan
 	if err == nil || waitingFor == 1 {
+		log.Debug("returning")
 		return
 	}
 	log.Debug(err)
