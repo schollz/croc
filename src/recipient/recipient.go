@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -28,9 +29,9 @@ import (
 var DebugLevel string
 
 // Receive is the async operation to receive a file
-func Receive(done chan struct{}, c *websocket.Conn, codephrase string, noPrompt bool) {
+func Receive(done chan struct{}, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) {
 	logger.SetLogLevel(DebugLevel)
-	err := receive(c, codephrase, noPrompt)
+	err := receive(c, codephrase, noPrompt, useStdout)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "websocket: close 100") {
 			return
@@ -40,7 +41,7 @@ func Receive(done chan struct{}, c *websocket.Conn, codephrase string, noPrompt 
 	done <- struct{}{}
 }
 
-func receive(c *websocket.Conn, codephrase string, noPrompt bool) (err error) {
+func receive(c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) (err error) {
 	var fstats models.FileStats
 	var sessionKey []byte
 	var transferTime time.Duration
@@ -209,7 +210,6 @@ func receive(c *websocket.Conn, codephrase string, noPrompt bool) (err error) {
 			// receive the hash from the sender so we can check it and quit
 			log.Debugf("got hash: %x", message)
 			if bytes.Equal(hash256, message) {
-				c.WriteMessage(websocket.BinaryMessage, []byte("ok"))
 				// open directory
 				if fstats.IsDir {
 					err = zipper.UnzipFile(fstats.SentName, ".")
@@ -220,6 +220,15 @@ func receive(c *websocket.Conn, codephrase string, noPrompt bool) (err error) {
 					err = nil
 				}
 				if err == nil {
+					if useStdout && !fstats.IsDir {
+						var bFile []byte
+						bFile, err = ioutil.ReadFile(fstats.SentName)
+						if err != nil {
+							return err
+						}
+						os.Stdout.Write(bFile)
+						os.Remove(fstats.SentName)
+					}
 					transferRate := float64(fstats.Size) / 1000000.0 / transferTime.Seconds()
 					transferType := "MB/s"
 					if transferRate < 1 {
@@ -230,11 +239,17 @@ func receive(c *websocket.Conn, codephrase string, noPrompt bool) (err error) {
 					if fstats.IsDir {
 						folderOrFile = "folder"
 					}
+					if useStdout {
+						fstats.Name = "stdout"
+					}
 					fmt.Fprintf(os.Stderr, "\nReceived %s written to %s (%2.1f %s)\n", folderOrFile, fstats.Name, transferRate, transferType)
 				}
 				return err
 			} else {
-				c.WriteMessage(websocket.BinaryMessage, []byte("not"))
+				if DebugLevel != "debug" {
+					log.Debug("removing corrupted file")
+					os.Remove(fstats.SentName)
+				}
 				return errors.New("file corrupted")
 			}
 
