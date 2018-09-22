@@ -58,6 +58,7 @@ func send(c *websocket.Conn, fname string, codephrase string) (err error) {
 
 	// start a spinner
 	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+	spin.Writer = os.Stderr
 
 	// pick an elliptic curve
 	curve := siec.SIEC255()

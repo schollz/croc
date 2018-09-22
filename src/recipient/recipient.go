@@ -49,6 +49,7 @@ func receive(c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool
 
 	// start a spinner
 	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+	spin.Writer = os.Stderr
 	spin.Suffix = " performing PAKE..."
 	spin.Start()
 
