@@ -116,6 +116,9 @@ func (c *Croc) Receive(codephrase string) (err error) {
 
 func (c *Croc) sendReceive(websocketAddress, fname, codephrase string, isSender bool) (err error) {
 	defer log.Flush()
+	if len(codephrase) < 4 {
+		return fmt.Errorf("codephrase is too short")
+	}
 
 	// allow interrupts
 	interrupt := make(chan os.Signal, 1)
@@ -123,8 +126,8 @@ func (c *Croc) sendReceive(websocketAddress, fname, codephrase string, isSender 
 
 	done := make(chan struct{})
 	// connect to server
-	log.Debugf("connecting to %s", websocketAddress)
-	sock, _, err := websocket.DefaultDialer.Dial(websocketAddress+"/ws", nil)
+	log.Debugf("connecting to %s", websocketAddress+"/ws?room="+codephrase[:3])
+	sock, _, err := websocket.DefaultDialer.Dial(websocketAddress+"/ws?room="+codephrase[:3], nil)
 	if err != nil {
 		return
 	}
