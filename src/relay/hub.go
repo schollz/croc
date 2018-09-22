@@ -69,11 +69,13 @@ func (h *hub) run() {
 		case s := <-h.unregister:
 			// if one leaves, close all of them
 			h.rooms.Lock()
-			for connection := range h.rooms.rooms[s.room] {
-				close(connection.send)
+			if _, ok := h.rooms.rooms[s.room]; ok {
+				for connection := range h.rooms.rooms[s.room] {
+					close(connection.send)
+				}
+				log.Debugf("deleting room %s", s.room)
+				delete(h.rooms.rooms, s.room)
 			}
-			log.Debugf("deleting room %s", s.room)
-			delete(h.rooms.rooms, s.room)
 			h.rooms.Unlock()
 		case m := <-h.broadcast:
 			h.rooms.Lock()
