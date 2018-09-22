@@ -99,7 +99,7 @@ func ZipFile(fname string, compress bool) (writtenFilename string, err error) {
 		log.Error(err)
 		return
 	}
-	writtenFilename = newfile.Name()
+	_, writtenFilename = filepath.Split(newfile.Name())
 	defer newfile.Close()
 
 	defer os.Chdir(curdir)
