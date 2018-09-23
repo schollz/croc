@@ -195,7 +195,7 @@ func send(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, fnam
 				return errors.New("recipient refused file")
 			}
 
-			if !isLocal {
+			if !isLocal && serverTCP != "" {
 				// connection to TCP
 				tcpConnection, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%x", sessionKey)), serverAddress+":"+serverTCP)
 				if err != nil {
@@ -208,7 +208,7 @@ func send(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, fnam
 			// send file, compure hash simultaneously
 			startTransfer = time.Now()
 			buffer := make([]byte, models.WEBSOCKET_BUFFER_SIZE/8)
-			if !isLocal {
+			if !isLocal && serverTCP != "" {
 				buffer = make([]byte, models.TCP_BUFFER_SIZE/2)
 			}
 			bar := progressbar.NewOptions(
@@ -236,7 +236,7 @@ func send(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, fnam
 						return err
 					}
 
-					if isLocal {
+					if isLocal || serverTCP == "" {
 						// write data to websockets
 						err = c.WriteMessage(websocket.BinaryMessage, encBytes)
 					} else {

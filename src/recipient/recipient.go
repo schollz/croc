@@ -160,7 +160,7 @@ func receive(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, c
 			}
 
 			// connect to TCP to receive file
-			if !isLocal {
+			if !isLocal && serverTCP != "" {
 				log.Debugf("connecting to server")
 				tcpConnection, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%x", sessionKey)), serverAddress+":"+serverTCP)
 				if err != nil {
@@ -188,7 +188,7 @@ func receive(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, c
 			var numBytes int
 			var bs []byte
 			for {
-				if isLocal {
+				if isLocal || serverTCP == "" {
 					var messageType int
 					// read from websockets
 					messageType, message, err = c.ReadMessage()
