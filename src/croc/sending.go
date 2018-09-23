@@ -131,11 +131,14 @@ func (c *Croc) sendReceive(address, websocketPort, tcpPort, fname, codephrase st
 
 	done := make(chan struct{})
 	// connect to server
-	log.Debugf("connecting to %s", address+"/ws?room="+codephrase[:3])
+	websocketAddress := ""
 	if len(websocketPort) > 0 {
-		address += ":" + websocketPort
+		websocketAddress = fmt.Sprintf("ws://%s:%s/ws?room=%s", address, websocketPort, codephrase[:3])
+	} else {
+		websocketAddress = fmt.Sprintf("ws://%s/ws?room=%s", address, codephrase[:3])
 	}
-	sock, _, err := websocket.DefaultDialer.Dial("ws://"+address+"/ws?room="+codephrase[:3], nil)
+	log.Debugf("connecting to %s", websocketAddress)
+	sock, _, err := websocket.DefaultDialer.Dial(websocketAddress, nil)
 	if err != nil {
 		return
 	}
