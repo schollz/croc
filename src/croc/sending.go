@@ -49,7 +49,7 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 					Limit:     1,
 					TimeLimit: 600 * time.Second,
 					Delay:     50 * time.Millisecond,
-					Payload:   []byte(c.RelayWebsocketPort + "-" + c.RelayTCPPort),
+					Payload:   []byte(c.RelayWebsocketPort + "- " + c.RelayTCPPort),
 				})
 			}()
 
@@ -100,7 +100,7 @@ func (c *Croc) Receive(codephrase string) (err error) {
 			if err == nil {
 				if resp.StatusCode == http.StatusOK {
 					// we connected, so use this
-					return c.sendReceive(discovered[0].Address, ports[0], ports[1], "", codephrase, false, true)
+					return c.sendReceive(discovered[0].Address, strings.TrimSpace(ports[0]), strings.TrimSpace(ports[1], "", codephrase, false, true)
 				}
 			} else {
 				log.Debugf("could not connect: %s", err.Error())
