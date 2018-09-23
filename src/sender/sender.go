@@ -45,6 +45,8 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 	var f *os.File
 	var fstats models.FileStats
 	var fileHash []byte
+	var otherIP string
+	var startTransfer time.Time
 
 	// normalize the file name
 	fname, err = filepath.Abs(fname)
@@ -85,8 +87,22 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 		log.Debugf("got %d: %s", messageType, message)
 		switch step {
 		case 0:
-			// recipient might want file! gather file information
-			// get stats about the file
+			// sender initiates communication
+			ip := ""
+			if isLocal {
+				ip = utils.LocalIP()
+			} else {
+				ip, _ = utils.PublicIP()
+			}
+			// send my IP address
+			c.WriteMessage(websocket.BinaryMessage, []byte(ip))
+		case 1:
+			// first receive the IP address from the sender
+			otherIP = string(message)
+			log.Debugf("recipient IP: %s", otherIP)
+
+			// recipient might want file! start gathering information about file
+			// TODO: do in go routine
 			fstat, err := os.Stat(fname)
 			if err != nil {
 				return err
@@ -133,7 +149,7 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 			// start PAKE spinnner
 			spin.Suffix = " performing PAKE..."
 			spin.Start()
-		case 1:
+		case 2:
 			// P recieves H(k),v from Q
 			log.Debugf("[%d] P computes k, H(k), sends H(k) to Q", step)
 			if err := P.Update(message); err != nil {
@@ -148,7 +164,7 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 			spin.Stop()
 			spin.Suffix = " waiting for recipient ok..."
 			spin.Start()
-		case 2:
+		case 3:
 			log.Debugf("[%d] recipient declares readiness for file info", step)
 			if !bytes.Equal(message, []byte("ready")) {
 				return errors.New("recipient refused file")
@@ -157,9 +173,10 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 			if err != nil {
 				return err
 			}
+			// TODO: encrypt fstats
 			log.Debugf("%s\n", fstatsBytes)
 			c.WriteMessage(websocket.BinaryMessage, fstatsBytes)
-		case 3:
+		case 4:
 			spin.Stop()
 
 			log.Debugf("[%d] recipient declares readiness for file data", step)
@@ -167,8 +184,9 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 				return errors.New("recipient refused file")
 			}
 
-			fmt.Fprintf(os.Stderr, "\rSending...\n")
+			fmt.Fprintf(os.Stderr, "\rSending (->%s)...\n", otherIP)
 			// send file, compure hash simultaneously
+			startTransfer = time.Now()
 			buffer := make([]byte, 1024*1024*8)
 			bar := progressbar.NewOptions(
 				int(fstats.Size),
@@ -218,7 +236,8 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 			if err != nil {
 				return err
 			}
-		case 4:
+		case 5:
+			transferTime := time.Since(startTransfer)
 			if !bytes.HasPrefix(message, []byte("hash:")) {
 				continue
 			}
@@ -227,7 +246,13 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 			log.Debugf("[%d] determing whether it went ok", step)
 			if bytes.Equal(message, fileHash) {
 				log.Debug("file transfered successfully")
-				fmt.Fprintf(os.Stderr, "\nTransfer complete")
+				transferRate := float64(fstats.Size) / 1000000.0 / transferTime.Seconds()
+				transferType := "MB/s"
+				if transferRate < 1 {
+					transferRate = float64(fstats.Size) / 1000.0 / transferTime.Seconds()
+					transferType = "kB/s"
+				}
+				fmt.Fprintf(os.Stderr, "\nTransfer complete (%2.1f %s)", transferRate, transferType)
 				return nil
 			} else {
 				fmt.Fprintf(os.Stderr, "\nTransfer corrupted")
