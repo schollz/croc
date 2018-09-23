@@ -28,7 +28,7 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 	if !c.LocalOnly {
 		go func() {
 			// atttempt to connect to public relay
-			errChan <- c.sendReceive(c.WebsocketAddress, fname, codephrase, true)
+			errChan <- c.sendReceive(c.WebsocketAddress, fname, codephrase, true, false)
 		}()
 	} else {
 		waitingFor = 1
@@ -53,7 +53,7 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 			}()
 
 			// connect to own relay
-			errChan <- c.sendReceive("ws://localhost:"+c.ServerPort, fname, codephrase, true)
+			errChan <- c.sendReceive("ws://localhost:"+c.ServerPort, fname, codephrase, true, true)
 		}()
 	} else {
 		waitingFor = 1
@@ -95,7 +95,7 @@ func (c *Croc) Receive(codephrase string) (err error) {
 			if err == nil {
 				if resp.StatusCode == http.StatusOK {
 					// we connected, so use this
-					return c.sendReceive(fmt.Sprintf("ws://%s:%s", discovered[0].Address, discovered[0].Payload), "", codephrase, false)
+					return c.sendReceive(fmt.Sprintf("ws://%s:%s", discovered[0].Address, discovered[0].Payload), "", codephrase, false, true)
 				}
 			} else {
 				log.Debugf("could not connect: %s", err.Error())
@@ -108,13 +108,13 @@ func (c *Croc) Receive(codephrase string) (err error) {
 	// use public relay
 	if !c.LocalOnly {
 		log.Debug("using public relay")
-		return c.sendReceive(c.WebsocketAddress, "", codephrase, false)
+		return c.sendReceive(c.WebsocketAddress, "", codephrase, false, false)
 	}
 
 	return errors.New("must use local or public relay")
 }
 
-func (c *Croc) sendReceive(websocketAddress, fname, codephrase string, isSender bool) (err error) {
+func (c *Croc) sendReceive(websocketAddress, fname, codephrase string, isSender bool, isLocal bool) (err error) {
 	defer log.Flush()
 	if len(codephrase) < 4 {
 		return fmt.Errorf("codephrase is too short")
@@ -141,9 +141,9 @@ func (c *Croc) sendReceive(websocketAddress, fname, codephrase string, isSender 
 
 	if isSender {
 		// start peerdiscovery relay server
-		go sender.Send(done, sock, fname, codephrase, c.UseCompression, c.UseEncryption)
+		go sender.Send(isLocal, done, sock, fname, codephrase, c.UseCompression, c.UseEncryption)
 	} else {
-		go recipient.Receive(done, sock, codephrase, c.NoRecipientPrompt, c.Stdout)
+		go recipient.Receive(isLocal, done, sock, codephrase, c.NoRecipientPrompt, c.Stdout)
 	}
 
 	for {

@@ -29,9 +29,9 @@ import (
 var DebugLevel string
 
 // Receive is the async operation to receive a file
-func Receive(done chan struct{}, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) {
+func Receive(isLocal bool, done chan struct{}, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) {
 	logger.SetLogLevel(DebugLevel)
-	err := receive(c, codephrase, noPrompt, useStdout)
+	err := receive(isLocal, c, codephrase, noPrompt, useStdout)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "websocket: close 100") {
 			return
@@ -41,7 +41,7 @@ func Receive(done chan struct{}, c *websocket.Conn, codephrase string, noPrompt 
 	done <- struct{}{}
 }
 
-func receive(c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) (err error) {
+func receive(isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) (err error) {
 	var fstats models.FileStats
 	var sessionKey []byte
 	var transferTime time.Duration
