@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"net"
+	"time"
 )
 
 // Comm is some basic TCP communication
@@ -13,6 +14,9 @@ type Comm struct {
 
 // New returns a new comm
 func New(c net.Conn) Comm {
+	c.SetReadDeadline(time.Now().Add(3 * time.Hour))
+	c.SetDeadline(time.Now().Add(3 * time.Hour))
+	c.SetWriteDeadline(time.Now().Add(3 * time.Hour))
 	return Comm{c}
 }
 
@@ -44,6 +48,9 @@ func (c Comm) Read() (buf []byte, err error) {
 			return nil, err
 		}
 		tmp = bytes.TrimRight(tmp, "\x00")
+		tmp = bytes.TrimLeft(tmp, "\x00")
+		tmp = bytes.TrimRight(tmp, "\x05")
+		tmp = bytes.TrimLeft(tmp, "\x05")
 		buf = append(buf, tmp...)
 		if n < numBytes {
 			numBytes -= n
