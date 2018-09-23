@@ -1,11 +1,9 @@
 package comm
 
 import (
+	"bytes"
+	"encoding/binary"
 	"net"
-	"strings"
-	"time"
-
-	"github.com/schollz/croc/src/models"
 )
 
 // Comm is some basic TCP communication
@@ -24,54 +22,48 @@ func (c Comm) Connection() net.Conn {
 }
 
 func (c Comm) Write(b []byte) (int, error) {
-	return c.connection.Write(b)
+	bs := make([]byte, 2)
+	binary.LittleEndian.PutUint16(bs, uint16(len(b)))
+	c.connection.Write(bs)
+	n, err := c.connection.Write(b)
+	return n, err
 }
 
 func (c Comm) Read() (buf []byte, err error) {
-	buf = make([]byte, models.WEBSOCKET_BUFFER_SIZE)
-	n, err := c.connection.Read(buf)
-	buf = buf[:n]
+	bs := make([]byte, 2)
+	_, err = c.connection.Read(bs)
+	if err != nil {
+		return
+	}
+	numBytes := int(binary.LittleEndian.Uint16(bs[:2]))
+	buf = []byte{}
+	tmp := make([]byte, numBytes)
+	for {
+		n, err := c.connection.Read(tmp)
+		if err != nil {
+			return nil, err
+		}
+		tmp = bytes.TrimRight(tmp, "\x00")
+		buf = append(buf, tmp...)
+		if n < numBytes {
+			numBytes -= n
+			tmp = make([]byte, numBytes)
+		} else {
+			break
+		}
+	}
 	return
 }
 
 // Send a message
 func (c Comm) Send(message string) (err error) {
-	message = fillString(message, models.TCP_BUFFER_SIZE)
-	_, err = c.connection.Write([]byte(message))
+	_, err = c.Write([]byte(message))
 	return
 }
 
 // Receive a message
 func (c Comm) Receive() (s string, err error) {
-	messageByte := make([]byte, models.TCP_BUFFER_SIZE)
-	err = c.connection.SetReadDeadline(time.Now().Add(60 * time.Minute))
-	if err != nil {
-		return
-	}
-	err = c.connection.SetDeadline(time.Now().Add(60 * time.Minute))
-	if err != nil {
-		return
-	}
-	err = c.connection.SetWriteDeadline(time.Now().Add(60 * time.Minute))
-	if err != nil {
-		return
-	}
-	_, err = c.connection.Read(messageByte)
-	if err != nil {
-		return
-	}
-	s = strings.TrimRight(string(messageByte), ":")
+	b, err := c.Read()
+	s = string(b)
 	return
-}
-
-func fillString(returnString string, toLength int) string {
-	for {
-		lengthString := len(returnString)
-		if lengthString < toLength {
-			returnString = returnString + ":"
-			continue
-		}
-		break
-	}
-	return returnString
 }

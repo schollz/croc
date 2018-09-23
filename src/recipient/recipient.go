@@ -161,6 +161,7 @@ func receive(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, c
 
 			// connect to TCP to receive file
 			if !isLocal {
+				log.Debugf("connecting to server")
 				tcpConnection, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%x", sessionKey)), serverAddress+":"+serverTCP)
 				if err != nil {
 					log.Error(err)
@@ -195,14 +196,15 @@ func receive(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, c
 				} else {
 					// read from TCP connection
 					message, err = tcpConnection.Read()
-					if bytes.Equal(message, []byte("end")) {
-						break
-					}
+					// if bytes.Equal(message, []byte("end")) {
+					// 	break
+					// }
 				}
 				if err != nil {
 					log.Error(err)
 					return err
 				}
+				fmt.Println(string(message))
 
 				// // tell the sender that we recieved this packet
 				// c.WriteMessage(websocket.BinaryMessage, []byte("ok"))
@@ -314,6 +316,7 @@ func receive(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, c
 }
 
 func connectToTCPServer(room string, address string) (com comm.Comm, err error) {
+	log.Debugf("connecting to %s", address)
 	connection, err := net.Dial("tcp", address)
 	if err != nil {
 		return
@@ -323,6 +326,7 @@ func connectToTCPServer(room string, address string) (com comm.Comm, err error) 
 	connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
 
 	com = comm.New(connection)
+	log.Debug("waiting for server contact")
 	ok, err := com.Receive()
 	if err != nil {
 		return
