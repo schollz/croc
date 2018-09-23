@@ -28,10 +28,10 @@ import (
 var DebugLevel string
 
 // Send is the async call to send data
-func Send(done chan struct{}, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) {
+func Send(isLocal bool, done chan struct{}, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) {
 	logger.SetLogLevel(DebugLevel)
 	log.Debugf("sending %s", fname)
-	err := send(c, fname, codephrase, useCompression, useEncryption)
+	err := send(isLocal, c, fname, codephrase, useCompression, useEncryption)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "websocket: close 100") {
 			err = nil
@@ -40,7 +40,7 @@ func Send(done chan struct{}, c *websocket.Conn, fname string, codephrase string
 	done <- struct{}{}
 }
 
-func send(c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) (err error) {
+func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) (err error) {
 	var f *os.File
 	var fstats models.FileStats
 	var fileHash []byte
