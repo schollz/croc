@@ -34,22 +34,32 @@ func (c Comm) Write(b []byte) (int, error) {
 	if n != len(b) {
 		err = fmt.Errorf("wanted to write %d but wrote %d", n, len(b))
 	}
+	// log.Printf("wanted to write %d but wrote %d", n, len(b))
 	return n, err
 }
 
-func (c Comm) Read() (buf []byte, err error) {
-	bs := make([]byte, 2)
+func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
+	bs = make([]byte, 2)
 	_, err = c.connection.Read(bs)
 	if err != nil {
 		return
 	}
-	numBytes := int(binary.LittleEndian.Uint16(bs[:2]))
+	for {
+		bs = bytes.Trim(bytes.Trim(bs, "\x00"), "\x05")
+		if len(bs) == 2 {
+			break
+		}
+		tmp := make([]byte, 1)
+		c.connection.Read(tmp)
+		bs = append(bs, tmp...)
+	}
+	numBytes = int(binary.LittleEndian.Uint16(bs[:]))
 	buf = []byte{}
 	tmp := make([]byte, numBytes)
 	for {
 		_, err = c.connection.Read(tmp)
 		if err != nil {
-			return nil, err
+			return nil, numBytes, bs, err
 		}
 		tmp = bytes.Trim(tmp, "\x00")
 		tmp = bytes.Trim(tmp, "\x05")
@@ -72,7 +82,7 @@ func (c Comm) Send(message string) (err error) {
 
 // Receive a message
 func (c Comm) Receive() (s string, err error) {
-	b, err := c.Read()
+	b, _, _, err := c.Read()
 	s = string(b)
 	return
 }
