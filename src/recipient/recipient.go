@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
+	"github.com/schollz/croc/src/comm"
 	"github.com/schollz/croc/src/compress"
 	"github.com/schollz/croc/src/crypt"
 	"github.com/schollz/croc/src/logger"
@@ -46,6 +48,7 @@ func receive(isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, 
 	var transferTime time.Duration
 	var hash256 []byte
 	var otherIP string
+	var tcpConnection comm.Comm
 
 	// start a spinner
 	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
@@ -156,6 +159,15 @@ func receive(isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, 
 				}
 			}
 
+			// connect to TCP to receive file
+			if !isLocal {
+				tcpConnection, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%x", sessionKey)), "localhost:8154")
+				if err != nil {
+					log.Error(err)
+					return err
+				}
+			}
+
 			// await file
 			f, err := os.Create(fstats.SentName)
 			if err != nil {
@@ -173,12 +185,23 @@ func receive(isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, 
 			c.WriteMessage(websocket.BinaryMessage, []byte("ready"))
 			startTime := time.Now()
 			for {
-				messageType, message, err := c.ReadMessage()
-				if err != nil {
-					return err
+				if isLocal {
+					var messageType int
+					// read from websockets
+					messageType, message, err = c.ReadMessage()
+					if messageType != websocket.BinaryMessage {
+						continue
+					}
+				} else {
+					// read from TCP connection
+					message, err = tcpConnection.Read()
+					if bytes.Equal(message, []byte("end")) {
+						break
+					}
 				}
-				if messageType != websocket.BinaryMessage {
-					continue
+				if err != nil {
+					log.Error(err)
+					return err
 				}
 
 				// // tell the sender that we recieved this packet
@@ -288,4 +311,35 @@ func receive(isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, 
 		}
 		step++
 	}
+}
+
+func connectToTCPServer(room string, address string) (com comm.Comm, err error) {
+	connection, err := net.Dial("tcp", address)
+	if err != nil {
+		return
+	}
+	connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
+	connection.SetDeadline(time.Now().Add(3 * time.Hour))
+	connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
+
+	com = comm.New(connection)
+	ok, err := com.Receive()
+	if err != nil {
+		return
+	}
+	log.Debugf("server says: %s", ok)
+
+	err = com.Send(room)
+	if err != nil {
+		return
+	}
+	ok, err = com.Receive()
+	log.Debugf("server says: %s", ok)
+	if err != nil {
+		return
+	}
+	if ok != "recipient" {
+		err = errors.New(ok)
+	}
+	return
 }

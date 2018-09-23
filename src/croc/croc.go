@@ -18,14 +18,17 @@ type Croc struct {
 	ShowText bool
 
 	// Options for relay
-	ServerPort string
-	CurveType  string
+	RelayWebsocketPort string
+	RelayTCPPort       string
+	CurveType          string
 
 	// Options for connecting to server
-	WebsocketAddress string
-	Timeout          time.Duration
-	LocalOnly        bool
-	NoLocal          bool
+	Address              string
+	AddressTCPPort       string
+	AddressWebsocketPort string
+	Timeout              time.Duration
+	LocalOnly            bool
+	NoLocal              bool
 
 	// Options for file transfering
 	UseEncryption       bool
@@ -48,7 +51,6 @@ type Croc struct {
 // Init will initiate with the default parameters
 func Init(debug bool) (c *Croc) {
 	c = new(Croc)
-	c.ServerPort = "8152"
 	c.CurveType = "siec"
 	c.UseCompression = true
 	c.UseEncryption = true

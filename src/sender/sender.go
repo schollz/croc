@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
+	"github.com/schollz/croc/src/comm"
 	"github.com/schollz/croc/src/compress"
 	"github.com/schollz/croc/src/crypt"
 	"github.com/schollz/croc/src/logger"
@@ -48,6 +50,8 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 	var fileHash []byte
 	var otherIP string
 	var startTransfer time.Time
+	var tcpConnection comm.Comm
+
 	fileReady := make(chan error)
 
 	// normalize the file name
@@ -191,6 +195,15 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 				return errors.New("recipient refused file")
 			}
 
+			if !isLocal {
+				// connection to TCP
+				tcpConnection, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%x", sessionKey)), "localhost:8154")
+				if err != nil {
+					log.Error(err)
+					return
+				}
+			}
+
 			fmt.Fprintf(os.Stderr, "\rSending (->%s)...\n", otherIP)
 			// send file, compure hash simultaneously
 			startTransfer = time.Now()
@@ -220,18 +233,24 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 						return err
 					}
 
-					// send message
-					err = c.WriteMessage(websocket.BinaryMessage, encBytes)
+					if isLocal {
+						// write data to websockets
+						err = c.WriteMessage(websocket.BinaryMessage, encBytes)
+					} else {
+						// write data to tcp connection
+						_, err = tcpConnection.Write(encBytes)
+					}
 					if err != nil {
 						err = errors.Wrap(err, "problem writing message")
 						return err
 					}
-					// // wait for ok
-					// c.ReadMessage()
 				}
 				if err != nil {
 					if err != io.EOF {
 						log.Error(err)
+					}
+					if !isLocal {
+						tcpConnection.Write([]byte("end"))
 					}
 					break
 				}
@@ -270,4 +289,35 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 		}
 		step++
 	}
+}
+
+func connectToTCPServer(room string, address string) (com comm.Comm, err error) {
+	connection, err := net.Dial("tcp", address)
+	if err != nil {
+		return
+	}
+	connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
+	connection.SetDeadline(time.Now().Add(3 * time.Hour))
+	connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
+
+	com = comm.New(connection)
+	ok, err := com.Receive()
+	if err != nil {
+		return
+	}
+	log.Debugf("server says: %s", ok)
+
+	err = com.Send(room)
+	if err != nil {
+		return
+	}
+	ok, err = com.Receive()
+	log.Debugf("server says: %s", ok)
+	if err != nil {
+		return
+	}
+	if ok != "sender" {
+		err = errors.New(ok)
+	}
+	return
 }

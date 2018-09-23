@@ -6,13 +6,18 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/schollz/croc/src/logger"
+	"github.com/schollz/croc/src/tcp"
 )
 
 var DebugLevel string
 
 // Run is the async operation for running a server
-func Run(port string) (err error) {
+func Run(port string, tcpPort string) (err error) {
 	logger.SetLogLevel(DebugLevel)
+
+	if tcpPort != "" {
+		go tcp.Run(DebugLevel, tcpPort)
+	}
 
 	go h.run()
 	log.Debug("running relay on " + port)
