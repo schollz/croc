@@ -185,6 +185,8 @@ func receive(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, c
 			)
 			c.WriteMessage(websocket.BinaryMessage, []byte("ready"))
 			startTime := time.Now()
+			var numBytes int
+			var bs []byte
 			for {
 				if isLocal {
 					var messageType int
@@ -195,7 +197,7 @@ func receive(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, c
 					}
 				} else {
 					// read from TCP connection
-					message, err = tcpConnection.Read()
+					message, numBytes, bs, err = tcpConnection.Read()
 					// log.Debugf("message: %s", message)
 				}
 				if err != nil {
@@ -207,7 +209,7 @@ func receive(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, c
 				var enc crypt.Encryption
 				err = json.Unmarshal(message, &enc)
 				if err != nil {
-					log.Errorf("%s: %s", err.Error(), message)
+					log.Errorf("%s: %s (%d/%d) %+v", err.Error(), message, len(message), numBytes, bs)
 					return err
 				}
 				decrypted, err := enc.Decrypt(sessionKey, !fstats.IsEncrypted)
