@@ -92,14 +92,14 @@ func (c *Croc) Receive(codephrase string) (err error) {
 			client := http.Client{
 				Timeout: timeout,
 			}
-			resp, err := client.Get(fmt.Sprintf("http://%s:%s/", discovered[0].Address, discovered[0].Payload))
+			ports := strings.Split(string(discovered[0].Payload), "-")
+			if len(ports) != 2 {
+				return errors.New("bad payload")
+			}
+			resp, err := client.Get(fmt.Sprintf("http://%s:%s/", discovered[0].Address, ports[0]))
 			if err == nil {
 				if resp.StatusCode == http.StatusOK {
 					// we connected, so use this
-					ports := strings.Split(string(discovered[0].Payload), "-")
-					if len(ports) != 2 {
-						return errors.New("bad payload")
-					}
 					return c.sendReceive(discovered[0].Address, ports[0], ports[1], "", codephrase, false, true)
 				}
 			} else {
