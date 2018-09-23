@@ -2,9 +2,11 @@ package comm
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
+	"log"
 	"net"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -27,9 +29,7 @@ func (c Comm) Connection() net.Conn {
 }
 
 func (c Comm) Write(b []byte) (int, error) {
-	bs := make([]byte, 2)
-	binary.LittleEndian.PutUint16(bs, uint16(len(b)))
-	c.connection.Write(bs)
+	c.connection.Write([]byte(fmt.Sprintf("%0.5d", len(b))))
 	n, err := c.connection.Write(b)
 	if n != len(b) {
 		err = fmt.Errorf("wanted to write %d but wrote %d", n, len(b))
@@ -39,21 +39,26 @@ func (c Comm) Write(b []byte) (int, error) {
 }
 
 func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
-	bs = make([]byte, 2)
+	// read until we get 5 bytes
+	bs = make([]byte, 5)
 	_, err = c.connection.Read(bs)
 	if err != nil {
 		return
 	}
 	for {
 		bs = bytes.Trim(bytes.Trim(bs, "\x00"), "\x05")
-		if len(bs) == 2 {
+		if len(bs) == 5 {
 			break
 		}
 		tmp := make([]byte, 1)
 		c.connection.Read(tmp)
 		bs = append(bs, tmp...)
+		log.Println(bs)
 	}
-	numBytes = int(binary.LittleEndian.Uint16(bs[:]))
+	numBytes, err = strconv.Atoi(strings.TrimLeft(string(bs), "0"))
+	if err != nil {
+		return nil, 0, nil, err
+	}
 	buf = []byte{}
 	tmp := make([]byte, numBytes)
 	for {
@@ -61,8 +66,8 @@ func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 		if err != nil {
 			return nil, numBytes, bs, err
 		}
-		tmp = bytes.Trim(tmp, "\x00")
-		tmp = bytes.Trim(tmp, "\x05")
+		tmp = bytes.TrimRight(tmp, "\x00")
+		tmp = bytes.TrimRight(tmp, "\x05")
 		buf = append(buf, tmp...)
 		if len(buf) < numBytes {
 			tmp = make([]byte, numBytes-len(buf))
