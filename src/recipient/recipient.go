@@ -45,6 +45,7 @@ func receive(isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, 
 	var sessionKey []byte
 	var transferTime time.Duration
 	var hash256 []byte
+	var otherIP string
 
 	// start a spinner
 	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
@@ -79,13 +80,27 @@ func receive(isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, 
 		log.Debugf("got %d: %s", messageType, message)
 		switch step {
 		case 0:
+			// sender has initiated, sends their ip address
+			otherIP = string(message)
+			log.Debugf("sender IP: %s", otherIP)
+
+			// recipient begins by sending address
+			ip := ""
+			if isLocal {
+				ip = utils.LocalIP()
+			} else {
+				ip, _ = utils.PublicIP()
+			}
+			c.WriteMessage(websocket.BinaryMessage, []byte(ip))
+		case 1:
+
 			// Q receives u
 			log.Debugf("[%d] Q computes k, sends H(k), v back to P", step)
 			if err := Q.Update(message); err != nil {
 				return err
 			}
 			c.WriteMessage(websocket.BinaryMessage, Q.Bytes())
-		case 1:
+		case 2:
 			log.Debugf("[%d] Q recieves H(k) from P", step)
 			if err := Q.Update(message); err != nil {
 				return err
@@ -97,7 +112,7 @@ func receive(isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, 
 			}
 			log.Debugf("%x\n", sessionKey)
 			c.WriteMessage(websocket.BinaryMessage, []byte("ready"))
-		case 2:
+		case 3:
 			spin.Stop()
 
 			// unmarshal the file info
@@ -137,7 +152,7 @@ func receive(isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, 
 				return err
 			}
 			bytesWritten := 0
-			fmt.Fprintf(os.Stderr, "\nReceiving...\n")
+			fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)...\n", otherIP)
 			bar := progressbar.NewOptions(
 				int(fstats.Size),
 				progressbar.OptionSetRenderBlankState(true),
@@ -210,7 +225,7 @@ func receive(isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, 
 			}
 			// tell the sender the hash so they can quit
 			c.WriteMessage(websocket.BinaryMessage, append([]byte("hash:"), hash256...))
-		case 3:
+		case 4:
 			// receive the hash from the sender so we can check it and quit
 			log.Debugf("got hash: %x", message)
 			if bytes.Equal(hash256, message) {
