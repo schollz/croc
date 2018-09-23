@@ -11,7 +11,9 @@ import (
 
 // Encryption stores the data
 type Encryption struct {
-	Encrypted, Salt, IV []byte
+	Encrypted []byte `json:"e"`
+	Salt      []byte `json:"s"`
+	IV        []byte `json:"i"`
 }
 
 // Encrypt will generate an encryption
