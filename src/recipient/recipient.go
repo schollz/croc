@@ -31,9 +31,9 @@ import (
 var DebugLevel string
 
 // Receive is the async operation to receive a file
-func Receive(isLocal bool, done chan struct{}, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) {
+func Receive(serverAddress, serverTCP string, isLocal bool, done chan struct{}, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) {
 	logger.SetLogLevel(DebugLevel)
-	err := receive(isLocal, c, codephrase, noPrompt, useStdout)
+	err := receive(serverAddress, serverTCP, isLocal, c, codephrase, noPrompt, useStdout)
 	if err != nil {
 		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
 			fmt.Fprintf(os.Stderr, "\n"+err.Error())
@@ -42,7 +42,7 @@ func Receive(isLocal bool, done chan struct{}, c *websocket.Conn, codephrase str
 	done <- struct{}{}
 }
 
-func receive(isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) (err error) {
+func receive(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) (err error) {
 	var fstats models.FileStats
 	var sessionKey []byte
 	var transferTime time.Duration
@@ -161,7 +161,7 @@ func receive(isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, 
 
 			// connect to TCP to receive file
 			if !isLocal {
-				tcpConnection, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%x", sessionKey)), "localhost:8154")
+				tcpConnection, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%x", sessionKey)), serverAddress+":"+serverTCP)
 				if err != nil {
 					log.Error(err)
 					return err

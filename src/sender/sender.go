@@ -30,10 +30,10 @@ import (
 var DebugLevel string
 
 // Send is the async call to send data
-func Send(isLocal bool, done chan struct{}, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) {
+func Send(serverAddress, serverTCP string, isLocal bool, done chan struct{}, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) {
 	logger.SetLogLevel(DebugLevel)
 	log.Debugf("sending %s", fname)
-	err := send(isLocal, c, fname, codephrase, useCompression, useEncryption)
+	err := send(serverAddress, serverTCP, isLocal, c, fname, codephrase, useCompression, useEncryption)
 	if err != nil {
 		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
 			fmt.Fprintf(os.Stderr, "\n"+err.Error())
@@ -43,7 +43,7 @@ func Send(isLocal bool, done chan struct{}, c *websocket.Conn, fname string, cod
 	done <- struct{}{}
 }
 
-func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) (err error) {
+func send(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) (err error) {
 	var f *os.File
 	defer f.Close() // ignore the error if it wasn't opened :(
 	var fstats models.FileStats
@@ -197,7 +197,7 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 
 			if !isLocal {
 				// connection to TCP
-				tcpConnection, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%x", sessionKey)), "localhost:8154")
+				tcpConnection, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%x", sessionKey)), serverAddress+":"+serverTCP)
 				if err != nil {
 					log.Error(err)
 					return
