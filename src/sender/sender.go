@@ -208,6 +208,9 @@ func send(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, fnam
 			// send file, compure hash simultaneously
 			startTransfer = time.Now()
 			buffer := make([]byte, models.WEBSOCKET_BUFFER_SIZE/8)
+			if !isLocal {
+				buffer = make([]byte, models.TCP_BUFFER_SIZE/2)
+			}
 			bar := progressbar.NewOptions(
 				int(fstats.Size),
 				progressbar.OptionSetRenderBlankState(true),
@@ -249,9 +252,9 @@ func send(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, fnam
 					if err != io.EOF {
 						log.Error(err)
 					}
-					if !isLocal {
-						tcpConnection.Write([]byte("end"))
-					}
+					// if !isLocal {
+					// 	tcpConnection.Write([]byte("end"))
+					// }
 					break
 				}
 			}
