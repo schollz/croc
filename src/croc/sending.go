@@ -148,10 +148,9 @@ func (c *Croc) sendReceive(address, websocketPort, tcpPort, fname, codephrase st
 	}
 
 	if isSender {
-		// start peerdiscovery relay server
-		go sender.Send(isLocal, done, sock, fname, codephrase, c.UseCompression, c.UseEncryption)
+		go sender.Send(address, tcpPort, isLocal, done, sock, fname, codephrase, c.UseCompression, c.UseEncryption)
 	} else {
-		go recipient.Receive(isLocal, done, sock, codephrase, c.NoRecipientPrompt, c.Stdout)
+		go recipient.Receive(address, tcpPort, isLocal, done, sock, codephrase, c.NoRecipientPrompt, c.Stdout)
 	}
 
 	for {
