@@ -3,7 +3,6 @@ package comm
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"net"
 	"strconv"
 	"strings"
@@ -53,7 +52,6 @@ func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 		tmp := make([]byte, 1)
 		c.connection.Read(tmp)
 		bs = append(bs, tmp...)
-		log.Println(bs)
 	}
 	numBytes, err = strconv.Atoi(strings.TrimLeft(string(bs), "0"))
 	if err != nil {
