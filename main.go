@@ -61,13 +61,16 @@ func main() {
 		},
 	}
 	app.Flags = []cli.Flag{
-		cli.StringFlag{Name: "relay", Value: "ws://198.199.67.130:8153"},
+		cli.StringFlag{Name: "addr", Value: "198.199.67.130", Usage: "address of the public relay"},
+		cli.StringFlag{Name: "addr-ws", Value: "8153", Usage: "port of the public relay websocket server to connect"},
+		cli.StringFlag{Name: "addr-tcp", Value: "8154", Usage: "tcp port of the public relay serer to connect"},
 		cli.BoolFlag{Name: "no-local", Usage: "disable local mode"},
 		cli.BoolFlag{Name: "local", Usage: "use only local mode"},
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
 		cli.StringFlag{Name: "port", Value: "8153", Usage: "port that the websocket listens on"},
+		cli.StringFlag{Name: "tcp-port", Value: "8154", Usage: "port that the tcp server listens on"},
 		cli.StringFlag{Name: "curve", Value: "siec", Usage: "specify elliptic curve to use (p224, p256, p384, p521, siec)"},
 	}
 	app.EnableBashCompletion = true
@@ -82,13 +85,16 @@ func main() {
 	app.Before = func(c *cli.Context) error {
 		cr = croc.Init(c.GlobalBool("debug"))
 		cr.AllowLocalDiscovery = true
-		cr.WebsocketAddress = c.GlobalString("relay")
+		cr.Address = c.GlobalString("addr")
+		cr.AddressTCPPort = c.GlobalString("addr-tcp")
+		cr.AddressWebsocketPort = c.GlobalString("addr-ws")
 		cr.NoRecipientPrompt = c.GlobalBool("yes")
 		cr.Stdout = c.GlobalBool("stdout")
 		cr.LocalOnly = c.GlobalBool("local")
 		cr.NoLocal = c.GlobalBool("no-local")
 		cr.ShowText = true
-		cr.ServerPort = c.String("port")
+		cr.RelayWebsocketPort = c.String("port")
+		cr.RelayTCPPort = c.String("tcp-port")
 		cr.CurveType = c.String("curve")
 		return nil
 	}
