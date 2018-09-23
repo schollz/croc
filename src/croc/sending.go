@@ -156,6 +156,7 @@ func (c *Croc) sendReceive(websocketAddress, fname, codephrase string, isSender 
 			if err != nil {
 				return err
 			}
+			time.Sleep(50 * time.Millisecond)
 
 			// Cleanly close the connection by sending a close message and then
 			// waiting (with timeout) for the server to close the connection.
