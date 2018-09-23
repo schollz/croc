@@ -43,10 +43,12 @@ func Send(isLocal bool, done chan struct{}, c *websocket.Conn, fname string, cod
 
 func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) (err error) {
 	var f *os.File
+	defer f.Close() // ignore the error if it wasn't opened :(
 	var fstats models.FileStats
 	var fileHash []byte
 	var otherIP string
 	var startTransfer time.Time
+	fileReady := make(chan error)
 
 	// normalize the file name
 	fname, err = filepath.Abs(fname)
@@ -101,46 +103,45 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 			otherIP = string(message)
 			log.Debugf("recipient IP: %s", otherIP)
 
-			// recipient might want file! start gathering information about file
-			// TODO: do in go routine
-			fstat, err := os.Stat(fname)
-			if err != nil {
-				return err
-			}
-			fstats = models.FileStats{
-				Name:         filename,
-				Size:         fstat.Size(),
-				ModTime:      fstat.ModTime(),
-				IsDir:        fstat.IsDir(),
-				SentName:     fstat.Name(),
-				IsCompressed: useCompression,
-				IsEncrypted:  useEncryption,
-			}
-			if fstats.IsDir {
-				// zip the directory
-				fstats.SentName, err = zipper.ZipFile(fname, true)
-				// remove the file when leaving
-				defer os.Remove(fstats.SentName)
-				fname = fstats.SentName
-
+			go func() {
+				// recipient might want file! start gathering information about file
 				fstat, err := os.Stat(fname)
 				if err != nil {
-					return err
+					fileReady <- err
+					return
 				}
-				// get new size
-				fstats.Size = fstat.Size()
-			}
+				fstats = models.FileStats{
+					Name:         filename,
+					Size:         fstat.Size(),
+					ModTime:      fstat.ModTime(),
+					IsDir:        fstat.IsDir(),
+					SentName:     fstat.Name(),
+					IsCompressed: useCompression,
+					IsEncrypted:  useEncryption,
+				}
+				if fstats.IsDir {
+					// zip the directory
+					fstats.SentName, err = zipper.ZipFile(fname, true)
+					// remove the file when leaving
+					defer os.Remove(fstats.SentName)
+					fname = fstats.SentName
 
-			// open the file
-			f, err = os.Open(fname)
-			if err != nil {
-				return err
-			}
-			defer func() {
-				err = f.Close()
-				if err != nil {
-					log.Debugf("problem closing file: %s", err.Error())
+					fstat, err := os.Stat(fname)
+					if err != nil {
+						fileReady <- err
+						return
+					}
+					// get new size
+					fstats.Size = fstat.Size()
 				}
+
+				// open the file
+				f, err = os.Open(fname)
+				if err != nil {
+					fileReady <- err
+					return
+				}
+				fileReady <- nil
 			}()
 
 			// send pake data
@@ -169,13 +170,19 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 			if !bytes.Equal(message, []byte("ready")) {
 				return errors.New("recipient refused file")
 			}
+			_ = <-fileReady // block until file is ready
 			fstatsBytes, err := json.Marshal(fstats)
 			if err != nil {
 				return err
 			}
-			// TODO: encrypt fstats
-			log.Debugf("%s\n", fstatsBytes)
-			c.WriteMessage(websocket.BinaryMessage, fstatsBytes)
+			// encrypt the file meta data
+			enc := crypt.Encrypt(fstatsBytes, sessionKey)
+			encBytes, err := json.Marshal(enc)
+			if err != nil {
+				return err
+			}
+			// send the file meta data
+			c.WriteMessage(websocket.BinaryMessage, encBytes)
 		case 4:
 			spin.Stop()
 

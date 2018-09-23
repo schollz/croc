@@ -117,10 +117,21 @@ func receive(isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, 
 
 			// unmarshal the file info
 			log.Debugf("[%d] recieve file info", step)
-			err = json.Unmarshal(message, &fstats)
+			// do decryption on the file stats
+			var enc crypt.Encryption
+			err = json.Unmarshal(message, &enc)
 			if err != nil {
 				return err
 			}
+			decryptedFileData, err := enc.Decrypt(sessionKey)
+			if err != nil {
+				return err
+			}
+			err = json.Unmarshal(decryptedFileData, &fstats)
+			if err != nil {
+				return err
+			}
+			log.Debugf("got file stats: %+v", fstats)
 
 			// prompt user if its okay to receive file
 			overwritingOrReceiving := "Receiving"
