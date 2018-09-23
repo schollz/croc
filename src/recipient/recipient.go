@@ -196,18 +196,11 @@ func receive(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, c
 				} else {
 					// read from TCP connection
 					message, err = tcpConnection.Read()
-					// if bytes.Equal(message, []byte("end")) {
-					// 	break
-					// }
 				}
 				if err != nil {
 					log.Error(err)
 					return err
 				}
-				fmt.Println(string(message))
-
-				// // tell the sender that we recieved this packet
-				// c.WriteMessage(websocket.BinaryMessage, []byte("ok"))
 
 				// do decryption
 				var enc crypt.Encryption

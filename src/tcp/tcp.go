@@ -34,6 +34,9 @@ func Run(debugLevel, port string) {
 	if err != nil {
 		log.Error(err)
 	}
+
+	// TODO:
+	// delete old rooms
 }
 
 func run(port string) (err error) {
