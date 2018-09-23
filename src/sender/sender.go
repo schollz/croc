@@ -194,7 +194,7 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 			fmt.Fprintf(os.Stderr, "\rSending (->%s)...\n", otherIP)
 			// send file, compure hash simultaneously
 			startTransfer = time.Now()
-			buffer := make([]byte, 1024*1024*8)
+			buffer := make([]byte, models.WEBSOCKET_BUFFER_SIZE/8)
 			bar := progressbar.NewOptions(
 				int(fstats.Size),
 				progressbar.OptionSetRenderBlankState(true),

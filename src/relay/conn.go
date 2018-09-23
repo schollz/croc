@@ -6,6 +6,7 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
+	"github.com/schollz/croc/src/models"
 )
 
 const (
@@ -19,12 +20,12 @@ const (
 	pingPeriod = (pongWait * 9) / 10
 
 	// Maximum message size allowed from peer.
-	maxMessageSize = 1024 * 1024 * 16
+	maxMessageSize = models.WEBSOCKET_BUFFER_SIZE / 2
 )
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024 * 1024 * 32,
-	WriteBufferSize: 1024 * 1024 * 32,
+	ReadBufferSize:  models.WEBSOCKET_BUFFER_SIZE,
+	WriteBufferSize: models.WEBSOCKET_BUFFER_SIZE,
 }
 
 // connection is an middleman between the websocket connection and the hub.
