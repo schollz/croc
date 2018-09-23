@@ -78,6 +78,9 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 		if messageType == websocket.PongMessage || messageType == websocket.PingMessage {
 			continue
 		}
+		if messageType == websocket.TextMessage && bytes.Equal(messsage, "interrupt") {
+			return errors.New("interrupted by other party")
+		}
 		log.Debugf("got %d: %s", messageType, message)
 		switch step {
 		case 0:

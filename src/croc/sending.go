@@ -152,6 +152,10 @@ func (c *Croc) sendReceive(websocketAddress, fname, codephrase string, isSender 
 			return nil
 		case <-interrupt:
 			log.Debug("interrupt")
+			err = sock.WriteMessage(websocket.TextMessage, []byte("interrupt"))
+			if err != nil {
+				return err
+			}
 
 			// Cleanly close the connection by sending a close message and then
 			// waiting (with timeout) for the server to close the connection.
