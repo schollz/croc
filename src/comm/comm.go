@@ -3,6 +3,7 @@ package comm
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"net"
 	"time"
 )
@@ -30,6 +31,9 @@ func (c Comm) Write(b []byte) (int, error) {
 	binary.LittleEndian.PutUint16(bs, uint16(len(b)))
 	c.connection.Write(bs)
 	n, err := c.connection.Write(b)
+	if n != len(b) {
+		err = fmt.Errorf("wanted to write %d but wrote %d", n, len(b))
+	}
 	return n, err
 }
 
@@ -43,22 +47,20 @@ func (c Comm) Read() (buf []byte, err error) {
 	buf = []byte{}
 	tmp := make([]byte, numBytes)
 	for {
-		n, err := c.connection.Read(tmp)
+		_, err = c.connection.Read(tmp)
 		if err != nil {
 			return nil, err
 		}
-		tmp = bytes.TrimRight(tmp, "\x00")
-		tmp = bytes.TrimLeft(tmp, "\x00")
-		tmp = bytes.TrimRight(tmp, "\x05")
-		tmp = bytes.TrimLeft(tmp, "\x05")
+		tmp = bytes.Trim(tmp, "\x00")
+		tmp = bytes.Trim(tmp, "\x05")
 		buf = append(buf, tmp...)
-		if n < numBytes {
-			numBytes -= n
-			tmp = make([]byte, numBytes)
+		if len(buf) < numBytes {
+			tmp = make([]byte, numBytes-len(buf))
 		} else {
 			break
 		}
 	}
+	// log.Printf("wanted %d and got %d", numBytes, len(buf))
 	return
 }
 
