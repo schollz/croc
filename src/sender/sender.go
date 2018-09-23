@@ -33,10 +33,11 @@ func Send(isLocal bool, done chan struct{}, c *websocket.Conn, fname string, cod
 	log.Debugf("sending %s", fname)
 	err := send(isLocal, c, fname, codephrase, useCompression, useEncryption)
 	if err != nil {
-		if strings.HasPrefix(err.Error(), "websocket: close 100") {
-			err = nil
+		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
+			fmt.Fprintf(os.Stderr, "\n"+err.Error())
 		}
 	}
+
 	done <- struct{}{}
 }
 
@@ -78,8 +79,8 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 		if messageType == websocket.PongMessage || messageType == websocket.PingMessage {
 			continue
 		}
-		if messageType == websocket.TextMessage && bytes.Equal(messsage, "interrupt") {
-			return errors.New("interrupted by other party")
+		if messageType == websocket.TextMessage && bytes.Equal(message, []byte("interrupt")) {
+			return errors.New("\rinterrupted by other party")
 		}
 		log.Debugf("got %d: %s", messageType, message)
 		switch step {
@@ -166,7 +167,7 @@ func send(isLocal bool, c *websocket.Conn, fname string, codephrase string, useC
 				return errors.New("recipient refused file")
 			}
 
-			fmt.Fprintf(os.Stderr, "Sending...\n")
+			fmt.Fprintf(os.Stderr, "\rSending...\n")
 			// send file, compure hash simultaneously
 			buffer := make([]byte, 1024*1024*8)
 			bar := progressbar.NewOptions(

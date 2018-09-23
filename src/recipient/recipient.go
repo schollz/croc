@@ -33,10 +33,9 @@ func Receive(isLocal bool, done chan struct{}, c *websocket.Conn, codephrase str
 	logger.SetLogLevel(DebugLevel)
 	err := receive(isLocal, c, codephrase, noPrompt, useStdout)
 	if err != nil {
-		if strings.HasPrefix(err.Error(), "websocket: close 100") {
-			return
+		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
+			fmt.Fprintf(os.Stderr, "\n"+err.Error())
 		}
-		log.Error(err)
 	}
 	done <- struct{}{}
 }
@@ -73,8 +72,8 @@ func receive(isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, 
 		if messageType == websocket.PongMessage || messageType == websocket.PingMessage {
 			continue
 		}
-		if messageType == websocket.TextMessage && bytes.Equal(messsage, "interrupt") {
-			return errors.New("interrupted by other party")
+		if messageType == websocket.TextMessage && bytes.Equal(message, []byte("interrupt")) {
+			return errors.New("\rinterrupted by other party")
 		}
 
 		log.Debugf("got %d: %s", messageType, message)
@@ -117,7 +116,7 @@ func receive(isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, 
 			if fstats.IsDir {
 				fileOrFolder = "folder"
 			}
-			fmt.Fprintf(os.Stderr, "%s %s (%s) into: %s\n",
+			fmt.Fprintf(os.Stderr, "\r%s %s (%s) into: %s\n",
 				overwritingOrReceiving,
 				fileOrFolder,
 				humanize.Bytes(uint64(fstats.Size)),
