@@ -329,6 +329,7 @@ func connectToTCPServer(room string, address string) (com comm.Comm, err error) 
 	if err != nil {
 		return
 	}
+	defer connection.Close()
 	connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
 	connection.SetDeadline(time.Now().Add(3 * time.Hour))
 	connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
