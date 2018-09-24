@@ -126,7 +126,7 @@ func chanFromConn(conn net.Conn) chan []byte {
 	c := make(chan []byte)
 
 	go func() {
-		b := make([]byte, models.WEBSOCKET_BUFFER_SIZE)
+		b := make([]byte, models.TCP_BUFFER_SIZE)
 
 		for {
 			n, err := conn.Read(b)

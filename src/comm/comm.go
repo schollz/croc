@@ -3,6 +3,7 @@ package comm
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"net"
 	"strconv"
 	"strings"
@@ -39,20 +40,33 @@ func (c Comm) Write(b []byte) (int, error) {
 
 func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	// read until we get 5 bytes
-	bs = make([]byte, 5)
-	_, err = c.connection.Read(bs)
+	tmp := make([]byte, 5)
+	n, err := c.connection.Read(tmp)
 	if err != nil {
 		return
 	}
-	tmp := make([]byte, 1)
+	tmpCopy := make([]byte, n)
+	// Copy the buffer so it doesn't get changed while read by the recipient.
+	copy(tmpCopy, tmp[:n])
+	bs = tmpCopy
+
+	tmp = make([]byte, 1)
 	for {
+		// see if we have enough bytes
 		bs = bytes.Trim(bs, "\x00")
 		if len(bs) == 5 {
 			break
 		}
-		c.connection.Read(tmp)
-		bs = append(bs, tmp...)
+		n, err := c.connection.Read(tmp)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		tmpCopy = make([]byte, n)
+		// Copy the buffer so it doesn't get changed while read by the recipient.
+		copy(tmpCopy, tmp[:n])
+		bs = append(bs, tmpCopy...)
 	}
+
 	numBytes, err = strconv.Atoi(strings.TrimLeft(string(bs), "0"))
 	if err != nil {
 		return nil, 0, nil, err
@@ -61,20 +75,27 @@ func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	tmp = make([]byte, numBytes)
 	bufStart := 0
 	for {
-		_, err = c.connection.Read(tmp)
+		n, err := c.connection.Read(tmp)
 		if err != nil {
-			return nil, numBytes, bs, err
+			return nil, 0, nil, err
 		}
-		tmp = bytes.TrimRight(tmp, "\x00")
-		copy(buf[bufStart:bufStart+len(tmp)], tmp[:])
+		tmpCopy := make([]byte, n)
+		// Copy the buffer so it doesn't get changed while read by the recipient.
+		copy(tmpCopy, tmp[:n])
+
+		tmpCopy = bytes.TrimSpace(tmpCopy)
+		tmpCopy = bytes.Replace(tmpCopy, []byte(" "), []byte{}, -1)
+		tmpCopy = bytes.Trim(tmpCopy, "\x00")
+		copy(buf[bufStart:bufStart+len(tmpCopy)], tmpCopy[:])
 		bufStart = len(buf)
 		if bufStart < numBytes {
+			// shrink the amount we need to read
 			tmp = tmp[:numBytes-bufStart]
 		} else {
 			break
 		}
 	}
-	// log.Printf("wanted %d and got %d", numBytes, len(buf))
+	log.Printf("wanted %d and got %d", numBytes, len(buf))
 	return
 }
 
