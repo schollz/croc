@@ -5,6 +5,9 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
+	"errors"
+	"strings"
 
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -14,6 +17,29 @@ type Encryption struct {
 	Encrypted []byte `json:"e"`
 	Salt      []byte `json:"s"`
 	IV        []byte `json:"i"`
+}
+
+func (e Encryption) Bytes() []byte {
+	return []byte(base64.StdEncoding.EncodeToString(e.Encrypted) + "-" + base64.StdEncoding.EncodeToString(e.Salt) + "-" + base64.StdEncoding.EncodeToString(e.IV))
+}
+
+func FromBytes(b []byte) (enc Encryption, err error) {
+	enc = Encryption{}
+	items := strings.Split(string(b), "-")
+	if len(items) != 3 {
+		err = errors.New("not valid")
+		return
+	}
+	enc.Encrypted, err = base64.StdEncoding.DecodeString(items[0])
+	if err != nil {
+		return
+	}
+	enc.Salt, err = base64.StdEncoding.DecodeString(items[1])
+	if err != nil {
+		return
+	}
+	enc.IV, err = base64.StdEncoding.DecodeString(items[2])
+	return
 }
 
 // Encrypt will generate an encryption
