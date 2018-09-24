@@ -67,7 +67,7 @@ func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 		}
 		tmp = bytes.TrimRight(tmp, "\x00")
 		copy(buf[bufStart:bufStart+len(tmp)], tmp[:])
-		bufStart += len(tmp)
+		bufStart = len(buf)
 		if bufStart < numBytes {
 			tmp = tmp[:numBytes-bufStart]
 		} else {
