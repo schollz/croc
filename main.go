@@ -69,6 +69,7 @@ func main() {
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
+		cli.BoolFlag{Name: "force-tcp", Usage: "force TCP"},
 		cli.StringFlag{Name: "port", Value: "8153", Usage: "port that the websocket listens on"},
 		cli.StringFlag{Name: "tcp-port", Value: "8154", Usage: "port that the tcp server listens on"},
 		cli.StringFlag{Name: "curve", Value: "siec", Usage: "specify elliptic curve to use (p224, p256, p384, p521, siec)"},
@@ -96,6 +97,9 @@ func main() {
 		cr.RelayWebsocketPort = c.String("port")
 		cr.RelayTCPPort = c.String("tcp-port")
 		cr.CurveType = c.String("curve")
+		if c.GlobalBool("force-tcp") {
+			cr.ForceSend = 2
+		}
 		return nil
 	}
 

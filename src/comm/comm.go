@@ -70,26 +70,20 @@ func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	if err != nil {
 		return nil, 0, nil, err
 	}
-	buf = make([]byte, numBytes)
+	buf = []byte{}
 	tmp = make([]byte, numBytes)
-	bufStart := 0
 	for {
 		n, err := c.connection.Read(tmp)
 		if err != nil {
 			return nil, 0, nil, err
 		}
-		tmpCopy := make([]byte, n)
+		tmpCopy = make([]byte, n)
 		// Copy the buffer so it doesn't get changed while read by the recipient.
 		copy(tmpCopy, tmp[:n])
-
-		tmpCopy = bytes.TrimSpace(tmpCopy)
-		tmpCopy = bytes.Replace(tmpCopy, []byte(" "), []byte{}, -1)
-		tmpCopy = bytes.Trim(tmpCopy, "\x00")
-		copy(buf[bufStart:bufStart+len(tmpCopy)], tmpCopy[:])
-		bufStart = len(buf)
-		if bufStart < numBytes {
+		buf = append(buf, bytes.TrimRight(tmpCopy, "\x00")...)
+		if len(buf) < numBytes {
 			// shrink the amount we need to read
-			tmp = tmp[:numBytes-bufStart]
+			tmp = tmp[:numBytes-len(buf)]
 		} else {
 			break
 		}
