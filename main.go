@@ -70,6 +70,7 @@ func main() {
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
 		cli.BoolFlag{Name: "force-tcp", Usage: "force TCP"},
+		cli.BoolFlag{Name: "force-web", Usage: "force websockets"},
 		cli.StringFlag{Name: "port", Value: "8153", Usage: "port that the websocket listens on"},
 		cli.StringFlag{Name: "tcp-port", Value: "8154", Usage: "port that the tcp server listens on"},
 		cli.StringFlag{Name: "curve", Value: "siec", Usage: "specify elliptic curve to use (p224, p256, p384, p521, siec)"},
@@ -99,6 +100,9 @@ func main() {
 		cr.CurveType = c.String("curve")
 		if c.GlobalBool("force-tcp") {
 			cr.ForceSend = 2
+		}
+		if c.GlobalBool("force-web") {
+			cr.ForceSend = 1
 		}
 		return nil
 	}
