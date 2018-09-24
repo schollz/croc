@@ -2,18 +2,21 @@ package croc
 
 import (
 	"crypto/rand"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/schollz/croc/src/utils"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSendReceive(t *testing.T) {
+	var startTime time.Time
+	var durationPerMegabyte float64
 	generateRandomFile(100)
-
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
@@ -23,13 +26,20 @@ func TestSendReceive(t *testing.T) {
 	}()
 	go func() {
 		defer wg.Done()
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(2 * time.Second)
 		os.MkdirAll("test", 0755)
 		os.Chdir("test")
 		c := Init(true)
+		startTime = time.Now()
 		assert.Nil(t, c.Receive("test"))
+		durationPerMegabyte = 100.0 / time.Since(startTime).Seconds()
+		assert.True(t, utils.Exists("100mb.file"))
 	}()
 	wg.Wait()
+	os.Chdir("..")
+	os.RemoveAll("test")
+	os.Remove("100mb.file")
+	fmt.Printf("\n-----\n%2.1f MB/s\n----\n", durationPerMegabyte)
 }
 
 func generateRandomFile(megabytes int) {
