@@ -10,10 +10,11 @@ require (
 	github.com/pkg/errors v0.8.0
 	github.com/schollz/mnemonicode v1.0.1
 	github.com/schollz/pake v1.0.2
-	github.com/schollz/peerdiscovery v1.2.1
+	github.com/schollz/peerdiscovery v1.2.2
 	github.com/schollz/progressbar/v2 v2.5.3
 	github.com/schollz/spinner v0.0.0-20180922210718-ea497ee41258
 	github.com/tscholl2/siec v0.0.0-20180721101609-21667da05937
 	github.com/urfave/cli v1.20.0
 	golang.org/x/crypto v0.0.0-20180910181607-0e37d006457b
+	golang.org/x/net v0.0.0-20180921000356-2f5d2388922f // indirect
 )
