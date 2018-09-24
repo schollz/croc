@@ -27,6 +27,12 @@ func (c Comm) Connection() net.Conn {
 	return c.connection
 }
 
+// Close closes the connection
+func (c Comm) Close() {
+	c.connection.Close()
+}
+
+
 func (c Comm) Write(b []byte) (int, error) {
 	c.connection.Write([]byte(fmt.Sprintf("%0.5d", len(b))))
 	n, err := c.connection.Write(b)
