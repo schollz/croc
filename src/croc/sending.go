@@ -40,7 +40,7 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 	if !c.NoLocal {
 		go func() {
 			// start own relay and connect to it
-			go relay.Run(c.RelayWebsocketPort, "")
+			go relay.Run(c.RelayWebsocketPort, c.RelayTCPPort)
 			time.Sleep(250 * time.Millisecond) // race condition here, but this should work most of the time :(
 
 			// broadcast for peer discovery
