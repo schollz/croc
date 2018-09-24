@@ -14,6 +14,7 @@ import (
 )
 
 func sendAndReceive(t *testing.T, forceSend int, local bool) {
+	room := utils.GetRandomName()
 	var startTime time.Time
 	var durationPerMegabyte float64
 	megabytes := 10
@@ -30,7 +31,7 @@ func sendAndReceive(t *testing.T, forceSend int, local bool) {
 		c.ForceSend = forceSend
 		c.UseCompression = true
 		c.UseEncryption = true
-		assert.Nil(t, c.Send(fname, "test"))
+		assert.Nil(t, c.Send(fname, room))
 	}()
 	go func() {
 		defer wg.Done()
@@ -41,7 +42,7 @@ func sendAndReceive(t *testing.T, forceSend int, local bool) {
 		c.NoLocal = !local
 		c.ForceSend = forceSend
 		startTime = time.Now()
-		assert.Nil(t, c.Receive("test"))
+		assert.Nil(t, c.Receive(room))
 		durationPerMegabyte = float64(megabytes) / time.Since(startTime).Seconds()
 		assert.True(t, utils.Exists(fname))
 	}()
