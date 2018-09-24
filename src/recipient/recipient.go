@@ -31,9 +31,9 @@ import (
 var DebugLevel string
 
 // Receive is the async operation to receive a file
-func Receive(serverAddress, serverTCP string, isLocal bool, done chan struct{}, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) {
+func Receive(forceSend int, serverAddress, serverTCP string, isLocal bool, done chan struct{}, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) {
 	logger.SetLogLevel(DebugLevel)
-	err := receive(serverAddress, serverTCP, isLocal, c, codephrase, noPrompt, useStdout)
+	err := receive(forceSend, serverAddress, serverTCP, isLocal, c, codephrase, noPrompt, useStdout)
 	if err != nil {
 		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
 			fmt.Fprintf(os.Stderr, "\n"+err.Error())
@@ -42,13 +42,25 @@ func Receive(serverAddress, serverTCP string, isLocal bool, done chan struct{}, 
 	done <- struct{}{}
 }
 
-func receive(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) (err error) {
+func receive(forceSend int, serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) (err error) {
 	var fstats models.FileStats
 	var sessionKey []byte
 	var transferTime time.Duration
 	var hash256 []byte
 	var otherIP string
 	var tcpConnection comm.Comm
+
+	useWebsockets := true
+	switch forceSend {
+	case 0:
+		if !isLocal {
+			useWebsockets = false
+		}
+	case 1:
+		useWebsockets = true
+	case 2:
+		useWebsockets = false
+	}
 
 	// start a spinner
 	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
@@ -160,7 +172,7 @@ func receive(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, c
 			}
 
 			// connect to TCP to receive file
-			if !isLocal && serverTCP != "" {
+			if !useWebsockets {
 				log.Debugf("connecting to server")
 				tcpConnection, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%x", sessionKey)), serverAddress+":"+serverTCP)
 				if err != nil {
@@ -188,7 +200,7 @@ func receive(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, c
 			var numBytes int
 			var bs []byte
 			for {
-				if isLocal || serverTCP == "" {
+				if useWebsockets {
 					var messageType int
 					// read from websockets
 					messageType, message, err = c.ReadMessage()
