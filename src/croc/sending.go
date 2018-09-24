@@ -44,7 +44,7 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 
 			// broadcast for peer discovery
 			go func() {
-				log.Debug("listening for local croc relay...")
+				log.Debug("starting local croc relay...")
 				go peerdiscovery.Discover(peerdiscovery.Settings{
 					Limit:     1,
 					TimeLimit: 600 * time.Second,
@@ -81,6 +81,7 @@ func (c *Croc) Receive(codephrase string) (err error) {
 			TimeLimit: 300 * time.Millisecond,
 			Delay:     50 * time.Millisecond,
 			Payload:   []byte("checking"),
+			AllowSelf: true,
 		})
 		if errDiscover != nil {
 			log.Debug(errDiscover)
