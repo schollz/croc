@@ -73,7 +73,7 @@ func send(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, fnam
 	// both parties should have a weak key
 	pw := []byte(codephrase)
 	// initialize sender P ("0" indicates sender)
-	P, err := pake.Init(pw, 0, curve, 100*time.Millisecond)
+	P, err := pake.Init(pw, 0, curve, 1*time.Millisecond)
 	if err != nil {
 		return
 	}

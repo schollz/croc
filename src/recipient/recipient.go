@@ -62,7 +62,7 @@ func receive(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, c
 	pw := []byte(codephrase)
 
 	// initialize recipient Q ("1" indicates recipient)
-	Q, err := pake.Init(pw, 1, curve, 100*time.Millisecond)
+	Q, err := pake.Init(pw, 1, curve, 1*time.Millisecond)
 	if err != nil {
 		return
 	}

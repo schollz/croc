@@ -44,12 +44,12 @@ func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	if err != nil {
 		return
 	}
+	tmp := make([]byte, 1)
 	for {
-		bs = bytes.Trim(bytes.Trim(bs, "\x00"), "\x05")
+		bs = bytes.Trim(bs, "\x00")
 		if len(bs) == 5 {
 			break
 		}
-		tmp := make([]byte, 1)
 		c.connection.Read(tmp)
 		bs = append(bs, tmp...)
 	}
@@ -57,18 +57,19 @@ func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	if err != nil {
 		return nil, 0, nil, err
 	}
-	buf = []byte{}
-	tmp := make([]byte, numBytes)
+	buf = make([]byte, numBytes)
+	tmp = make([]byte, numBytes)
+	bufStart := 0
 	for {
 		_, err = c.connection.Read(tmp)
 		if err != nil {
 			return nil, numBytes, bs, err
 		}
 		tmp = bytes.TrimRight(tmp, "\x00")
-		tmp = bytes.TrimRight(tmp, "\x05")
-		buf = append(buf, tmp...)
-		if len(buf) < numBytes {
-			tmp = make([]byte, numBytes-len(buf))
+		copy(buf[bufStart:bufStart+len(tmp)], tmp[:])
+		bufStart += len(tmp)
+		if bufStart < numBytes {
+			tmp = tmp[:numBytes-bufStart]
 		} else {
 			break
 		}
