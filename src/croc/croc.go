@@ -59,6 +59,8 @@ func Init(debug bool) (c *Croc) {
 	c.RelayTCPPort = "8154"
 	c.CurveType = "siec"
 	c.Address = "198.199.67.130"
+	c.AddressWebsocketPort = "8153"
+	c.AddressTCPPort = "8154"
 	c.NoRecipientPrompt = true
 	debugLevel := "info"
 	if debug {

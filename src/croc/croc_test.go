@@ -16,7 +16,8 @@ import (
 func sendAndReceive(t *testing.T, forceSend int) {
 	var startTime time.Time
 	var durationPerMegabyte float64
-	fname := generateRandomFile(100)
+	megabytes := 10
+	fname := generateRandomFile(megabytes)
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
@@ -36,7 +37,7 @@ func sendAndReceive(t *testing.T, forceSend int) {
 		c.ForceSend = forceSend
 		startTime = time.Now()
 		assert.Nil(t, c.Receive("test"))
-		durationPerMegabyte = 100.0 / time.Since(startTime).Seconds()
+		durationPerMegabyte = float64(megabytes) / time.Since(startTime).Seconds()
 		assert.True(t, utils.Exists(fname))
 	}()
 	wg.Wait()
