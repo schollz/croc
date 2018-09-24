@@ -13,18 +13,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSendReceive(t *testing.T) {
-	forceSend := 0
+func sendAndReceive(t *testing.T, forceSend int) {
 	var startTime time.Time
 	var durationPerMegabyte float64
-	generateRandomFile(100)
+	fname := generateRandomFile(100)
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
 		c := Init(true)
 		c.ForceSend = forceSend
-		assert.Nil(t, c.Send("100mb.file", "test"))
+		assert.Nil(t, c.Send(fname, "test"))
 	}()
 	go func() {
 		defer wg.Done()
@@ -36,18 +35,26 @@ func TestSendReceive(t *testing.T) {
 		startTime = time.Now()
 		assert.Nil(t, c.Receive("test"))
 		durationPerMegabyte = 100.0 / time.Since(startTime).Seconds()
-		assert.True(t, utils.Exists("100mb.file"))
+		assert.True(t, utils.Exists(fname))
 	}()
 	wg.Wait()
 	os.Chdir("..")
 	os.RemoveAll("test")
-	os.Remove("100mb.file")
+	os.Remove(fname)
 	fmt.Printf("\n-----\n%2.1f MB/s\n----\n", durationPerMegabyte)
 }
+func TestSendReceiveWebsockets(t *testing.T) {
+	sendAndReceive(t, 1)
+}
+func TestSendReceiveTCP(t *testing.T) {
+	sendAndReceive(t, 1)
+}
 
-func generateRandomFile(megabytes int) {
+func generateRandomFile(megabytes int) (fname string) {
 	// generate a random file
 	bigBuff := make([]byte, 1024*1024*megabytes)
 	rand.Read(bigBuff)
-	ioutil.WriteFile("100mb.file", bigBuff, 0666)
+	fname = fmt.Sprintf("%dmb.file", megabytes)
+	ioutil.WriteFile(fname, bigBuff, 0666)
+	return
 }
