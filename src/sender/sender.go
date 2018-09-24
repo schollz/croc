@@ -211,6 +211,7 @@ func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *webso
 					log.Error(err)
 					return
 				}
+				defer tcpConnection.Close()
 				buffer = make([]byte, models.TCP_BUFFER_SIZE/2)
 			}
 
@@ -306,11 +307,10 @@ func connectToTCPServer(room string, address string) (com comm.Comm, err error) 
 	if err != nil {
 		return
 	}
-	defer connection.Close()
 	connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
 	connection.SetDeadline(time.Now().Add(3 * time.Hour))
 	connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
-	
+
 	com = comm.New(connection)
 	ok, err := com.Receive()
 	if err != nil {
