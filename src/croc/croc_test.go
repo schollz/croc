@@ -22,6 +22,7 @@ func sendAndReceive(t *testing.T, forceSend int) {
 	go func() {
 		defer wg.Done()
 		c := Init(true)
+		c.NoLocal = true
 		c.ForceSend = forceSend
 		assert.Nil(t, c.Send(fname, "test"))
 	}()
@@ -31,6 +32,7 @@ func sendAndReceive(t *testing.T, forceSend int) {
 		os.MkdirAll("test", 0755)
 		os.Chdir("test")
 		c := Init(true)
+		c.NoLocal = true
 		c.ForceSend = forceSend
 		startTime = time.Now()
 		assert.Nil(t, c.Receive("test"))
