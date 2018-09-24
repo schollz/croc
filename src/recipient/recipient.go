@@ -221,7 +221,7 @@ func receive(forceSend int, serverAddress, serverTCP string, isLocal bool, c *we
 				var enc crypt.Encryption
 				err = json.Unmarshal(message, &enc)
 				if err != nil {
-					log.Errorf("%s: %s (%d/%d) %+v", err.Error(), message, len(message), numBytes, bs)
+					log.Errorf("%s: [%s] [%+v] (%d/%d) %+v", err.Error(), message, message, len(message), numBytes, bs)
 					return err
 				}
 				decrypted, err := enc.Decrypt(sessionKey, !fstats.IsEncrypted)
