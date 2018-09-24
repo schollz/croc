@@ -3,7 +3,6 @@ package comm
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"net"
 	"strconv"
 	"strings"
@@ -95,7 +94,7 @@ func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 			break
 		}
 	}
-	log.Printf("wanted %d and got %d", numBytes, len(buf))
+	// log.Printf("wanted %d and got %d", numBytes, len(buf))
 	return
 }
 
