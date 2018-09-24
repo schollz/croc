@@ -15,6 +15,7 @@ import (
 	"github.com/schollz/croc/src/relay"
 	"github.com/schollz/croc/src/sender"
 	"github.com/schollz/peerdiscovery"
+	"github.com/schollz/utils"
 )
 
 // Send the file
@@ -87,6 +88,9 @@ func (c *Croc) Receive(codephrase string) (err error) {
 			log.Debug(errDiscover)
 		}
 		if len(discovered) > 0 {
+			if discovered[0].Address == utils.GetLocalIP() {
+				discovered[0].Address = "localhost"
+			}
 			log.Debugf("discovered %s:%s", discovered[0].Address, discovered[0].Payload)
 			// see if we can actually connect to it
 			timeout := time.Duration(200 * time.Millisecond)
@@ -152,9 +156,9 @@ func (c *Croc) sendReceive(address, websocketPort, tcpPort, fname, codephrase st
 	}
 
 	if isSender {
-		go sender.Send(address, tcpPort, isLocal, done, sock, fname, codephrase, c.UseCompression, c.UseEncryption)
+		go sender.Send(c.ForceSend, address, tcpPort, isLocal, done, sock, fname, codephrase, c.UseCompression, c.UseEncryption)
 	} else {
-		go recipient.Receive(address, tcpPort, isLocal, done, sock, codephrase, c.NoRecipientPrompt, c.Stdout)
+		go recipient.Receive(c.ForceSend, address, tcpPort, isLocal, done, sock, codephrase, c.NoRecipientPrompt, c.Stdout)
 	}
 
 	for {

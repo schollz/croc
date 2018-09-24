@@ -30,10 +30,10 @@ import (
 var DebugLevel string
 
 // Send is the async call to send data
-func Send(serverAddress, serverTCP string, isLocal bool, done chan struct{}, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) {
+func Send(forceSend int, serverAddress, serverTCP string, isLocal bool, done chan struct{}, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) {
 	logger.SetLogLevel(DebugLevel)
 	log.Debugf("sending %s", fname)
-	err := send(serverAddress, serverTCP, isLocal, c, fname, codephrase, useCompression, useEncryption)
+	err := send(forceSend, serverAddress, serverTCP, isLocal, c, fname, codephrase, useCompression, useEncryption)
 	if err != nil {
 		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
 			fmt.Fprintf(os.Stderr, "\n"+err.Error())
@@ -43,7 +43,7 @@ func Send(serverAddress, serverTCP string, isLocal bool, done chan struct{}, c *
 	done <- struct{}{}
 }
 
-func send(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) (err error) {
+func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) (err error) {
 	var f *os.File
 	defer f.Close() // ignore the error if it wasn't opened :(
 	var fstats models.FileStats
@@ -51,6 +51,18 @@ func send(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, fnam
 	var otherIP string
 	var startTransfer time.Time
 	var tcpConnection comm.Comm
+
+	useWebsockets := true
+	switch forceSend {
+	case 0:
+		if !isLocal {
+			useWebsockets = false
+		}
+	case 1:
+		useWebsockets = true
+	case 2:
+		useWebsockets = false
+	}
 
 	fileReady := make(chan error)
 
@@ -195,7 +207,7 @@ func send(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, fnam
 				return errors.New("recipient refused file")
 			}
 
-			if !isLocal && serverTCP != "" {
+			if !useWebsockets {
 				// connection to TCP
 				tcpConnection, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%x", sessionKey)), serverAddress+":"+serverTCP)
 				if err != nil {
@@ -208,7 +220,7 @@ func send(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, fnam
 			// send file, compure hash simultaneously
 			startTransfer = time.Now()
 			buffer := make([]byte, models.WEBSOCKET_BUFFER_SIZE/8)
-			if !isLocal && serverTCP != "" {
+			if !useWebsockets {
 				buffer = make([]byte, models.TCP_BUFFER_SIZE/2)
 			}
 			bar := progressbar.NewOptions(
@@ -236,12 +248,12 @@ func send(serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, fnam
 						return err
 					}
 
-					if isLocal || serverTCP == "" {
-						// write data to websockets
-						err = c.WriteMessage(websocket.BinaryMessage, encBytes)
-					} else {
+					if !useWebsockets {
 						// write data to tcp connection
 						_, err = tcpConnection.Write(encBytes)
+					} else {
+						// write data to websockets
+						err = c.WriteMessage(websocket.BinaryMessage, encBytes)
 					}
 					if err != nil {
 						err = errors.Wrap(err, "problem writing message")

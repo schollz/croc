@@ -36,6 +36,7 @@ type Croc struct {
 	AllowLocalDiscovery bool
 	NoRecipientPrompt   bool
 	Stdout              bool
+	ForceSend           int // 0: ignore, 1: websockets, 2: TCP
 
 	// Parameters for file transfer
 	Filename   string

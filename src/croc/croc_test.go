@@ -14,6 +14,7 @@ import (
 )
 
 func TestSendReceive(t *testing.T) {
+	forceSend := 0
 	var startTime time.Time
 	var durationPerMegabyte float64
 	generateRandomFile(100)
@@ -22,14 +23,16 @@ func TestSendReceive(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		c := Init(true)
+		c.ForceSend = forceSend
 		assert.Nil(t, c.Send("100mb.file", "test"))
 	}()
 	go func() {
 		defer wg.Done()
-		time.Sleep(2 * time.Second)
+		time.Sleep(3 * time.Second)
 		os.MkdirAll("test", 0755)
 		os.Chdir("test")
 		c := Init(true)
+		c.ForceSend = forceSend
 		startTime = time.Now()
 		assert.Nil(t, c.Receive("test"))
 		durationPerMegabyte = 100.0 / time.Since(startTime).Seconds()
