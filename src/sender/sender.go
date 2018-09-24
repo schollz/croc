@@ -207,6 +207,7 @@ func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *webso
 				return errors.New("recipient refused file")
 			}
 
+			buffer := make([]byte, models.WEBSOCKET_BUFFER_SIZE/8)
 			if !useWebsockets {
 				// connection to TCP
 				tcpConnection, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%x", sessionKey)), serverAddress+":"+serverTCP)
@@ -214,15 +215,13 @@ func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *webso
 					log.Error(err)
 					return
 				}
+				buffer = make([]byte, models.TCP_BUFFER_SIZE/2)
 			}
 
 			fmt.Fprintf(os.Stderr, "\rSending (->%s)...\n", otherIP)
 			// send file, compure hash simultaneously
 			startTransfer = time.Now()
-			buffer := make([]byte, models.WEBSOCKET_BUFFER_SIZE/8)
-			if !useWebsockets {
-				buffer = make([]byte, models.TCP_BUFFER_SIZE/2)
-			}
+
 			bar := progressbar.NewOptions(
 				int(fstats.Size),
 				progressbar.OptionSetRenderBlankState(true),
