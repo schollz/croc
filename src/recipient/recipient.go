@@ -133,8 +133,7 @@ func receive(forceSend int, serverAddress, serverTCP string, isLocal bool, c *we
 			// unmarshal the file info
 			log.Debugf("[%d] recieve file info", step)
 			// do decryption on the file stats
-			var enc crypt.Encryption
-			err = json.Unmarshal(message, &enc)
+			enc, err := crypt.FromBytes(message)
 			if err != nil {
 				return err
 			}

@@ -193,12 +193,8 @@ func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *webso
 			}
 			// encrypt the file meta data
 			enc := crypt.Encrypt(fstatsBytes, sessionKey)
-			encBytes, err := json.Marshal(enc)
-			if err != nil {
-				return err
-			}
 			// send the file meta data
-			c.WriteMessage(websocket.BinaryMessage, encBytes)
+			c.WriteMessage(websocket.BinaryMessage, enc.Bytes())
 		case 4:
 			spin.Stop()
 
