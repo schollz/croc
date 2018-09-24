@@ -78,11 +78,12 @@ func (c *Croc) Receive(codephrase string) (err error) {
 	if !c.NoLocal {
 		// try to discovery codephrase and server through peer network
 		discovered, errDiscover := peerdiscovery.Discover(peerdiscovery.Settings{
-			Limit:     1,
-			TimeLimit: 300 * time.Millisecond,
-			Delay:     50 * time.Millisecond,
-			Payload:   []byte("checking"),
-			AllowSelf: true,
+			Limit:            1,
+			TimeLimit:        300 * time.Millisecond,
+			Delay:            50 * time.Millisecond,
+			Payload:          []byte("checking"),
+			AllowSelf:        true,
+			DisableBroadcast: true,
 		})
 		if errDiscover != nil {
 			log.Debug(errDiscover)
