@@ -13,18 +13,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func sendAndReceive(t *testing.T, forceSend int) {
+func sendAndReceive(t *testing.T, forceSend int, local bool) {
 	var startTime time.Time
 	var durationPerMegabyte float64
 	megabytes := 10
+	if local {
+		megabytes = 100
+	}
 	fname := generateRandomFile(megabytes)
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
 		c := Init(true)
-		c.NoLocal = true
+		c.NoLocal = !local
 		c.ForceSend = forceSend
+		c.UseEncryption = false
+		c.UseEncryption = false
 		assert.Nil(t, c.Send(fname, "test"))
 	}()
 	go func() {
@@ -33,7 +38,7 @@ func sendAndReceive(t *testing.T, forceSend int) {
 		os.MkdirAll("test", 0755)
 		os.Chdir("test")
 		c := Init(true)
-		c.NoLocal = true
+		c.NoLocal = !local
 		c.ForceSend = forceSend
 		startTime = time.Now()
 		assert.Nil(t, c.Receive("test"))
@@ -46,11 +51,21 @@ func sendAndReceive(t *testing.T, forceSend int) {
 	os.Remove(fname)
 	fmt.Printf("\n-----\n%2.1f MB/s\n----\n", durationPerMegabyte)
 }
-func TestSendReceiveWebsockets(t *testing.T) {
-	sendAndReceive(t, 1)
+
+func TestSendReceivePubWebsockets(t *testing.T) {
+	sendAndReceive(t, 1, false)
 }
-func TestSendReceiveTCP(t *testing.T) {
-	sendAndReceive(t, 2)
+
+func TestSendReceivePubTCP(t *testing.T) {
+	sendAndReceive(t, 2, false)
+}
+
+func TestSendReceiveLocalWebsockets(t *testing.T) {
+	sendAndReceive(t, 1, true)
+}
+
+func TestSendReceiveLocalTCP(t *testing.T) {
+	sendAndReceive(t, 2, true)
 }
 
 func generateRandomFile(megabytes int) (fname string) {
