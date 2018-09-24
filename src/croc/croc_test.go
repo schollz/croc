@@ -28,8 +28,8 @@ func sendAndReceive(t *testing.T, forceSend int, local bool) {
 		c := Init(true)
 		c.NoLocal = !local
 		c.ForceSend = forceSend
-		c.UseCompression = false
-		c.UseEncryption = false
+		c.UseCompression = true
+		c.UseEncryption = true
 		assert.Nil(t, c.Send(fname, "test"))
 	}()
 	go func() {
