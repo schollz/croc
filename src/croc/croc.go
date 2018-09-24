@@ -51,10 +51,14 @@ type Croc struct {
 // Init will initiate with the default parameters
 func Init(debug bool) (c *Croc) {
 	c = new(Croc)
-	c.CurveType = "siec"
 	c.UseCompression = true
 	c.UseEncryption = true
 	c.AllowLocalDiscovery = true
+	c.RelayWebsocketPort = "8153"
+	c.RelayTCPPort = "8154"
+	c.CurveType = "siec"
+	c.Address = "198.199.67.130"
+	c.NoRecipientPrompt = true
 	debugLevel := "info"
 	if debug {
 		debugLevel = "debug"
