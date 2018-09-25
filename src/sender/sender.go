@@ -57,7 +57,7 @@ func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *webso
 		bytesRead int
 		err       error
 	}
-	dataChan := make(chan DataChan, 1024*256)
+	dataChan := make(chan DataChan, 1024*1024)
 	defer close(dataChan)
 
 	useWebsockets := true
@@ -166,6 +166,70 @@ func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *webso
 					return
 				}
 				fileReady <- nil
+
+				// start streaming encryption/compression
+				go func(dataChan chan DataChan) {
+					var buffer []byte
+					if useWebsockets {
+						buffer = make([]byte, models.WEBSOCKET_BUFFER_SIZE/8)
+					} else {
+						buffer = make([]byte, models.TCP_BUFFER_SIZE/2)
+					}
+					for {
+						bytesread, err := f.Read(buffer)
+						if bytesread > 0 {
+							// do compression
+							var compressedBytes []byte
+							if useCompression && !fstats.IsDir {
+								compressedBytes = compress.Compress(buffer[:bytesread])
+							} else {
+								compressedBytes = buffer[:bytesread]
+							}
+
+							// do encryption
+							enc := crypt.Encrypt(compressedBytes, sessionKey, !useEncryption)
+							encBytes, err := json.Marshal(enc)
+							if err != nil {
+								dataChan <- DataChan{
+									b:         nil,
+									bytesRead: 0,
+									err:       err,
+								}
+								return
+							}
+
+							select {
+							case dataChan <- DataChan{
+								b:         encBytes,
+								bytesRead: bytesread,
+								err:       nil,
+							}:
+								continue
+							default:
+								log.Debug("blocked")
+								// no message sent
+								// block
+								dataChan <- DataChan{
+									b:         encBytes,
+									bytesRead: bytesread,
+									err:       nil,
+								}
+							}
+						}
+						if err != nil {
+							if err != io.EOF {
+								log.Error(err)
+							}
+							break
+						}
+					}
+					// finish
+					dataChan <- DataChan{
+						b:         nil,
+						bytesRead: 0,
+						err:       nil,
+					}
+				}(dataChan)
 			}()
 
 			// send pake data
@@ -194,75 +258,14 @@ func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *webso
 			if !bytes.Equal(message, []byte("ready")) {
 				return errors.New("recipient refused file")
 			}
-			_ = <-fileReady // block until file is ready
+			err = <-fileReady // block until file is ready
+			if err != nil {
+				return err
+			}
 			fstatsBytes, err := json.Marshal(fstats)
 			if err != nil {
 				return err
 			}
-
-			// start streaming encryption/compression
-			go func(dataChan chan DataChan) {
-				var buffer []byte
-				if useWebsockets {
-					buffer = make([]byte, models.WEBSOCKET_BUFFER_SIZE/8)
-				} else {
-					buffer = make([]byte, models.TCP_BUFFER_SIZE/2)
-				}
-				for {
-					bytesread, err := f.Read(buffer)
-					if bytesread > 0 {
-						// do compression
-						var compressedBytes []byte
-						if useCompression && !fstats.IsDir {
-							compressedBytes = compress.Compress(buffer[:bytesread])
-						} else {
-							compressedBytes = buffer[:bytesread]
-						}
-
-						// do encryption
-						enc := crypt.Encrypt(compressedBytes, sessionKey, !useEncryption)
-						encBytes, err := json.Marshal(enc)
-						if err != nil {
-							dataChan <- DataChan{
-								b:         nil,
-								bytesRead: 0,
-								err:       err,
-							}
-							return
-						}
-
-						select {
-						case dataChan <- DataChan{
-							b:         encBytes,
-							bytesRead: bytesread,
-							err:       nil,
-						}:
-							continue
-						default:
-							log.Debug("blocked")
-							// no message sent
-							// block
-							dataChan <- DataChan{
-								b:         encBytes,
-								bytesRead: bytesread,
-								err:       nil,
-							}
-						}
-					}
-					if err != nil {
-						if err != io.EOF {
-							log.Error(err)
-						}
-						break
-					}
-				}
-				// finish
-				dataChan <- DataChan{
-					b:         nil,
-					bytesRead: 0,
-					err:       nil,
-				}
-			}(dataChan)
 
 			// encrypt the file meta data
 			enc := crypt.Encrypt(fstatsBytes, sessionKey)
