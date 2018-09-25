@@ -30,7 +30,7 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 	if !c.LocalOnly {
 		go func() {
 			// atttempt to connect to public relay
-			errChan <- c.sendReceive(c.Address, c.AddressWebsocketPort, c.AddressTCPPort, fname, codephrase, true, false)
+			errChan <- c.sendReceive(c.Address, c.AddressWebsocketPort, c.AddressTCPPorts, fname, codephrase, true, false)
 		}()
 	} else {
 		waitingFor = 1
@@ -106,7 +106,7 @@ func (c *Croc) Receive(codephrase string) (err error) {
 			if err == nil {
 				if resp.StatusCode == http.StatusOK {
 					// we connected, so use this
-					return c.sendReceive(discovered[0].Address, strings.TrimSpace(ports[0]), strings.TrimSpace(strings.Split(ports[1], ",")), "", codephrase, false, true)
+					return c.sendReceive(discovered[0].Address, strings.TrimSpace(ports[0]), strings.Split(strings.TrimSpace(ports[1]), ","), "", codephrase, false, true)
 				}
 			} else {
 				log.Debugf("could not connect: %s", err.Error())
@@ -119,7 +119,7 @@ func (c *Croc) Receive(codephrase string) (err error) {
 	// use public relay
 	if !c.LocalOnly {
 		log.Debug("using public relay")
-		return c.sendReceive(c.Address, c.AddressWebsocketPort, c.AddressTCPPort, "", codephrase, false, false)
+		return c.sendReceive(c.Address, c.AddressWebsocketPort, c.AddressTCPPorts, "", codephrase, false, false)
 	}
 
 	return errors.New("must use local or public relay")
