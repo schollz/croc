@@ -9,7 +9,7 @@ import (
 // Compress returns a compressed byte slice.
 func Compress(src []byte) []byte {
 	compressedData := new(bytes.Buffer)
-	compress(src, compressedData, 1)
+	compress(src, compressedData, 9)
 	return compressedData.Bytes()
 }
 
