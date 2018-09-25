@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
@@ -63,7 +64,7 @@ func main() {
 	app.Flags = []cli.Flag{
 		cli.StringFlag{Name: "addr", Value: "198.199.67.130", Usage: "address of the public relay"},
 		cli.StringFlag{Name: "addr-ws", Value: "8153", Usage: "port of the public relay websocket server to connect"},
-		cli.StringFlag{Name: "addr-tcp", Value: "8154", Usage: "tcp port of the public relay serer to connect"},
+		cli.StringFlag{Name: "addr-tcp", Value: "8154,8155,8156,8157", Usage: "tcp ports of the public relay serer to connect"},
 		cli.BoolFlag{Name: "no-local", Usage: "disable local mode"},
 		cli.BoolFlag{Name: "local", Usage: "use only local mode"},
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
@@ -72,7 +73,7 @@ func main() {
 		cli.BoolFlag{Name: "force-tcp", Usage: "force TCP"},
 		cli.BoolFlag{Name: "force-web", Usage: "force websockets"},
 		cli.StringFlag{Name: "port", Value: "8153", Usage: "port that the websocket listens on"},
-		cli.StringFlag{Name: "tcp-port", Value: "8154", Usage: "port that the tcp server listens on"},
+		cli.StringFlag{Name: "tcp-port", Value: "8154,8155,8156,8157", Usage: "ports that the tcp server listens on"},
 		cli.StringFlag{Name: "curve", Value: "siec", Usage: "specify elliptic curve to use (p224, p256, p384, p521, siec)"},
 	}
 	app.EnableBashCompletion = true
@@ -88,7 +89,7 @@ func main() {
 		cr = croc.Init(c.GlobalBool("debug"))
 		cr.AllowLocalDiscovery = true
 		cr.Address = c.GlobalString("addr")
-		cr.AddressTCPPort = c.GlobalString("addr-tcp")
+		cr.AddressTCPPorts = strings.Split(c.GlobalString("addr-tcp"), ",")
 		cr.AddressWebsocketPort = c.GlobalString("addr-ws")
 		cr.NoRecipientPrompt = c.GlobalBool("yes")
 		cr.Stdout = c.GlobalBool("stdout")
@@ -96,7 +97,7 @@ func main() {
 		cr.NoLocal = c.GlobalBool("no-local")
 		cr.ShowText = true
 		cr.RelayWebsocketPort = c.String("port")
-		cr.RelayTCPPort = c.String("tcp-port")
+		cr.RelayTCPPorts = strings.Split(c.String("tcp-port"), ",")
 		cr.CurveType = c.String("curve")
 		if c.GlobalBool("force-tcp") {
 			cr.ForceSend = 2
