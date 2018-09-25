@@ -1,6 +1,7 @@
 package croc
 
 import (
+	"runtime"
 	"time"
 
 	"github.com/schollz/croc/src/logger"
@@ -9,6 +10,10 @@ import (
 	"github.com/schollz/croc/src/sender"
 	"github.com/schollz/croc/src/zipper"
 )
+
+func init() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+}
 
 // Croc options
 type Croc struct {
