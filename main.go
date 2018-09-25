@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"runtime"
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
@@ -23,7 +22,6 @@ var codePhrase string
 var cr *croc.Croc
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
 	app := cli.NewApp()
 	app.Name = "croc"
 	if version == "" {
