@@ -216,6 +216,10 @@ func receive(forceSend int, serverAddress, serverTCP string, isLocal bool, c *we
 					log.Error(err)
 					return err
 				}
+				if bytes.Equal(message, []byte("magic")) {
+					log.Debug("got magic")
+					break
+				}
 
 				// do decryption
 				var enc crypt.Encryption
@@ -244,9 +248,9 @@ func receive(forceSend int, serverAddress, serverTCP string, isLocal bool, c *we
 				// update the progress bar
 				bar.Add(n)
 
-				if int64(bytesWritten) == fstats.Size {
-					break
-				}
+				// if int64(bytesWritten) == fstats.Size {
+				// 	break
+				// }
 			}
 
 			c.WriteMessage(websocket.BinaryMessage, []byte("done"))

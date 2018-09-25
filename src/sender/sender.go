@@ -225,6 +225,12 @@ func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *webso
 					}
 					// finish
 					dataChan <- DataChan{
+						b:         []byte("magic"),
+						bytesRead: len([]byte("magic")),
+						err:       nil,
+					}
+					// finish
+					dataChan <- DataChan{
 						b:         nil,
 						bytesRead: 0,
 						err:       nil,
