@@ -240,8 +240,8 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 						err:       nil,
 					}
 					if !useWebsockets {
-						log.Debug("sending extra magic")
-						for i := 0; i < len(tcpConnections)-1; i++ {
+						log.Debug("sending extra magic to %d others", len(tcpPorts)-1)
+						for i := 0; i < len(tcpPorts)-1; i++ {
 							log.Debug("sending magic")
 							dataChan <- DataChan{
 								b:         []byte("magic"),
@@ -350,7 +350,6 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 					go func(i int, wg *sync.WaitGroup, dataChan <-chan DataChan, tcpConnection comm.Comm) {
 						defer wg.Done()
 						for data := range dataChan {
-							log.Debugf("%d sending", i)
 							if data.err != nil {
 								log.Error(data.err)
 								return
