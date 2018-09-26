@@ -126,19 +126,15 @@ func chanFromConn(conn net.Conn) chan []byte {
 	c := make(chan []byte)
 
 	go func() {
-		b := make([]byte, models.TCP_BUFFER_SIZE)
 
 		for {
-			n, err := conn.Read(b)
-			if n > 0 {
-				res := make([]byte, n)
-				// Copy the buffer so it doesn't get changed while read by the recipient.
-				copy(res, b[:n])
-				c <- res
-			}
+			b := make([]byte, models.TCP_BUFFER_SIZE)
+			_, err := conn.Read(b)
 			if err != nil {
 				c <- nil
 				break
+			} else {
+				c <- b
 			}
 		}
 	}()
