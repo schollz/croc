@@ -158,15 +158,16 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 	chan1 := chanFromConn(conn1)
 	// chan2 := chanFromConn(conn2)
 	// writer1 := bufio.NewWriter(conn1)
-	writer2 := bufio.NewWriter(conn2)
+	// writer2 := bufio.NewWriter(conn2)
 
 	for {
 		b1 := <-chan1
 		if b1 == nil {
 			return
 		}
-		writer2.Write(b1)
-		writer2.Flush()
+		conn2.Write(b1)
+		// writer2.Write(b1)
+		// writer2.Flush()
 
 		// case b2 := <-chan2:
 		// 	if b2 == nil {
