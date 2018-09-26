@@ -132,8 +132,8 @@ func chanFromConn(conn net.Conn) chan []byte {
 	reader := bufio.NewReader(conn)
 
 	go func() {
+		b := make([]byte, models.TCP_BUFFER_SIZE)
 		for {
-			b := make([]byte, models.TCP_BUFFER_SIZE)
 			n, err := reader.Read(b)
 			if n > 0 {
 				// c <- b[:n]
