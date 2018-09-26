@@ -342,10 +342,9 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 						return err
 					}
 					if bytes.Equal(data.b, []byte("magic")) {
-						return
+						break
 					}
 				}
-
 			} else {
 				for i := range tcpConnections {
 					go func(tcpConnection comm.Comm) {
@@ -355,7 +354,6 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 								log.Error(data.err)
 								return
 							}
-
 							bar.Add(data.bytesRead)
 							// write data to tcp connection
 							_, err = tcpConnection.Write(data.b)
@@ -383,6 +381,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 		case 5:
 			transferTime := time.Since(startTransfer)
 			if !bytes.HasPrefix(message, []byte("hash:")) {
+				log.Debugf("%s", message)
 				continue
 			}
 			c.WriteMessage(websocket.BinaryMessage, fileHash)
