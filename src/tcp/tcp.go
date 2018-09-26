@@ -13,7 +13,7 @@ import (
 )
 
 type roomInfo struct {
-	receiver comm.Comm
+	receiver *comm.Comm
 	opened   time.Time
 }
 
@@ -62,7 +62,7 @@ func run(port string) (err error) {
 	}
 }
 
-func clientCommuncation(port string, c comm.Comm) (err error) {
+func clientCommuncation(port string, c *comm.Comm) (err error) {
 	// send ok to tell client they are connected
 	err = c.Send("ok")
 	if err != nil {
@@ -98,7 +98,7 @@ func clientCommuncation(port string, c comm.Comm) (err error) {
 	wg.Add(1)
 
 	// start piping
-	go func(com1, com2 comm.Comm, wg *sync.WaitGroup) {
+	go func(com1, com2 *comm.Comm, wg *sync.WaitGroup) {
 		log.Debug("starting pipes")
 		pipe(com1.Connection(), com2.Connection())
 		wg.Done()

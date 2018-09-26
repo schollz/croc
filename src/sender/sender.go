@@ -51,7 +51,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 	var fileHash []byte
 	var otherIP string
 	var startTransfer time.Time
-	var tcpConnections []comm.Comm
+	var tcpConnections []*comm.Comm
 
 	type DataChan struct {
 		b                []byte
@@ -302,7 +302,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			// connect to TCP to receive file
 			if !useWebsockets {
 				log.Debugf("connecting to server")
-				tcpConnections = make([]comm.Comm, len(tcpPorts))
+				tcpConnections = make([]*comm.Comm, len(tcpPorts))
 				for i, tcpPort := range tcpPorts {
 					log.Debug(tcpPort)
 					tcpConnections[i], err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
@@ -346,7 +346,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 				var wg sync.WaitGroup
 				wg.Add(len(tcpConnections))
 				for i := range tcpConnections {
-					go func(i int, wg *sync.WaitGroup, dataChan <-chan DataChan, tcpConnection comm.Comm) {
+					go func(i int, wg *sync.WaitGroup, dataChan <-chan DataChan, tcpConnection *comm.Comm) {
 						defer wg.Done()
 						for data := range dataChan {
 							if data.err != nil {
@@ -407,7 +407,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 	}
 }
 
-func connectToTCPServer(room string, address string) (com comm.Comm, err error) {
+func connectToTCPServer(room string, address string) (com *comm.Comm, err error) {
 	connection, err := net.Dial("tcp", address)
 	if err != nil {
 		return
