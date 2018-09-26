@@ -30,10 +30,10 @@ import (
 var DebugLevel string
 
 // Send is the async call to send data
-func Send(forceSend int, serverAddress, serverTCP string, isLocal bool, done chan struct{}, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) {
+func Send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, done chan struct{}, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) {
 	logger.SetLogLevel(DebugLevel)
 	log.Debugf("sending %s", fname)
-	err := send(forceSend, serverAddress, serverTCP, isLocal, c, fname, codephrase, useCompression, useEncryption)
+	err := send(forceSend, serverAddress, tcpPorts, isLocal, c, fname, codephrase, useCompression, useEncryption)
 	if err != nil {
 		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
 			fmt.Fprintf(os.Stderr, "\n"+err.Error())
@@ -43,19 +43,20 @@ func Send(forceSend int, serverAddress, serverTCP string, isLocal bool, done cha
 	done <- struct{}{}
 }
 
-func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) (err error) {
+func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) (err error) {
 	var f *os.File
 	defer f.Close() // ignore the error if it wasn't opened :(
 	var fstats models.FileStats
 	var fileHash []byte
 	var otherIP string
 	var startTransfer time.Time
-	var tcpConnection comm.Comm
+	var tcpConnections []comm.Comm
 
 	type DataChan struct {
-		b         []byte
-		bytesRead int
-		err       error
+		b                []byte
+		currentPostition int64
+		bytesRead        int
+		err              error
 	}
 	dataChan := make(chan DataChan, 1024*1024)
 	defer close(dataChan)
@@ -175,6 +176,7 @@ func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *webso
 					} else {
 						buffer = make([]byte, models.TCP_BUFFER_SIZE/2)
 					}
+					currentPostition := int64(0)
 					for {
 						bytesread, err := f.Read(buffer)
 						if bytesread > 0 {
@@ -186,9 +188,21 @@ func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *webso
 								compressedBytes = buffer[:bytesread]
 							}
 
+							// put number of byte read
+							transferBytes, err := json.Marshal(models.BytesAndLocation{Bytes: compressedBytes, Location: currentPostition})
+
 							// do encryption
-							enc := crypt.Encrypt(compressedBytes, sessionKey, !useEncryption)
+							enc := crypt.Encrypt(transferBytes, sessionKey, !useEncryption)
 							encBytes, err := json.Marshal(enc)
+							if err != nil {
+								dataChan <- DataChan{
+									b:         nil,
+									bytesRead: 0,
+									err:       err,
+								}
+								return
+							}
+
 							if err != nil {
 								dataChan <- DataChan{
 									b:         nil,
@@ -204,7 +218,6 @@ func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *webso
 								bytesRead: bytesread,
 								err:       nil,
 							}:
-								continue
 							default:
 								log.Debug("blocked")
 								// no message sent
@@ -215,6 +228,7 @@ func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *webso
 									err:       nil,
 								}
 							}
+							currentPostition += int64(bytesread)
 						}
 						if err != nil {
 							if err != io.EOF {
@@ -229,11 +243,14 @@ func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *webso
 						bytesRead: len([]byte("magic")),
 						err:       nil,
 					}
-					// finish
-					dataChan <- DataChan{
-						b:         nil,
-						bytesRead: 0,
-						err:       nil,
+					if !useWebsockets {
+						for i := 0; i < len(tcpConnections)-1; i++ {
+							dataChan <- DataChan{
+								b:         []byte("magic"),
+								bytesRead: len([]byte("magic")),
+								err:       nil,
+							}
+						}
 					}
 				}(dataChan)
 			}()
@@ -285,14 +302,19 @@ func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *webso
 				return errors.New("recipient refused file")
 			}
 
+			// connect to TCP to receive file
 			if !useWebsockets {
-				// connection to TCP
-				tcpConnection, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%x", sessionKey)), serverAddress+":"+serverTCP)
-				if err != nil {
-					log.Error(err)
-					return
+				log.Debugf("connecting to server")
+				tcpConnections = make([]comm.Comm, len(tcpPorts))
+				for i, tcpPort := range tcpPorts {
+					log.Debug(tcpPort)
+					tcpConnections[i], err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
+					if err != nil {
+						log.Error(err)
+						return err
+					}
+					defer tcpConnections[i].Close()
 				}
-				defer tcpConnection.Close()
 			}
 
 			fmt.Fprintf(os.Stderr, "\rSending (->%s)...\n", otherIP)
@@ -305,27 +327,51 @@ func send(forceSend int, serverAddress, serverTCP string, isLocal bool, c *webso
 				progressbar.OptionSetBytes(int(fstats.Size)),
 				progressbar.OptionSetWriter(os.Stderr),
 			)
-			for {
-				data := <-dataChan
-				if data.err != nil {
-					return data.err
-				}
-				if data.bytesRead > 0 {
-					bar.Add(data.bytesRead)
-					if !useWebsockets {
-						// write data to tcp connection
-						_, err = tcpConnection.Write(data.b)
-					} else {
-						// write data to websockets
-						err = c.WriteMessage(websocket.BinaryMessage, data.b)
+
+			if useWebsockets {
+				for {
+					data := <-dataChan
+					if data.err != nil {
+						return data.err
 					}
+					bar.Add(data.bytesRead)
+					// write data to websockets
+					err = c.WriteMessage(websocket.BinaryMessage, data.b)
 					if err != nil {
 						err = errors.Wrap(err, "problem writing message")
 						return err
 					}
-				} else {
-					break
+					if bytes.Equal(data.b, []byte("magic")) {
+						return
+					}
 				}
+
+			} else {
+				for i := range tcpConnections {
+					go func(tcpConnection comm.Comm) {
+						for {
+							data := <-dataChan
+							if data.err != nil {
+								log.Error(data.err)
+								return
+							}
+
+							bar.Add(data.bytesRead)
+							// write data to tcp connection
+							_, err = tcpConnection.Write(data.b)
+							if err != nil {
+								err = errors.Wrap(err, "problem writing message")
+								log.Error(err)
+								return
+							}
+							if bytes.Equal(data.b, []byte("magic")) {
+								return
+							}
+
+						}
+					}(tcpConnections[i])
+				}
+
 			}
 
 			bar.Finish()
