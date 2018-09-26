@@ -1,6 +1,7 @@
 package tcp
 
 import (
+	"bufio"
 	"net"
 	"sync"
 	"time"
@@ -124,12 +125,13 @@ func clientCommuncation(port string, c *comm.Comm) (err error) {
 //  Read()s from the socket to the channel.
 func chanFromConn(conn net.Conn) chan []byte {
 	c := make(chan []byte)
+	reader := bufio.NewReader(conn)
 
 	go func() {
 		b := make([]byte, models.TCP_BUFFER_SIZE)
 
 		for {
-			n, err := conn.Read(b)
+			n, err := reader.Read(b)
 			if n > 0 {
 				res := make([]byte, n)
 				// Copy the buffer so it doesn't get changed while read by the recipient.
@@ -151,6 +153,8 @@ func chanFromConn(conn net.Conn) chan []byte {
 func pipe(conn1 net.Conn, conn2 net.Conn) {
 	chan1 := chanFromConn(conn1)
 	chan2 := chanFromConn(conn2)
+	writer1 := bufio.NewWriter(conn1)
+	writer2 := bufio.NewWriter(conn2)
 
 	for {
 		select {
@@ -158,13 +162,13 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 			if b1 == nil {
 				return
 			}
-			conn2.Write(b1)
+			writer2.Write(b1)
 
 		case b2 := <-chan2:
 			if b2 == nil {
 				return
 			}
-			conn1.Write(b2)
+			writer1.Write(b2)
 		}
 	}
 }
