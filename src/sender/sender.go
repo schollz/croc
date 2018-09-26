@@ -189,19 +189,13 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 								compressedBytes = buffer[:bytesread]
 							}
 
-							// put number of byte read
-							transferBytes, err := json.Marshal(models.BytesAndLocation{Bytes: compressedBytes, Location: currentPostition})
-							if err != nil {
-								dataChan <- DataChan{
-									b:         nil,
-									bytesRead: 0,
-									err:       err,
-								}
-								return
+							// if using TCP, prepend the location to write the data to in the resulting file
+							if !useWebsockets {
+								compressedBytes = append([]byte(fmt.Sprintf("%d-", currentPostition)), compressedBytes...)
 							}
 
 							// do encryption
-							enc := crypt.Encrypt(transferBytes, sessionKey, !useEncryption)
+							enc := crypt.Encrypt(compressedBytes, sessionKey, !useEncryption)
 							encBytes, err := json.Marshal(enc)
 							if err != nil {
 								dataChan <- DataChan{

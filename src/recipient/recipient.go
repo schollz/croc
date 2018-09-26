@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -223,13 +224,13 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 						return err
 					}
 
-					var bl models.BytesAndLocation
-					err = json.Unmarshal(decrypted, &bl)
-					if err != nil {
-						log.Error(err)
-						return err
+					// get location if TCP
+					var locationToWrite int
+					if !useWebsockets {
+						pieces := bytes.SplitN(decrypted, []byte("-"), 2)
+						decrypted = pieces[1]
+						locationToWrite, _ = strconv.Atoi(string(pieces[0]))
 					}
-					decrypted = bl.Bytes
 
 					// do decompression
 					if fstats.IsCompressed && !fstats.IsDir {
@@ -242,7 +243,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 							log.Error(err)
 							return err
 						}
-						n, err = f.WriteAt(decrypted, bl.Location)
+						n, err = f.WriteAt(decrypted, int64(locationToWrite))
 					} else {
 						// write to file
 						n, err = f.Write(decrypted)
