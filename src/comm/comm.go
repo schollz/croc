@@ -25,7 +25,7 @@ func New(n net.Conn) *Comm {
 	c.connection.SetDeadline(time.Now().Add(3 * time.Hour))
 	c.connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
 	c.writer = bufio.NewWriter(n)
-	c.reader = bufio.NewReader(n)
+	c.connection = bufio.NewReader(n)
 	return c
 }
 
@@ -60,7 +60,7 @@ func (c *Comm) Write(b []byte) (int, error) {
 func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	// read until we get 6 bytes
 	tmp := make([]byte, 6)
-	n, err := c.reader.Read(tmp)
+	n, err := c.connection.Read(tmp)
 	if err != nil {
 		return
 	}
@@ -76,7 +76,7 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 		if len(bs) == 6 {
 			break
 		}
-		n, err := c.reader.Read(tmp)
+		n, err := c.connection.Read(tmp)
 		if err != nil {
 			return nil, 0, nil, err
 		}
