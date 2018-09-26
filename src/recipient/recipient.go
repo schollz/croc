@@ -292,7 +292,6 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 						dataChan <- message
 					}
 				}
-				_ = <-finished
 			} else {
 				log.Debugf("starting listening with tcp with %d connections", len(tcpConnections))
 				// using TCP
@@ -324,8 +323,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 			}
 
 			_ = <-finished
-			log.Debug("finished")
-
+			log.Debug("telling sender i'm done")
 			c.WriteMessage(websocket.BinaryMessage, []byte("done"))
 			// we are finished
 			transferTime = time.Since(startTime)
