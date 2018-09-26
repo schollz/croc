@@ -12,22 +12,25 @@ import (
 
 // Comm is some basic TCP communication
 type Comm struct {
-	connection *net.TCPConn
+	connection net.Conn
 	writer     *bufio.Writer
+	reader     *bufio.Reader
 }
 
 // New returns a new comm
-func New(n *net.TCPConn) *Comm {
+func New(n net.Conn) *Comm {
 	c := new(Comm)
 	c.connection = n
 	c.connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
 	c.connection.SetDeadline(time.Now().Add(3 * time.Hour))
 	c.connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
+	c.writer = bufio.NewWriter(n)
+	c.reader = bufio.NewReader(n)
 	return c
 }
 
 // Connection returns the net.TCPConn connection
-func (c *Comm) Connection() *net.TCPConn {
+func (c *Comm) Connection() net.Conn {
 	return c.connection
 }
 
@@ -37,14 +40,14 @@ func (c *Comm) Close() {
 }
 
 func (c *Comm) Write(b []byte) (int, error) {
-	c.connection.Write([]byte(fmt.Sprintf("%0.6d", len(b))))
-	n, err := c.connection.Write(b)
+	c.writer.Write([]byte(fmt.Sprintf("%0.6d", len(b))))
+	n, err := c.writer.Write(b)
 	if n != len(b) {
 		err = fmt.Errorf("wanted to write %d but wrote %d", n, len(b))
 	}
-	// if err == nil {
-	// 	c.connection.Flush()
-	// }
+	if err == nil {
+		c.writer.Flush()
+	}
 	// log.Printf("wanted to write %d but wrote %d", n, len(b))
 	return n, err
 }
@@ -56,7 +59,7 @@ func (c *Comm) Write(b []byte) (int, error) {
 func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	// read until we get 6 bytes
 	tmp := make([]byte, 6)
-	n, err := c.connection.Read(tmp)
+	n, err := c.reader.Read(tmp)
 	if err != nil {
 		return
 	}
@@ -72,7 +75,7 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 		if len(bs) == 6 {
 			break
 		}
-		n, err := c.connection.Read(tmp)
+		n, err := c.reader.Read(tmp)
 		if err != nil {
 			return nil, 0, nil, err
 		}
