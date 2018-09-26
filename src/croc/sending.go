@@ -30,7 +30,7 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 	if !c.LocalOnly {
 		go func() {
 			// atttempt to connect to public relay
-			errChan <- c.sendReceive(c.Address, c.AddressWebsocketPort, c.AddressTCPPort, fname, codephrase, true, false)
+			errChan <- c.sendReceive(c.Address, c.AddressWebsocketPort, c.AddressTCPPorts, fname, codephrase, true, false)
 		}()
 	} else {
 		waitingFor = 1
@@ -40,7 +40,7 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 	if !c.NoLocal {
 		go func() {
 			// start own relay and connect to it
-			go relay.Run(c.RelayWebsocketPort, c.RelayTCPPort)
+			go relay.Run(c.RelayWebsocketPort, c.RelayTCPPorts)
 			time.Sleep(250 * time.Millisecond) // race condition here, but this should work most of the time :(
 
 			// broadcast for peer discovery
@@ -50,12 +50,12 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 					Limit:     1,
 					TimeLimit: 600 * time.Second,
 					Delay:     50 * time.Millisecond,
-					Payload:   []byte(c.RelayWebsocketPort + "- " + c.RelayTCPPort),
+					Payload:   []byte(c.RelayWebsocketPort + "- " + strings.Join(c.RelayTCPPorts, ",")),
 				})
 			}()
 
 			// connect to own relay
-			errChan <- c.sendReceive("localhost", c.RelayWebsocketPort, c.RelayTCPPort, fname, codephrase, true, true)
+			errChan <- c.sendReceive("localhost", c.RelayWebsocketPort, c.RelayTCPPorts, fname, codephrase, true, true)
 		}()
 	} else {
 		waitingFor = 1
@@ -106,7 +106,7 @@ func (c *Croc) Receive(codephrase string) (err error) {
 			if err == nil {
 				if resp.StatusCode == http.StatusOK {
 					// we connected, so use this
-					return c.sendReceive(discovered[0].Address, strings.TrimSpace(ports[0]), strings.TrimSpace(ports[1]), "", codephrase, false, true)
+					return c.sendReceive(discovered[0].Address, strings.TrimSpace(ports[0]), strings.Split(strings.TrimSpace(ports[1]), ","), "", codephrase, false, true)
 				}
 			} else {
 				log.Debugf("could not connect: %s", err.Error())
@@ -119,13 +119,13 @@ func (c *Croc) Receive(codephrase string) (err error) {
 	// use public relay
 	if !c.LocalOnly {
 		log.Debug("using public relay")
-		return c.sendReceive(c.Address, c.AddressWebsocketPort, c.AddressTCPPort, "", codephrase, false, false)
+		return c.sendReceive(c.Address, c.AddressWebsocketPort, c.AddressTCPPorts, "", codephrase, false, false)
 	}
 
 	return errors.New("must use local or public relay")
 }
 
-func (c *Croc) sendReceive(address, websocketPort, tcpPort, fname, codephrase string, isSender bool, isLocal bool) (err error) {
+func (c *Croc) sendReceive(address, websocketPort string, tcpPorts []string, fname string, codephrase string, isSender bool, isLocal bool) (err error) {
 	defer log.Flush()
 	if len(codephrase) < 4 {
 		return fmt.Errorf("codephrase is too short")
@@ -157,9 +157,9 @@ func (c *Croc) sendReceive(address, websocketPort, tcpPort, fname, codephrase st
 	}
 
 	if isSender {
-		go sender.Send(c.ForceSend, address, tcpPort, isLocal, done, sock, fname, codephrase, c.UseCompression, c.UseEncryption)
+		go sender.Send(c.ForceSend, address, tcpPorts, isLocal, done, sock, fname, codephrase, c.UseCompression, c.UseEncryption)
 	} else {
-		go recipient.Receive(c.ForceSend, address, tcpPort, isLocal, done, sock, codephrase, c.NoRecipientPrompt, c.Stdout)
+		go recipient.Receive(c.ForceSend, address, tcpPorts, isLocal, done, sock, codephrase, c.NoRecipientPrompt, c.Stdout)
 	}
 
 	for {
@@ -192,5 +192,5 @@ func (c *Croc) sendReceive(address, websocketPort, tcpPort, fname, codephrase st
 
 // Relay will start a relay on the specified port
 func (c *Croc) Relay() (err error) {
-	return relay.Run(c.RelayWebsocketPort, c.RelayTCPPort)
+	return relay.Run(c.RelayWebsocketPort, c.RelayTCPPorts)
 }
