@@ -174,20 +174,25 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 			// connect to TCP to receive file
 			if !useWebsockets {
 				log.Debugf("connecting to server")
-				tcpConnections := make([]comm.Comm, len(tcpPorts))
+				tcpConnections = make([]comm.Comm, len(tcpPorts))
 				for i, tcpPort := range tcpPorts {
-					tcpConnections[i], err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%x", sessionKey)), serverAddress+":"+tcpPort)
+					tcpConnections[i], err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
 					if err != nil {
 						log.Error(err)
 						return err
 					}
 					defer tcpConnections[i].Close()
 				}
+				log.Debugf("fully connected")
 			}
 
 			// await file
 			f, err := os.Create(fstats.SentName)
 			if err != nil {
+				log.Error(err)
+				return err
+			}
+			if err = f.Truncate(fstats.Size); err != nil {
 				log.Error(err)
 				return err
 			}
@@ -200,6 +205,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 				progressbar.OptionSetWriter(os.Stderr),
 			)
 			finished := make(chan bool)
+
 			go func(finished chan bool, dataChan chan []byte) (err error) {
 				for {
 					message := <-dataChan
@@ -217,6 +223,14 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 						return err
 					}
 
+					var bl models.BytesAndLocation
+					err = json.Unmarshal(decrypted, &bl)
+					if err != nil {
+						log.Error(err)
+						return err
+					}
+					decrypted = bl.Bytes
+
 					// do decompression
 					if fstats.IsCompressed && !fstats.IsDir {
 						decrypted = compress.Decompress(decrypted)
@@ -224,13 +238,11 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 
 					var n int
 					if !useWebsockets {
-						var bl models.BytesAndLocation
-						err = json.Unmarshal(decrypted, &bl)
 						if err != nil {
 							log.Error(err)
 							return err
 						}
-						n, err = f.WriteAt(bl.Bytes, bl.Location)
+						n, err = f.WriteAt(decrypted, bl.Location)
 					} else {
 						// write to file
 						n, err = f.Write(decrypted)
@@ -251,6 +263,8 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 				finished <- true
 				return
 			}(finished, dataChan)
+
+			log.Debug("telling sender i'm ready")
 			c.WriteMessage(websocket.BinaryMessage, []byte("ready"))
 			startTime := time.Now()
 			if useWebsockets {
@@ -271,7 +285,6 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 					}
 					select {
 					case dataChan <- message:
-						continue
 					default:
 						log.Debug("blocked")
 						// no message sent
@@ -280,8 +293,8 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 					}
 				}
 				_ = <-finished
-
 			} else {
+				log.Debugf("starting listening with tcp with %d connections", len(tcpConnections))
 				// using TCP
 				for i := range tcpConnections {
 					go func(tcpConnection comm.Comm) {
@@ -295,11 +308,10 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 							}
 							if bytes.Equal(message, []byte("magic")) {
 								log.Debug("got magic")
-								break
+								return
 							}
 							select {
 							case dataChan <- message:
-								continue
 							default:
 								log.Debug("blocked")
 								// no message sent
@@ -312,6 +324,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 			}
 
 			_ = <-finished
+			log.Debug("finished")
 
 			c.WriteMessage(websocket.BinaryMessage, []byte("done"))
 			// we are finished
@@ -389,7 +402,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 }
 
 func connectToTCPServer(room string, address string) (com comm.Comm, err error) {
-	log.Debugf("connecting to %s", address)
+	log.Debugf("recipient connecting to %s", address)
 	connection, err := net.Dial("tcp", address)
 	if err != nil {
 		return
@@ -404,14 +417,14 @@ func connectToTCPServer(room string, address string) (com comm.Comm, err error) 
 	if err != nil {
 		return
 	}
-	log.Debugf("server says: %s", ok)
+	log.Debugf("[%s] server says: %s", address, ok)
 
 	err = com.Send(room)
 	if err != nil {
 		return
 	}
 	ok, err = com.Receive()
-	log.Debugf("server says: %s", ok)
+	log.Debugf("[%s] server says: %s", address, ok)
 	if err != nil {
 		return
 	}
