@@ -168,7 +168,7 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 				return
 			}
 			writer2.Write(b1)
-			if bytes.Equal(b1, "magic") {
+			if bytes.Equal(b1, []byte("magic")) {
 				writer2.Flush()
 			}
 
@@ -177,7 +177,7 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 				return
 			}
 			writer1.Write(b2)
-			if bytes.Equal(b2, "magic") {
+			if bytes.Equal(b2, []byte("magic")) {
 				writer1.Flush()
 			}
 		}
