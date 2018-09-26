@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -345,8 +346,11 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 					}
 				}
 			} else {
+				var wg sync.WaitGroup
+				wg.Add(len(tcpConnections))
 				for i := range tcpConnections {
 					go func(dataChan <-chan DataChan, tcpConnection comm.Comm) {
+						defer wg.Done()
 						for data := range dataChan {
 							if data.err != nil {
 								log.Error(data.err)
@@ -367,7 +371,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 						}
 					}(dataChan, tcpConnections[i])
 				}
-
+				wg.Wait()
 			}
 
 			bar.Finish()
