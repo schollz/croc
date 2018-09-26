@@ -25,7 +25,7 @@ func New(n net.Conn) *Comm {
 	c.connection.SetDeadline(time.Now().Add(3 * time.Hour))
 	c.connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
 	c.writer = bufio.NewWriter(n)
-	c.connection = bufio.NewReader(n)
+	// c.connection = bufio.NewReader(n)
 	return c
 }
 
