@@ -43,8 +43,8 @@ func (c Comm) Write(b []byte) (int, error) {
 }
 
 func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
-	// read until we get 7 bytes
-	tmp := make([]byte, 7)
+	// read until we get 8 bytes
+	tmp := make([]byte, 8)
 	n, err := c.connection.Read(tmp)
 	if err != nil {
 		return
@@ -58,7 +58,7 @@ func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	for {
 		// see if we have enough bytes
 		bs = bytes.Trim(bs, "\x00")
-		if len(bs) == 7 {
+		if len(bs) == 8 {
 			break
 		}
 		n, err := c.connection.Read(tmp)
