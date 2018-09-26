@@ -180,7 +180,6 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 					currentPostition := int64(0)
 					for {
 						bytesread, err := f.Read(buffer)
-						log.Debug(bytesread, err)
 						if bytesread > 0 {
 							// do compression
 							var compressedBytes []byte

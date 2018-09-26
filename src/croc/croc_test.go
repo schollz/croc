@@ -28,6 +28,7 @@ func sendAndReceive(t *testing.T, forceSend int, local bool) {
 		defer wg.Done()
 		c := Init(true)
 		c.NoLocal = !local
+		// c.AddressTCPPorts = []string{"8154", "8155"}
 		c.ForceSend = forceSend
 		c.UseCompression = true
 		c.UseEncryption = true
@@ -40,6 +41,7 @@ func sendAndReceive(t *testing.T, forceSend int, local bool) {
 		os.Chdir("test")
 		c := Init(true)
 		c.NoLocal = !local
+		// c.AddressTCPPorts = []string{"8154", "8155"}
 		c.ForceSend = forceSend
 		startTime = time.Now()
 		assert.Nil(t, c.Receive(room))
