@@ -37,21 +37,21 @@ func (c *Comm) Close() {
 }
 
 func (c *Comm) Write(b []byte) (int, error) {
-	c.writer.Write([]byte(fmt.Sprintf("%0.6d", len(b))))
-	n, err := c.writer.Write(b)
+	c.connection.Write([]byte(fmt.Sprintf("%0.6d", len(b))))
+	n, err := c.connection.Write(b)
 	if n != len(b) {
 		err = fmt.Errorf("wanted to write %d but wrote %d", n, len(b))
 	}
-	if err == nil {
-		c.writer.Flush()
-	}
+	// if err == nil {
+	// 	c.connection.Flush()
+	// }
 	// log.Printf("wanted to write %d but wrote %d", n, len(b))
 	return n, err
 }
 
-func (c *Comm) Flush() {
-	c.writer.Flush()
-}
+// func (c *Comm) Flush() {
+// 	c.connection.Flush()
+// }
 
 func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	// read until we get 6 bytes
