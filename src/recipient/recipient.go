@@ -3,6 +3,7 @@ package recipient
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
-	"github.com/pkg/errors"
 
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
@@ -50,7 +50,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 	var transferTime time.Duration
 	var hash256 []byte
 	var otherIP string
-	var tcpConnections []*comm.Comm
+	var tcpConnections []comm.Comm
 	dataChan := make(chan []byte, 1024*1024)
 
 	useWebsockets := true
@@ -176,7 +176,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 			// connect to TCP to receive file
 			if !useWebsockets {
 				log.Debugf("connecting to server")
-				tcpConnections = make([]*comm.Comm, len(tcpPorts))
+				tcpConnections = make([]comm.Comm, len(tcpPorts))
 				for i, tcpPort := range tcpPorts {
 					tcpConnections[i], err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
 					if err != nil {
@@ -300,7 +300,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 				var wg sync.WaitGroup
 				wg.Add(len(tcpConnections))
 				for i := range tcpConnections {
-					go func(wg *sync.WaitGroup, tcpConnection *comm.Comm) {
+					go func(wg *sync.WaitGroup, tcpConnection comm.Comm) {
 						defer wg.Done()
 						for {
 							// read from TCP connection
@@ -405,26 +405,16 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 	}
 }
 
-func connectToTCPServer(room string, address string) (com *comm.Comm, err error) {
+func connectToTCPServer(room string, address string) (com comm.Comm, err error) {
 	log.Debugf("recipient connecting to %s", address)
-	// rAddr, err := net.ResolveTCPAddr("tcp", address)
-	// if err != nil {
-	// 	return
-	// }
-	// connection, err := net.DialTCP("tcp", nil, rAddr)
-	// if err != nil {
-	// 	err = errors.Wrap(err, "bad connection to tcp")
-	// 	return
-	// }
-	// connection.SetNoDelay(true)
 	connection, err := net.Dial("tcp", address)
 	if err != nil {
-		err = errors.Wrap(err, "bad connection to tcp")
 		return
 	}
 	connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
 	connection.SetDeadline(time.Now().Add(3 * time.Hour))
 	connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
+
 	com = comm.New(connection)
 	log.Debug("waiting for server contact")
 	ok, err := com.Receive()

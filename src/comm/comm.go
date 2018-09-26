@@ -1,7 +1,6 @@
 package comm
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"net"
@@ -13,52 +12,40 @@ import (
 // Comm is some basic TCP communication
 type Comm struct {
 	connection net.Conn
-	writer     *bufio.Writer
-	reader     *bufio.Reader
 }
 
 // New returns a new comm
-func New(n net.Conn) *Comm {
-	c := new(Comm)
-	c.connection = n
-	c.connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
-	c.connection.SetDeadline(time.Now().Add(3 * time.Hour))
-	c.connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
-	c.writer = bufio.NewWriter(n)
-	// c.connection = bufio.NewReader(n)
-	return c
+func New(c net.Conn) Comm {
+	c.SetReadDeadline(time.Now().Add(3 * time.Hour))
+	c.SetDeadline(time.Now().Add(3 * time.Hour))
+	c.SetWriteDeadline(time.Now().Add(3 * time.Hour))
+	return Comm{c}
 }
 
-// Connection returns the net.TCPConn connection
-func (c *Comm) Connection() net.Conn {
+// Connection returns the net.Conn connection
+func (c Comm) Connection() net.Conn {
 	return c.connection
 }
 
 // Close closes the connection
-func (c *Comm) Close() {
+func (c Comm) Close() {
 	c.connection.Close()
 }
 
-func (c *Comm) Write(b []byte) (int, error) {
-	c.connection.Write([]byte(fmt.Sprintf("%0.6d", len(b))))
+
+func (c Comm) Write(b []byte) (int, error) {
+	c.connection.Write([]byte(fmt.Sprintf("%0.5d", len(b))))
 	n, err := c.connection.Write(b)
 	if n != len(b) {
 		err = fmt.Errorf("wanted to write %d but wrote %d", n, len(b))
 	}
-	// if err == nil {
-	// 	c.writer.Flush()
-	// }
 	// log.Printf("wanted to write %d but wrote %d", n, len(b))
 	return n, err
 }
 
-// func (c *Comm) Flush() {
-// 	c.connection.Flush()
-// }
-
-func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
-	// read until we get 6 bytes
-	tmp := make([]byte, 6)
+func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
+	// read until we get 5 bytes
+	tmp := make([]byte, 5)
 	n, err := c.connection.Read(tmp)
 	if err != nil {
 		return
@@ -72,7 +59,7 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	for {
 		// see if we have enough bytes
 		bs = bytes.Trim(bs, "\x00")
-		if len(bs) == 6 {
+		if len(bs) == 5 {
 			break
 		}
 		n, err := c.connection.Read(tmp)
@@ -112,13 +99,13 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 }
 
 // Send a message
-func (c *Comm) Send(message string) (err error) {
+func (c Comm) Send(message string) (err error) {
 	_, err = c.Write([]byte(message))
 	return
 }
 
 // Receive a message
-func (c *Comm) Receive() (s string, err error) {
+func (c Comm) Receive() (s string, err error) {
 	b, _, _, err := c.Read()
 	s = string(b)
 	return

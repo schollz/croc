@@ -13,7 +13,7 @@ import (
 )
 
 type roomInfo struct {
-	receiver *comm.Comm
+	receiver comm.Comm
 	opened   time.Time
 }
 
@@ -41,22 +41,13 @@ func Run(debugLevel, port string) {
 
 func run(port string) (err error) {
 	log.Debugf("starting TCP server on " + port)
-	// rAddr, err := net.ResolveTCPAddr("tcp", "0.0.0.0:"+port)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// server, err := net.ListenTCP("tcp", rAddr)
-	// if err != nil {
-	// 	return errors.Wrap(err, "Error listening on :"+port)
-	// }
-	server, err := net.Listen("tcp", ":"+port)
+	server, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
 		return errors.Wrap(err, "Error listening on :"+port)
 	}
 	defer server.Close()
 	// spawn a new goroutine whenever a client connects
 	for {
-		// connection, err := server.AcceptTCP()
 		connection, err := server.Accept()
 		if err != nil {
 			return errors.Wrap(err, "problem accepting connection")
@@ -71,7 +62,7 @@ func run(port string) (err error) {
 	}
 }
 
-func clientCommuncation(port string, c *comm.Comm) (err error) {
+func clientCommuncation(port string, c comm.Comm) (err error) {
 	// send ok to tell client they are connected
 	err = c.Send("ok")
 	if err != nil {
@@ -107,7 +98,7 @@ func clientCommuncation(port string, c *comm.Comm) (err error) {
 	wg.Add(1)
 
 	// start piping
-	go func(com1, com2 *comm.Comm, wg *sync.WaitGroup) {
+	go func(com1, com2 comm.Comm, wg *sync.WaitGroup) {
 		log.Debug("starting pipes")
 		pipe(com1.Connection(), com2.Connection())
 		wg.Done()
@@ -133,14 +124,13 @@ func clientCommuncation(port string, c *comm.Comm) (err error) {
 //  Read()s from the socket to the channel.
 func chanFromConn(conn net.Conn) chan []byte {
 	c := make(chan []byte)
-	// reader := bufio.NewReader(conn)
 
 	go func() {
+		b := make([]byte, models.TCP_BUFFER_SIZE)
+
 		for {
-			b := make([]byte, models.TCP_BUFFER_SIZE)
 			n, err := conn.Read(b)
 			if n > 0 {
-				// c <- b[:n]
 				res := make([]byte, n)
 				// Copy the buffer so it doesn't get changed while read by the recipient.
 				copy(res, b[:n])
@@ -160,26 +150,21 @@ func chanFromConn(conn net.Conn) chan []byte {
 // transfers data from one to the other.
 func pipe(conn1 net.Conn, conn2 net.Conn) {
 	chan1 := chanFromConn(conn1)
-	// chan2 := chanFromConn(conn2)
-	// writer1 := bufio.NewWriter(conn1)
-	// writer2 := bufio.NewWriter(conn2)
+	chan2 := chanFromConn(conn2)
 
 	for {
-		b1 := <-chan1
-		if b1 == nil {
-			return
+		select {
+		case b1 := <-chan1:
+			if b1 == nil {
+				return
+			}
+			conn2.Write(b1)
+
+		case b2 := <-chan2:
+			if b2 == nil {
+				return
+			}
+			conn1.Write(b2)
 		}
-		conn2.Write(b1)
-		// writer2.Write(b1)
-		// writer2.Flush()
-
-		// case b2 := <-chan2:
-		// 	if b2 == nil {
-		// 		return
-		// 	}
-		// 	writer1.Write(b2)
-		// 	writer1.Flush()
-		// }
-
 	}
 }
