@@ -40,14 +40,14 @@ func (c *Comm) Close() {
 }
 
 func (c *Comm) Write(b []byte) (int, error) {
-	c.writer.Write([]byte(fmt.Sprintf("%0.6d", len(b))))
-	n, err := c.writer.Write(b)
+	c.connection.Write([]byte(fmt.Sprintf("%0.6d", len(b))))
+	n, err := c.connection.Write(b)
 	if n != len(b) {
 		err = fmt.Errorf("wanted to write %d but wrote %d", n, len(b))
 	}
-	if err == nil {
-		c.writer.Flush()
-	}
+	// if err == nil {
+	// 	c.writer.Flush()
+	// }
 	// log.Printf("wanted to write %d but wrote %d", n, len(b))
 	return n, err
 }
