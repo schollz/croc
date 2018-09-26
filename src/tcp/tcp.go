@@ -52,12 +52,12 @@ func run(port string) (err error) {
 	defer server.Close()
 	// spawn a new goroutine whenever a client connects
 	for {
-		connection, err := server.Accept()
+		connection, err := server.AcceptTCP()
 		if err != nil {
 			return errors.Wrap(err, "problem accepting connection")
 		}
 		log.Debugf("client %s connected", connection.RemoteAddr().String())
-		go func(port string, connection net.Conn) {
+		go func(port string, connection *net.TCPConn) {
 			errCommunication := clientCommuncation(port, comm.New(connection))
 			if errCommunication != nil {
 				log.Warnf("relay-%s: %s", connection.RemoteAddr().String(), errCommunication.Error())
@@ -126,7 +126,7 @@ func clientCommuncation(port string, c *comm.Comm) (err error) {
 
 // chanFromConn creates a channel from a Conn object, and sends everything it
 //  Read()s from the socket to the channel.
-func chanFromConn(conn net.Conn) chan []byte {
+func chanFromConn(conn *net.TCPConn) chan []byte {
 	c := make(chan []byte)
 	// reader := bufio.NewReader(conn)
 
@@ -153,7 +153,7 @@ func chanFromConn(conn net.Conn) chan []byte {
 
 // pipe creates a full-duplex pipe between the two sockets and
 // transfers data from one to the other.
-func pipe(conn1 net.Conn, conn2 net.Conn) {
+func pipe(conn1 *net.TCPConn, conn2 *net.TCPConn) {
 	chan1 := chanFromConn(conn1)
 	// chan2 := chanFromConn(conn2)
 	// writer1 := bufio.NewWriter(conn1)

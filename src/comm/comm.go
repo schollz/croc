@@ -12,23 +12,22 @@ import (
 
 // Comm is some basic TCP communication
 type Comm struct {
-	connection net.Conn
+	connection *net.TCPConn
 	writer     *bufio.Writer
 }
 
 // New returns a new comm
-func New(n net.Conn) *Comm {
+func New(n *net.TCPConn) *Comm {
 	c := new(Comm)
 	c.connection = n
 	c.connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
 	c.connection.SetDeadline(time.Now().Add(3 * time.Hour))
 	c.connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
-	c.writer = bufio.NewWriter(n)
 	return c
 }
 
-// Connection returns the net.Conn connection
-func (c *Comm) Connection() net.Conn {
+// Connection returns the net.TCPConn connection
+func (c *Comm) Connection() *net.TCPConn {
 	return c.connection
 }
 
