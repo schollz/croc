@@ -136,11 +136,11 @@ func chanFromConn(conn net.Conn) chan []byte {
 			b := make([]byte, models.TCP_BUFFER_SIZE)
 			n, err := reader.Read(b)
 			if n > 0 {
-				c <- b[:n]
-				// res := make([]byte, n)
-				// // Copy the buffer so it doesn't get changed while read by the recipient.
-				// copy(res, b[:n])
-				// c <- res
+				// c <- b[:n]
+				res := make([]byte, n)
+				// Copy the buffer so it doesn't get changed while read by the recipient.
+				copy(res, b[:n])
+				c <- res
 			}
 			if err != nil {
 				c <- nil
