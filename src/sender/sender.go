@@ -420,6 +420,7 @@ func connectToTCPServer(room string, address string) (com *comm.Comm, err error)
 	connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
 	connection.SetDeadline(time.Now().Add(3 * time.Hour))
 	connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
+	connection.SetNoDelay(true)
 
 	com = comm.New(connection)
 	ok, err := com.Receive()

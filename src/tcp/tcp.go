@@ -2,7 +2,6 @@ package tcp
 
 import (
 	"bufio"
-	"bytes"
 	"net"
 	"sync"
 	"time"
@@ -168,18 +167,14 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 				return
 			}
 			writer2.Write(b1)
-			if bytes.Equal(b1, []byte("magic")) {
-				writer2.Flush()
-			}
+			writer2.Flush()
 
 		case b2 := <-chan2:
 			if b2 == nil {
 				return
 			}
 			writer1.Write(b2)
-			if bytes.Equal(b2, []byte("magic")) {
-				writer1.Flush()
-			}
+			writer1.Flush()
 		}
 	}
 }
