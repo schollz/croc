@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
@@ -296,8 +297,11 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 			} else {
 				log.Debugf("starting listening with tcp with %d connections", len(tcpConnections))
 				// using TCP
+				var wg sync.WaitGroup
+				wg.Add(len(tcpConnections))
 				for i := range tcpConnections {
-					go func(tcpConnection comm.Comm) {
+					go func(wg *sync.WaitGroup, tcpConnection comm.Comm) {
+						defer wg.Done()
 						for {
 							// read from TCP connection
 							message, _, _, err = tcpConnection.Read()
@@ -319,8 +323,9 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 								dataChan <- message
 							}
 						}
-					}(tcpConnections[i])
+					}(&wg, tcpConnections[i])
 				}
+				wg.Wait()
 			}
 
 			_ = <-finished
