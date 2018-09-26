@@ -167,12 +167,14 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 				return
 			}
 			writer2.Write(b1)
+			writer2.Flush()
 
 		case b2 := <-chan2:
 			if b2 == nil {
 				return
 			}
 			writer1.Write(b2)
+			writer1.Flush()
 		}
 	}
 }
