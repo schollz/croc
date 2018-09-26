@@ -33,7 +33,7 @@ func (c Comm) Close() {
 }
 
 func (c Comm) Write(b []byte) (int, error) {
-	c.connection.Write([]byte(fmt.Sprintf("%0.6d", len(b))))
+	c.connection.Write([]byte(fmt.Sprintf("%0.7d", len(b))))
 	n, err := c.connection.Write(b)
 	if n != len(b) {
 		err = fmt.Errorf("wanted to write %d but wrote %d", n, len(b))
@@ -43,8 +43,8 @@ func (c Comm) Write(b []byte) (int, error) {
 }
 
 func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
-	// read until we get 6 bytes
-	tmp := make([]byte, 6)
+	// read until we get 7 bytes
+	tmp := make([]byte, 7)
 	n, err := c.connection.Read(tmp)
 	if err != nil {
 		return
@@ -58,7 +58,7 @@ func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	for {
 		// see if we have enough bytes
 		bs = bytes.Trim(bs, "\x00")
-		if len(bs) == 6 {
+		if len(bs) == 7 {
 			break
 		}
 		n, err := c.connection.Read(tmp)
