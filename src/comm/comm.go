@@ -44,13 +44,17 @@ func (c *Comm) Write(b []byte) (int, error) {
 		err = fmt.Errorf("wanted to write %d but wrote %d", n, len(b))
 	}
 	if err == nil {
-		err = c.writer.Flush()
+		c.writer.Flush()
 	}
 	// log.Printf("wanted to write %d but wrote %d", n, len(b))
 	return n, err
 }
 
-func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
+func (c *Comm) Flush() {
+	c.writer.Flush()
+}
+
+func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	// read until we get 6 bytes
 	tmp := make([]byte, 6)
 	n, err := c.connection.Read(tmp)
@@ -106,13 +110,13 @@ func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 }
 
 // Send a message
-func (c Comm) Send(message string) (err error) {
+func (c *Comm) Send(message string) (err error) {
 	_, err = c.Write([]byte(message))
 	return
 }
 
 // Receive a message
-func (c Comm) Receive() (s string, err error) {
+func (c *Comm) Receive() (s string, err error) {
 	b, _, _, err := c.Read()
 	s = string(b)
 	return
