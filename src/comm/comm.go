@@ -33,7 +33,7 @@ func (c Comm) Close() {
 }
 
 func (c Comm) Write(b []byte) (int, error) {
-	c.connection.Write([]byte(fmt.Sprintf("%0.7d", len(b))))
+	c.connection.Write([]byte(fmt.Sprintf("%0.8d", len(b))))
 	n, err := c.connection.Write(b)
 	if n != len(b) {
 		err = fmt.Errorf("wanted to write %d but wrote %d", n, len(b))
