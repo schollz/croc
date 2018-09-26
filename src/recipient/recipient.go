@@ -3,7 +3,6 @@ package recipient
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
+	"github.com/pkg/errors"
 
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
@@ -407,8 +407,13 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 
 func connectToTCPServer(room string, address string) (com *comm.Comm, err error) {
 	log.Debugf("recipient connecting to %s", address)
-	connection, err := net.Dial("tcp", address)
+	rAddr, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
+		return
+	}
+	connection, err := net.DialTCP("tcp", nil, rAddr)
+	if err != nil {
+		err = errors.Wrap(err, "bad connection to tcp")
 		return
 	}
 	connection.SetReadDeadline(time.Now().Add(3 * time.Hour))

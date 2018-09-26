@@ -408,8 +408,13 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 }
 
 func connectToTCPServer(room string, address string) (com *comm.Comm, err error) {
-	connection, err := net.Dial("tcp", address)
+	rAddr, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
+		return
+	}
+	connection, err := net.DialTCP("tcp", nil, rAddr)
+	if err != nil {
+		err = errors.Wrap(err, "bad connection to tcp")
 		return
 	}
 	connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
