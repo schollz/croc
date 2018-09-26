@@ -190,10 +190,6 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 
 							// put number of byte read
 							transferBytes, err := json.Marshal(models.BytesAndLocation{Bytes: compressedBytes, Location: currentPostition})
-
-							// do encryption
-							enc := crypt.Encrypt(transferBytes, sessionKey, !useEncryption)
-							encBytes, err := json.Marshal(enc)
 							if err != nil {
 								dataChan <- DataChan{
 									b:         nil,
@@ -203,6 +199,9 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 								return
 							}
 
+							// do encryption
+							enc := crypt.Encrypt(transferBytes, sessionKey, !useEncryption)
+							encBytes, err := json.Marshal(enc)
 							if err != nil {
 								dataChan <- DataChan{
 									b:         nil,
@@ -347,9 +346,8 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 				}
 			} else {
 				for i := range tcpConnections {
-					go func(tcpConnection comm.Comm) {
-						for {
-							data := <-dataChan
+					go func(dataChan <-chan DataChan, tcpConnection comm.Comm) {
+						for data := range dataChan {
 							if data.err != nil {
 								log.Error(data.err)
 								return
@@ -367,7 +365,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 							}
 
 						}
-					}(tcpConnections[i])
+					}(dataChan, tcpConnections[i])
 				}
 
 			}
