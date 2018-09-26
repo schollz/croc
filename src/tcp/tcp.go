@@ -156,8 +156,8 @@ func chanFromConn(conn net.Conn) chan []byte {
 // transfers data from one to the other.
 func pipe(conn1 net.Conn, conn2 net.Conn) {
 	chan1 := chanFromConn(conn1)
-	chan2 := chanFromConn(conn2)
-	writer1 := bufio.NewWriter(conn1)
+	// chan2 := chanFromConn(conn2)
+	// writer1 := bufio.NewWriter(conn1)
 	writer2 := bufio.NewWriter(conn2)
 
 	for {
@@ -169,12 +169,12 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 			writer2.Write(b1)
 			writer2.Flush()
 
-		case b2 := <-chan2:
-			if b2 == nil {
-				return
-			}
-			writer1.Write(b2)
-			writer1.Flush()
-		}
+		// case b2 := <-chan2:
+		// 	if b2 == nil {
+		// 		return
+		// 	}
+		// 	writer1.Write(b2)
+		// 	writer1.Flush()
+		// }
 	}
 }
