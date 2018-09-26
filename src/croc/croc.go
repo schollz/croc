@@ -1,6 +1,7 @@
 package croc
 
 import (
+	"runtime"
 	"time"
 
 	"github.com/schollz/croc/src/logger"
@@ -9,6 +10,10 @@ import (
 	"github.com/schollz/croc/src/sender"
 	"github.com/schollz/croc/src/zipper"
 )
+
+func init() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+}
 
 // Croc options
 type Croc struct {
@@ -19,12 +24,12 @@ type Croc struct {
 
 	// Options for relay
 	RelayWebsocketPort string
-	RelayTCPPort       string
+	RelayTCPPorts      []string
 	CurveType          string
 
 	// Options for connecting to server
 	Address              string
-	AddressTCPPort       string
+	AddressTCPPorts      []string
 	AddressWebsocketPort string
 	Timeout              time.Duration
 	LocalOnly            bool
@@ -56,11 +61,11 @@ func Init(debug bool) (c *Croc) {
 	c.UseEncryption = true
 	c.AllowLocalDiscovery = true
 	c.RelayWebsocketPort = "8153"
-	c.RelayTCPPort = "8154"
+	c.RelayTCPPorts = []string{"8154", "8155", "8156", "8157"}
 	c.CurveType = "siec"
 	c.Address = "198.199.67.130"
 	c.AddressWebsocketPort = "8153"
-	c.AddressTCPPort = "8154"
+	c.AddressTCPPorts = []string{"8154", "8155", "8156", "8157"}
 	c.NoRecipientPrompt = true
 	debugLevel := "info"
 	if debug {

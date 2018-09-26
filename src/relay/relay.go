@@ -12,11 +12,13 @@ import (
 var DebugLevel string
 
 // Run is the async operation for running a server
-func Run(port string, tcpPort string) (err error) {
+func Run(port string, tcpPorts []string) (err error) {
 	logger.SetLogLevel(DebugLevel)
 
-	if tcpPort != "" {
-		go tcp.Run(DebugLevel, tcpPort)
+	if len(tcpPorts) > 0 {
+		for _, tcpPort := range tcpPorts {
+			go tcp.Run(DebugLevel, tcpPort)
+		}
 	}
 
 	go h.run()

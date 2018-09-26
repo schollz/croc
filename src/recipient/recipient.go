@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,9 +32,9 @@ import (
 var DebugLevel string
 
 // Receive is the async operation to receive a file
-func Receive(forceSend int, serverAddress, serverTCP string, isLocal bool, done chan struct{}, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) {
+func Receive(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, done chan struct{}, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) {
 	logger.SetLogLevel(DebugLevel)
-	err := receive(forceSend, serverAddress, serverTCP, isLocal, c, codephrase, noPrompt, useStdout)
+	err := receive(forceSend, serverAddress, tcpPorts, isLocal, c, codephrase, noPrompt, useStdout)
 	if err != nil {
 		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
 			fmt.Fprintf(os.Stderr, "\n"+err.Error())
@@ -42,13 +43,14 @@ func Receive(forceSend int, serverAddress, serverTCP string, isLocal bool, done 
 	done <- struct{}{}
 }
 
-func receive(forceSend int, serverAddress, serverTCP string, isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) (err error) {
+func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) (err error) {
 	var fstats models.FileStats
 	var sessionKey []byte
 	var transferTime time.Duration
 	var hash256 []byte
 	var otherIP string
-	var tcpConnection comm.Comm
+	var tcpConnections []comm.Comm
+	dataChan := make(chan []byte, 1024*1024)
 
 	useWebsockets := true
 	switch forceSend {
@@ -173,17 +175,25 @@ func receive(forceSend int, serverAddress, serverTCP string, isLocal bool, c *we
 			// connect to TCP to receive file
 			if !useWebsockets {
 				log.Debugf("connecting to server")
-				tcpConnection, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%x", sessionKey)), serverAddress+":"+serverTCP)
-				if err != nil {
-					log.Error(err)
-					return err
+				tcpConnections = make([]comm.Comm, len(tcpPorts))
+				for i, tcpPort := range tcpPorts {
+					tcpConnections[i], err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
+					if err != nil {
+						log.Error(err)
+						return err
+					}
+					defer tcpConnections[i].Close()
 				}
-				defer tcpConnection.Close()
+				log.Debugf("fully connected")
 			}
 
 			// await file
 			f, err := os.Create(fstats.SentName)
 			if err != nil {
+				log.Error(err)
+				return err
+			}
+			if err = f.Truncate(fstats.Size); err != nil {
 				log.Error(err)
 				return err
 			}
@@ -195,60 +205,126 @@ func receive(forceSend int, serverAddress, serverTCP string, isLocal bool, c *we
 				progressbar.OptionSetBytes(int(fstats.Size)),
 				progressbar.OptionSetWriter(os.Stderr),
 			)
+			finished := make(chan bool)
+
+			go func(finished chan bool, dataChan chan []byte) (err error) {
+				for {
+					message := <-dataChan
+					// do decryption
+					var enc crypt.Encryption
+					err = json.Unmarshal(message, &enc)
+					if err != nil {
+						// log.Errorf("%s: [%s] [%+v] (%d/%d) %+v", err.Error(), message, message, len(message), numBytes, bs)
+						log.Error(err)
+						return err
+					}
+					decrypted, err := enc.Decrypt(sessionKey, !fstats.IsEncrypted)
+					if err != nil {
+						log.Error(err)
+						return err
+					}
+
+					// get location if TCP
+					var locationToWrite int
+					if !useWebsockets {
+						pieces := bytes.SplitN(decrypted, []byte("-"), 2)
+						decrypted = pieces[1]
+						locationToWrite, _ = strconv.Atoi(string(pieces[0]))
+					}
+
+					// do decompression
+					if fstats.IsCompressed && !fstats.IsDir {
+						decrypted = compress.Decompress(decrypted)
+					}
+
+					var n int
+					if !useWebsockets {
+						if err != nil {
+							log.Error(err)
+							return err
+						}
+						n, err = f.WriteAt(decrypted, int64(locationToWrite))
+					} else {
+						// write to file
+						n, err = f.Write(decrypted)
+					}
+
+					if err != nil {
+						return err
+					}
+					// update the bytes written
+					bytesWritten += n
+					// update the progress bar
+					bar.Add(n)
+					if int64(bytesWritten) == fstats.Size {
+						log.Debug("finished")
+						break
+					}
+				}
+				finished <- true
+				return
+			}(finished, dataChan)
+
+			log.Debug("telling sender i'm ready")
 			c.WriteMessage(websocket.BinaryMessage, []byte("ready"))
 			startTime := time.Now()
-			var numBytes int
-			var bs []byte
-			for {
-				if useWebsockets {
+			if useWebsockets {
+				for {
 					var messageType int
 					// read from websockets
 					messageType, message, err = c.ReadMessage()
 					if messageType != websocket.BinaryMessage {
 						continue
 					}
-				} else {
-					// read from TCP connection
-					message, numBytes, bs, err = tcpConnection.Read()
-					// log.Debugf("message: %s", message)
+					if err != nil {
+						log.Error(err)
+						return err
+					}
+					if bytes.Equal(message, []byte("magic")) {
+						log.Debug("got magic")
+						break
+					}
+					select {
+					case dataChan <- message:
+					default:
+						log.Debug("blocked")
+						// no message sent
+						// block
+						dataChan <- message
+					}
 				}
-				if err != nil {
-					log.Error(err)
-					return err
-				}
-
-				// do decryption
-				var enc crypt.Encryption
-				err = json.Unmarshal(message, &enc)
-				if err != nil {
-					log.Errorf("%s: [%s] [%+v] (%d/%d) %+v", err.Error(), message, message, len(message), numBytes, bs)
-					return err
-				}
-				decrypted, err := enc.Decrypt(sessionKey, !fstats.IsEncrypted)
-				if err != nil {
-					return err
-				}
-
-				// do decompression
-				if fstats.IsCompressed && !fstats.IsDir {
-					decrypted = compress.Decompress(decrypted)
-				}
-
-				// write to file
-				n, err := f.Write(decrypted)
-				if err != nil {
-					return err
-				}
-				// update the bytes written
-				bytesWritten += n
-				// update the progress bar
-				bar.Add(n)
-
-				if int64(bytesWritten) == fstats.Size {
-					break
+			} else {
+				log.Debugf("starting listening with tcp with %d connections", len(tcpConnections))
+				// using TCP
+				for i := range tcpConnections {
+					go func(tcpConnection comm.Comm) {
+						for {
+							// read from TCP connection
+							message, _, _, err = tcpConnection.Read()
+							// log.Debugf("message: %s", message)
+							if err != nil {
+								log.Error(err)
+								return
+							}
+							if bytes.Equal(message, []byte("magic")) {
+								log.Debug("got magic")
+								return
+							}
+							select {
+							case dataChan <- message:
+							default:
+								log.Debug("blocked")
+								// no message sent
+								// block
+								dataChan <- message
+							}
+						}
+					}(tcpConnections[i])
 				}
 			}
 
+			_ = <-finished
+			log.Debug("telling sender i'm done")
 			c.WriteMessage(websocket.BinaryMessage, []byte("done"))
 			// we are finished
 			transferTime = time.Since(startTime)
@@ -325,7 +401,7 @@ func receive(forceSend int, serverAddress, serverTCP string, isLocal bool, c *we
 }
 
 func connectToTCPServer(room string, address string) (com comm.Comm, err error) {
-	log.Debugf("connecting to %s", address)
+	log.Debugf("recipient connecting to %s", address)
 	connection, err := net.Dial("tcp", address)
 	if err != nil {
 		return
@@ -340,14 +416,14 @@ func connectToTCPServer(room string, address string) (com comm.Comm, err error) 
 	if err != nil {
 		return
 	}
-	log.Debugf("server says: %s", ok)
+	log.Debugf("[%s] server says: %s", address, ok)
 
 	err = com.Send(room)
 	if err != nil {
 		return
 	}
 	ok, err = com.Receive()
-	log.Debugf("server says: %s", ok)
+	log.Debugf("[%s] server says: %s", address, ok)
 	if err != nil {
 		return
 	}

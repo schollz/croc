@@ -13,11 +13,11 @@ require (
 	github.com/schollz/pake v1.0.2
 	github.com/schollz/peerdiscovery v1.2.2
 	github.com/schollz/progressbar/v2 v2.5.3
-	github.com/schollz/spinner v0.0.0-20180922210718-ea497ee41258
+	github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9
 	github.com/schollz/utils v1.0.0
 	github.com/stretchr/testify v1.2.2
 	github.com/tscholl2/siec v0.0.0-20180721101609-21667da05937
 	github.com/urfave/cli v1.20.0
 	golang.org/x/crypto v0.0.0-20180910181607-0e37d006457b
-	golang.org/x/net v0.0.0-20180921000356-2f5d2388922f // indirect
+	golang.org/x/net v0.0.0-20180925072008-f04abc6bdfa7 // indirect
 )
