@@ -42,7 +42,11 @@ func Run(debugLevel, port string) {
 
 func run(port string) (err error) {
 	log.Debugf("starting TCP server on " + port)
-	server, err := net.Listen("tcp", "0.0.0.0:"+port)
+	rAddr, err := net.ResolveTCPAddr("tcp", "localhost:"+port)
+	if err != nil {
+		panic(err)
+	}
+	server, err := net.ListenTCP("tcp", rAddr)
 	if err != nil {
 		return errors.Wrap(err, "Error listening on :"+port)
 	}
