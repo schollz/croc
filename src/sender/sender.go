@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -52,6 +53,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 	var otherIP string
 	var startTransfer time.Time
 	var tcpConnections []comm.Comm
+	blocksToSkip := make(map[int64]struct{})
 
 	type DataChan struct {
 		b                []byte
@@ -169,87 +171,6 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 				}
 				fileReady <- nil
 
-				// start streaming encryption/compression
-				go func(dataChan chan DataChan) {
-					var buffer []byte
-					if useWebsockets {
-						buffer = make([]byte, models.WEBSOCKET_BUFFER_SIZE/8)
-					} else {
-						buffer = make([]byte, models.TCP_BUFFER_SIZE/2)
-					}
-					currentPostition := int64(0)
-					for {
-						bytesread, err := f.Read(buffer)
-						if bytesread > 0 {
-							// do compression
-							var compressedBytes []byte
-							if useCompression && !fstats.IsDir {
-								compressedBytes = compress.Compress(buffer[:bytesread])
-							} else {
-								compressedBytes = buffer[:bytesread]
-							}
-
-							// if using TCP, prepend the location to write the data to in the resulting file
-							if !useWebsockets {
-								compressedBytes = append([]byte(fmt.Sprintf("%d-", currentPostition)), compressedBytes...)
-							}
-
-							// do encryption
-							enc := crypt.Encrypt(compressedBytes, sessionKey, !useEncryption)
-							encBytes, err := json.Marshal(enc)
-							if err != nil {
-								dataChan <- DataChan{
-									b:         nil,
-									bytesRead: 0,
-									err:       err,
-								}
-								return
-							}
-
-							select {
-							case dataChan <- DataChan{
-								b:         encBytes,
-								bytesRead: bytesread,
-								err:       nil,
-							}:
-							default:
-								log.Debug("blocked")
-								// no message sent
-								// block
-								dataChan <- DataChan{
-									b:         encBytes,
-									bytesRead: bytesread,
-									err:       nil,
-								}
-							}
-							currentPostition += int64(bytesread)
-						}
-						if err != nil {
-							if err != io.EOF {
-								log.Error(err)
-							}
-							break
-						}
-					}
-					// finish
-					log.Debug("sending magic")
-					dataChan <- DataChan{
-						b:         []byte("magic"),
-						bytesRead: 0,
-						err:       nil,
-					}
-					if !useWebsockets {
-						log.Debug("sending extra magic to %d others", len(tcpPorts)-1)
-						for i := 0; i < len(tcpPorts)-1; i++ {
-							log.Debug("sending magic")
-							dataChan <- DataChan{
-								b:         []byte("magic"),
-								bytesRead: 0,
-								err:       nil,
-							}
-						}
-					}
-				}(dataChan)
 			}()
 
 			// send pake data
@@ -275,9 +196,10 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			spin.Start()
 		case 3:
 			log.Debugf("[%d] recipient declares readiness for file info", step)
-			if !bytes.Equal(message, []byte("ready")) {
+			if !bytes.HasPrefix(message, []byte("ready")) {
 				return errors.New("recipient refused file")
 			}
+
 			err = <-fileReady // block until file is ready
 			if err != nil {
 				return err
@@ -295,9 +217,110 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			spin.Stop()
 
 			log.Debugf("[%d] recipient declares readiness for file data", step)
-			if !bytes.Equal(message, []byte("ready")) {
+			if !bytes.HasPrefix(message, []byte("ready")) {
 				return errors.New("recipient refused file")
 			}
+
+			// determine if any blocks were sent to skip
+			var blocks []string
+			errBlocks := json.Unmarshal(message[5:], &blocks)
+			if errBlocks == nil {
+				for _, block := range blocks {
+					blockInt64, errBlock := strconv.Atoi(block)
+					if errBlock == nil {
+						blocksToSkip[int64(blockInt64)] = struct{}{}
+					}
+				}
+			}
+			log.Debugf("found blocks: %+v", blocksToSkip)
+
+			// start streaming encryption/compression
+			go func(dataChan chan DataChan) {
+				var buffer []byte
+				if useWebsockets {
+					buffer = make([]byte, models.WEBSOCKET_BUFFER_SIZE/8)
+				} else {
+					buffer = make([]byte, models.TCP_BUFFER_SIZE/2)
+				}
+				currentPostition := int64(0)
+				for {
+					bytesread, err := f.Read(buffer)
+					if bytesread > 0 {
+						if _, ok := blocksToSkip[currentPostition]; ok {
+							log.Debugf("skipping the sending of block %d", currentPostition)
+							currentPostition += int64(bytesread)
+							continue
+						}
+
+						// do compression
+						var compressedBytes []byte
+						if useCompression && !fstats.IsDir {
+							compressedBytes = compress.Compress(buffer[:bytesread])
+						} else {
+							compressedBytes = buffer[:bytesread]
+						}
+
+						// if using TCP, prepend the location to write the data to in the resulting file
+						if !useWebsockets {
+							compressedBytes = append([]byte(fmt.Sprintf("%d-", currentPostition)), compressedBytes...)
+						}
+
+						// do encryption
+						enc := crypt.Encrypt(compressedBytes, sessionKey, !useEncryption)
+						encBytes, err := json.Marshal(enc)
+						if err != nil {
+							dataChan <- DataChan{
+								b:         nil,
+								bytesRead: 0,
+								err:       err,
+							}
+							return
+						}
+
+						select {
+						case dataChan <- DataChan{
+							b:         encBytes,
+							bytesRead: bytesread,
+							err:       nil,
+						}:
+						default:
+							log.Debug("blocked")
+							// no message sent
+							// block
+							dataChan <- DataChan{
+								b:         encBytes,
+								bytesRead: bytesread,
+								err:       nil,
+							}
+						}
+						currentPostition += int64(bytesread)
+					}
+					if err != nil {
+						if err != io.EOF {
+							log.Error(err)
+						}
+						break
+					}
+				}
+				// finish
+				log.Debug("sending magic")
+				dataChan <- DataChan{
+					b:         []byte("magic"),
+					bytesRead: 0,
+					err:       nil,
+				}
+				if !useWebsockets {
+					log.Debug("sending extra magic to %d others", len(tcpPorts)-1)
+					for i := 0; i < len(tcpPorts)-1; i++ {
+						log.Debug("sending magic")
+						dataChan <- DataChan{
+							b:         []byte("magic"),
+							bytesRead: 0,
+							err:       nil,
+						}
+					}
+				}
+			}(dataChan)
 
 			// connect to TCP to receive file
 			if !useWebsockets {
@@ -318,12 +341,19 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			// send file, compure hash simultaneously
 			startTransfer = time.Now()
 
+			blockSize := 0
+			if useWebsockets {
+				blockSize = models.WEBSOCKET_BUFFER_SIZE / 8
+			} else {
+				blockSize = models.TCP_BUFFER_SIZE / 2
+			}
 			bar := progressbar.NewOptions(
 				int(fstats.Size),
 				progressbar.OptionSetRenderBlankState(true),
 				progressbar.OptionSetBytes(int(fstats.Size)),
 				progressbar.OptionSetWriter(os.Stderr),
 			)
+			bar.Add(blockSize * len(blocksToSkip))
 
 			if useWebsockets {
 				for {

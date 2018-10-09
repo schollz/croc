@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"compress/flate"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -97,7 +96,7 @@ func ZipFile(fname string, compress bool) (writtenFilename string, err error) {
 		return
 	}
 	log.Debugf("current directory: %s", curdir)
-	newfile, err := ioutil.TempFile(curdir, filename+".")
+	newfile, err := os.Create(fname + ".croc.zip")
 	if err != nil {
 		log.Error(err)
 		return
