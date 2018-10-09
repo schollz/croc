@@ -259,7 +259,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 				var fProgress *os.File
 				var progressErr error
 				if resumeFile {
-					fProgress, progressErr = os.OpenFile(progressFile, os.O_APPEND, 0644)
+					fProgress, progressErr = os.OpenFile(progressFile, os.O_APPEND|os.O_WRONLY, 0644)
 					bytesWritten = len(blocks) * blockSize
 				} else {
 					os.Remove(progressFile)
@@ -321,11 +321,11 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 						log.Debugf("writing to location %d (%2.0f/%2.0f)", bytesWritten, blocksWritten, blocksToWrite)
 						fProgress.WriteString(fmt.Sprintf("%d\n", bytesWritten))
 					}
-
 					if err != nil {
 						log.Error(err)
 						return err
 					}
+
 					// update the bytes written
 					bytesWritten += n
 					blocksWritten += 1.0
