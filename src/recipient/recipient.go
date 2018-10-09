@@ -199,6 +199,10 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 			}
 
 			// await file
+			// erase file if overwriting
+			if overwritingOrReceiving == "Overwriting" {
+				os.Remove(fstats.SentName)
+			}
 			var f *os.File
 			if utils.Exists(fstats.SentName) && resumeFile {
 				if !useWebsockets {
