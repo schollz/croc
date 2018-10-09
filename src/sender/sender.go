@@ -225,7 +225,6 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			var blocks []string
 			errBlocks := json.Unmarshal(message[5:], &blocks)
 			if errBlocks == nil {
-				log.Debugf("found blocks: %+v", blocks)
 				for _, block := range blocks {
 					blockInt64, errBlock := strconv.Atoi(block)
 					if errBlock == nil {
@@ -233,6 +232,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 					}
 				}
 			}
+			log.Debugf("found blocks: %+v", blocksToSkip)
 
 			// start streaming encryption/compression
 			go func(dataChan chan DataChan) {
@@ -341,12 +341,19 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			// send file, compure hash simultaneously
 			startTransfer = time.Now()
 
+			blockSize := 0
+			if useWebsockets {
+				blockSize = models.WEBSOCKET_BUFFER_SIZE / 8
+			} else {
+				blockSize = models.TCP_BUFFER_SIZE / 2
+			}
 			bar := progressbar.NewOptions(
 				int(fstats.Size),
 				progressbar.OptionSetRenderBlankState(true),
 				progressbar.OptionSetBytes(int(fstats.Size)),
 				progressbar.OptionSetWriter(os.Stderr),
 			)
+			bar.Add(blockSize * len(blocksToSkip))
 
 			if useWebsockets {
 				for {
