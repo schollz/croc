@@ -204,7 +204,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 				if !useWebsockets {
 					f, err = os.OpenFile(fstats.SentName, os.O_WRONLY, 0644)
 				} else {
-					f, err = os.OpenFile(fstats.SentName, os.O_APPEND, 0644)
+					f, err = os.OpenFile(fstats.SentName, os.O_APPEND|os.O_WRONLY, 0644)
 				}
 				if err != nil {
 					log.Error(err)
