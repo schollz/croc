@@ -32,11 +32,9 @@ func (c Comm) Close() {
 	c.connection.Close()
 }
 
-
 func (c Comm) Write(b []byte) (int, error) {
-	c.connection.Write([]byte(fmt.Sprintf("%0.5d", len(b))))
-	n, err := c.connection.Write(b)
-	if n != len(b) {
+	n, err := c.connection.Write(append([]byte(fmt.Sprintf("%0.5d", len(b))), b...))
+	if n != len(b)+5 {
 		err = fmt.Errorf("wanted to write %d but wrote %d", n, len(b))
 	}
 	// log.Printf("wanted to write %d but wrote %d", n, len(b))
