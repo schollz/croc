@@ -1,6 +1,7 @@
 package recipient
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -52,6 +53,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 	var otherIP string
 	var tcpConnections []comm.Comm
 	dataChan := make(chan []byte, 1024*1024)
+	blocks := []string{}
 
 	useWebsockets := true
 	switch forceSend {
@@ -129,7 +131,18 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 				return err
 			}
 			log.Debugf("%x\n", sessionKey)
-			c.WriteMessage(websocket.BinaryMessage, []byte("ready"))
+
+			// append the previous blocks if there was progress previously
+			file, errCrocProgress := os.Open("croc-progress")
+			if errCrocProgress == nil {
+				scanner := bufio.NewScanner(file)
+				for scanner.Scan() {
+					blocks = append(blocks, strings.TrimSpace(scanner.Text()))
+				}
+				file.Close()
+			}
+			blocksBytes, _ := json.Marshal(blocks)
+			c.WriteMessage(websocket.BinaryMessage, append([]byte("ready"), blocksBytes...))
 		case 3:
 			spin.Stop()
 
@@ -189,14 +202,23 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 			}
 
 			// await file
-			f, err := os.Create(fstats.SentName)
-			if err != nil {
-				log.Error(err)
-				return err
-			}
-			if err = f.Truncate(fstats.Size); err != nil {
-				log.Error(err)
-				return err
+			var f *os.File
+			if utils.Exists(fstats.SentName) {
+				f, err = os.OpenFile(fstats.SentName, os.O_WRONLY, 0644)
+				if err != nil {
+					log.Error(err)
+					return err
+				}
+			} else {
+				f, err = os.Create(fstats.SentName)
+				if err != nil {
+					log.Error(err)
+					return err
+				}
+				if err = f.Truncate(fstats.Size); err != nil {
+					log.Error(err)
+					return err
+				}
 			}
 			bytesWritten := 0
 			fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)...\n", otherIP)
@@ -209,6 +231,19 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 			finished := make(chan bool)
 
 			go func(finished chan bool, dataChan chan []byte) (err error) {
+				os.Remove("croc-progress2")
+				fProgress, errCreate := os.Create("croc-progress2")
+				if errCreate != nil {
+					panic(errCreate)
+				}
+				defer fProgress.Close()
+				blocksWritten := 0.0
+				blocksToWrite := float64(fstats.Size)
+				if useWebsockets {
+					blocksToWrite = blocksToWrite / float64(models.WEBSOCKET_BUFFER_SIZE/8)
+				} else {
+					blocksToWrite = blocksToWrite/float64(models.TCP_BUFFER_SIZE/2) - float64(len(blocks))
+				}
 				for {
 					message := <-dataChan
 					// do decryption
@@ -231,8 +266,9 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 						pieces := bytes.SplitN(decrypted, []byte("-"), 2)
 						decrypted = pieces[1]
 						locationToWrite, _ = strconv.Atoi(string(pieces[0]))
+						log.Debugf("writing to location %d (%2.0f/%2.0f)", locationToWrite, blocksWritten, blocksToWrite)
+						fProgress.WriteString(fmt.Sprintf("%d\n", locationToWrite))
 					}
-
 					// do decompression
 					if fstats.IsCompressed && !fstats.IsDir {
 						decrypted = compress.Decompress(decrypted)
@@ -251,13 +287,15 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 					}
 
 					if err != nil {
+						log.Error(err)
 						return err
 					}
 					// update the bytes written
 					bytesWritten += n
+					blocksWritten += 1.0
 					// update the progress bar
 					bar.Add(n)
-					if int64(bytesWritten) == fstats.Size {
+					if int64(bytesWritten) == fstats.Size || blocksWritten >= blocksToWrite {
 						log.Debug("finished")
 						break
 					}
