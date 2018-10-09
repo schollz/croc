@@ -199,14 +199,38 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			if !bytes.HasPrefix(message, []byte("ready")) {
 				return errors.New("recipient refused file")
 			}
+
+			err = <-fileReady // block until file is ready
+			if err != nil {
+				return err
+			}
+			fstatsBytes, err := json.Marshal(fstats)
+			if err != nil {
+				return err
+			}
+
+			// encrypt the file meta data
+			enc := crypt.Encrypt(fstatsBytes, sessionKey)
+			// send the file meta data
+			c.WriteMessage(websocket.BinaryMessage, enc.Bytes())
+		case 4:
+			spin.Stop()
+
+			log.Debugf("[%d] recipient declares readiness for file data", step)
+			if !bytes.HasPrefix(message, []byte("ready")) {
+				return errors.New("recipient refused file")
+			}
+
 			// determine if any blocks were sent to skip
 			var blocks []string
 			errBlocks := json.Unmarshal(message[5:], &blocks)
 			if errBlocks == nil {
 				log.Debugf("found blocks: %+v", blocks)
 				for _, block := range blocks {
-					blockInt64, _ := strconv.Atoi(block)
-					blocksToSkip[int64(blockInt64)] = struct{}{}
+					blockInt64, errBlock := strconv.Atoi(block)
+					if errBlock == nil {
+						blocksToSkip[int64(blockInt64)] = struct{}{}
+					}
 				}
 			}
 
@@ -297,27 +321,6 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 					}
 				}
 			}(dataChan)
-
-			err = <-fileReady // block until file is ready
-			if err != nil {
-				return err
-			}
-			fstatsBytes, err := json.Marshal(fstats)
-			if err != nil {
-				return err
-			}
-
-			// encrypt the file meta data
-			enc := crypt.Encrypt(fstatsBytes, sessionKey)
-			// send the file meta data
-			c.WriteMessage(websocket.BinaryMessage, enc.Bytes())
-		case 4:
-			spin.Stop()
-
-			log.Debugf("[%d] recipient declares readiness for file data", step)
-			if !bytes.Equal(message, []byte("ready")) {
-				return errors.New("recipient refused file")
-			}
 
 			// connect to TCP to receive file
 			if !useWebsockets {
