@@ -5,6 +5,7 @@ import (
 	"compress/flate"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -79,36 +80,27 @@ func UnzipFile(src, dest string) (err error) {
 // ZipFile will zip the folder
 func ZipFile(fname string, compress bool) (writtenFilename string, err error) {
 	logger.SetLogLevel(DebugLevel)
+	log.Debugf("zipping %s with compression? %v", fname, compress)
+
+	// get absolute filename
 	fname, err = filepath.Abs(fname)
 	if err != nil {
-		return
-	}
-	log.Debugf("zipping %s with compression? %v", fname, compress)
-	pathtofile, filename := filepath.Split(fname)
-	curdir, err := os.Getwd()
-	if err != nil {
 		log.Error(err)
 		return
 	}
-	curdir, err = filepath.Abs(curdir)
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	log.Debugf("current directory: %s", curdir)
-	newfile, err := os.Create(fname + ".croc.zip")
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	_, writtenFilename = filepath.Split(newfile.Name())
-	defer newfile.Close()
 
-	defer os.Chdir(curdir)
-	log.Debugf("changing dir to %s", pathtofile)
-	os.Chdir(pathtofile)
+	// get path to file and the filename
+	fpath, fname := filepath.Split(fname)
 
-	zipWriter := zip.NewWriter(newfile)
+	writtenFilename = fname + ".croc.zip"
+	log.Debugf("creating file: %s", writtenFilename)
+	f, err := os.Create(writtenFilename)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	zipWriter := zip.NewWriter(f)
 	zipWriter.RegisterCompressor(zip.Deflate, func(out io.Writer) (io.WriteCloser, error) {
 		if compress {
 			return flate.NewWriter(out, flate.BestSpeed)
@@ -118,14 +110,15 @@ func ZipFile(fname string, compress bool) (writtenFilename string, err error) {
 	})
 	defer zipWriter.Close()
 
-	zipfile, err := os.Open(filename)
+	// Get the file information for the target
+	log.Debugf("checking %s", path.Join(fpath, fname))
+	ftarget, err := os.Open(path.Join(fpath, fname))
 	if err != nil {
 		log.Error(err)
-		return "", err
+		return
 	}
-	defer zipfile.Close()
-	// Get the file information
-	info, err := zipfile.Stat()
+	defer ftarget.Close()
+	info, err := ftarget.Stat()
 	if err != nil {
 		log.Error(err)
 		return
@@ -140,20 +133,24 @@ func ZipFile(fname string, compress bool) (writtenFilename string, err error) {
 
 	var writer io.Writer
 	if info.IsDir() {
-		baseDir := filename
-		filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
+		baseDir := path.Join(fpath, fname)
+		log.Debugf("walking base dir: %s", baseDir)
+		filepath.Walk(baseDir, func(curpath string, info os.FileInfo, err error) error {
 			if err != nil {
+				log.Error(err)
 				return err
 			}
 
 			header, err := zip.FileInfoHeader(info)
 			if err != nil {
+				log.Error(err)
 				return err
 			}
 
 			if baseDir != "" {
-				header.Name = filepath.Join(baseDir, strings.TrimPrefix(path, baseDir))
+				header.Name = path.Join(fname, strings.TrimPrefix(curpath, baseDir))
 			}
+			log.Debug(header.Name)
 
 			if info.IsDir() {
 				header.Name += "/"
@@ -172,8 +169,9 @@ func ZipFile(fname string, compress bool) (writtenFilename string, err error) {
 				return nil
 			}
 
-			file, err := os.Open(path)
+			file, err := os.Open(curpath)
 			if err != nil {
+				log.Error(err)
 				return err
 			}
 			defer file.Close()
@@ -186,7 +184,7 @@ func ZipFile(fname string, compress bool) (writtenFilename string, err error) {
 			log.Error(err)
 			return
 		}
-		_, err = io.Copy(writer, zipfile)
+		_, err = io.Copy(writer, ftarget)
 		if err != nil {
 			log.Error(err)
 			return
