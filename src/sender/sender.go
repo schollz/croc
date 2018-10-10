@@ -150,8 +150,11 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 				if fstats.IsDir {
 					// zip the directory
 					fstats.SentName, err = zipper.ZipFile(fname, true)
-					// remove the file when leaving
-					defer os.Remove(fstats.SentName)
+					if err != nil {
+						log.Error(err)
+						fileReady <- err
+						return
+					}
 					fname = fstats.SentName
 
 					fstat, err := os.Stat(fname)
@@ -235,6 +238,10 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			log.Debugf("found blocks: %+v", blocksToSkip)
 
 			// start streaming encryption/compression
+			if fstats.IsDir {
+				// remove file if zipped
+				defer os.Remove(fstats.SentName)
+			}
 			go func(dataChan chan DataChan) {
 				var buffer []byte
 				if useWebsockets {
@@ -242,6 +249,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 				} else {
 					buffer = make([]byte, models.TCP_BUFFER_SIZE/2)
 				}
+
 				currentPostition := int64(0)
 				for {
 					bytesread, err := f.Read(buffer)
