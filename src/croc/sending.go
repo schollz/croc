@@ -45,13 +45,14 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 
 			// broadcast for peer discovery
 			go func() {
-				log.Debug("starting local croc relay...")
-				go peerdiscovery.Discover(peerdiscovery.Settings{
+				log.Debug("starting local discovery...")
+				discovered, err := peerdiscovery.Discover(peerdiscovery.Settings{
 					Limit:     1,
 					TimeLimit: 600 * time.Second,
 					Delay:     50 * time.Millisecond,
 					Payload:   []byte(c.RelayWebsocketPort + "- " + strings.Join(c.RelayTCPPorts, ",")),
 				})
+				log.Debug(discovered, err)
 			}()
 
 			// connect to own relay
@@ -76,6 +77,7 @@ func (c *Croc) Receive(codephrase string) (err error) {
 
 	// use local relay first
 	if !c.NoLocal {
+		log.Debug("trying discovering")
 		// try to discovery codephrase and server through peer network
 		discovered, errDiscover := peerdiscovery.Discover(peerdiscovery.Settings{
 			Limit:            1,
@@ -85,6 +87,8 @@ func (c *Croc) Receive(codephrase string) (err error) {
 			AllowSelf:        true,
 			DisableBroadcast: true,
 		})
+		log.Debug("finished")
+		log.Debug(discovered)
 		if errDiscover != nil {
 			log.Debug(errDiscover)
 		}

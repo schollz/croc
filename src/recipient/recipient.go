@@ -318,11 +318,11 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 						}
 						n, err = f.WriteAt(decrypted, int64(locationToWrite))
 						fProgress.WriteString(fmt.Sprintf("%d\n", locationToWrite))
-						log.Debugf("writing to location %d (%2.0f/%2.0f)", locationToWrite, blocksWritten, blocksToWrite)
+						log.Debugf("wrote %d bytes to location %d (%2.0f/%2.0f)", n, locationToWrite, blocksWritten, blocksToWrite)
 					} else {
 						// write to file
 						n, err = f.Write(decrypted)
-						log.Debugf("writing to location %d (%2.0f/%2.0f)", bytesWritten, blocksWritten, blocksToWrite)
+						log.Debugf("wrote %d bytes to location %d (%2.0f/%2.0f)", n, bytesWritten, blocksWritten, blocksToWrite)
 						fProgress.WriteString(fmt.Sprintf("%d\n", bytesWritten))
 					}
 					if err != nil {
@@ -336,7 +336,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 					// update the progress bar
 					bar.Add(n)
 					if int64(bytesWritten) == fstats.Size || blocksWritten >= blocksToWrite {
-						log.Debug("finished")
+						log.Debug("finished", int64(bytesWritten), fstats.Size, blocksWritten, blocksToWrite)
 						break
 					}
 				}
