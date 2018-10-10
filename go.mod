@@ -18,6 +18,6 @@ require (
 	github.com/stretchr/testify v1.2.2
 	github.com/tscholl2/siec v0.0.0-20180721101609-21667da05937
 	github.com/urfave/cli v1.20.0
-	golang.org/x/crypto v0.0.0-20180910181607-0e37d006457b
-	golang.org/x/net v0.0.0-20180925072008-f04abc6bdfa7 // indirect
+	golang.org/x/crypto v0.0.0-20181009213950-7c1a557ab941
+	golang.org/x/net v0.0.0-20181005035420-146acd28ed58 // indirect
 )
