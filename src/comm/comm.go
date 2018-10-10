@@ -18,7 +18,7 @@ type Comm struct {
 func New(c net.Conn) Comm {
 	c.SetReadDeadline(time.Now().Add(3 * time.Hour))
 	c.SetDeadline(time.Now().Add(3 * time.Hour))
-	c.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	c.SetWriteDeadline(time.Now().Add(20 * time.Second))
 	return Comm{c}
 }
 
@@ -35,7 +35,7 @@ func (c Comm) Close() {
 func (c Comm) Write(b []byte) (int, error) {
 	n, err := c.connection.Write(append([]byte(fmt.Sprintf("%0.5d", len(b))), b...))
 	if n != len(b)+5 {
-		err = fmt.Errorf("wanted to write %d but wrote %d", n, len(b))
+		err = fmt.Errorf("wanted to write %d but wrote %d", len(b), n)
 	}
 	// log.Printf("wanted to write %d but wrote %d", n, len(b))
 	return n, err
