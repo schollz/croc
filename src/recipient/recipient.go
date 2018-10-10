@@ -383,7 +383,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 						defer wg.Done()
 						for {
 							// read from TCP connection
-							message, _, _, err = tcpConnection.Read()
+							message, _, _, err := tcpConnection.Read()
 							// log.Debugf("message: %s", message)
 							if err != nil {
 								log.Error(err)
