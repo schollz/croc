@@ -183,7 +183,7 @@ func (c *Croc) sendReceive(address, websocketPort string, tcpPorts []string, fna
 			}
 			select {
 			case <-done:
-			case <-time.After(time.Second):
+			case <-time.After(100 * time.Millisecond):
 			}
 			return nil
 		}
