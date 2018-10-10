@@ -18,7 +18,7 @@ type Comm struct {
 func New(c net.Conn) Comm {
 	c.SetReadDeadline(time.Now().Add(3 * time.Hour))
 	c.SetDeadline(time.Now().Add(3 * time.Hour))
-	c.SetWriteDeadline(time.Now().Add(20 * time.Second))
+	c.SetWriteDeadline(time.Now().Add(3 * time.Hour))
 	return Comm{c}
 }
 
