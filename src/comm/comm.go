@@ -33,8 +33,12 @@ func (c Comm) Close() {
 }
 
 func (c Comm) Write(b []byte) (int, error) {
-	n, err := c.connection.Write(append([]byte(fmt.Sprintf("%0.5d", len(b))), b...))
-	if n != len(b)+5 {
+	tmpCopy := make([]byte, len(b)+5)
+	// Copy the buffer so it doesn't get changed while read by the recipient.
+	copy(tmpCopy[:5], []byte(fmt.Sprintf("%0.5d", len(b))))
+	copy(tmpCopy[5:], b)
+	n, err := c.connection.Write(tmpCopy)
+	if n != len(tmpCopy) {
 		err = fmt.Errorf("wanted to write %d but wrote %d", len(b), n)
 	}
 	// log.Printf("wanted to write %d but wrote %d", n, len(b))
