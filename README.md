@@ -11,22 +11,29 @@
 
 <p align="center">Easily and securely transfer stuff from one computer to another.</p>
 
-*croc* allows any two computers to directly and securely transfer files and folders. When sending a file, *croc* generates a random code phrase which must be shared with the recipient so they can receive the file. The code phrase encrypts all data and metadata and also serves to authorize the connection between the two computers in a intermediary relay. The relay connects the TCP ports between the two computers and does not store any information (and all information passing through it is encrypted). 
+*croc* is a tool that allows any two computers to simply and securely transfer files and folders. There are many tools that can do this, but afaik *croc* is the only tool that is easily installed on any platform *and* has secure peer-to-peer transferring *and* has the capability to resume broken transfers. 
 
-I hear you asking, *Why another open-source peer-to-peer file transfer utilities?* [There](https://github.com/cowbell/sharedrop) [are](https://github.com/webtorrent/instant.io) [great](https://github.com/kern/filepizza) [tools](https://github.com/warner/magic-wormhole) [that](https://github.com/zerotier/toss) [already](https://github.com/ipfs/go-ipfs) [do](https://github.com/zerotier/toss) [this](https://github.com/nils-werner/zget). But, after review, [I found it was useful to make another](https://schollz.github.io/sending-a-file/). Namely, *croc* has no dependencies (just [download a binary and run](https://github.com/schollz/croc/releases/latest)), it works on any operating system, and its blazingly fast because it does parallel transfer over multiple TCP ports.
+## Overview
 
-## Example
+*croc* uses "code phrases" to securely transfer files. A code phrase is a combination of three random words which the sender shares with the recipient. The code phrase is used by the sender and recipient for password authenticated key exchange ([PAKE](https://github.com/schollz/pake)) to validate parties and generate a secure session key for end-to-end encryption. Since a code phrase can only be used once between two parties, an attacker only has a 1 in 16,777,216 chance to guess the right code phrase to steal the file, any attacker with the wrong code phrase will fail the PAKE and the sender will be notified. Only two people with the right code phrase will be able to computers transfer encrypted data through a relay.
 
-_These two gifs should run in sync if you force-reload (Ctl+F5)_
+The actual data transfer is accomplished using a relay, either using raw TCP sockets or websockets. If both computers are on the LAN network then *croc* will use a local relay, otherwise a public relay is used. All the data going through the relay is encrypted using the PAKE-generated session key, so the relay can't spy on information passing through it. The data is transferred in blocks, where each block is compressed and encrypted, and the recipient keeps track of blocks received so that it can resume the transfer if interrupted.
 
-**Sender:**
+My motivation to write *croc*, as stupid as it sounds, is because I wanted to create a program that made it easy to send a 3GB+ PBS documentary to my friend in a different country. My friend has a Windows computer and is not comfortable using a terminal. So I wanted to write a program that, while secure, is simple to receive a file. *croc* accomplishes this, and now I find myself using it almost everyday at work. To receive a file you can just download the executable and double click on it (sending a file requires opening a terminal still, though).
 
-![send](https://github.com/schollz/croc/blob/6af10ad871d929ace4664ac8c1e4acc37d01b323/src/testing_data/sender.gif)
+## Examples
 
-**Receiver:**
+The first example shows the basic transfer of some file or folder from computer 1 to computer 2. _These two gifs should run in sync if you force-reload (Ctl+F5)_
 
-![receive](https://github.com/schollz/croc/blob/6af10ad871d929ace4664ac8c1e4acc37d01b323/src/testing_data/recipient.gif)
+![send](.github/1.gif)
 
+![receive](.github/2.gif)
+
+The second example shows how you can restart a broken transfer. Here, computer 2 presses Ctl+C during a transfer to abruptly break the connection, and then resumes by having computer 1 re-send the file. _These two gifs should run in sync if you force-reload (Ctl+F5)_
+
+![send](.github/3.gif)
+
+![receive](.github/4.gif)
 
 ## Install
 
@@ -102,21 +109,13 @@ $ croc -relay "ws://myrelay.example.com" send [filename]
 ```
 
 
-## How does it work? 
-
-*croc* is similar to [magic-wormhole](https://github.com/warner/magic-wormhole#design) in spirit and design. Like *magic-wormhole*, *croc* generates a code phrase for you to share with your friend which allows secure end-to-end transferring of files and folders through a intermediary relay that connects the TCP ports between the two computers. Also like *magic-wormhole*, security is enabled by performing password-authenticated key exchange (PAKE) with the weak code phrase to generate a session key on both machines without passing any private information between the two. The session key is then verified and used to encrypt the content and meta-data with AES-256. If at any point the PAKE fails, an error will be reported and the file will not be transferred. More details on the PAKE transfer can be found at [github.com/schollz/pake](https://github.com/schollz/pake) and below in the [protocol](#protocol).
-
-The intermediary relay uses websockets to have bidirectional communication with potential senders and recipients. Only one sender and one recipient is allowed in a channel at once. The relay helps to deliver the PAKE information, and once both parties agree, it will staple the connections between the sender and recipient and pipe all incoming TCP data from the sender to the recipient. 
-
-When sending a file with *croc*, a local relay is initiated which will try to discover local peers for connection. If a recipient is found locally, then the local connections are used and the public relay is never used. This way, *croc* can be used without a public internet connection (i.e. to transfer files over LAN).
-
 ## License
 
 MIT
 
 ## Acknowledgements
 
-I am awed by all the [great contributions](#acknowledgements) made! If you feel like contributing, in any way, by all means you can send an Issue, a PR, ask a question, or tweet me ([@yakczar](http://ctt.ec/Rq054)).
+*croc* has been through many iterations, and I am awed by all the great contributions! If you feel like contributing, in any way, by all means you can send an Issue, a PR, ask a question, or tweet me ([@yakczar](http://ctt.ec/Rq054)).
 
 Thanks...
 
