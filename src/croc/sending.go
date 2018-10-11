@@ -135,7 +135,7 @@ func (c *Croc) sendReceive(address, websocketPort string, tcpPorts []string, fna
 		return fmt.Errorf("codephrase is too short")
 	}
 
-	// allow interrupts
+	// allow interrupts from Ctl+C
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
@@ -171,6 +171,9 @@ func (c *Croc) sendReceive(address, websocketPort string, tcpPorts []string, fna
 		case <-done:
 			return nil
 		case <-interrupt:
+			if !c.Debug {
+				SetDebugLevel("critical")
+			}
 			log.Debug("interrupt")
 			err = sock.WriteMessage(websocket.TextMessage, []byte("interrupt"))
 			if err != nil {

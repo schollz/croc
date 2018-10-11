@@ -72,10 +72,14 @@ func Init(debug bool) (c *Croc) {
 		debugLevel = "debug"
 		c.Debug = true
 	}
+	SetDebugLevel(debugLevel)
+	return
+}
+
+func SetDebugLevel(debugLevel string) {
 	logger.SetLogLevel(debugLevel)
 	sender.DebugLevel = debugLevel
 	recipient.DebugLevel = debugLevel
 	relay.DebugLevel = debugLevel
 	zipper.DebugLevel = debugLevel
-	return
 }
