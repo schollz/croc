@@ -17,7 +17,7 @@ func sendAndReceive(t *testing.T, forceSend int, local bool) {
 	room := utils.GetRandomName()
 	var startTime time.Time
 	var durationPerMegabyte float64
-	megabytes := 10
+	megabytes := 1
 	if local {
 		megabytes = 100
 	}
@@ -36,7 +36,7 @@ func sendAndReceive(t *testing.T, forceSend int, local bool) {
 	}()
 	go func() {
 		defer wg.Done()
-		time.Sleep(3 * time.Second)
+		time.Sleep(5 * time.Second)
 		os.MkdirAll("test", 0755)
 		os.Chdir("test")
 		c := Init(true)
@@ -67,9 +67,9 @@ func TestSendReceiveLocalWebsockets(t *testing.T) {
 	sendAndReceive(t, 1, true)
 }
 
-func TestSendReceiveLocalTCP(t *testing.T) {
-	sendAndReceive(t, 2, true)
-}
+// func TestSendReceiveLocalTCP(t *testing.T) {
+// 	sendAndReceive(t, 2, true)
+// }
 
 func generateRandomFile(megabytes int) (fname string) {
 	// generate a random file
