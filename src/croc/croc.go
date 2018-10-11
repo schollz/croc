@@ -61,11 +61,11 @@ func Init(debug bool) (c *Croc) {
 	c.UseEncryption = true
 	c.AllowLocalDiscovery = true
 	c.RelayWebsocketPort = "8153"
-	c.RelayTCPPorts = []string{"8154", "8155", "8156", "8157"}
+	c.RelayTCPPorts = []string{"8154", "8155", "8156", "8157", "8158", "8159", "8160", "8161"}
 	c.CurveType = "siec"
 	c.Address = "198.199.67.130"
 	c.AddressWebsocketPort = "8153"
-	c.AddressTCPPorts = []string{"8154", "8155", "8156", "8157"}
+	c.AddressTCPPorts = []string{"8154", "8155", "8156", "8157", "8158", "8159", "8160", "8161"}
 	c.NoRecipientPrompt = true
 	debugLevel := "info"
 	if debug {

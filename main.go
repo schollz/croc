@@ -64,7 +64,7 @@ func main() {
 	app.Flags = []cli.Flag{
 		cli.StringFlag{Name: "addr", Value: "198.199.67.130", Usage: "address of the public relay"},
 		cli.StringFlag{Name: "addr-ws", Value: "8153", Usage: "port of the public relay websocket server to connect"},
-		cli.StringFlag{Name: "addr-tcp", Value: "8154,8155,8156,8157", Usage: "tcp ports of the public relay serer to connect"},
+		cli.StringFlag{Name: "addr-tcp", Value: "8154,8155,8156,8157,8158,8159,8160,8161", Usage: "tcp ports of the public relay server to connect"},
 		cli.BoolFlag{Name: "no-local", Usage: "disable local mode"},
 		cli.BoolFlag{Name: "local", Usage: "use only local mode"},
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
@@ -73,7 +73,7 @@ func main() {
 		cli.BoolFlag{Name: "force-tcp", Usage: "force TCP"},
 		cli.BoolFlag{Name: "force-web", Usage: "force websockets"},
 		cli.StringFlag{Name: "port", Value: "8153", Usage: "port that the websocket listens on"},
-		cli.StringFlag{Name: "tcp-port", Value: "8154,8155,8156,8157", Usage: "ports that the tcp server listens on"},
+		cli.StringFlag{Name: "tcp-port", Value: "8154,8155,8156,8157,8158,8159,8160,8161", Usage: "ports that the tcp server listens on"},
 		cli.StringFlag{Name: "curve", Value: "siec", Usage: "specify elliptic curve to use (p224, p256, p384, p521, siec)"},
 	}
 	app.EnableBashCompletion = true
