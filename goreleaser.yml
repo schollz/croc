@@ -1,34 +1,85 @@
-# .goreleaser.yml
-# Build customization
-builds:
-  - binary: croc
-    goos:
-      - windows
-      - darwin
-      - linux
-    goarch:
-      - amd64
-      - arm
-      - 386
-    goarm:
-      - 6
-    ignore:
-      - goos: darwin
-        goarch: arm
-      - goos: windows
-        goarch: arm
-      - goos: darwin
-        goarch: 386
-    env:
-      - CGO_ENABLED=0
-archive:
+project_name: croc
+build:
+  main: main.go
+  binary: croc
+  ldflags: -s -w -X main.Version="v{{.Version}}-{{.Date}}"
+  env:
+    - CGO_ENABLED=0
+  goos:
+    - darwin
+    - linux
+    - windows
+    - freebsd
+    - netbsd
+    - openbsd
+    - dragonfly
+  goarch:
+    - amd64
+    - 386
+    - arm
+    - arm64
+  goarm:
+    - 7
+snapcraft:
+  name: croc
+  summary: A simple, secure, and fast way to transfer data.
+  description: This allows you to transfer data between two computers as though they were on LAN.
+  grade: stable
+  confinement: strict
   replacements:
     amd64: 64bit
     386: 32bit
-    darwin: OSX
-    linux_arm: raspberry_pi
+    arm: ARM
+    arm64: ARM64
+    darwin: macOS
+    linux: Linux
+    windows: Windows
+    openbsd: OpenBSD
+    netbsd: NetBSD
+    freebsd: FreeBSD
+    dragonfly: DragonFlyBSD
+
+nfpm:
+  formats:
+    - deb
+  vendor: "schollz.com"
+  homepage: "https://github.com/schollz/croc"
+  maintainer: "Zack Scholl <zack.scholl@gmail.com>"
+  description: "A simple, secure, and fast way to transfer data."
+  license: "MIT"
+  name_template: "{{.ProjectName}}_{{.Version}}_{{.Os}}-{{.Arch}}"
+  replacements:
+    amd64: 64bit
+    386: 32bit
+    arm: ARM
+    arm64: ARM64
+    darwin: macOS
+    linux: Linux
+    windows: Windows
+    openbsd: OpenBSD
+    netbsd: NetBSD
+    freebsd: FreeBSD
+    dragonfly: DragonFlyBSD
+archive:
+  format: tar.gz
   format_overrides:
-     - goos: windows
-       format: zip
-     - goos: darwin
-       format: zip
+    - goos: windows
+      format: zip
+  name_template: "{{.ProjectName}}_{{.Version}}_{{.Os}}-{{.Arch}}"
+  replacements:
+    amd64: 64bit
+    386: 32bit
+    arm: ARM
+    arm64: ARM64
+    darwin: macOS
+    linux: Linux
+    windows: Windows
+    openbsd: OpenBSD
+    netbsd: NetBSD
+    freebsd: FreeBSD
+    dragonfly: DragonFlyBSD
+  files:
+    - README.md
+    - LICENSE
+release:
+  draft: true

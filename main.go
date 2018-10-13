@@ -17,7 +17,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-var version string
+var Version string
 var codePhrase string
 
 var cr *croc.Croc
@@ -25,11 +25,11 @@ var cr *croc.Croc
 func main() {
 	app := cli.NewApp()
 	app.Name = "croc"
-	if version == "" {
-		version = "dev"
+	if Version == "" {
+		Version = "dev"
 	}
 
-	app.Version = version
+	app.Version = Version
 	app.Compiled = time.Now()
 	app.Usage = "easily and securely transfer stuff from one computer to another"
 	app.UsageText = "croc allows any two computers to directly and securely transfer files"
