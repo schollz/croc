@@ -65,7 +65,7 @@ install_croc()
 		croc_arch="64bit"
 	elif [[ $unamem == *86* ]]; then
 		croc_arch="32bit"
-	elif [[ $unamem == *armv5* ]]; then
+	elif [[ $unamem == *arm* ]]; then
 		croc_arch="ARM"
 	else
 		echo "Aborted, unsupported or unknown architecture: $unamem"
