@@ -55,6 +55,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 	var resumeFile bool
 	var tcpConnections []comm.Comm
 	dataChan := make(chan []byte, 1024*1024)
+	isConnectedIfUsingTCP := make(chan bool)
 	blocks := []string{}
 
 	useWebsockets := true
@@ -121,19 +122,38 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 			if err := Q.Update(message); err != nil {
 				return err
 			}
-			c.WriteMessage(websocket.BinaryMessage, Q.Bytes())
-		case 2:
-			log.Debugf("[%d] Q recieves H(k) from P", step)
-			if err := Q.Update(message); err != nil {
-				return err
-			}
 
+			// Q has the session key now, but we will still check if its valid
 			sessionKey, err = Q.SessionKey()
 			if err != nil {
 				return err
 			}
 			log.Debugf("%x\n", sessionKey)
 
+			// initialize TCP connections if using (possible, but unlikely, race condition)
+			go func() {
+				if !useWebsockets {
+					log.Debugf("connecting to server")
+					tcpConnections = make([]comm.Comm, len(tcpPorts))
+					for i, tcpPort := range tcpPorts {
+						log.Debugf("connecting to %d", i)
+						tcpConnections[i], err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
+						if err != nil {
+							log.Error(err)
+						}
+					}
+					log.Debugf("fully connected")
+				}
+				isConnectedIfUsingTCP <- true
+			}()
+
+			c.WriteMessage(websocket.BinaryMessage, Q.Bytes())
+		case 2:
+			log.Debugf("[%d] Q recieves H(k) from P", step)
+			// check if everything is still kosher with our computed session key
+			if err := Q.Update(message); err != nil {
+				return err
+			}
 			c.WriteMessage(websocket.BinaryMessage, []byte("ready"))
 		case 3:
 			spin.Stop()
@@ -155,7 +175,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 			}
 			log.Debugf("got file stats: %+v", fstats)
 
-			// prompt user if its okay to receive file
+			// determine if the file is resuming or not
 			progressFile = fmt.Sprintf("%s.progress", fstats.SentName)
 			overwritingOrReceiving := "Receiving"
 			if utils.Exists(fstats.Name) || utils.Exists(fstats.SentName) {
@@ -165,6 +185,22 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 					resumeFile = true
 				}
 			}
+
+			// send blocks
+			if resumeFile {
+				fileWithBlocks, _ := os.Open(progressFile)
+				scanner := bufio.NewScanner(fileWithBlocks)
+				for scanner.Scan() {
+					blocks = append(blocks, strings.TrimSpace(scanner.Text()))
+				}
+				fileWithBlocks.Close()
+			}
+			blocksBytes, _ := json.Marshal(blocks)
+			// encrypt the block data and send
+			encblockBytes := crypt.Encrypt(blocksBytes, sessionKey)
+			c.WriteMessage(websocket.BinaryMessage, encblockBytes.Bytes())
+
+			// prompt user about the file
 			fileOrFolder := "file"
 			if fstats.IsDir {
 				fileOrFolder = "folder"
@@ -181,21 +217,6 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 					c.WriteMessage(websocket.BinaryMessage, []byte("no"))
 					return nil
 				}
-			}
-
-			// connect to TCP to receive file
-			if !useWebsockets {
-				log.Debugf("connecting to server")
-				tcpConnections = make([]comm.Comm, len(tcpPorts))
-				for i, tcpPort := range tcpPorts {
-					tcpConnections[i], err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
-					if err != nil {
-						log.Error(err)
-						return err
-					}
-					defer tcpConnections[i].Close()
-				}
-				log.Debugf("fully connected")
 			}
 
 			// await file
@@ -227,17 +248,6 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 					}
 				}
 			}
-
-			// append the previous blocks if there was progress previously
-			if resumeFile {
-				file, _ := os.Open(progressFile)
-				scanner := bufio.NewScanner(file)
-				for scanner.Scan() {
-					blocks = append(blocks, strings.TrimSpace(scanner.Text()))
-				}
-				file.Close()
-			}
-			blocksBytes, _ := json.Marshal(blocks)
 
 			blockSize := 0
 			if useWebsockets {
@@ -364,45 +374,44 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 						log.Debug("got magic")
 						break
 					}
-					select {
-					case dataChan <- message:
-					default:
-						log.Debug("blocked")
-						// no message sent
-						// block
-						dataChan <- message
-					}
+					dataChan <- message
+					// select {
+					// case dataChan <- message:
+					// default:
+					// 	log.Debug("blocked")
+					// 	// no message sent
+					// 	// block
+					// 	dataChan <- message
+					// }
 				}
 			} else {
+				_ = <-isConnectedIfUsingTCP
 				log.Debugf("starting listening with tcp with %d connections", len(tcpConnections))
 				// using TCP
 				var wg sync.WaitGroup
 				wg.Add(len(tcpConnections))
 				for i := range tcpConnections {
-					go func(wg *sync.WaitGroup, tcpConnection comm.Comm) {
+					defer func(i int) {
+						log.Debugf("closing connection %d", i)
+						tcpConnections[i].Close()
+					}(i)
+					go func(wg *sync.WaitGroup, j int) {
 						defer wg.Done()
 						for {
+							log.Debugf("waiting to read on %d", j)
 							// read from TCP connection
-							message, _, _, err := tcpConnection.Read()
+							message, _, _, err := tcpConnections[j].Read()
 							// log.Debugf("message: %s", message)
 							if err != nil {
-								log.Error(err)
-								return
+								panic(err)
 							}
 							if bytes.Equal(message, []byte("magic")) {
-								log.Debug("got magic")
+								log.Debugf("%d got magic, leaving", j)
 								return
 							}
-							select {
-							case dataChan <- message:
-							default:
-								log.Debug("blocked")
-								// no message sent
-								// block
-								dataChan <- message
-							}
+							dataChan <- message
 						}
-					}(&wg, tcpConnections[i])
+					}(&wg, i)
 				}
 				wg.Wait()
 			}

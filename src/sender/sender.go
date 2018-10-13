@@ -54,6 +54,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 	var startTransfer time.Time
 	var tcpConnections []comm.Comm
 	blocksToSkip := make(map[int64]struct{})
+	isConnectedIfUsingTCP := make(chan bool)
 
 	type DataChan struct {
 		b                []byte
@@ -203,6 +204,22 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 				return errors.New("recipient refused file")
 			}
 
+			// connect to TCP in background
+			tcpConnections = make([]comm.Comm, len(tcpPorts))
+			go func() {
+				if !useWebsockets {
+					log.Debugf("connecting to server")
+					for i, tcpPort := range tcpPorts {
+						log.Debugf("connecting to %s on connection %d", tcpPort, i)
+						tcpConnections[i], err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
+						if err != nil {
+							log.Error(err)
+						}
+					}
+				}
+				isConnectedIfUsingTCP <- true
+			}()
+
 			err = <-fileReady // block until file is ready
 			if err != nil {
 				return err
@@ -217,16 +234,23 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			// send the file meta data
 			c.WriteMessage(websocket.BinaryMessage, enc.Bytes())
 		case 4:
-			spin.Stop()
-
-			log.Debugf("[%d] recipient declares readiness for file data", step)
-			if !bytes.HasPrefix(message, []byte("ready")) {
-				return errors.New("recipient refused file")
+			log.Debugf("[%d] recipient declares gives blocks", step)
+			// recipient sends blocks, and sender does not send anything back
+			// determine if any blocks were sent to skip
+			enc, err := crypt.FromBytes(message)
+			if err != nil {
+				log.Error(err)
+				return err
+			}
+			decrypted, err := enc.Decrypt(sessionKey)
+			if err != nil {
+				err = errors.Wrap(err, "could not decrypt blocks with session key")
+				log.Error(err)
+				return err
 			}
 
-			// determine if any blocks were sent to skip
 			var blocks []string
-			errBlocks := json.Unmarshal(message[5:], &blocks)
+			errBlocks := json.Unmarshal(decrypted, &blocks)
 			if errBlocks == nil {
 				for _, block := range blocks {
 					blockInt64, errBlock := strconv.Atoi(block)
@@ -237,6 +261,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			}
 			log.Debugf("found blocks: %+v", blocksToSkip)
 
+			// start loading the file into memory
 			// start streaming encryption/compression
 			if fstats.IsDir {
 				// remove file if zipped
@@ -285,21 +310,10 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 							return
 						}
 
-						select {
-						case dataChan <- DataChan{
+						dataChan <- DataChan{
 							b:         encBytes,
 							bytesRead: bytesread,
 							err:       nil,
-						}:
-						default:
-							log.Debug("blocked")
-							// no message sent
-							// block
-							dataChan <- DataChan{
-								b:         encBytes,
-								bytesRead: bytesread,
-								err:       nil,
-							}
 						}
 						currentPostition += int64(bytesread)
 					}
@@ -330,19 +344,12 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 				}
 			}(dataChan)
 
-			// connect to TCP to receive file
-			if !useWebsockets {
-				log.Debugf("connecting to server")
-				tcpConnections = make([]comm.Comm, len(tcpPorts))
-				for i, tcpPort := range tcpPorts {
-					log.Debug(tcpPort)
-					tcpConnections[i], err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
-					if err != nil {
-						log.Error(err)
-						return err
-					}
-					defer tcpConnections[i].Close()
-				}
+		case 5:
+			spin.Stop()
+
+			log.Debugf("[%d] recipient declares readiness for file data", step)
+			if !bytes.HasPrefix(message, []byte("ready")) {
+				return errors.New("recipient refused file")
 			}
 
 			fmt.Fprintf(os.Stderr, "\rSending (->%s)...\n", otherIP)
@@ -381,10 +388,16 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 					}
 				}
 			} else {
+				_ = <-isConnectedIfUsingTCP
+				log.Debug("connected and ready to send on tcp")
 				var wg sync.WaitGroup
 				wg.Add(len(tcpConnections))
 				for i := range tcpConnections {
-					go func(i int, wg *sync.WaitGroup, dataChan <-chan DataChan, tcpConnection comm.Comm) {
+					defer func(i int) {
+						log.Debugf("closing connection %d", i)
+						tcpConnections[i].Close()
+					}(i)
+					go func(i int, wg *sync.WaitGroup, dataChan <-chan DataChan) {
 						defer wg.Done()
 						for data := range dataChan {
 							if data.err != nil {
@@ -393,7 +406,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 							}
 							bar.Add(data.bytesRead)
 							// write data to tcp connection
-							_, err = tcpConnection.Write(data.b)
+							_, err = tcpConnections[i].Write(data.b)
 							if err != nil {
 								err = errors.Wrap(err, "problem writing message")
 								log.Error(err)
@@ -404,7 +417,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 								return
 							}
 						}
-					}(i, &wg, dataChan, tcpConnections[i])
+					}(i, &wg, dataChan)
 				}
 				wg.Wait()
 			}
@@ -415,7 +428,8 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			if err != nil {
 				return err
 			}
-		case 5:
+		case 6:
+			// recevied something, maybe the file hash
 			transferTime := time.Since(startTransfer)
 			if !bytes.HasPrefix(message, []byte("hash:")) {
 				log.Debugf("%s", message)
@@ -446,7 +460,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 }
 
 func connectToTCPServer(room string, address string) (com comm.Comm, err error) {
-	connection, err := net.Dial("tcp", address)
+	connection, err := net.DialTimeout("tcp", address, 3*time.Hour)
 	if err != nil {
 		return
 	}

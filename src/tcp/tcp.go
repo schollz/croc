@@ -64,12 +64,14 @@ func run(port string) (err error) {
 
 func clientCommuncation(port string, c comm.Comm) (err error) {
 	// send ok to tell client they are connected
+	log.Debug("sending ok")
 	err = c.Send("ok")
 	if err != nil {
 		return
 	}
 
 	// wait for client to tell me which room they want
+	log.Debug("waiting for answer")
 	room, err := c.Receive()
 	if err != nil {
 		return
@@ -86,10 +88,13 @@ func clientCommuncation(port string, c comm.Comm) (err error) {
 		// tell the client that they got the room
 		err = c.Send("recipient")
 		if err != nil {
+			log.Error(err)
 			return
 		}
+		log.Debug("recipient connected")
 		return nil
 	}
+	log.Debug("sender connected")
 	receiver := rooms.rooms[room].receiver
 	rooms.Unlock()
 
@@ -137,6 +142,7 @@ func chanFromConn(conn net.Conn) chan []byte {
 				c <- res
 			}
 			if err != nil {
+				log.Debug(err)
 				c <- nil
 				break
 			}

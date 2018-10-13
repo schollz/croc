@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // Comm is some basic TCP communication
@@ -39,7 +41,11 @@ func (c Comm) Write(b []byte) (int, error) {
 	copy(tmpCopy[5:], b)
 	n, err := c.connection.Write(tmpCopy)
 	if n != len(tmpCopy) {
-		err = fmt.Errorf("wanted to write %d but wrote %d", len(b), n)
+		if err != nil {
+			err = errors.Wrap(err, fmt.Sprintf("wanted to write %d but wrote %d", len(b), n))
+		} else {
+			err = fmt.Errorf("wanted to write %d but wrote %d", len(b), n)
+		}
 	}
 	// log.Printf("wanted to write %d but wrote %d", n, len(b))
 	return n, err
