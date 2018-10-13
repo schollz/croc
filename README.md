@@ -13,7 +13,7 @@ Status"></a>
 </p>
 
 
-<p align="center">Easily and securely transfer stuff from one computer to another.</p>
+<p align="center"><code>curl https://getcroc.schollz.com | bash</code></p>
 
 *croc* is a tool that allows any two computers to simply and securely transfer files and folders. There are many tools that can do this, but afaik *croc* is the only tool that is easily installed on any platform *and* has secure peer-to-peer transferring *and* has the capability to resume broken transfers. 
 
