@@ -30,13 +30,25 @@ func Run(debugLevel, port string) {
 	rooms.Lock()
 	rooms.rooms = make(map[string]roomInfo)
 	rooms.Unlock()
+
+	// delete old rooms
+	go func() {
+		for {
+			time.Sleep(10 * time.Minute)
+			rooms.Lock()
+			for room := range rooms.rooms {
+				if time.Since(rooms.rooms[room].opened) > 3*time.Hour {
+					delete(rooms.rooms, room)
+				}
+			}
+			rooms.Unlock()
+		}
+	}()
+
 	err := run(port)
 	if err != nil {
 		log.Error(err)
 	}
-
-	// TODO:
-	// delete old rooms
 }
 
 func run(port string) (err error) {
