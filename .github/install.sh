@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+#
+#  Adapted from https://croc.schollz.com
+#
+#                  croc Installer Script
+#
+#   Homepage: https://schollz.com/software/croc
+#   Issues:   https://github.com/schollz/croc/issues
+#   Requires: bash, mv, rm, tr, type, curl/wget, base64, sudo (if not root)
+#             tar (or unzip on OSX and Windows), gpg (optional verification)
+#
+# This script safely installs croc into your PATH (which may require
+# password authorization).
+#
+# In automated environments, you may want to run as root.
+# If using curl, we recommend using the -fsSL flags.
+#
+# This should work on Mac, Linux, and BSD systems, and
+# hopefully Windows with Cygwin. Please open an issue if
+# you notice any bugs.
+#
+
+# [[ $- = *i* ]] && echo "Don't source this script!" && return 10
+
+install_croc()
+{
+	trap 'echo -e "Aborted, error $? in command: $BASH_COMMAND"; trap ERR; exit 1' ERR
+	install_path="/usr/local/bin"
+	croc_os="unsupported"
+	croc_arch="unknown"
+	croc_arm=""
+	croc_version="4.0.4"
+
+
+	# Termux on Android has $PREFIX set which already ends with /usr
+	if [[ -n "$ANDROID_ROOT" && -n "$PREFIX" ]]; then
+		install_path="$PREFIX/bin"
+	fi
+
+	# Fall back to /usr/bin if necessary
+	if [[ ! -d $install_path ]]; then
+		install_path="/usr/bin"
+	fi
+
+	# Not every platform has or needs sudo (https://termux.com/linux.html)
+	((EUID)) && [[ -z "$ANDROID_ROOT" ]] && sudo_cmd="sudo"
+
+	#########################
+	# Which OS and version? #
+	#########################
+
+	croc_bin="croc"
+	croc_dl_ext=".tar.gz"
+
+	# NOTE: `uname -m` is more accurate and universal than `arch`
+	# See https://en.wikipedia.org/wiki/Uname
+	unamem="$(uname -m)"
+	if [[ $unamem == *aarch64* ]]; then
+		croc_arch="ARM64"
+	elif [[ $unamem == *64* ]]; then
+		croc_arch="64bit"
+	elif [[ $unamem == *86* ]]; then
+		croc_arch="32bit"
+	elif [[ $unamem == *armv5* ]]; then
+		croc_arch="ARM"
+	else
+		echo "Aborted, unsupported or unknown architecture: $unamem"
+		return 2
+	fi
+
+	unameu="$(tr '[:lower:]' '[:upper:]' <<<$(uname))"
+	if [[ $unameu == *DARWIN* ]]; then
+		croc_os="macOS"
+		vers=$(sw_vers)
+		version=${vers##*ProductVersion:}
+		IFS='.' read OSX_MAJOR OSX_MINOR _ <<<"$version"
+
+		# # Major
+		# if ((OSX_MAJOR < 10)); then
+		# 	echo "Aborted, unsupported OS X version (9-)"
+		# 	return 3
+		# fi
+		# if ((OSX_MAJOR > 10)); then
+		# 	echo "Aborted, unsupported OS X version (11+)"
+		# 	return 4
+		# fi
+
+		# # Minor
+		# if ((OSX_MINOR < 5)); then
+		# 	echo "Aborted, unsupported OS X version (10.5-)"
+		# 	return 5
+		# fi
+	elif [[ $unameu == *LINUX* ]]; then
+		croc_os="Linux"
+	elif [[ $unameu == *FREEBSD* ]]; then
+		croc_os="freebsd"
+	elif [[ $unameu == *NETBSD* ]]; then
+		croc_os="NetBSD"
+	elif [[ $unameu == *OPENBSD* ]]; then
+		croc_os="OpenBSD"
+	elif [[ $unameu == *WIN* || $unameu == MSYS* ]]; then
+		# Should catch cygwin
+		sudo_cmd=""
+		croc_os="Windows"
+		croc_dl_ext=".zip"
+		croc_bin=$croc_bin.exe
+	else
+		echo "Aborted, unsupported or unknown os: $uname"
+		return 6
+	fi
+	croc_file="croc_${croc_version}_${croc_os}-${croc_arch}${croc_dl_ext}"
+
+	########################
+	# Download and extract #
+	########################
+
+	croc_url="https://github.com/schollz/croc/releases/download/v${croc_version}/${croc_file}"
+	echo "Downloading croc v${croc_version} (${croc_os} ${croc_arch})..."
+
+	type -p gpg >/dev/null 2>&1 && gpg=1 || gpg=0
+
+	# Use $PREFIX for compatibility with Termux on Android
+	dl="$PREFIX/tmp/$croc_file"
+	rm -rf -- "$dl"
+
+	if type -p curl >/dev/null 2>&1; then
+		curl -fsSL "$croc_url" -o "$dl"
+	elif type -p wget >/dev/null 2>&1; then
+		wget --quiet  "$croc_url" -O "$dl"
+	else
+		echo "Aborted, could not find curl or wget"
+		return 7
+	fi
+
+
+	echo "Extracting..."
+	case "$croc_file" in
+		*.zip)    unzip -o "$dl" "$croc_bin" -d "$PREFIX/tmp/" ;;
+		*.tar.gz) tar -xzf "$dl" -C "$PREFIX/tmp/" "$croc_bin" ;;
+	esac
+	chmod +x "$PREFIX/tmp/$croc_bin"
+
+	# Back up existing croc, if any found in path
+	if croc_path="$(type -p "$croc_bin")"; then
+		croc_backup="${croc_path}_old"
+		echo "Backing up $croc_path to $croc_backup"
+		echo "(Password may be required.)"
+		$sudo_cmd mv "$croc_path" "$croc_backup"
+	fi
+
+	echo "Putting croc in $install_path (may require password)"
+	$sudo_cmd mv "$PREFIX/tmp/$croc_bin" "$install_path/$croc_bin"
+	if setcap_cmd=$(PATH+=$PATH:/sbin type -p setcap); then
+		$sudo_cmd $setcap_cmd cap_net_bind_service=+ep "$install_path/$croc_bin"
+	fi
+	$sudo_cmd rm -- "$dl"
+
+	# check installation
+	$croc_bin -version
+
+	echo "Successfully installed"
+	trap ERR
+	return 0
+}
+
+install_croc "$@"
+
+
