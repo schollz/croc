@@ -45,6 +45,16 @@ The second example shows how you can restart a broken transfer. Here, computer 2
 
 Or, you can [install Go](https://golang.org/dl/) and build from source with `go get github.com/schollz/croc`.
 
+Or, you can quickly install a release from the command-line:
+
+```
+$ curl https://getcroc.schollz.com | bash
+```
+
+```
+$ wget -qO- https://getcroc.schollz.com | bash
+```
+
 
 ## Usage 
 
