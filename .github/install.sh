@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 #
-#  Adapted from https://croc.schollz.com
+#  Adapted from https://github.com/caddyserver/getcaddy.com
 #
 #                  croc Installer Script
 #
 #   Homepage: https://schollz.com/software/croc
 #   Issues:   https://github.com/schollz/croc/issues
 #   Requires: bash, mv, rm, tr, type, curl/wget, base64, sudo (if not root)
-#             tar (or unzip on OSX and Windows), gpg (optional verification)
+#             tar (or unzip on OSX and Windows)
 #
-# This script safely installs croc into your PATH (which may require
-# password authorization).
+# This script safely installs Caddy into your PATH (which may require
+# password authorization). Use it like this:
+#
+#	$ curl https://getcroc.schollz.com | bash
+#	 or
+#	$ wget -qO- https://getcroc.schollz.com | bash
 #
 # In automated environments, you may want to run as root.
 # If using curl, we recommend using the -fsSL flags.
@@ -115,20 +119,37 @@ install_croc()
 	########################
 
 	croc_url="https://github.com/schollz/croc/releases/download/v${croc_version}/${croc_file}"
+	croc_checksum_url="https://github.com/schollz/croc/releases/download/v${croc_version}/croc_${croc_version}_checksums.txt"
 	echo "Downloading croc v${croc_version} (${croc_os} ${croc_arch})..."
 
 	type -p gpg >/dev/null 2>&1 && gpg=1 || gpg=0
 
 	# Use $PREFIX for compatibility with Termux on Android
-	dl="$PREFIX/tmp/$croc_file"
+	dl="$PREFIX$croc_file"
+	dl_checksum="$croc_file.checksum"
 	rm -rf -- "$dl"
+	rm -rf -- "$dl_checksum"
+
 
 	if type -p curl >/dev/null 2>&1; then
 		curl -fsSL "$croc_url" -o "$dl"
+		curl -fsSL "$croc_checksum_url" -o "$dl_checksum"
 	elif type -p wget >/dev/null 2>&1; then
 		wget --quiet  "$croc_url" -O "$dl"
+		wget --quiet  "$croc_checksum_url" -O "$dl_checksum"
 	else
 		echo "Aborted, could not find curl or wget"
+		return 7
+	fi
+
+	echo "Verifying checksum..."
+	checksum="$(sha256sum ${dl}) $croc_file"
+	checksum_check="$(cat ${dl_checksum} | grep $croc_file) $croc_file"
+
+	if [[ "$s1" != "$s2" ]]; then
+		echo "${checksum}"
+		echo "${checksum_check}"
+		echo "checksums are not valid, exiting"
 		return 7
 	fi
 
@@ -154,6 +175,7 @@ install_croc()
 		$sudo_cmd $setcap_cmd cap_net_bind_service=+ep "$install_path/$croc_bin"
 	fi
 	$sudo_cmd rm -- "$dl"
+	$sudo_cmd rm -- "$dl_checksum"
 
 	# check installation
 	$croc_bin -version
