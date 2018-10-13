@@ -20,30 +20,11 @@ build:
     - arm64
   goarm:
     - 7
-snapcraft:
-  name: croc
-  summary: A simple, secure, and fast way to transfer data.
-  description: This allows you to transfer data between two computers as though they were on LAN.
-  grade: stable
-  confinement: strict
-  replacements:
-    amd64: 64bit
-    386: 32bit
-    arm: ARM
-    arm64: ARM64
-    darwin: macOS
-    linux: Linux
-    windows: Windows
-    openbsd: OpenBSD
-    netbsd: NetBSD
-    freebsd: FreeBSD
-    dragonfly: DragonFlyBSD
-
 nfpm:
   formats:
     - deb
   vendor: "schollz.com"
-  homepage: "https://github.com/schollz/croc"
+  homepage: "https://schollz.com/software/croc/"
   maintainer: "Zack Scholl <zack.scholl@gmail.com>"
   description: "A simple, secure, and fast way to transfer data."
   license: "MIT"
