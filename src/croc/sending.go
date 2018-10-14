@@ -11,9 +11,7 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
-	"github.com/schollz/croc/src/recipient"
 	"github.com/schollz/croc/src/relay"
-	"github.com/schollz/croc/src/sender"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/utils"
 )
@@ -161,9 +159,9 @@ func (c *Croc) sendReceive(address, websocketPort string, tcpPorts []string, fna
 	}
 
 	if isSender {
-		go sender.Send(c.ForceSend, address, tcpPorts, isLocal, done, sock, fname, codephrase, c.UseCompression, c.UseEncryption)
+		go c.startSender(c.ForceSend, address, tcpPorts, isLocal, done, sock, fname, codephrase, c.UseCompression, c.UseEncryption)
 	} else {
-		go recipient.Receive(c.ForceSend, address, tcpPorts, isLocal, done, sock, codephrase, c.NoRecipientPrompt, c.Stdout)
+		go c.startRecipient(c.ForceSend, address, tcpPorts, isLocal, done, sock, codephrase, c.NoRecipientPrompt, c.Stdout)
 	}
 
 	for {

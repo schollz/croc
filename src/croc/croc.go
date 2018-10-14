@@ -5,9 +5,7 @@ import (
 	"time"
 
 	"github.com/schollz/croc/src/logger"
-	"github.com/schollz/croc/src/recipient"
 	"github.com/schollz/croc/src/relay"
-	"github.com/schollz/croc/src/sender"
 	"github.com/schollz/croc/src/zipper"
 )
 
@@ -78,8 +76,6 @@ func Init(debug bool) (c *Croc) {
 
 func SetDebugLevel(debugLevel string) {
 	logger.SetLogLevel(debugLevel)
-	sender.DebugLevel = debugLevel
-	recipient.DebugLevel = debugLevel
 	relay.DebugLevel = debugLevel
 	zipper.DebugLevel = debugLevel
 }
