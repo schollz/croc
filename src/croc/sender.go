@@ -180,6 +180,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 			c.WriteMessage(websocket.BinaryMessage, P.Bytes())
 			// start PAKE spinnner
 			spin.Suffix = " performing PAKE..."
+			cr.State = "Performing PAKE..."
 			spin.Start()
 		case 2:
 			// P recieves H(k),v from Q
@@ -195,6 +196,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 			// wait for readiness
 			spin.Stop()
 			spin.Suffix = " waiting for recipient ok..."
+			cr.State = "Waiting for recipient ok...."
 			spin.Start()
 		case 3:
 			log.Debugf("[%d] recipient declares readiness for file info", step)
@@ -379,6 +381,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 						return data.err
 					}
 					bar.Add(data.bytesRead)
+
 					// write data to websockets
 					err = c.WriteMessage(websocket.BinaryMessage, data.b)
 					if err != nil {

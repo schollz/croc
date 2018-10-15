@@ -50,6 +50,8 @@ type Croc struct {
 	// is using local relay
 	isLocal      bool
 	normalFinish bool
+
+	State string
 }
 
 // Init will initiate with the default parameters
