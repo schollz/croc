@@ -1,3 +1,5 @@
+// +build wincroc
+
 package main
 
 import (
