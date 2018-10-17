@@ -24,7 +24,7 @@ import (
 	"github.com/schollz/croc/src/utils"
 	"github.com/schollz/croc/src/zipper"
 	"github.com/schollz/pake"
-	"github.com/schollz/progressbar/v2"
+	"github.com/schollz/progressbar"
 	"github.com/schollz/spinner"
 	"github.com/tscholl2/siec"
 )
@@ -46,7 +46,6 @@ func (cr *Croc) startSender(forceSend int, serverAddress string, tcpPorts []stri
 func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) (err error) {
 	var f *os.File
 	defer f.Close() // ignore the error if it wasn't opened :(
-	var fstats models.FileStats
 	var fileHash []byte
 	var otherIP string
 	var startTransfer time.Time
@@ -137,7 +136,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 					fileReady <- err
 					return
 				}
-				fstats = models.FileStats{
+				cr.FileInfo = models.FileStats{
 					Name:         filename,
 					Size:         fstat.Size(),
 					ModTime:      fstat.ModTime(),
@@ -146,15 +145,15 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 					IsCompressed: useCompression,
 					IsEncrypted:  useEncryption,
 				}
-				if fstats.IsDir {
+				if cr.FileInfo.IsDir {
 					// zip the directory
-					fstats.SentName, err = zipper.ZipFile(fname, true)
+					cr.FileInfo.SentName, err = zipper.ZipFile(fname, true)
 					if err != nil {
 						log.Error(err)
 						fileReady <- err
 						return
 					}
-					fname = fstats.SentName
+					fname = cr.FileInfo.SentName
 
 					fstat, err := os.Stat(fname)
 					if err != nil {
@@ -162,7 +161,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 						return
 					}
 					// get new size
-					fstats.Size = fstat.Size()
+					cr.FileInfo.Size = fstat.Size()
 				}
 
 				// open the file
@@ -180,7 +179,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 			c.WriteMessage(websocket.BinaryMessage, P.Bytes())
 			// start PAKE spinnner
 			spin.Suffix = " performing PAKE..."
-			cr.State = "Performing PAKE..."
+			cr.StateString = "Performing PAKE..."
 			spin.Start()
 		case 2:
 			// P recieves H(k),v from Q
@@ -196,7 +195,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 			// wait for readiness
 			spin.Stop()
 			spin.Suffix = " waiting for recipient ok..."
-			cr.State = "Waiting for recipient ok...."
+			cr.StateString = "Waiting for recipient ok...."
 			spin.Start()
 		case 3:
 			log.Debugf("[%d] recipient declares readiness for file info", step)
@@ -228,7 +227,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 			if err != nil {
 				return err
 			}
-			fstatsBytes, err := json.Marshal(fstats)
+			fstatsBytes, err := json.Marshal(cr.FileInfo)
 			if err != nil {
 				return err
 			}
@@ -267,9 +266,9 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 
 			// start loading the file into memory
 			// start streaming encryption/compression
-			if fstats.IsDir {
+			if cr.FileInfo.IsDir {
 				// remove file if zipped
-				defer os.Remove(fstats.SentName)
+				defer os.Remove(cr.FileInfo.SentName)
 			}
 			go func(dataChan chan DataChan) {
 				var buffer []byte
@@ -291,7 +290,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 
 						// do compression
 						var compressedBytes []byte
-						if useCompression && !fstats.IsDir {
+						if useCompression && !cr.FileInfo.IsDir {
 							compressedBytes = compress.Compress(buffer[:bytesread])
 						} else {
 							compressedBytes = buffer[:bytesread]
@@ -366,13 +365,13 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 			} else {
 				blockSize = models.TCP_BUFFER_SIZE / 2
 			}
-			bar := progressbar.NewOptions(
-				int(fstats.Size),
+			cr.Bar = progressbar.NewOptions(
+				int(cr.FileInfo.Size),
 				progressbar.OptionSetRenderBlankState(true),
-				progressbar.OptionSetBytes(int(fstats.Size)),
+				progressbar.OptionSetBytes(int(cr.FileInfo.Size)),
 				progressbar.OptionSetWriter(os.Stderr),
 			)
-			bar.Add(blockSize * len(blocksToSkip))
+			cr.Bar.Add(blockSize * len(blocksToSkip))
 
 			if useWebsockets {
 				for {
@@ -380,7 +379,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 					if data.err != nil {
 						return data.err
 					}
-					bar.Add(data.bytesRead)
+					cr.Bar.Add(data.bytesRead)
 
 					// write data to websockets
 					err = c.WriteMessage(websocket.BinaryMessage, data.b)
@@ -409,7 +408,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 								log.Error(data.err)
 								return
 							}
-							bar.Add(data.bytesRead)
+							cr.Bar.Add(data.bytesRead)
 							// write data to tcp connection
 							_, err = tcpConnections[i].Write(data.b)
 							if err != nil {
@@ -427,7 +426,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 				wg.Wait()
 			}
 
-			bar.Finish()
+			cr.Bar.Finish()
 			log.Debug("send hash to finish file")
 			fileHash, err = utils.HashFile(fname)
 			if err != nil {
@@ -445,10 +444,10 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 			log.Debugf("[%d] determing whether it went ok", step)
 			if bytes.Equal(message, fileHash) {
 				log.Debug("file transfered successfully")
-				transferRate := float64(fstats.Size) / 1000000.0 / transferTime.Seconds()
+				transferRate := float64(cr.FileInfo.Size) / 1000000.0 / transferTime.Seconds()
 				transferType := "MB/s"
 				if transferRate < 1 {
-					transferRate = float64(fstats.Size) / 1000.0 / transferTime.Seconds()
+					transferRate = float64(cr.FileInfo.Size) / 1000.0 / transferTime.Seconds()
 					transferType = "kB/s"
 				}
 				fmt.Fprintf(os.Stderr, "\nTransfer complete (%2.1f %s)", transferRate, transferType)

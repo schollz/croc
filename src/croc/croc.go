@@ -5,8 +5,10 @@ import (
 	"time"
 
 	"github.com/schollz/croc/src/logger"
+	"github.com/schollz/croc/src/models"
 	"github.com/schollz/croc/src/relay"
 	"github.com/schollz/croc/src/zipper"
+	"github.com/schollz/progressbar"
 )
 
 func init() {
@@ -51,7 +53,10 @@ type Croc struct {
 	isLocal      bool
 	normalFinish bool
 
-	State string
+	// state variables
+	StateString string
+	Bar         *progressbar.ProgressBar
+	FileInfo    models.FileStats
 }
 
 // Init will initiate with the default parameters
