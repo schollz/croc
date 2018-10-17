@@ -11,15 +11,14 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
-	"github.com/schollz/croc/src/recipient"
 	"github.com/schollz/croc/src/relay"
-	"github.com/schollz/croc/src/sender"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/utils"
 )
 
 // Send the file
 func (c *Croc) Send(fname, codephrase string) (err error) {
+	defer log.Flush()
 	log.Debugf("sending %s", fname)
 	errChan := make(chan error)
 
@@ -38,6 +37,10 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 
 	// use local relay
 	if !c.NoLocal {
+		defer func() {
+			log.Debug("sending relay stop signal")
+			relay.Stop()
+		}()
 		go func() {
 			// start own relay and connect to it
 			go relay.Run(c.RelayWebsocketPort, c.RelayTCPPorts)
@@ -161,9 +164,9 @@ func (c *Croc) sendReceive(address, websocketPort string, tcpPorts []string, fna
 	}
 
 	if isSender {
-		go sender.Send(c.ForceSend, address, tcpPorts, isLocal, done, sock, fname, codephrase, c.UseCompression, c.UseEncryption)
+		go c.startSender(c.ForceSend, address, tcpPorts, isLocal, done, sock, fname, codephrase, c.UseCompression, c.UseEncryption)
 	} else {
-		go recipient.Receive(c.ForceSend, address, tcpPorts, isLocal, done, sock, codephrase, c.NoRecipientPrompt, c.Stdout)
+		go c.startRecipient(c.ForceSend, address, tcpPorts, isLocal, done, sock, codephrase, c.NoRecipientPrompt, c.Stdout)
 	}
 
 	for {

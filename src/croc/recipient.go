@@ -1,4 +1,4 @@
-package recipient
+package croc
 
 import (
 	"bufio"
@@ -7,16 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	humanize "github.com/dustin/go-humanize"
-
 	log "github.com/cihub/seelog"
+	humanize "github.com/dustin/go-humanize"
 	"github.com/gorilla/websocket"
 	"github.com/schollz/croc/src/comm"
 	"github.com/schollz/croc/src/compress"
@@ -34,9 +32,9 @@ import (
 var DebugLevel string
 
 // Receive is the async operation to receive a file
-func Receive(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, done chan struct{}, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) {
+func (cr *Croc) startRecipient(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, done chan struct{}, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) {
 	logger.SetLogLevel(DebugLevel)
-	err := receive(forceSend, serverAddress, tcpPorts, isLocal, c, codephrase, noPrompt, useStdout)
+	err := cr.receive(forceSend, serverAddress, tcpPorts, isLocal, c, codephrase, noPrompt, useStdout)
 	if err != nil {
 		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
 			fmt.Fprintf(os.Stderr, "\n"+err.Error())
@@ -45,8 +43,7 @@ func Receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 	done <- struct{}{}
 }
 
-func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) (err error) {
-	var fstats models.FileStats
+func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) (err error) {
 	var sessionKey []byte
 	var transferTime time.Duration
 	var hash256 []byte
@@ -75,6 +72,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 	spin.Writer = os.Stderr
 	spin.Suffix = " performing PAKE..."
 	spin.Start()
+	defer spin.Stop()
 
 	// pick an elliptic curve
 	curve := siec.SIEC255()
@@ -137,9 +135,13 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 					tcpConnections = make([]comm.Comm, len(tcpPorts))
 					for i, tcpPort := range tcpPorts {
 						log.Debugf("connecting to %d", i)
-						tcpConnections[i], err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
+						var message string
+						tcpConnections[i], message, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
 						if err != nil {
 							log.Error(err)
+						}
+						if message != "recipient" {
+							log.Errorf("got wrong message: %s", message)
 						}
 					}
 					log.Debugf("fully connected")
@@ -169,16 +171,16 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 			if err != nil {
 				return err
 			}
-			err = json.Unmarshal(decryptedFileData, &fstats)
+			err = json.Unmarshal(decryptedFileData, &cr.FileInfo)
 			if err != nil {
 				return err
 			}
-			log.Debugf("got file stats: %+v", fstats)
+			log.Debugf("got file stats: %+v", cr.FileInfo)
 
 			// determine if the file is resuming or not
-			progressFile = fmt.Sprintf("%s.progress", fstats.SentName)
+			progressFile = fmt.Sprintf("%s.progress", cr.FileInfo.SentName)
 			overwritingOrReceiving := "Receiving"
-			if utils.Exists(fstats.Name) || utils.Exists(fstats.SentName) {
+			if utils.Exists(cr.FileInfo.Name) || utils.Exists(cr.FileInfo.SentName) {
 				overwritingOrReceiving = "Overwriting"
 				if utils.Exists(progressFile) {
 					overwritingOrReceiving = "Resume receiving"
@@ -202,14 +204,14 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 
 			// prompt user about the file
 			fileOrFolder := "file"
-			if fstats.IsDir {
+			if cr.FileInfo.IsDir {
 				fileOrFolder = "folder"
 			}
 			fmt.Fprintf(os.Stderr, "\r%s %s (%s) into: %s\n",
 				overwritingOrReceiving,
 				fileOrFolder,
-				humanize.Bytes(uint64(fstats.Size)),
-				fstats.Name,
+				humanize.Bytes(uint64(cr.FileInfo.Size)),
+				cr.FileInfo.Name,
 			)
 			if !noPrompt {
 				if "y" != utils.GetInput("ok? (y/N): ") {
@@ -222,27 +224,27 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 			// await file
 			// erase file if overwriting
 			if overwritingOrReceiving == "Overwriting" {
-				os.Remove(fstats.SentName)
+				os.Remove(cr.FileInfo.SentName)
 			}
 			var f *os.File
-			if utils.Exists(fstats.SentName) && resumeFile {
+			if utils.Exists(cr.FileInfo.SentName) && resumeFile {
 				if !useWebsockets {
-					f, err = os.OpenFile(fstats.SentName, os.O_WRONLY, 0644)
+					f, err = os.OpenFile(cr.FileInfo.SentName, os.O_WRONLY, 0644)
 				} else {
-					f, err = os.OpenFile(fstats.SentName, os.O_APPEND|os.O_WRONLY, 0644)
+					f, err = os.OpenFile(cr.FileInfo.SentName, os.O_APPEND|os.O_WRONLY, 0644)
 				}
 				if err != nil {
 					log.Error(err)
 					return err
 				}
 			} else {
-				f, err = os.Create(fstats.SentName)
+				f, err = os.Create(cr.FileInfo.SentName)
 				if err != nil {
 					log.Error(err)
 					return err
 				}
 				if !useWebsockets {
-					if err = f.Truncate(fstats.Size); err != nil {
+					if err = f.Truncate(cr.FileInfo.Size); err != nil {
 						log.Error(err)
 						return err
 					}
@@ -259,13 +261,13 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 			// start the ui for pgoress
 			bytesWritten := 0
 			fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)...\n", otherIP)
-			bar := progressbar.NewOptions(
-				int(fstats.Size),
+			cr.Bar = progressbar.NewOptions(
+				int(cr.FileInfo.Size),
 				progressbar.OptionSetRenderBlankState(true),
-				progressbar.OptionSetBytes(int(fstats.Size)),
+				progressbar.OptionSetBytes(int(cr.FileInfo.Size)),
 				progressbar.OptionSetWriter(os.Stderr),
 			)
-			bar.Add((len(blocks) * blockSize))
+			cr.Bar.Add((len(blocks) * blockSize))
 			finished := make(chan bool)
 
 			go func(finished chan bool, dataChan chan []byte) (err error) {
@@ -285,7 +287,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 				defer fProgress.Close()
 
 				blocksWritten := 0.0
-				blocksToWrite := float64(fstats.Size)
+				blocksToWrite := float64(cr.FileInfo.Size)
 				if useWebsockets {
 					blocksToWrite = blocksToWrite/float64(models.WEBSOCKET_BUFFER_SIZE/8) - float64(len(blocks))
 				} else {
@@ -301,7 +303,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 						log.Error(err)
 						return err
 					}
-					decrypted, err := enc.Decrypt(sessionKey, !fstats.IsEncrypted)
+					decrypted, err := enc.Decrypt(sessionKey, !cr.FileInfo.IsEncrypted)
 					if err != nil {
 						log.Error(err)
 						return err
@@ -316,7 +318,7 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 					}
 
 					// do decompression
-					if fstats.IsCompressed && !fstats.IsDir {
+					if cr.FileInfo.IsCompressed && !cr.FileInfo.IsDir {
 						decrypted = compress.Decompress(decrypted)
 					}
 
@@ -344,9 +346,9 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 					bytesWritten += n
 					blocksWritten += 1.0
 					// update the progress bar
-					bar.Add(n)
-					if int64(bytesWritten) == fstats.Size || blocksWritten >= blocksToWrite {
-						log.Debug("finished", int64(bytesWritten), fstats.Size, blocksWritten, blocksToWrite)
+					cr.Bar.Add(n)
+					if int64(bytesWritten) == cr.FileInfo.Size || blocksWritten >= blocksToWrite {
+						log.Debug("finished", int64(bytesWritten), cr.FileInfo.Size, blocksWritten, blocksToWrite)
 						break
 					}
 				}
@@ -429,10 +431,10 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 			}
 
 			// finish bar
-			bar.Finish()
+			cr.Bar.Finish()
 
 			// check hash
-			hash256, err = utils.HashFile(fstats.SentName)
+			hash256, err = utils.HashFile(cr.FileInfo.SentName)
 			if err != nil {
 				log.Error(err)
 				return err
@@ -444,45 +446,45 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 			log.Debugf("got hash: %x", message)
 			if bytes.Equal(hash256, message) {
 				// open directory
-				if fstats.IsDir {
-					err = zipper.UnzipFile(fstats.SentName, ".")
+				if cr.FileInfo.IsDir {
+					err = zipper.UnzipFile(cr.FileInfo.SentName, ".")
 					if DebugLevel != "debug" {
-						os.Remove(fstats.SentName)
+						os.Remove(cr.FileInfo.SentName)
 					}
 				} else {
 					err = nil
 				}
 				if err == nil {
-					if useStdout && !fstats.IsDir {
+					if useStdout && !cr.FileInfo.IsDir {
 						var bFile []byte
-						bFile, err = ioutil.ReadFile(fstats.SentName)
+						bFile, err = ioutil.ReadFile(cr.FileInfo.SentName)
 						if err != nil {
 							return err
 						}
 						os.Stdout.Write(bFile)
-						os.Remove(fstats.SentName)
+						os.Remove(cr.FileInfo.SentName)
 					}
-					transferRate := float64(fstats.Size) / 1000000.0 / transferTime.Seconds()
+					transferRate := float64(cr.FileInfo.Size) / 1000000.0 / transferTime.Seconds()
 					transferType := "MB/s"
 					if transferRate < 1 {
-						transferRate = float64(fstats.Size) / 1000.0 / transferTime.Seconds()
+						transferRate = float64(cr.FileInfo.Size) / 1000.0 / transferTime.Seconds()
 						transferType = "kB/s"
 					}
 					folderOrFile := "file"
-					if fstats.IsDir {
+					if cr.FileInfo.IsDir {
 						folderOrFile = "folder"
 					}
 					if useStdout {
-						fstats.Name = "stdout"
+						cr.FileInfo.Name = "stdout"
 					}
-					fmt.Fprintf(os.Stderr, "\nReceived %s written to %s (%2.1f %s)\n", folderOrFile, fstats.Name, transferRate, transferType)
+					fmt.Fprintf(os.Stderr, "\nReceived %s written to %s (%2.1f %s)\n", folderOrFile, cr.FileInfo.Name, transferRate, transferType)
 					os.Remove(progressFile)
 				}
 				return err
 			} else {
 				if DebugLevel != "debug" {
 					log.Debug("removing corrupted file")
-					os.Remove(fstats.SentName)
+					os.Remove(cr.FileInfo.SentName)
 				}
 				return errors.New("file corrupted")
 			}
@@ -491,37 +493,4 @@ func receive(forceSend int, serverAddress string, tcpPorts []string, isLocal boo
 		}
 		step++
 	}
-}
-
-func connectToTCPServer(room string, address string) (com comm.Comm, err error) {
-	log.Debugf("recipient connecting to %s", address)
-	connection, err := net.Dial("tcp", address)
-	if err != nil {
-		return
-	}
-	connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
-	connection.SetDeadline(time.Now().Add(3 * time.Hour))
-	connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
-
-	com = comm.New(connection)
-	log.Debug("waiting for server contact")
-	ok, err := com.Receive()
-	if err != nil {
-		return
-	}
-	log.Debugf("[%s] server says: %s", address, ok)
-
-	err = com.Send(room)
-	if err != nil {
-		return
-	}
-	ok, err = com.Receive()
-	log.Debugf("[%s] server says: %s", address, ok)
-	if err != nil {
-		return
-	}
-	if ok != "recipient" {
-		err = errors.New(ok)
-	}
-	return
 }
