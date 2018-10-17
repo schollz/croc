@@ -8,7 +8,7 @@ import (
 	"github.com/schollz/croc/src/models"
 	"github.com/schollz/croc/src/relay"
 	"github.com/schollz/croc/src/zipper"
-	"github.com/schollz/progressbar"
+	"github.com/schollz/progressbar/v2"
 )
 
 func init() {

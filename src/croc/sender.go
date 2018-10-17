@@ -24,7 +24,7 @@ import (
 	"github.com/schollz/croc/src/utils"
 	"github.com/schollz/croc/src/zipper"
 	"github.com/schollz/pake"
-	"github.com/schollz/progressbar"
+	progressbar "github.com/schollz/progressbar/v2"
 	"github.com/schollz/spinner"
 	"github.com/tscholl2/siec"
 )

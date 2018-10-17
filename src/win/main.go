@@ -80,7 +80,6 @@ func main() {
 
 			go func(done chan bool) {
 				for {
-					fmt.Println(cr.FileInfo, cr.Bar)
 					if cr.FileInfo.SentName != "" {
 						labels[0].UpdateTextFromGoroutine(fmt.Sprintf("Sending %s", cr.FileInfo.SentName))
 					}
