@@ -47,6 +47,10 @@ var h = hub{
 
 func (h *hub) run() {
 	for {
+		if stop {
+			log.Debug("stopping hub")
+			return
+		}
 		select {
 		case s := <-h.register:
 			log.Debugf("adding connection to %s", s.room)
