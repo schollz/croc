@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/schollz/croc/src/cli"
@@ -30,7 +31,7 @@ func main() {
 	app := widgets.NewQApplication(len(os.Args), os.Args)
 
 	window := widgets.NewQMainWindow(nil, 0)
-	window.SetFixedSize2(250, 200)
+	window.SetFixedSize2(300, 200)
 	window.SetWindowTitle("croc - secure data transfer")
 
 	widget := widgets.NewQWidget(nil, 0)
@@ -71,24 +72,33 @@ func main() {
 		cr := croc.Init(false)
 		done := make(chan bool)
 		go func() {
-			cr.Send(fn, utils.GetRandomName())
+			codePhrase := utils.GetRandomName()
+			_, fname := filepath.Split(fn)
+			labels[0].SetText(fmt.Sprintf("Sending '%'", fname))
+			labels[1].SetText(fmt.Sprintf("Code phrase: %s", codePhrase))
+			cr.Send(fn, codePhrase)
 			done <- true
 		}()
 
-		for {
-			select {
-			case _ <- done:
-				break
+		go func() {
+			for {
+				fmt.Println(cr.FileInfo, cr.Bar)
+				if cr.FileInfo.SentName != "" {
+					labels[0].UpdateTextFromGoroutine(fmt.Sprintf("%s", cr.FileInfo.SentName))
+				}
+				if cr.Bar != nil {
+					barState := cr.Bar.State()
+					labels[1].UpdateTextFromGoroutine(fmt.Sprintf("%2.1f", barState.CurrentPercent))
+				}
+				time.Sleep(100 * time.Millisecond)
+				select {
+				case _ = <-done:
+					break
+				default:
+					continue
+				}
 			}
-			if cr.FileInfo != nil {
-				labels[0].SetText(fmt.Sprintf("%s",cr.FileInfo.SentName))
-			}
-			if cr.Bar != nil {
-				barState := cr.Bar.State()
-				labels[1].SetText(fmt.Sprintf("%2.1f",barState.CurrentPercent)
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
+		}()
 
 		// for i, label := range labels {
 		// 	go func(i int, label *CustomLabel) {
@@ -137,22 +147,22 @@ func main() {
 		cr := croc.Init(false)
 		done := make(chan bool)
 		go func() {
-			cr.Receive(codephrase)
+			cr.Receive(codePhrase)
 			done <- true
 		}()
 
 		for {
 			select {
-			case _ <- done:
+			case _ = <-done:
 				break
 			}
 			labels[0].SetText(cr.StateString)
-			if cr.FileInfo != nil {
-				labels[0].SetText(fmt.Sprintf("%s",cr.FileInfo.SentName))
+			if cr.FileInfo.SentName != "" {
+				labels[0].SetText(fmt.Sprintf("%s", cr.FileInfo.SentName))
 			}
 			if cr.Bar != nil {
 				barState := cr.Bar.State()
-				labels[1].SetText(fmt.Sprintf("%2.1f",barState.CurrentPercent)
+				labels[1].SetText(fmt.Sprintf("%2.1f", barState.CurrentPercent))
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
