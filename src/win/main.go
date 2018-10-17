@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/schollz/croc/src/cli"
+	"github.com/schollz/croc/src/croc"
+	"github.com/schollz/croc/src/utils"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/widgets"
 )
@@ -47,13 +49,12 @@ func main() {
 	button := widgets.NewQPushButton2("Send file", nil)
 	button.ConnectClicked(func(bool) {
 		if isWorking {
-			var info = widgets.NewQMessageBox(nil)
-			info.SetWindowTitle("Info")
-			info.SetText(fmt.Sprintf("Can only do one send or recieve at a time"))
-			info.Exec()
+			dialog("Can only do one send or receive at a time")
 			return
 		}
-		isWorking = true
+		defer func() {
+			isWorking = false
+		}()
 
 		var fileDialog = widgets.NewQFileDialog2(nil, "Open file to send...", "", "")
 		fileDialog.SetAcceptMode(widgets.QFileDialog__AcceptOpen)
@@ -62,32 +63,62 @@ func main() {
 			return
 		}
 		var fn = fileDialog.SelectedFiles()[0]
-		fmt.Println(fn)
-		for i, label := range labels {
-			go func(i int, label *CustomLabel) {
-				var tick int
-				for range time.NewTicker(time.Duration((i+1)*25) * time.Millisecond).C {
-					tick++
-					label.SetText(fmt.Sprintf("%v %v", tick, time.Now().UTC().Format("15:04:05.0000")))
-				}
-			}(i, label)
+		if len(fn) == 0 {
+			dialog(fmt.Sprintf("No file selected"))
+			return
 		}
+
+		cr := croc.Init(false)
+		done := make(chan bool)
+		go func() {
+			cr.Send(fn, utils.GetRandomName())
+			done <- true
+		}()
+
+		for {
+			select {
+			case _ <- done:
+				break
+			}
+			if cr.FileInfo != nil {
+				labels[0].SetText(fmt.Sprintf("%s",cr.FileInfo.SentName))
+			}
+			if cr.Bar != nil {
+				barState := cr.Bar.State()
+				labels[1].SetText(fmt.Sprintf("%2.1f",barState.CurrentPercent)
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		// for i, label := range labels {
+		// 	go func(i int, label *CustomLabel) {
+		// 		var tick int
+		// 		for range time.NewTicker(time.Duration((i+1)*25) * time.Millisecond).C {
+		// 			tick++
+		// 			label.SetText(fmt.Sprintf("%v %v", tick, time.Now().UTC().Format("15:04:05.0000")))
+		// 		}
+		// 	}(i, label)
+		// }
 	})
 	widget.Layout().AddWidget(button)
 
 	receiveButton := widgets.NewQPushButton2("Receive", nil)
 	receiveButton.ConnectClicked(func(bool) {
 		if isWorking {
-			var info = widgets.NewQMessageBox(nil)
-			info.SetWindowTitle("Info")
-			info.SetText(fmt.Sprintf("Can only do one send or recieve at a time"))
-			info.Exec()
+			dialog("Can only do one send or receive at a time")
 			return
 		}
 		isWorking = true
+		defer func() {
+			isWorking = false
+		}()
+
 		var codePhrase = widgets.QInputDialog_GetText(nil, "Enter code phrase", "",
 			widgets.QLineEdit__Normal, "", true, core.Qt__Dialog, core.Qt__ImhNone)
-		fmt.Println(codePhrase)
+		if len(codePhrase) < 3 {
+			dialog(fmt.Sprintf("Invalid codephrase: '%s'", codePhrase))
+			return
+		}
 		var folderDialog = widgets.NewQFileDialog2(nil, "Open folder to receive file...", "", "")
 		folderDialog.SetAcceptMode(widgets.QFileDialog__AcceptOpen)
 		folderDialog.SetFileMode(widgets.QFileDialog__DirectoryOnly)
@@ -95,19 +126,56 @@ func main() {
 			return
 		}
 		var fn = folderDialog.SelectedFiles()[0]
-		fmt.Println(fn)
-		for i, label := range labels {
-			go func(i int, label *CustomLabel) {
-				var tick int
-				for range time.NewTicker(time.Duration((i+1)*25) * time.Millisecond).C {
-					tick++
-					label.SetText(fmt.Sprintf("%v %v", tick, time.Now().UTC().Format("15:04:05.0000")))
-				}
-			}(i, label)
+		if len(fn) == 0 {
+			dialog(fmt.Sprintf("No folder selected"))
+			return
 		}
+		cwd, _ := os.Getwd()
+		os.Chdir(fn)
+		defer os.Chdir(cwd)
+
+		cr := croc.Init(false)
+		done := make(chan bool)
+		go func() {
+			cr.Receive(codephrase)
+			done <- true
+		}()
+
+		for {
+			select {
+			case _ <- done:
+				break
+			}
+			labels[0].SetText(cr.StateString)
+			if cr.FileInfo != nil {
+				labels[0].SetText(fmt.Sprintf("%s",cr.FileInfo.SentName))
+			}
+			if cr.Bar != nil {
+				barState := cr.Bar.State()
+				labels[1].SetText(fmt.Sprintf("%2.1f",barState.CurrentPercent)
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		// for i, label := range labels {
+		// 	go func(i int, label *CustomLabel) {
+		// 		var tick int
+		// 		for range time.NewTicker(time.Duration((i+1)*25) * time.Millisecond).C {
+		// 			tick++
+		// 			label.SetText(fmt.Sprintf("%v %v", tick, time.Now().UTC().Format("15:04:05.0000")))
+		// 		}
+		// 	}(i, label)
+		// }
 	})
 	widget.Layout().AddWidget(receiveButton)
 
 	window.Show()
 	app.Exec()
+}
+
+func dialog(s string) {
+	var info = widgets.NewQMessageBox(nil)
+	info.SetWindowTitle("Info")
+	info.SetText(s)
+	info.Exec()
 }

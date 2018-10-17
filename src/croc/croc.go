@@ -68,7 +68,7 @@ func Init(debug bool) (c *Croc) {
 	c.RelayWebsocketPort = "8153"
 	c.RelayTCPPorts = []string{"8154", "8155", "8156", "8157", "8158", "8159", "8160", "8161"}
 	c.CurveType = "siec"
-	c.Address = "198.199.67.130"
+	c.Address = "croc4.schollz.com"
 	c.AddressWebsocketPort = "8153"
 	c.AddressTCPPorts = []string{"8154", "8155", "8156", "8157", "8158", "8159", "8160", "8161"}
 	c.NoRecipientPrompt = true
