@@ -12,7 +12,7 @@ require (
 	github.com/schollz/mnemonicode v1.0.1
 	github.com/schollz/pake v1.0.2
 	github.com/schollz/peerdiscovery v1.2.2
-	github.com/schollz/progressbar/v2 v2.5.3
+	github.com/schollz/progressbar/v2 v2.6.0
 	github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9
 	github.com/schollz/utils v1.0.0
 	github.com/stretchr/testify v1.2.2
