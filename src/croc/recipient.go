@@ -13,9 +13,8 @@ import (
 	"sync"
 	"time"
 
-	humanize "github.com/dustin/go-humanize"
-
 	log "github.com/cihub/seelog"
+	humanize "github.com/dustin/go-humanize"
 	"github.com/gorilla/websocket"
 	"github.com/schollz/croc/src/comm"
 	"github.com/schollz/croc/src/compress"
@@ -73,6 +72,7 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 	spin.Writer = os.Stderr
 	spin.Suffix = " performing PAKE..."
 	spin.Start()
+	defer spin.Stop()
 
 	// pick an elliptic curve
 	curve := siec.SIEC255()

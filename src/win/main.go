@@ -32,7 +32,7 @@ func main() {
 
 	window := widgets.NewQMainWindow(nil, 0)
 	window.SetFixedSize2(300, 200)
-	window.SetWindowTitle("croc - secure data transfer")
+	window.SetWindowTitle("🐊📦 croc")
 
 	widget := widgets.NewQWidget(nil, 0)
 	widget.SetLayout(widgets.NewQVBoxLayout())
@@ -45,7 +45,8 @@ func main() {
 		widget.Layout().AddWidget(label)
 		labels[i] = label
 	}
-	labels[0].SetText("Click 'Send' or 'Receive' to start")
+	labels[0].SetText("secure data transfer")
+	labels[1].SetText("Click 'Send' or 'Receive' to start")
 
 	button := widgets.NewQPushButton2("Send file", nil)
 	button.ConnectClicked(func(bool) {
@@ -53,51 +54,55 @@ func main() {
 			dialog("Can only do one send or receive at a time")
 			return
 		}
-		defer func() {
-			isWorking = false
-		}()
+		isWorking = true
 
 		var fileDialog = widgets.NewQFileDialog2(nil, "Open file to send...", "", "")
 		fileDialog.SetAcceptMode(widgets.QFileDialog__AcceptOpen)
 		fileDialog.SetFileMode(widgets.QFileDialog__AnyFile)
 		if fileDialog.Exec() != int(widgets.QDialog__Accepted) {
+			isWorking = false
 			return
 		}
 		var fn = fileDialog.SelectedFiles()[0]
 		if len(fn) == 0 {
 			dialog(fmt.Sprintf("No file selected"))
+			isWorking = false
 			return
 		}
 
-		cr := croc.Init(false)
-		done := make(chan bool)
 		go func() {
+			cr := croc.Init(false)
+			done := make(chan bool)
 			codePhrase := utils.GetRandomName()
 			_, fname := filepath.Split(fn)
-			labels[0].SetText(fmt.Sprintf("Sending '%'", fname))
-			labels[1].SetText(fmt.Sprintf("Code phrase: %s", codePhrase))
+			labels[0].UpdateTextFromGoroutine(fmt.Sprintf("Sending '%s'", fname))
+			labels[1].UpdateTextFromGoroutine(fmt.Sprintf("Code phrase: %s", codePhrase))
+
+			go func(done chan bool) {
+				for {
+					fmt.Println(cr.FileInfo, cr.Bar)
+					if cr.FileInfo.SentName != "" {
+						labels[0].UpdateTextFromGoroutine(fmt.Sprintf("Sending %s", cr.FileInfo.SentName))
+					}
+					if cr.Bar != nil {
+						barState := cr.Bar.State()
+						labels[1].UpdateTextFromGoroutine(fmt.Sprintf("%2.1f%% [%2.0f:%2.0f]", barState.CurrentPercent*100, barState.SecondsSince, barState.SecondsLeft))
+					}
+					labels[2].UpdateTextFromGoroutine(cr.StateString)
+					time.Sleep(100 * time.Millisecond)
+					select {
+					case _ = <-done:
+						labels[2].UpdateTextFromGoroutine(cr.StateString)
+						return
+					default:
+						continue
+					}
+				}
+			}(done)
+
 			cr.Send(fn, codePhrase)
 			done <- true
-		}()
-
-		go func() {
-			for {
-				fmt.Println(cr.FileInfo, cr.Bar)
-				if cr.FileInfo.SentName != "" {
-					labels[0].UpdateTextFromGoroutine(fmt.Sprintf("%s", cr.FileInfo.SentName))
-				}
-				if cr.Bar != nil {
-					barState := cr.Bar.State()
-					labels[1].UpdateTextFromGoroutine(fmt.Sprintf("%2.1f", barState.CurrentPercent))
-				}
-				time.Sleep(100 * time.Millisecond)
-				select {
-				case _ = <-done:
-					break
-				default:
-					continue
-				}
-			}
+			isWorking = false
 		}()
 
 		// for i, label := range labels {
@@ -144,7 +149,7 @@ func main() {
 		os.Chdir(fn)
 		defer os.Chdir(cwd)
 
-		cr := croc.Init(false)
+		cr := croc.Init(true)
 		done := make(chan bool)
 		go func() {
 			cr.Receive(codePhrase)

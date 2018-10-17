@@ -18,6 +18,7 @@ import (
 
 // Send the file
 func (c *Croc) Send(fname, codephrase string) (err error) {
+	defer log.Flush()
 	log.Debugf("sending %s", fname)
 	errChan := make(chan error)
 
@@ -36,6 +37,10 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 
 	// use local relay
 	if !c.NoLocal {
+		defer func() {
+			log.Debug("sending relay stop signal")
+			relay.Stop()
+		}()
 		go func() {
 			// start own relay and connect to it
 			go relay.Run(c.RelayWebsocketPort, c.RelayTCPPorts)

@@ -1,8 +1,10 @@
 package relay
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/schollz/croc/src/logger"
@@ -10,6 +12,12 @@ import (
 )
 
 var DebugLevel string
+var stop bool
+
+func Stop() {
+	log.Debug("got stop signal")
+	stop = true
+}
 
 // Run is the async operation for running a server
 func Run(port string, tcpPorts []string) (err error) {
@@ -23,12 +31,25 @@ func Run(port string, tcpPorts []string) (err error) {
 
 	go h.run()
 	log.Debug("running relay on " + port)
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+	m := http.NewServeMux()
+	s := http.Server{Addr: ":" + port, Handler: m}
+	m.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		serveWs(w, r)
 	})
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	m.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "ok")
 	})
-	err = http.ListenAndServe(":"+port, nil)
+	go func() {
+		for {
+			if stop {
+				s.Shutdown(context.Background())
+				log.Debug("stopping http server")
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+	s.ListenAndServe()
+	log.Debug("finished")
 	return
 }

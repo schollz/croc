@@ -38,6 +38,9 @@ func (cr *Croc) startSender(forceSend int, serverAddress string, tcpPorts []stri
 		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
 			fmt.Fprintf(os.Stderr, "\n"+err.Error())
 		}
+		cr.StateString = err.Error()
+	} else {
+		cr.StateString = "File transfer completed."
 	}
 
 	done <- struct{}{}
@@ -89,6 +92,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 	// start a spinner
 	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 	spin.Writer = os.Stderr
+	defer spin.Stop()
 
 	// pick an elliptic curve
 	curve := siec.SIEC255()
