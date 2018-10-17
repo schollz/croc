@@ -1,4 +1,4 @@
-package sender
+package croc
 
 import (
 	"bytes"
@@ -24,31 +24,31 @@ import (
 	"github.com/schollz/croc/src/utils"
 	"github.com/schollz/croc/src/zipper"
 	"github.com/schollz/pake"
-	"github.com/schollz/progressbar/v2"
+	"github.com/schollz/progressbar"
 	"github.com/schollz/spinner"
 	"github.com/tscholl2/siec"
 )
 
-var DebugLevel string
-
 // Send is the async call to send data
-func Send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, done chan struct{}, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) {
+func (cr *Croc) startSender(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, done chan struct{}, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) {
 	logger.SetLogLevel(DebugLevel)
 	log.Debugf("sending %s", fname)
-	err := send(forceSend, serverAddress, tcpPorts, isLocal, c, fname, codephrase, useCompression, useEncryption)
+	err := cr.send(forceSend, serverAddress, tcpPorts, isLocal, c, fname, codephrase, useCompression, useEncryption)
 	if err != nil {
 		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
 			fmt.Fprintf(os.Stderr, "\n"+err.Error())
 		}
+		cr.StateString = err.Error()
+	} else {
+		cr.StateString = "File transfer completed."
 	}
 
 	done <- struct{}{}
 }
 
-func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) (err error) {
+func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) (err error) {
 	var f *os.File
 	defer f.Close() // ignore the error if it wasn't opened :(
-	var fstats models.FileStats
 	var fileHash []byte
 	var otherIP string
 	var startTransfer time.Time
@@ -92,6 +92,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 	// start a spinner
 	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 	spin.Writer = os.Stderr
+	defer spin.Stop()
 
 	// pick an elliptic curve
 	curve := siec.SIEC255()
@@ -139,7 +140,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 					fileReady <- err
 					return
 				}
-				fstats = models.FileStats{
+				cr.FileInfo = models.FileStats{
 					Name:         filename,
 					Size:         fstat.Size(),
 					ModTime:      fstat.ModTime(),
@@ -148,15 +149,15 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 					IsCompressed: useCompression,
 					IsEncrypted:  useEncryption,
 				}
-				if fstats.IsDir {
+				if cr.FileInfo.IsDir {
 					// zip the directory
-					fstats.SentName, err = zipper.ZipFile(fname, true)
+					cr.FileInfo.SentName, err = zipper.ZipFile(fname, true)
 					if err != nil {
 						log.Error(err)
 						fileReady <- err
 						return
 					}
-					fname = fstats.SentName
+					fname = cr.FileInfo.SentName
 
 					fstat, err := os.Stat(fname)
 					if err != nil {
@@ -164,7 +165,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 						return
 					}
 					// get new size
-					fstats.Size = fstat.Size()
+					cr.FileInfo.Size = fstat.Size()
 				}
 
 				// open the file
@@ -182,6 +183,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			c.WriteMessage(websocket.BinaryMessage, P.Bytes())
 			// start PAKE spinnner
 			spin.Suffix = " performing PAKE..."
+			cr.StateString = "Performing PAKE..."
 			spin.Start()
 		case 2:
 			// P recieves H(k),v from Q
@@ -197,6 +199,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			// wait for readiness
 			spin.Stop()
 			spin.Suffix = " waiting for recipient ok..."
+			cr.StateString = "Waiting for recipient ok...."
 			spin.Start()
 		case 3:
 			log.Debugf("[%d] recipient declares readiness for file info", step)
@@ -211,9 +214,13 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 					log.Debugf("connecting to server")
 					for i, tcpPort := range tcpPorts {
 						log.Debugf("connecting to %s on connection %d", tcpPort, i)
-						tcpConnections[i], err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
+						var message string
+						tcpConnections[i], message, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
 						if err != nil {
 							log.Error(err)
+						}
+						if message != "sender" {
+							log.Errorf("got wrong message: %s", message)
 						}
 					}
 				}
@@ -224,7 +231,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			if err != nil {
 				return err
 			}
-			fstatsBytes, err := json.Marshal(fstats)
+			fstatsBytes, err := json.Marshal(cr.FileInfo)
 			if err != nil {
 				return err
 			}
@@ -263,9 +270,9 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 
 			// start loading the file into memory
 			// start streaming encryption/compression
-			if fstats.IsDir {
+			if cr.FileInfo.IsDir {
 				// remove file if zipped
-				defer os.Remove(fstats.SentName)
+				defer os.Remove(cr.FileInfo.SentName)
 			}
 			go func(dataChan chan DataChan) {
 				var buffer []byte
@@ -287,7 +294,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 
 						// do compression
 						var compressedBytes []byte
-						if useCompression && !fstats.IsDir {
+						if useCompression && !cr.FileInfo.IsDir {
 							compressedBytes = compress.Compress(buffer[:bytesread])
 						} else {
 							compressedBytes = buffer[:bytesread]
@@ -351,7 +358,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			if !bytes.HasPrefix(message, []byte("ready")) {
 				return errors.New("recipient refused file")
 			}
-
+			cr.StateString = "Transfer in progress..."
 			fmt.Fprintf(os.Stderr, "\rSending (->%s)...\n", otherIP)
 			// send file, compure hash simultaneously
 			startTransfer = time.Now()
@@ -362,13 +369,13 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			} else {
 				blockSize = models.TCP_BUFFER_SIZE / 2
 			}
-			bar := progressbar.NewOptions(
-				int(fstats.Size),
+			cr.Bar = progressbar.NewOptions(
+				int(cr.FileInfo.Size),
 				progressbar.OptionSetRenderBlankState(true),
-				progressbar.OptionSetBytes(int(fstats.Size)),
+				progressbar.OptionSetBytes(int(cr.FileInfo.Size)),
 				progressbar.OptionSetWriter(os.Stderr),
 			)
-			bar.Add(blockSize * len(blocksToSkip))
+			cr.Bar.Add(blockSize * len(blocksToSkip))
 
 			if useWebsockets {
 				for {
@@ -376,7 +383,8 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 					if data.err != nil {
 						return data.err
 					}
-					bar.Add(data.bytesRead)
+					cr.Bar.Add(data.bytesRead)
+
 					// write data to websockets
 					err = c.WriteMessage(websocket.BinaryMessage, data.b)
 					if err != nil {
@@ -404,7 +412,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 								log.Error(data.err)
 								return
 							}
-							bar.Add(data.bytesRead)
+							cr.Bar.Add(data.bytesRead)
 							// write data to tcp connection
 							_, err = tcpConnections[i].Write(data.b)
 							if err != nil {
@@ -422,7 +430,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 				wg.Wait()
 			}
 
-			bar.Finish()
+			cr.Bar.Finish()
 			log.Debug("send hash to finish file")
 			fileHash, err = utils.HashFile(fname)
 			if err != nil {
@@ -440,10 +448,10 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 			log.Debugf("[%d] determing whether it went ok", step)
 			if bytes.Equal(message, fileHash) {
 				log.Debug("file transfered successfully")
-				transferRate := float64(fstats.Size) / 1000000.0 / transferTime.Seconds()
+				transferRate := float64(cr.FileInfo.Size) / 1000000.0 / transferTime.Seconds()
 				transferType := "MB/s"
 				if transferRate < 1 {
-					transferRate = float64(fstats.Size) / 1000.0 / transferTime.Seconds()
+					transferRate = float64(cr.FileInfo.Size) / 1000.0 / transferTime.Seconds()
 					transferType = "kB/s"
 				}
 				fmt.Fprintf(os.Stderr, "\nTransfer complete (%2.1f %s)", transferRate, transferType)
@@ -459,7 +467,7 @@ func send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, 
 	}
 }
 
-func connectToTCPServer(room string, address string) (com comm.Comm, err error) {
+func connectToTCPServer(room string, address string) (com comm.Comm, message string, err error) {
 	connection, err := net.DialTimeout("tcp", address, 3*time.Hour)
 	if err != nil {
 		return
@@ -479,13 +487,7 @@ func connectToTCPServer(room string, address string) (com comm.Comm, err error) 
 	if err != nil {
 		return
 	}
-	ok, err = com.Receive()
-	log.Debugf("server says: %s", ok)
-	if err != nil {
-		return
-	}
-	if ok != "sender" {
-		err = errors.New(ok)
-	}
+	message, err = com.Receive()
+	log.Debugf("server says: %s", message)
 	return
 }

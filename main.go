@@ -1,6 +1,8 @@
 package main
 
-import "github.com/schollz/croc/src/cli"
+import (
+	"github.com/schollz/croc/src/cli"
+)
 
 var Version string
 

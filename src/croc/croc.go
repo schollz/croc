@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/schollz/croc/src/logger"
-	"github.com/schollz/croc/src/recipient"
+	"github.com/schollz/croc/src/models"
 	"github.com/schollz/croc/src/relay"
-	"github.com/schollz/croc/src/sender"
 	"github.com/schollz/croc/src/zipper"
+	"github.com/schollz/progressbar"
 )
 
 func init() {
@@ -52,6 +52,11 @@ type Croc struct {
 	// is using local relay
 	isLocal      bool
 	normalFinish bool
+
+	// state variables
+	StateString string
+	Bar         *progressbar.ProgressBar
+	FileInfo    models.FileStats
 }
 
 // Init will initiate with the default parameters
@@ -63,7 +68,7 @@ func Init(debug bool) (c *Croc) {
 	c.RelayWebsocketPort = "8153"
 	c.RelayTCPPorts = []string{"8154", "8155", "8156", "8157", "8158", "8159", "8160", "8161"}
 	c.CurveType = "siec"
-	c.Address = "198.199.67.130"
+	c.Address = "croc4.schollz.com"
 	c.AddressWebsocketPort = "8153"
 	c.AddressTCPPorts = []string{"8154", "8155", "8156", "8157", "8158", "8159", "8160", "8161"}
 	c.NoRecipientPrompt = true
@@ -78,8 +83,6 @@ func Init(debug bool) (c *Croc) {
 
 func SetDebugLevel(debugLevel string) {
 	logger.SetLogLevel(debugLevel)
-	sender.DebugLevel = debugLevel
-	recipient.DebugLevel = debugLevel
 	relay.DebugLevel = debugLevel
 	zipper.DebugLevel = debugLevel
 }
