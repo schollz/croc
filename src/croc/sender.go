@@ -358,7 +358,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 			if !bytes.HasPrefix(message, []byte("ready")) {
 				return errors.New("recipient refused file")
 			}
-
+			cr.StateString = "Transfer in progress..."
 			fmt.Fprintf(os.Stderr, "\rSending (->%s)...\n", otherIP)
 			// send file, compure hash simultaneously
 			startTransfer = time.Now()

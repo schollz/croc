@@ -31,7 +31,7 @@ func main() {
 	app := widgets.NewQApplication(len(os.Args), os.Args)
 
 	window := widgets.NewQMainWindow(nil, 0)
-	window.SetFixedSize2(300, 200)
+	window.SetFixedSize2(400, 150)
 	window.SetWindowTitle("🐊📦 croc")
 
 	widget := widgets.NewQWidget(nil, 0)
