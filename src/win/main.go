@@ -21,6 +21,8 @@ type CustomLabel struct {
 	_ func(string) `signal:"updateTextFromGoroutine,auto(this.QLabel.setText)"` //TODO: support this.setText as well
 }
 
+var Version string
+
 func main() {
 	if len(os.Args) > 1 {
 		cli.Run()
@@ -32,7 +34,7 @@ func main() {
 
 	window := widgets.NewQMainWindow(nil, 0)
 	window.SetFixedSize2(400, 150)
-	window.SetWindowTitle("🐊📦 croc")
+	window.SetWindowTitle("🐊📦 croc " + Version)
 
 	widget := widgets.NewQWidget(nil, 0)
 	widget.SetLayout(widgets.NewQVBoxLayout())
