@@ -39,8 +39,6 @@ func (cr *Croc) startSender(forceSend int, serverAddress string, tcpPorts []stri
 			fmt.Fprintf(os.Stderr, "\n"+err.Error())
 		}
 		cr.StateString = err.Error()
-	} else {
-		cr.StateString = "File transfer completed."
 	}
 
 	done <- struct{}{}
@@ -455,6 +453,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 					transferType = "kB/s"
 				}
 				fmt.Fprintf(os.Stderr, "\nTransfer complete (%2.1f %s)", transferRate, transferType)
+				cr.StateString = fmt.Sprintf("Transfer complete (%2.1f %s)", transferRate, transferType)
 				return nil
 			} else {
 				fmt.Fprintf(os.Stderr, "\nTransfer corrupted")

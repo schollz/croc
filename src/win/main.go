@@ -50,7 +50,7 @@ func main() {
 	labels[0].SetText("secure data transfer")
 	labels[1].SetText("Click 'Send' or 'Receive' to start")
 
-	button := widgets.NewQPushButton2("Send file", nil)
+	button := widgets.NewQPushButton2("Send", nil)
 	button.ConnectClicked(func(bool) {
 		if isWorking {
 			dialog("Can only do one send or receive at a time")
@@ -105,16 +105,6 @@ func main() {
 			done <- true
 			isWorking = false
 		}()
-
-		// for i, label := range labels {
-		// 	go func(i int, label *CustomLabel) {
-		// 		var tick int
-		// 		for range time.NewTicker(time.Duration((i+1)*25) * time.Millisecond).C {
-		// 			tick++
-		// 			label.SetText(fmt.Sprintf("%v %v", tick, time.Now().UTC().Format("15:04:05.0000")))
-		// 		}
-		// 	}(i, label)
-		// }
 	})
 	widget.Layout().AddWidget(button)
 
@@ -124,17 +114,13 @@ func main() {
 			dialog("Can only do one send or receive at a time")
 			return
 		}
+
 		isWorking = true
 		defer func() {
 			isWorking = false
 		}()
 
-		var codePhrase = widgets.QInputDialog_GetText(nil, "Enter code phrase", "",
-			widgets.QLineEdit__Normal, "", true, core.Qt__Dialog, core.Qt__ImhNone)
-		if len(codePhrase) < 3 {
-			dialog(fmt.Sprintf("Invalid codephrase: '%s'", codePhrase))
-			return
-		}
+		// determine the folder to save the file
 		var folderDialog = widgets.NewQFileDialog2(nil, "Open folder to receive file...", "", "")
 		folderDialog.SetAcceptMode(widgets.QFileDialog__AcceptOpen)
 		folderDialog.SetFileMode(widgets.QFileDialog__DirectoryOnly)
@@ -146,42 +132,61 @@ func main() {
 			dialog(fmt.Sprintf("No folder selected"))
 			return
 		}
-		cwd, _ := os.Getwd()
-		os.Chdir(fn)
-		defer os.Chdir(cwd)
 
-		cr := croc.Init(true)
-		done := make(chan bool)
-		go func() {
-			cr.Receive(codePhrase)
-			done <- true
-		}()
-
-		for {
-			select {
-			case _ = <-done:
-				break
-			}
-			labels[0].SetText(cr.StateString)
-			if cr.FileInfo.SentName != "" {
-				labels[0].SetText(fmt.Sprintf("%s", cr.FileInfo.SentName))
-			}
-			if cr.Bar != nil {
-				barState := cr.Bar.State()
-				labels[1].SetText(fmt.Sprintf("%2.1f", barState.CurrentPercent))
-			}
-			time.Sleep(100 * time.Millisecond)
+		var codePhrase = widgets.QInputDialog_GetText(nil, "croc", "Enter code phrase:",
+			widgets.QLineEdit__Normal, "", true, core.Qt__Dialog, core.Qt__ImhNone)
+		if len(codePhrase) < 3 {
+			dialog(fmt.Sprintf("Invalid codephrase: '%s'", codePhrase))
+			return
 		}
 
-		// for i, label := range labels {
-		// 	go func(i int, label *CustomLabel) {
-		// 		var tick int
-		// 		for range time.NewTicker(time.Duration((i+1)*25) * time.Millisecond).C {
-		// 			tick++
-		// 			label.SetText(fmt.Sprintf("%v %v", tick, time.Now().UTC().Format("15:04:05.0000")))
-		// 		}
-		// 	}(i, label)
-		// }
+		cwd, _ := os.Getwd()
+
+		go func() {
+			os.Chdir(fn)
+			defer os.Chdir(cwd)
+
+			cr := croc.Init(true)
+			cr.WindowRecipientPrompt = true
+
+			done := make(chan bool)
+
+			go func(done chan bool) {
+				for {
+					if cr.WindowReceivingString != "" {
+						var question = widgets.QMessageBox_Question(nil, "croc", fmt.Sprintf("%s?", cr.WindowReceivingString), widgets.QMessageBox__Yes|widgets.QMessageBox__No, 0)
+						if question == widgets.QMessageBox__Yes {
+							cr.WindowRecipientAccept = true
+							labels[0].UpdateTextFromGoroutine(cr.WindowReceivingString)
+						} else {
+							cr.WindowRecipientAccept = false
+							labels[2].UpdateTextFromGoroutine("canceled")
+							return
+						}
+						cr.WindowRecipientPrompt = false
+						cr.WindowReceivingString = ""
+					}
+
+					if cr.Bar != nil {
+						barState := cr.Bar.State()
+						labels[1].UpdateTextFromGoroutine(fmt.Sprintf("%2.1f%% [%2.0f:%2.0f]", barState.CurrentPercent*100, barState.SecondsSince, barState.SecondsLeft))
+					}
+					labels[2].UpdateTextFromGoroutine(cr.StateString)
+					time.Sleep(100 * time.Millisecond)
+					select {
+					case _ = <-done:
+						labels[2].UpdateTextFromGoroutine(cr.StateString)
+						return
+					default:
+						continue
+					}
+				}
+			}(done)
+
+			cr.Receive(codePhrase)
+			done <- true
+			isWorking = false
+		}()
 	})
 	widget.Layout().AddWidget(receiveButton)
 
