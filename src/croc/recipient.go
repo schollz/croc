@@ -71,6 +71,7 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 	spin.Writer = os.Stderr
 	spin.Suffix = " performing PAKE..."
+	cr.StateString = "Performing PAKE..."
 	spin.Start()
 	defer spin.Stop()
 
@@ -159,6 +160,7 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 			c.WriteMessage(websocket.BinaryMessage, []byte("ready"))
 		case 3:
 			spin.Stop()
+			cr.StateString = "Recieving file info..."
 
 			// unmarshal the file info
 			log.Debugf("[%d] recieve file info", step)
@@ -207,11 +209,14 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 			if cr.FileInfo.IsDir {
 				fileOrFolder = "folder"
 			}
-			fmt.Fprintf(os.Stderr, "\r%s %s (%s) into: %s\n",
+			cr.WindowReceivingString = fmt.Sprintf("%s %s (%s) into: %s",
 				overwritingOrReceiving,
 				fileOrFolder,
 				humanize.Bytes(uint64(cr.FileInfo.Size)),
 				cr.FileInfo.Name,
+			)
+			fmt.Fprintf(os.Stderr, "\r%s%s\n",
+				cr.WindowReceivingString,
 			)
 			if !noPrompt {
 				if "y" != utils.GetInput("ok? (y/N): ") {
@@ -273,8 +278,8 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 			} else {
 				blockSize = models.TCP_BUFFER_SIZE / 2
 			}
-
 			// start the ui for pgoress
+			cr.StateString = "Recieving file..."
 			bytesWritten := 0
 			fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)...\n", otherIP)
 			cr.Bar = progressbar.NewOptions(
@@ -495,6 +500,7 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 					}
 					fmt.Fprintf(os.Stderr, "\nReceived %s written to %s (%2.1f %s)\n", folderOrFile, cr.FileInfo.Name, transferRate, transferType)
 					os.Remove(progressFile)
+					cr.StateString = fmt.Sprintf("Received %s written to %s (%2.1f %s)", folderOrFile, cr.FileInfo.Name, transferRate, transferType)
 				}
 				return err
 			} else {

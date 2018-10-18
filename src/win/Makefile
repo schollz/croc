@@ -1,4 +1,4 @@
-VERSION=$(shell git describe --abbrev=0)
+VERSION=$(shell git describe --tags --abbrev=0)
 LDFLAGS=-ldflags "-X main.Version=${VERSION}"
 
 .PHONY: linux

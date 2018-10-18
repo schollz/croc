@@ -61,6 +61,7 @@ type Croc struct {
 	// special for window
 	WindowRecipientPrompt bool
 	WindowRecipientAccept bool
+	WindowReceivingString string
 }
 
 // Init will initiate with the default parameters
