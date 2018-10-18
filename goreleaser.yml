@@ -2,17 +2,14 @@ project_name: croc
 build:
   main: main.go
   binary: croc
-  ldflags: -s -w -X main.Version="v{{.Version}}-{{.Date}}"
+  ldflags: -s -w -X main.Version="v{{.Version}}"
   env:
     - CGO_ENABLED=0
   goos:
     - darwin
     - linux
     - windows
-    - freebsd
-    - netbsd
     - openbsd
-    - dragonfly
   goarch:
     - amd64
     - 386
@@ -20,27 +17,6 @@ build:
     - arm64
   goarm:
     - 7
-nfpm:
-  formats:
-    - deb
-  vendor: "schollz.com"
-  homepage: "https://schollz.com/software/croc/"
-  maintainer: "Zack Scholl <zack.scholl@gmail.com>"
-  description: "A simple, secure, and fast way to transfer data."
-  license: "MIT"
-  name_template: "{{.ProjectName}}_{{.Version}}_{{.Os}}-{{.Arch}}"
-  replacements:
-    amd64: 64bit
-    386: 32bit
-    arm: ARM
-    arm64: ARM64
-    darwin: macOS
-    linux: Linux
-    windows: Windows
-    openbsd: OpenBSD
-    netbsd: NetBSD
-    freebsd: FreeBSD
-    dragonfly: DragonFlyBSD
 archive:
   format: tar.gz
   format_overrides:
@@ -63,4 +39,4 @@ archive:
     - README.md
     - LICENSE
 release:
-  draft: true
+  draft: false
