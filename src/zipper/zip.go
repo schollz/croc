@@ -148,6 +148,7 @@ func ZipFile(fname string, compress bool) (writtenFilename string, err error) {
 			}
 
 			if baseDir != "" {
+				baseDir = filepath.Clean(baseDir)
 				header.Name = path.Join(fname, strings.TrimPrefix(curpath, baseDir))
 			}
 			log.Debug(header.Name)
