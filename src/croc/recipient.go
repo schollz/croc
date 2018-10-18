@@ -202,6 +202,9 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 			blocksBytes, _ := json.Marshal(blocks)
 			// encrypt the block data and send
 			encblockBytes := crypt.Encrypt(blocksBytes, sessionKey)
+
+			// wait for TCP connections if using them
+			_ = <-isConnectedIfUsingTCP
 			c.WriteMessage(websocket.BinaryMessage, encblockBytes.Bytes())
 
 			// prompt user about the file
@@ -378,7 +381,7 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 			}(finished, dataChan)
 
 			log.Debug("telling sender i'm ready")
-			c.WriteMessage(websocket.BinaryMessage, append([]byte("ready"), blocksBytes...))
+			c.WriteMessage(websocket.BinaryMessage, []byte("ready"))
 
 			startTime := time.Now()
 			if useWebsockets {
@@ -408,7 +411,6 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 					// }
 				}
 			} else {
-				_ = <-isConnectedIfUsingTCP
 				log.Debugf("starting listening with tcp with %d connections", len(tcpConnections))
 				// using TCP
 				var wg sync.WaitGroup
