@@ -205,26 +205,6 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 				return errors.New("recipient refused file")
 			}
 
-			// connect to TCP in background
-			tcpConnections = make([]comm.Comm, len(tcpPorts))
-			go func() {
-				if !useWebsockets {
-					log.Debugf("connecting to server")
-					for i, tcpPort := range tcpPorts {
-						log.Debugf("connecting to %s on connection %d", tcpPort, i)
-						var message string
-						tcpConnections[i], message, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
-						if err != nil {
-							log.Error(err)
-						}
-						if message != "sender" {
-							log.Errorf("got wrong message: %s", message)
-						}
-					}
-				}
-				isConnectedIfUsingTCP <- true
-			}()
-
 			err = <-fileReady // block until file is ready
 			if err != nil {
 				return err
@@ -239,7 +219,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 			// send the file meta data
 			c.WriteMessage(websocket.BinaryMessage, enc.Bytes())
 		case 4:
-			log.Debugf("[%d] recipient declares gives blocks", step)
+			log.Debugf("[%d] recipient gives blocks", step)
 			// recipient sends blocks, and sender does not send anything back
 			// determine if any blocks were sent to skip
 			enc, err := crypt.FromBytes(message)
@@ -265,6 +245,26 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 				}
 			}
 			log.Debugf("found blocks: %+v", blocksToSkip)
+
+			// connect to TCP in background
+			tcpConnections = make([]comm.Comm, len(tcpPorts))
+			go func() {
+				if !useWebsockets {
+					log.Debugf("connecting to server")
+					for i, tcpPort := range tcpPorts {
+						log.Debugf("connecting to %s on connection %d", tcpPort, i)
+						var message string
+						tcpConnections[i], message, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
+						if err != nil {
+							log.Error(err)
+						}
+						if message != "sender" {
+							log.Errorf("got wrong message: %s", message)
+						}
+					}
+				}
+				isConnectedIfUsingTCP <- true
+			}()
 
 			// start loading the file into memory
 			// start streaming encryption/compression
