@@ -58,7 +58,7 @@ func main() {
 		}
 		isWorking = true
 
-		var fileDialog = widgets.NewQFileDialog2(nil, "Open file to send...", "", "")
+		var fileDialog = widgets.NewQFileDialog2(window, "Open file to send...", "", "")
 		fileDialog.SetAcceptMode(widgets.QFileDialog__AcceptOpen)
 		fileDialog.SetFileMode(widgets.QFileDialog__AnyFile)
 		if fileDialog.Exec() != int(widgets.QDialog__Accepted) {
@@ -121,7 +121,7 @@ func main() {
 		}()
 
 		// determine the folder to save the file
-		var folderDialog = widgets.NewQFileDialog2(nil, "Open folder to receive file...", "", "")
+		var folderDialog = widgets.NewQFileDialog2(window, "Open folder to receive file...", "", "")
 		folderDialog.SetAcceptMode(widgets.QFileDialog__AcceptOpen)
 		folderDialog.SetFileMode(widgets.QFileDialog__DirectoryOnly)
 		if folderDialog.Exec() != int(widgets.QDialog__Accepted) {
@@ -133,7 +133,7 @@ func main() {
 			return
 		}
 
-		var codePhrase = widgets.QInputDialog_GetText(nil, "croc", "Enter code phrase:",
+		var codePhrase = widgets.QInputDialog_GetText(window, "croc", "Enter code phrase:",
 			widgets.QLineEdit__Normal, "", true, core.Qt__Dialog, core.Qt__ImhNone)
 		if len(codePhrase) < 3 {
 			dialog(fmt.Sprintf("Invalid codephrase: '%s'", codePhrase))
