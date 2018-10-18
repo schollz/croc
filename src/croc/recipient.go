@@ -220,6 +220,22 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 					return nil
 				}
 			}
+			if cr.WindowRecipientPrompt {
+				// wait until it switches to false
+				// the window should then set WindowRecipientAccept
+				for {
+					if !cr.WindowRecipientPrompt {
+						if cr.WindowRecipientAccept {
+							break
+						} else {
+							fmt.Fprintf(os.Stderr, "cancelling request")
+							c.WriteMessage(websocket.BinaryMessage, []byte("no"))
+							return nil
+						}
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+			}
 
 			// await file
 			// erase file if overwriting

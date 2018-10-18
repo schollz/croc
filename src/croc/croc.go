@@ -57,6 +57,10 @@ type Croc struct {
 	StateString string
 	Bar         *progressbar.ProgressBar
 	FileInfo    models.FileStats
+
+	// special for window
+	WindowRecipientPrompt bool
+	WindowRecipientAccept bool
 }
 
 // Init will initiate with the default parameters
