@@ -154,7 +154,7 @@ func main() {
 			go func(done chan bool) {
 				for {
 					if cr.WindowReceivingString != "" {
-						var question = widgets.QMessageBox_Question(nil, "croc", fmt.Sprintf("%s?", cr.WindowReceivingString), widgets.QMessageBox__Yes|widgets.QMessageBox__No, 0)
+						var question = widgets.QMessageBox_Question(window, "croc", fmt.Sprintf("%s?", cr.WindowReceivingString), widgets.QMessageBox__Yes|widgets.QMessageBox__No, 0)
 						if question == widgets.QMessageBox__Yes {
 							cr.WindowRecipientAccept = true
 							labels[0].UpdateTextFromGoroutine(cr.WindowReceivingString)
