@@ -215,7 +215,7 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 				humanize.Bytes(uint64(cr.FileInfo.Size)),
 				cr.FileInfo.Name,
 			)
-			fmt.Fprintf(os.Stderr, "\r%s%s\n",
+			fmt.Fprintf(os.Stderr, "\r%s\n",
 				cr.WindowReceivingString,
 			)
 			if !noPrompt {
