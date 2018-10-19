@@ -14,6 +14,7 @@ import (
 	humanize "github.com/dustin/go-humanize"
 	"github.com/schollz/croc/src/croc"
 	"github.com/schollz/croc/src/utils"
+	"github.com/skratchdot/open-golang/open"
 	"github.com/urfave/cli"
 )
 
@@ -187,10 +188,20 @@ func receive(c *cli.Context) error {
 	if c.Args().First() != "" {
 		codePhrase = c.Args().First()
 	}
+	openFolder := false
+	if len(os.Args) == 1 {
+		// open folder since they didn't give any arguments
+		openFolder = true
+	}
 	if codePhrase == "" {
 		codePhrase = utils.GetInput("Enter receive code: ")
 	}
-	return cr.Receive(codePhrase)
+	err := cr.Receive(codePhrase)
+	if err == nil && openFolder {
+		cwd, _ := os.Getwd()
+		open.Run(cwd)
+	}
+	return err
 }
 
 func relay(c *cli.Context) error {
