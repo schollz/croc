@@ -57,6 +57,7 @@ type Croc struct {
 	StateString string
 	Bar         *progressbar.ProgressBar
 	FileInfo    models.FileStats
+	OtherIP     string
 
 	// special for window
 	WindowRecipientPrompt bool

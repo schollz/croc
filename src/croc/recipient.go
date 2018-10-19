@@ -47,7 +47,6 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 	var sessionKey []byte
 	var transferTime time.Duration
 	var hash256 []byte
-	var otherIP string
 	var progressFile string
 	var resumeFile bool
 	var tcpConnections []comm.Comm
@@ -103,8 +102,8 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 		switch step {
 		case 0:
 			// sender has initiated, sends their ip address
-			otherIP = string(message)
-			log.Debugf("sender IP: %s", otherIP)
+			cr.OtherIP = string(message)
+			log.Debugf("sender IP: %s", cr.OtherIP)
 
 			// recipient begins by sending address
 			ip := ""
@@ -284,7 +283,7 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 			// start the ui for pgoress
 			cr.StateString = "Recieving file..."
 			bytesWritten := 0
-			fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)...\n", otherIP)
+			fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)...\n", cr.OtherIP)
 			cr.Bar = progressbar.NewOptions(
 				int(cr.FileInfo.Size),
 				progressbar.OptionSetRenderBlankState(true),
