@@ -18,5 +18,6 @@ release: linux windows
 	mv deploy/windows/win.exe croc.exe
 	zip croc_${VERSION}_Windows-64bit_GUI.zip croc.exe
 	rm -rf dist
+	mkdir dist
 	mv *zip dist/
 	
