@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	humanize "github.com/dustin/go-humanize"
 	"github.com/schollz/croc/src/cli"
 	"github.com/schollz/croc/src/croc"
 	"github.com/schollz/croc/src/utils"
@@ -82,12 +83,17 @@ func main() {
 
 			go func(done chan bool) {
 				for {
-					if cr.FileInfo.SentName != "" {
-						labels[0].UpdateTextFromGoroutine(fmt.Sprintf("Sending %s", cr.FileInfo.SentName))
+					if cr.OtherIP != "" && cr.FileInfo.SentName != "" {
+						bytesString := humanize.Bytes(uint64(cr.FileInfo.Size))
+						fileOrFolder := "file"
+						if cr.FileInfo.IsDir {
+							fileOrFolder = "folder"
+						}
+						labels[0].UpdateTextFromGoroutine(fmt.Sprintf("Sending %s %s '%s' to %s", bytesString, fileOrFolder, cr.FileInfo.SentName, cr.OtherIP))
 					}
 					if cr.Bar != nil {
 						barState := cr.Bar.State()
-						labels[1].UpdateTextFromGoroutine(fmt.Sprintf("%2.1f%% [%2.0f:%2.0f]", barState.CurrentPercent*100, barState.SecondsSince, barState.SecondsLeft))
+						labels[1].UpdateTextFromGoroutine(fmt.Sprintf("%2.1f%% [%2.0fs:%2.0fs]", barState.CurrentPercent*100, barState.SecondsSince, barState.SecondsLeft))
 					}
 					labels[2].UpdateTextFromGoroutine(cr.StateString)
 					time.Sleep(100 * time.Millisecond)
@@ -129,64 +135,61 @@ func main() {
 		}
 		var fn = folderDialog.SelectedFiles()[0]
 		if len(fn) == 0 {
-			dialog(fmt.Sprintf("No folder selected"))
+			labels[2].SetText(fmt.Sprintf("No folder selected"))
 			return
 		}
 
 		var codePhrase = widgets.QInputDialog_GetText(window, "croc", "Enter code phrase:",
 			widgets.QLineEdit__Normal, "", true, core.Qt__Dialog, core.Qt__ImhNone)
 		if len(codePhrase) < 3 {
-			dialog(fmt.Sprintf("Invalid codephrase: '%s'", codePhrase))
+			labels[2].SetText(fmt.Sprintf("Invalid codephrase: '%s'", codePhrase))
 			return
 		}
 
+		// change into the receiving directory
 		cwd, _ := os.Getwd()
+		defer os.Chdir(cwd)
+		os.Chdir(fn)
 
+		cr := croc.Init(true)
+		cr.WindowRecipientPrompt = true
+
+		done := make(chan bool)
 		go func() {
-			os.Chdir(fn)
-			defer os.Chdir(cwd)
-
-			cr := croc.Init(true)
-			cr.WindowRecipientPrompt = true
-
-			done := make(chan bool)
-
-			go func(done chan bool) {
-				for {
-					if cr.WindowReceivingString != "" {
-						var question = widgets.QMessageBox_Question(window, "croc", fmt.Sprintf("%s?", cr.WindowReceivingString), widgets.QMessageBox__Yes|widgets.QMessageBox__No, 0)
-						if question == widgets.QMessageBox__Yes {
-							cr.WindowRecipientAccept = true
-							labels[0].UpdateTextFromGoroutine(cr.WindowReceivingString)
-						} else {
-							cr.WindowRecipientAccept = false
-							labels[2].UpdateTextFromGoroutine("canceled")
-							return
-						}
-						cr.WindowRecipientPrompt = false
-						cr.WindowReceivingString = ""
-					}
-
-					if cr.Bar != nil {
-						barState := cr.Bar.State()
-						labels[1].UpdateTextFromGoroutine(fmt.Sprintf("%2.1f%% [%2.0f:%2.0f]", barState.CurrentPercent*100, barState.SecondsSince, barState.SecondsLeft))
-					}
-					labels[2].UpdateTextFromGoroutine(cr.StateString)
-					time.Sleep(100 * time.Millisecond)
-					select {
-					case _ = <-done:
-						labels[2].UpdateTextFromGoroutine(cr.StateString)
-						return
-					default:
-						continue
-					}
-				}
-			}(done)
-
 			cr.Receive(codePhrase)
 			done <- true
 			isWorking = false
 		}()
+		for {
+			if cr.WindowReceivingString != "" {
+				var question = widgets.QMessageBox_Question(window, "croc", fmt.Sprintf("%s?", cr.WindowReceivingString), widgets.QMessageBox__Yes|widgets.QMessageBox__No, 0)
+				if question == widgets.QMessageBox__Yes {
+					cr.WindowRecipientAccept = true
+					labels[0].UpdateTextFromGoroutine(cr.WindowReceivingString)
+				} else {
+					cr.WindowRecipientAccept = false
+					labels[2].UpdateTextFromGoroutine("canceled")
+					return
+				}
+				cr.WindowRecipientPrompt = false
+				cr.WindowReceivingString = ""
+			}
+
+			if cr.Bar != nil {
+				barState := cr.Bar.State()
+				labels[1].UpdateTextFromGoroutine(fmt.Sprintf("%2.1f%% [%2.0fs:%2.0fs]", barState.CurrentPercent*100, barState.SecondsSince, barState.SecondsLeft))
+			}
+			labels[2].UpdateTextFromGoroutine(cr.StateString)
+			time.Sleep(100 * time.Millisecond)
+			select {
+			case _ = <-done:
+				labels[2].UpdateTextFromGoroutine(cr.StateString)
+				return
+			default:
+				continue
+			}
+		}
+
 	})
 	widget.Layout().AddWidget(receiveButton)
 
