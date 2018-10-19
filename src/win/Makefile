@@ -20,4 +20,5 @@ release: linux windows
 	rm -rf dist
 	mkdir dist
 	mv *zip dist/
+	mv *tar.gz dist/
 	
