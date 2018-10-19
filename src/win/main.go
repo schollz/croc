@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
 	"github.com/schollz/croc/src/cli"
 	"github.com/schollz/croc/src/croc"
 	"github.com/schollz/croc/src/utils"
+	"github.com/skratchdot/open-golang/open"
 	"github.com/therecipe/qt/core"
 	"github.com/therecipe/qt/widgets"
 )
@@ -120,7 +122,7 @@ func main() {
 			dialog("Can only do one send or receive at a time")
 			return
 		}
-
+		labels[2].SetText("please wait...")
 		isWorking = true
 		defer func() {
 			isWorking = false
@@ -158,32 +160,50 @@ func main() {
 		go func() {
 			cr.Receive(codePhrase)
 			done <- true
+			done <- true
 			isWorking = false
+			if strings.Contains(cr.StateString, "Received") {
+				open.Start(fn)
+			}
 		}()
+		go func() {
+			for {
+				if cr.Bar != nil {
+					barState := cr.Bar.State()
+					labels[1].UpdateTextFromGoroutine(fmt.Sprintf("%2.1f%% [%2.0fs:%2.0fs]", barState.CurrentPercent*100, barState.SecondsSince, barState.SecondsLeft))
+				}
+				if cr.StateString != "" {
+					labels[2].UpdateTextFromGoroutine(cr.StateString)
+				}
+				time.Sleep(100 * time.Millisecond)
+				select {
+				case _ = <-done:
+					labels[2].UpdateTextFromGoroutine(cr.StateString)
+					return
+				default:
+					continue
+				}
+			}
+		}()
+
 		for {
 			if cr.WindowReceivingString != "" {
 				var question = widgets.QMessageBox_Question(window, "croc", fmt.Sprintf("%s?", cr.WindowReceivingString), widgets.QMessageBox__Yes|widgets.QMessageBox__No, 0)
 				if question == widgets.QMessageBox__Yes {
 					cr.WindowRecipientAccept = true
-					labels[0].UpdateTextFromGoroutine(cr.WindowReceivingString)
+					labels[0].SetText(cr.WindowReceivingString)
 				} else {
 					cr.WindowRecipientAccept = false
-					labels[2].UpdateTextFromGoroutine("canceled")
-					return
+					labels[2].SetText("canceled")
 				}
 				cr.WindowRecipientPrompt = false
 				cr.WindowReceivingString = ""
+				break
 			}
-
-			if cr.Bar != nil {
-				barState := cr.Bar.State()
-				labels[1].UpdateTextFromGoroutine(fmt.Sprintf("%2.1f%% [%2.0fs:%2.0fs]", barState.CurrentPercent*100, barState.SecondsSince, barState.SecondsLeft))
-			}
-			labels[2].UpdateTextFromGoroutine(cr.StateString)
 			time.Sleep(100 * time.Millisecond)
 			select {
 			case _ = <-done:
-				labels[2].UpdateTextFromGoroutine(cr.StateString)
+				labels[2].SetText(cr.StateString)
 				return
 			default:
 				continue
