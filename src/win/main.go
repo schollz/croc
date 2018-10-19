@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
@@ -122,6 +121,7 @@ func main() {
 			dialog("Can only do one send or receive at a time")
 			return
 		}
+		labels[1].SetText("")
 		labels[2].SetText("please wait...")
 		isWorking = true
 		defer func() {
@@ -158,13 +158,13 @@ func main() {
 
 		done := make(chan bool)
 		go func() {
-			cr.Receive(codePhrase)
+			err := cr.Receive(codePhrase)
+			if err == nil {
+				open.Run(fn)
+			}
 			done <- true
 			done <- true
 			isWorking = false
-			if strings.Contains(cr.StateString, "Received") {
-				open.Start(fn)
-			}
 		}()
 		go func() {
 			for {
