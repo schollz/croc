@@ -153,7 +153,7 @@ func main() {
 		defer os.Chdir(cwd)
 		os.Chdir(fn)
 
-		cr := croc.Init(true)
+		cr := croc.Init(false)
 		cr.WindowRecipientPrompt = true
 
 		done := make(chan bool)
