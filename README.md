@@ -39,6 +39,12 @@ The second example shows how you can restart a broken transfer. Here, computer 2
 
 ![receive](.github/4.gif)
 
+In version 4, there is now a GUI available for [Windows](https://github.com/schollz/croc/releases/latest) and [Linux](https://github.com/schollz/croc/releases/latest):
+
+<div style="text-align:center">
+    <img src="https://user-images.githubusercontent.com/6550035/47256575-8a193e00-d437-11e8-96fa-42c9d072a8f1.PNG">
+</div>
+
 ## Install
 
 [Download the latest release for your system](https://github.com/schollz/croc/releases/latest).
