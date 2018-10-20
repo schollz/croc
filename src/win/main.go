@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
@@ -35,8 +36,13 @@ func main() {
 	app := widgets.NewQApplication(len(os.Args), os.Args)
 
 	window := widgets.NewQMainWindow(nil, 0)
-	window.SetFixedSize2(400, 150)
-	window.SetWindowTitle("🐊📦 croc " + Version)
+	if runtime.GOOS == "windows" {
+		window.SetFixedSize2(300, 150)
+		window.SetWindowTitle("croc " + Version)
+	} else {
+		window.SetFixedSize2(400, 150)
+		window.SetWindowTitle("🐊📦 croc " + Version)
+	}
 
 	widget := widgets.NewQWidget(nil, 0)
 	widget.SetLayout(widgets.NewQVBoxLayout())
