@@ -53,6 +53,8 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 	var progressFile string
 	var resumeFile bool
 	var tcpConnections []comm.Comm
+	var Q *pake.Pake
+
 	dataChan := make(chan []byte, 1024*1024)
 	isConnectedIfUsingTCP := make(chan bool)
 	blocks := []string{}
@@ -80,9 +82,6 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 	// both parties should have a weak key
 	pw := []byte(codephrase)
 
-	// initialize recipient Q ("1" indicates recipient)
-	var Q *pake.Pake
-
 	step := 0
 	for {
 		messageType, message, err := c.ReadMessage()
@@ -109,22 +108,28 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 			cr.OtherIP = initialData.IPAddress
 			log.Debugf("sender IP: %s", cr.OtherIP)
 
+			// TODO:
+			// check whether the version strings are compatible
+
+			// initialize the PAKE with the curve sent from the sender
 			Q, err = pake.InitCurve(pw, 1, initialData.CurveType, 1*time.Millisecond)
 			if err != nil {
 				err = errors.Wrap(err, "incompatible curve type")
 				return err
 			}
 
-			// recipient begins by sending address
+			// recipient begins by sending back initial data to sender
 			ip := ""
 			if isLocal {
 				ip = utils.LocalIP()
 			} else {
 				ip, _ = utils.PublicIP()
 			}
-			c.WriteMessage(websocket.BinaryMessage, []byte(ip))
+			initialData.VersionString = cr.Version
+			initialData.IPAddress = ip
+			bInitialData, _ := json.Marshal(initialData)
+			c.WriteMessage(websocket.BinaryMessage, bInitialData)
 		case 1:
-
 			// Q receives u
 			log.Debugf("[%d] Q computes k, sends H(k), v back to P", step)
 			if err := Q.Update(message); err != nil {
