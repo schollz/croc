@@ -178,7 +178,7 @@ func (c *Croc) sendReceive(address, websocketPort string, tcpPorts []string, fna
 				SetDebugLevel("critical")
 			}
 			log.Debug("interrupt")
-			err = sock.WriteMessage(websocket.TextMessage, []byte("interrupt"))
+			err = sock.WriteMessage(websocket.TextMessage, []byte("error: interrupted by other party"))
 			if err != nil {
 				return err
 			}
