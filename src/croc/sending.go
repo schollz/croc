@@ -96,7 +96,7 @@ func (c *Croc) Receive(codephrase string) (err error) {
 			log.Debug(errDiscover)
 		}
 		if len(discovered) > 0 {
-			if discovered[0].Address == utils.GetLocalIP() {
+			if discovered[0].Address == utils.LocalIP() {
 				discovered[0].Address = "localhost"
 			}
 			log.Debugf("discovered %s:%s", discovered[0].Address, discovered[0].Payload)

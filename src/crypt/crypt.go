@@ -9,7 +9,7 @@ import (
 	"errors"
 	"strings"
 
-	"golang.org/x/crypto/pbkdf2"
+	"github.com/golang/crypto/pbkdf2"
 )
 
 // Encryption stores the data
