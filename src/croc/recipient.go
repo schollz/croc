@@ -108,8 +108,14 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 			cr.OtherIP = initialData.IPAddress
 			log.Debugf("sender IP: %s", cr.OtherIP)
 
-			// TODO:
 			// check whether the version strings are compatible
+			versionStringsOther := strings.Split(initialData.VersionString, ".")
+			versionStringsSelf := strings.Split(cr.Version, ".")
+			if len(versionStringsOther) == 3 && len(versionStringsSelf) == 3 {
+				if versionStringsSelf[0] != versionStringsOther[0] || versionStringsSelf[1] != versionStringsOther[1] {
+					return fmt.Errorf("version sender %s is not compatible with recipient %s", cr.Version, initialData.VersionString)
+				}
+			}
 
 			// initialize the PAKE with the curve sent from the sender
 			Q, err = pake.InitCurve(pw, 1, initialData.CurveType, 1*time.Millisecond)
