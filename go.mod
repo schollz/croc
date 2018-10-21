@@ -14,7 +14,6 @@ require (
 	github.com/schollz/peerdiscovery v1.2.2
 	github.com/schollz/progressbar/v2 v2.6.0
 	github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9
-	github.com/schollz/utils v1.0.0
 	github.com/skratchdot/open-golang v0.0.0-20160302144031-75fb7ed4208c
 	github.com/stretchr/testify v1.2.2
 	github.com/tscholl2/siec v0.0.0-20180721101609-21667da05937
