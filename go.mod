@@ -16,8 +16,7 @@ require (
 	github.com/schollz/progressbar/v2 v2.6.0
 	github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9
 	github.com/skratchdot/open-golang v0.0.0-20160302144031-75fb7ed4208c
-	github.com/tscholl2/siec v0.0.0-20180721101609-21667da05937
 	github.com/urfave/cli v1.20.0
-	golang.org/x/crypto v0.0.0-20181015023909-0c41d7ab0a0e
+	golang.org/x/crypto v0.0.0-20180904163835-0709b304e793
 	golang.org/x/net v0.0.0-20181017193950-04a2e542c03f // indirect
 )
