@@ -60,6 +60,16 @@ func Run() {
 				return relay(c)
 			},
 		},
+		{
+			Name:        "config",
+			Usage:       "generates a config file",
+			Description: "the croc config can be used to set static parameters",
+			Flags:       []cli.Flag{},
+			HelpName:    "croc config",
+			Action: func(c *cli.Context) error {
+				return saveDefaultConfig(c)
+			},
+		},
 	}
 	app.Flags = []cli.Flag{
 		cli.StringFlag{Name: "addr", Value: "croc4.schollz.com", Usage: "address of the public relay"},
@@ -115,6 +125,10 @@ func Run() {
 	}
 }
 
+func saveDefaultConfig(c *cli.Context) error {
+	return croc.SaveDefaultConfig()
+}
+
 func send(c *cli.Context) error {
 	stat, _ := os.Stdin.Stat()
 	var fname string
@@ -147,11 +161,12 @@ func send(c *cli.Context) error {
 	cr.UseCompression = !c.Bool("no-compress")
 	cr.UseEncryption = !c.Bool("no-encrypt")
 	if c.String("code") != "" {
-		codePhrase = c.String("code")
+		cr.Codephrase = c.String("code")
 	}
-	if len(codePhrase) == 0 {
+	cr.LoadConfig()
+	if len(cr.Codephrase) == 0 {
 		// generate code phrase
-		codePhrase = utils.GetRandomName()
+		cr.Codephrase = utils.GetRandomName()
 	}
 
 	// print the text
@@ -176,10 +191,10 @@ func send(c *cli.Context) error {
 		humanize.Bytes(uint64(fsize)),
 		fileOrFolder,
 		filename,
-		codePhrase,
-		codePhrase,
+		cr.Codephrase,
+		cr.Codephrase,
 	)
-	return cr.Send(fname, codePhrase)
+	return cr.Send(fname, cr.Codephrase)
 }
 
 func receive(c *cli.Context) error {
