@@ -10,7 +10,7 @@ require (
 	github.com/mattn/go-isatty v0.0.4 // indirect
 	github.com/pkg/errors v0.8.0
 	github.com/schollz/mnemonicode v1.0.1
-	github.com/schollz/pake v1.0.2
+	github.com/schollz/pake v1.1.0
 	github.com/schollz/peerdiscovery v1.2.2
 	github.com/schollz/progressbar/v2 v2.6.0
 	github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9
@@ -19,6 +19,6 @@ require (
 	github.com/stretchr/testify v1.2.2
 	github.com/tscholl2/siec v0.0.0-20180721101609-21667da05937
 	github.com/urfave/cli v1.20.0
-	golang.org/x/crypto v0.0.0-20181009213950-7c1a557ab941
+	golang.org/x/crypto v0.0.0-20181015023909-0c41d7ab0a0e
 	golang.org/x/net v0.0.0-20181005035420-146acd28ed58 // indirect
 )
