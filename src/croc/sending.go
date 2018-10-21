@@ -12,8 +12,8 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
 	"github.com/schollz/croc/src/relay"
+	"github.com/schollz/croc/src/utils"
 	"github.com/schollz/peerdiscovery"
-	"github.com/schollz/utils"
 )
 
 // Send the file
