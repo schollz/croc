@@ -19,9 +19,15 @@ Status"></a>
 
 ## Overview
 
-*croc* uses "code phrases" to securely transfer files. A code phrase is a combination of three random words (mnemonicoded 4 bytes) which the sender shares with the recipient. The code phrase is used by the sender and recipient for password authenticated key exchange ([PAKE](https://github.com/schollz/pake)) to validate parties and generate a secure session key for end-to-end encryption. Since a code phrase can only be used once between two parties, an attacker has a chance of less than 1 in *4 billion* to guess the right code phrase to steal the file. Any attacker with the wrong code phrase will fail the PAKE and the sender will be notified. Only two people with the right code phrase will be able to computers transfer encrypted data through a relay.
+**Transmit encrypted data with a code phrase**
+
+*croc* securely transfers data using *code phrases* - a combination of three random words (mnemonicoded 4 bytes). The code phrase is shared between the sender and the recipient for password authenticated key exchange ([PAKE](https://github.com/schollz/pake)), a cryptographic method to use a shared weak key (the "code phrase") to generate a strong key for secure end-to-end encryption. By default, a code phrase can only be used once between two parties so an attacker would have a chance of less than 1 in *4 billion* to guess the code phrase correctly to steal the data. An attacker with the wrong code phrase will fail the PAKE and the sender will be notified without any data transfering. Only two people with the right code phrase will be able to computers transfer encrypted data through a relay.
+
+**Fast data transfer through TCP**
 
 The actual data transfer is accomplished using a relay, either using raw TCP sockets or websockets. If both computers are on the LAN network then *croc* will use a local relay, otherwise a public relay is used. All the data going through the relay is encrypted using the PAKE-generated session key, so the relay can't spy on information passing through it. The data is transferred in blocks, where each block is compressed and encrypted, and the recipient keeps track of blocks received so that it can resume the transfer if interrupted.
+
+**Why another data transfer utility?**
 
 My motivation to write *croc*, as stupid as it sounds, is because I wanted to create a program that made it easy to send a 3GB+ PBS documentary to my friend in a different country. My friend has a Windows computer and is not comfortable using a terminal. So I wanted to write a program that, while secure, is simple to receive a file. *croc* accomplishes this, and now I find myself using it almost everyday at work. To receive a file you can just download the executable and double click on it (sending a file requires opening a terminal still, though).
 
