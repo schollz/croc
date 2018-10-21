@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -16,6 +15,7 @@ import (
 	log "github.com/cihub/seelog"
 	humanize "github.com/dustin/go-humanize"
 	"github.com/gorilla/websocket"
+	"github.com/pkg/errors"
 	"github.com/schollz/croc/src/comm"
 	"github.com/schollz/croc/src/compress"
 	"github.com/schollz/croc/src/crypt"
@@ -26,7 +26,6 @@ import (
 	"github.com/schollz/pake"
 	"github.com/schollz/progressbar/v2"
 	"github.com/schollz/spinner"
-	"github.com/tscholl2/siec"
 )
 
 var DebugLevel string
@@ -38,6 +37,10 @@ func (cr *Croc) startRecipient(forceSend int, serverAddress string, tcpPorts []s
 	if err != nil {
 		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
 			fmt.Fprintf(os.Stderr, "\n"+err.Error())
+			cr.StateString = err.Error()
+			err = errors.Wrap(err, "error in recipient:")
+			c.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+			time.Sleep(50 * time.Millisecond)
 		}
 	}
 	done <- struct{}{}
@@ -74,16 +77,11 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 	spin.Start()
 	defer spin.Stop()
 
-	// pick an elliptic curve
-	curve := siec.SIEC255()
 	// both parties should have a weak key
 	pw := []byte(codephrase)
 
 	// initialize recipient Q ("1" indicates recipient)
-	Q, err := pake.Init(pw, 1, curve, 1*time.Millisecond)
-	if err != nil {
-		return
-	}
+	var Q *pake.Pake
 
 	step := 0
 	for {
@@ -101,9 +99,21 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 		log.Debugf("got %d: %s", messageType, message)
 		switch step {
 		case 0:
-			// sender has initiated, sends their ip address
-			cr.OtherIP = string(message)
+			// sender has initiated, sends their initial data
+			var initialData models.Initial
+			err = json.Unmarshal(message, &initialData)
+			if err != nil {
+				err = errors.Wrap(err, "incompatible versions of croc")
+				return err
+			}
+			cr.OtherIP = initialData.IPAddress
 			log.Debugf("sender IP: %s", cr.OtherIP)
+
+			Q, err = pake.InitCurve(pw, 1, initialData.CurveType, 1*time.Millisecond)
+			if err != nil {
+				err = errors.Wrap(err, "incompatible curve type")
+				return err
+			}
 
 			// recipient begins by sending address
 			ip := ""
