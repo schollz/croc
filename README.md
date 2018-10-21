@@ -4,7 +4,7 @@
     src="https://user-images.githubusercontent.com/6550035/46709024-9b23ad00-cbf6-11e8-9fb2-ca8b20b7dbec.jpg"
     width="408px" border="0" alt="croc">
 <br>
-<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-4.0.8-brightgreen.svg?style=flat-square" alt="Version"></a>
+<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-4.1.0-brightgreen.svg?style=flat-square" alt="Version"></a>
 <img src="https://img.shields.io/badge/coverage-77%25-brightgreen.svg?style=flat-square" alt="Code coverage">
 <a href="https://travis-ci.org/schollz/croc"><img
 src="https://img.shields.io/travis-ci/schollz/croc.svg?style=flat-square" alt="Build
@@ -121,6 +121,17 @@ You can send files using your relay by entering `-relay` to change the relay tha
 ```
 $ croc -relay "ws://myrelay.example.com" send [filename]
 ```
+
+### Configuration file 
+
+You can also make some paramters static by using a configuration file. To get started with the config file just do 
+
+```
+$ croc config
+```
+
+which will generate the file that you can edit. 
+Any changes you make to the configuration file will be applied *before* the command-line flags, if any.
 
 
 ## License
