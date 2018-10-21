@@ -87,6 +87,7 @@ func Run() {
 	}
 	app.Before = func(c *cli.Context) error {
 		cr = croc.Init(c.GlobalBool("debug"))
+		cr.Version = Version
 		cr.AllowLocalDiscovery = true
 		cr.Address = c.GlobalString("addr")
 		cr.AddressTCPPorts = strings.Split(c.GlobalString("addr-tcp"), ",")

@@ -26,7 +26,6 @@ import (
 	"github.com/schollz/pake"
 	progressbar "github.com/schollz/progressbar/v2"
 	"github.com/schollz/spinner"
-	"github.com/tscholl2/siec"
 )
 
 // Send is the async call to send data
@@ -37,8 +36,11 @@ func (cr *Croc) startSender(forceSend int, serverAddress string, tcpPorts []stri
 	if err != nil {
 		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
 			fmt.Fprintf(os.Stderr, "\n"+err.Error())
+			err = errors.Wrap(err, "error in sender:")
+			c.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+			time.Sleep(50 * time.Millisecond)
+			cr.StateString = err.Error()
 		}
-		cr.StateString = err.Error()
 	}
 
 	done <- struct{}{}
@@ -91,12 +93,10 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 	spin.Writer = os.Stderr
 	defer spin.Stop()
 
-	// pick an elliptic curve
-	curve := siec.SIEC255()
 	// both parties should have a weak key
 	pw := []byte(codephrase)
 	// initialize sender P ("0" indicates sender)
-	P, err := pake.Init(pw, 0, curve, 1*time.Millisecond)
+	P, err := pake.InitCurve(pw, 0, cr.CurveType, 1*time.Millisecond)
 	if err != nil {
 		return
 	}
@@ -113,6 +113,9 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 		if messageType == websocket.TextMessage && bytes.Equal(message, []byte("interrupt")) {
 			return errors.New("\rinterrupted by other party")
 		}
+		if messageType == websocket.TextMessage && bytes.HasPrefix(message, []byte("err")) {
+			return errors.New("\r" + string(message))
+		}
 		log.Debugf("got %d: %s", messageType, message)
 		switch step {
 		case 0:
@@ -123,11 +126,24 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 			} else {
 				ip, _ = utils.PublicIP()
 			}
-			// send my IP address
-			c.WriteMessage(websocket.BinaryMessage, []byte(ip))
+
+			initialData := models.Initial{
+				CurveType:     cr.CurveType,
+				IPAddress:     ip,
+				VersionString: cr.Version, // version should match
+			}
+			bInitialData, _ := json.Marshal(initialData)
+			// send the initial data
+			c.WriteMessage(websocket.BinaryMessage, bInitialData)
 		case 1:
-			// first receive the IP address from the sender
-			cr.OtherIP = string(message)
+			// first receive the initial data from the recipient
+			var initialData models.Initial
+			err = json.Unmarshal(message, &initialData)
+			if err != nil {
+				err = errors.Wrap(err, "incompatible versions of croc")
+				return
+			}
+			cr.OtherIP = initialData.IPAddress
 			log.Debugf("recipient IP: %s", cr.OtherIP)
 
 			go func() {
