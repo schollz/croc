@@ -19,7 +19,6 @@ import (
 )
 
 var Version string
-var codePhrase string
 var cr *croc.Croc
 
 func Run() {
@@ -199,20 +198,21 @@ func send(c *cli.Context) error {
 
 func receive(c *cli.Context) error {
 	if c.GlobalString("code") != "" {
-		codePhrase = c.GlobalString("code")
+		cr.Codephrase = c.GlobalString("code")
 	}
 	if c.Args().First() != "" {
-		codePhrase = c.Args().First()
+		cr.Codephrase = c.Args().First()
 	}
+	cr.LoadConfig()
 	openFolder := false
 	if len(os.Args) == 1 {
 		// open folder since they didn't give any arguments
 		openFolder = true
 	}
-	if codePhrase == "" {
-		codePhrase = utils.GetInput("Enter receive code: ")
+	if cr.Codephrase == "" {
+		cr.Codephrase = utils.GetInput("Enter receive code: ")
 	}
-	err := cr.Receive(codePhrase)
+	err := cr.Receive(cr.Codephrase)
 	if err == nil && openFolder {
 		cwd, _ := os.Getwd()
 		open.Run(cwd)
