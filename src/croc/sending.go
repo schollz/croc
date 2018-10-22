@@ -153,6 +153,7 @@ func (c *Croc) sendReceive(address, websocketPort string, tcpPorts []string, fna
 	log.Debugf("connecting to %s", websocketAddress)
 	sock, _, err := websocket.DefaultDialer.Dial(websocketAddress, nil)
 	if err != nil {
+		log.Error(err)
 		return
 	}
 	defer sock.Close()
@@ -160,6 +161,7 @@ func (c *Croc) sendReceive(address, websocketPort string, tcpPorts []string, fna
 	// tell the websockets we are connected
 	err = sock.WriteMessage(websocket.BinaryMessage, []byte("connected"))
 	if err != nil {
+		log.Error(err)
 		return err
 	}
 
@@ -172,6 +174,7 @@ func (c *Croc) sendReceive(address, websocketPort string, tcpPorts []string, fna
 	for {
 		select {
 		case <-done:
+			log.Debug("received done signal")
 			return nil
 		case <-interrupt:
 			if !c.Debug {

@@ -84,6 +84,7 @@ func Run() {
 		cli.StringFlag{Name: "port", Value: "8153", Usage: "port that the websocket listens on"},
 		cli.StringFlag{Name: "tcp-port", Value: "8154,8155,8156,8157,8158,8159,8160,8161", Usage: "ports that the tcp server listens on"},
 		cli.StringFlag{Name: "curve", Value: "siec", Usage: "specify elliptic curve to use for PAKE (p256, p384, p521, siec)"},
+		cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 	}
 	app.EnableBashCompletion = true
 	app.HideHelp = false
@@ -202,6 +203,9 @@ func receive(c *cli.Context) error {
 	}
 	if c.Args().First() != "" {
 		cr.Codephrase = c.Args().First()
+	}
+	if c.GlobalString("out") != "" {
+		os.Chdir(c.GlobalString("out"))
 	}
 	cr.LoadConfig()
 	openFolder := false

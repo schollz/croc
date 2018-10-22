@@ -34,6 +34,7 @@ func (cr *Croc) startSender(forceSend int, serverAddress string, tcpPorts []stri
 	log.Debugf("sending %s", fname)
 	err := cr.send(forceSend, serverAddress, tcpPorts, isLocal, c, fname, codephrase, useCompression, useEncryption)
 	if err != nil {
+		log.Debug(err)
 		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
 			fmt.Fprintf(os.Stderr, "\n"+err.Error())
 			err = errors.Wrap(err, "error in sender:")
