@@ -426,6 +426,9 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 				for {
 					// read from websockets
 					websocketMessageData := <-websocketMessages
+					if bytes.HasPrefix(websocketMessageData.message, []byte("error")) {
+						return fmt.Errorf("%s", websocketMessageData.message)
+					}
 					if websocketMessageData.messageType != websocket.BinaryMessage {
 						continue
 					}
