@@ -17,6 +17,8 @@ func init() {
 
 // Croc options
 type Croc struct {
+	// Version is the version of croc
+	Version string
 	// Options for all
 	Debug bool
 	// ShowText will display text on the stderr
