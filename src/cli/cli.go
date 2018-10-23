@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -19,10 +20,10 @@ import (
 )
 
 var Version string
-var codePhrase string
 var cr *croc.Croc
 
 func Run() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	app := cli.NewApp()
 	app.Name = "croc"
 	if Version == "" {
@@ -60,6 +61,16 @@ func Run() {
 				return relay(c)
 			},
 		},
+		{
+			Name:        "config",
+			Usage:       "generates a config file",
+			Description: "the croc config can be used to set static parameters",
+			Flags:       []cli.Flag{},
+			HelpName:    "croc config",
+			Action: func(c *cli.Context) error {
+				return saveDefaultConfig(c)
+			},
+		},
 	}
 	app.Flags = []cli.Flag{
 		cli.StringFlag{Name: "addr", Value: "croc4.schollz.com", Usage: "address of the public relay"},
@@ -74,7 +85,8 @@ func Run() {
 		cli.BoolFlag{Name: "force-web", Usage: "force websockets"},
 		cli.StringFlag{Name: "port", Value: "8153", Usage: "port that the websocket listens on"},
 		cli.StringFlag{Name: "tcp-port", Value: "8154,8155,8156,8157,8158,8159,8160,8161", Usage: "ports that the tcp server listens on"},
-		cli.StringFlag{Name: "curve", Value: "siec", Usage: "specify elliptic curve to use (p224, p256, p384, p521, siec)"},
+		cli.StringFlag{Name: "curve", Value: "siec", Usage: "specify elliptic curve to use for PAKE (p256, p384, p521, siec)"},
+		cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 	}
 	app.EnableBashCompletion = true
 	app.HideHelp = false
@@ -87,6 +99,7 @@ func Run() {
 	}
 	app.Before = func(c *cli.Context) error {
 		cr = croc.Init(c.GlobalBool("debug"))
+		cr.Version = Version
 		cr.AllowLocalDiscovery = true
 		cr.Address = c.GlobalString("addr")
 		cr.AddressTCPPorts = strings.Split(c.GlobalString("addr-tcp"), ",")
@@ -112,6 +125,10 @@ func Run() {
 	if err != nil {
 		fmt.Printf("\nerror: %s", err.Error())
 	}
+}
+
+func saveDefaultConfig(c *cli.Context) error {
+	return croc.SaveDefaultConfig()
 }
 
 func send(c *cli.Context) error {
@@ -146,11 +163,12 @@ func send(c *cli.Context) error {
 	cr.UseCompression = !c.Bool("no-compress")
 	cr.UseEncryption = !c.Bool("no-encrypt")
 	if c.String("code") != "" {
-		codePhrase = c.String("code")
+		cr.Codephrase = c.String("code")
 	}
-	if len(codePhrase) == 0 {
+	cr.LoadConfig()
+	if len(cr.Codephrase) == 0 {
 		// generate code phrase
-		codePhrase = utils.GetRandomName()
+		cr.Codephrase = utils.GetRandomName()
 	}
 
 	// print the text
@@ -175,28 +193,32 @@ func send(c *cli.Context) error {
 		humanize.Bytes(uint64(fsize)),
 		fileOrFolder,
 		filename,
-		codePhrase,
-		codePhrase,
+		cr.Codephrase,
+		cr.Codephrase,
 	)
-	return cr.Send(fname, codePhrase)
+	return cr.Send(fname, cr.Codephrase)
 }
 
 func receive(c *cli.Context) error {
 	if c.GlobalString("code") != "" {
-		codePhrase = c.GlobalString("code")
+		cr.Codephrase = c.GlobalString("code")
 	}
 	if c.Args().First() != "" {
-		codePhrase = c.Args().First()
+		cr.Codephrase = c.Args().First()
 	}
+	if c.GlobalString("out") != "" {
+		os.Chdir(c.GlobalString("out"))
+	}
+	cr.LoadConfig()
 	openFolder := false
 	if len(os.Args) == 1 {
 		// open folder since they didn't give any arguments
 		openFolder = true
 	}
-	if codePhrase == "" {
-		codePhrase = utils.GetInput("Enter receive code: ")
+	if cr.Codephrase == "" {
+		cr.Codephrase = utils.GetInput("Enter receive code: ")
 	}
-	err := cr.Receive(codePhrase)
+	err := cr.Receive(cr.Codephrase)
 	if err == nil && openFolder {
 		cwd, _ := os.Getwd()
 		open.Run(cwd)

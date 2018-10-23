@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -16,6 +15,7 @@ import (
 	log "github.com/cihub/seelog"
 	humanize "github.com/dustin/go-humanize"
 	"github.com/gorilla/websocket"
+	"github.com/pkg/errors"
 	"github.com/schollz/croc/src/comm"
 	"github.com/schollz/croc/src/compress"
 	"github.com/schollz/croc/src/crypt"
@@ -26,7 +26,6 @@ import (
 	"github.com/schollz/pake"
 	"github.com/schollz/progressbar/v2"
 	"github.com/schollz/spinner"
-	"github.com/tscholl2/siec"
 )
 
 var DebugLevel string
@@ -38,6 +37,10 @@ func (cr *Croc) startRecipient(forceSend int, serverAddress string, tcpPorts []s
 	if err != nil {
 		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
 			fmt.Fprintf(os.Stderr, "\n"+err.Error())
+			cr.StateString = err.Error()
+			err = errors.Wrap(err, "error in recipient:")
+			c.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+			time.Sleep(50 * time.Millisecond)
 		}
 	}
 	done <- struct{}{}
@@ -50,6 +53,8 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 	var progressFile string
 	var resumeFile bool
 	var tcpConnections []comm.Comm
+	var Q *pake.Pake
+
 	dataChan := make(chan []byte, 1024*1024)
 	isConnectedIfUsingTCP := make(chan bool)
 	blocks := []string{}
@@ -74,20 +79,29 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 	spin.Start()
 	defer spin.Stop()
 
-	// pick an elliptic curve
-	curve := siec.SIEC255()
 	// both parties should have a weak key
 	pw := []byte(codephrase)
 
-	// initialize recipient Q ("1" indicates recipient)
-	Q, err := pake.Init(pw, 1, curve, 1*time.Millisecond)
-	if err != nil {
-		return
-	}
+	// start the reader
+	websocketMessages := make(chan WebSocketMessage, 1024)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Debugf("recovered from %s", r)
+			}
+		}()
+		for {
+			messageType, message, err := c.ReadMessage()
+			websocketMessages <- WebSocketMessage{messageType, message, err}
+		}
+	}()
 
 	step := 0
 	for {
-		messageType, message, err := c.ReadMessage()
+		websocketMessage := <-websocketMessages
+		messageType := websocketMessage.messageType
+		message := websocketMessage.message
+		err := websocketMessage.err
 		if err != nil {
 			return err
 		}
@@ -101,20 +115,44 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 		log.Debugf("got %d: %s", messageType, message)
 		switch step {
 		case 0:
-			// sender has initiated, sends their ip address
-			cr.OtherIP = string(message)
+			// sender has initiated, sends their initial data
+			var initialData models.Initial
+			err = json.Unmarshal(message, &initialData)
+			if err != nil {
+				err = errors.Wrap(err, "incompatible versions of croc")
+				return err
+			}
+			cr.OtherIP = initialData.IPAddress
 			log.Debugf("sender IP: %s", cr.OtherIP)
 
-			// recipient begins by sending address
+			// check whether the version strings are compatible
+			versionStringsOther := strings.Split(initialData.VersionString, ".")
+			versionStringsSelf := strings.Split(cr.Version, ".")
+			if len(versionStringsOther) == 3 && len(versionStringsSelf) == 3 {
+				if versionStringsSelf[0] != versionStringsOther[0] || versionStringsSelf[1] != versionStringsOther[1] {
+					return fmt.Errorf("version sender %s is not compatible with recipient %s", cr.Version, initialData.VersionString)
+				}
+			}
+
+			// initialize the PAKE with the curve sent from the sender
+			Q, err = pake.InitCurve(pw, 1, initialData.CurveType, 1*time.Millisecond)
+			if err != nil {
+				err = errors.Wrap(err, "incompatible curve type")
+				return err
+			}
+
+			// recipient begins by sending back initial data to sender
 			ip := ""
 			if isLocal {
 				ip = utils.LocalIP()
 			} else {
 				ip, _ = utils.PublicIP()
 			}
-			c.WriteMessage(websocket.BinaryMessage, []byte(ip))
+			initialData.VersionString = cr.Version
+			initialData.IPAddress = ip
+			bInitialData, _ := json.Marshal(initialData)
+			c.WriteMessage(websocket.BinaryMessage, bInitialData)
 		case 1:
-
 			// Q receives u
 			log.Debugf("[%d] Q computes k, sends H(k), v back to P", step)
 			if err := Q.Update(message); err != nil {
@@ -130,20 +168,27 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 
 			// initialize TCP connections if using (possible, but unlikely, race condition)
 			go func() {
+				log.Debug("initializing TCP connections")
 				if !useWebsockets {
 					log.Debugf("connecting to server")
 					tcpConnections = make([]comm.Comm, len(tcpPorts))
+					var wg sync.WaitGroup
+					wg.Add(len(tcpPorts))
 					for i, tcpPort := range tcpPorts {
-						log.Debugf("connecting to %d", i)
-						var message string
-						tcpConnections[i], message, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
-						if err != nil {
-							log.Error(err)
-						}
-						if message != "recipient" {
-							log.Errorf("got wrong message: %s", message)
-						}
+						go func(i int, tcpPort string) {
+							defer wg.Done()
+							log.Debugf("connecting to %d", i)
+							var message string
+							tcpConnections[i], message, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
+							if err != nil {
+								log.Error(err)
+							}
+							if message != "recipient" {
+								log.Errorf("got wrong message: %s", message)
+							}
+						}(i, tcpPort)
 					}
+					wg.Wait()
 					log.Debugf("fully connected")
 				}
 				isConnectedIfUsingTCP <- true
@@ -385,59 +430,101 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 			startTime := time.Now()
 			if useWebsockets {
 				for {
-					var messageType int
 					// read from websockets
-					messageType, message, err = c.ReadMessage()
-					if messageType != websocket.BinaryMessage {
+					websocketMessageData := <-websocketMessages
+					if bytes.HasPrefix(websocketMessageData.message, []byte("error")) {
+						return fmt.Errorf("%s", websocketMessageData.message)
+					}
+					if websocketMessageData.messageType != websocket.BinaryMessage {
 						continue
 					}
 					if err != nil {
 						log.Error(err)
 						return err
 					}
-					if bytes.Equal(message, []byte("magic")) {
+					if bytes.Equal(websocketMessageData.message, []byte("magic")) {
 						log.Debug("got magic")
 						break
 					}
-					dataChan <- message
-					// select {
-					// case dataChan <- message:
-					// default:
-					// 	log.Debug("blocked")
-					// 	// no message sent
-					// 	// block
-					// 	dataChan <- message
-					// }
+					dataChan <- websocketMessageData.message
 				}
 			} else {
 				log.Debugf("starting listening with tcp with %d connections", len(tcpConnections))
-				// using TCP
-				var wg sync.WaitGroup
-				wg.Add(len(tcpConnections))
-				for i := range tcpConnections {
-					defer func(i int) {
-						log.Debugf("closing connection %d", i)
-						tcpConnections[i].Close()
-					}(i)
-					go func(wg *sync.WaitGroup, j int) {
-						defer wg.Done()
-						for {
-							log.Debugf("waiting to read on %d", j)
-							// read from TCP connection
-							message, _, _, err := tcpConnections[j].Read()
-							// log.Debugf("message: %s", message)
-							if err != nil {
-								panic(err)
-							}
-							if bytes.Equal(message, []byte("magic")) {
-								log.Debugf("%d got magic, leaving", j)
+
+				// check to see if any messages are sent
+				stopMessageSignal := make(chan bool, 1)
+				errorsDuringTransfer := make(chan error, 24)
+				go func() {
+					for {
+						select {
+						case sig := <-stopMessageSignal:
+							errorsDuringTransfer <- nil
+							log.Debugf("got message signal: %+v", sig)
+							return
+						case wsMessage := <-websocketMessages:
+							log.Debugf("got message: %s", wsMessage.message)
+							if bytes.HasPrefix(wsMessage.message, []byte("error")) {
+								log.Debug("stopping transfer")
+								for i := 0; i < len(tcpConnections)+1; i++ {
+									errorsDuringTransfer <- fmt.Errorf("%s", wsMessage.message)
+								}
 								return
 							}
-							dataChan <- message
+						default:
+							continue
 						}
-					}(&wg, i)
+					}
+				}()
+
+				// using TCP
+				go func() {
+					var wg sync.WaitGroup
+					wg.Add(len(tcpConnections))
+					for i := range tcpConnections {
+						defer func(i int) {
+							log.Debugf("closing connection %d", i)
+							tcpConnections[i].Close()
+						}(i)
+						go func(wg *sync.WaitGroup, j int) {
+							defer wg.Done()
+							for {
+								select {
+								case _ = <-errorsDuringTransfer:
+									log.Debugf("%d got stop", i)
+									return
+								default:
+								}
+
+								log.Debugf("waiting to read on %d", j)
+								// read from TCP connection
+								message, _, _, err := tcpConnections[j].Read()
+								// log.Debugf("message: %s", message)
+								if err != nil {
+									panic(err)
+								}
+								if bytes.Equal(message, []byte("magic")) {
+									log.Debugf("%d got magic, leaving", j)
+									return
+								}
+								dataChan <- message
+							}
+						}(&wg, i)
+					}
+					log.Debug("waiting for tcp goroutines")
+					wg.Wait()
+					errorsDuringTransfer <- nil
+				}()
+
+				// block until this is done
+
+				log.Debug("waiting for error")
+				errorDuringTransfer := <-errorsDuringTransfer
+				log.Debug("sending stop message signal")
+				stopMessageSignal <- true
+				if errorDuringTransfer != nil {
+					log.Debugf("got error during transfer: %s", errorDuringTransfer.Error())
+					return errorDuringTransfer
 				}
-				wg.Wait()
 			}
 
 			_ = <-finished

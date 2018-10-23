@@ -12,8 +12,8 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/websocket"
 	"github.com/schollz/croc/src/relay"
+	"github.com/schollz/croc/src/utils"
 	"github.com/schollz/peerdiscovery"
-	"github.com/schollz/utils"
 )
 
 // Send the file
@@ -96,7 +96,7 @@ func (c *Croc) Receive(codephrase string) (err error) {
 			log.Debug(errDiscover)
 		}
 		if len(discovered) > 0 {
-			if discovered[0].Address == utils.GetLocalIP() {
+			if discovered[0].Address == utils.LocalIP() {
 				discovered[0].Address = "localhost"
 			}
 			log.Debugf("discovered %s:%s", discovered[0].Address, discovered[0].Payload)
@@ -153,6 +153,7 @@ func (c *Croc) sendReceive(address, websocketPort string, tcpPorts []string, fna
 	log.Debugf("connecting to %s", websocketAddress)
 	sock, _, err := websocket.DefaultDialer.Dial(websocketAddress, nil)
 	if err != nil {
+		log.Error(err)
 		return
 	}
 	defer sock.Close()
@@ -160,6 +161,7 @@ func (c *Croc) sendReceive(address, websocketPort string, tcpPorts []string, fna
 	// tell the websockets we are connected
 	err = sock.WriteMessage(websocket.BinaryMessage, []byte("connected"))
 	if err != nil {
+		log.Error(err)
 		return err
 	}
 
@@ -172,13 +174,14 @@ func (c *Croc) sendReceive(address, websocketPort string, tcpPorts []string, fna
 	for {
 		select {
 		case <-done:
+			log.Debug("received done signal")
 			return nil
 		case <-interrupt:
 			if !c.Debug {
 				SetDebugLevel("critical")
 			}
 			log.Debug("interrupt")
-			err = sock.WriteMessage(websocket.TextMessage, []byte("interrupt"))
+			err = sock.WriteMessage(websocket.TextMessage, []byte("error: interrupted by other party"))
 			if err != nil {
 				return err
 			}
