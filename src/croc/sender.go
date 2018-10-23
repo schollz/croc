@@ -284,17 +284,23 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 			go func() {
 				if !useWebsockets {
 					log.Debugf("connecting to server")
+					var wg sync.WaitGroup
+					wg.Add(len(tcpPorts))
 					for i, tcpPort := range tcpPorts {
-						log.Debugf("connecting to %s on connection %d", tcpPort, i)
-						var message string
-						tcpConnections[i], message, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
-						if err != nil {
-							log.Error(err)
-						}
-						if message != "sender" {
-							log.Errorf("got wrong message: %s", message)
-						}
+						go func(i int, tcpPort string) {
+							defer wg.Done()
+							log.Debugf("connecting to %s on connection %d", tcpPort, i)
+							var message string
+							tcpConnections[i], message, err = connectToTCPServer(utils.SHA256(fmt.Sprintf("%d%x", i, sessionKey)), serverAddress+":"+tcpPort)
+							if err != nil {
+								log.Error(err)
+							}
+							if message != "sender" {
+								log.Errorf("got wrong message: %s", message)
+							}
+						}(i, tcpPort)
 					}
+					wg.Wait()
 				}
 				isConnectedIfUsingTCP <- true
 			}()
