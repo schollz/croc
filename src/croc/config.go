@@ -67,14 +67,14 @@ func SaveDefaultConfig() error {
 	if err != nil {
 		return err
 	}
-	os.MkdirAll(path.Join(homedir, ".config", "croc"), 0644)
+	os.MkdirAll(path.Join(homedir, ".config", "croc"), 0755)
 	c := defaultConfig()
 	buf := new(bytes.Buffer)
 	toml.NewEncoder(buf).Encode(c)
 	confTOML := buf.String()
 	err = ioutil.WriteFile(path.Join(homedir, ".config", "croc", "config.toml"), []byte(confTOML), 0644)
 	if err == nil {
-		fmt.Printf("Default config file written at '%s'", filepath.Clean(path.Join(homedir, ".config", "croc", "config.toml")))
+		fmt.Printf("Default config file written at '%s'\r\n", filepath.Clean(path.Join(homedir, ".config", "croc", "config.toml")))
 	}
 	return err
 }
