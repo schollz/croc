@@ -33,7 +33,7 @@ The actual data transfer is accomplished using a relay, either using raw TCP soc
 
 **Why another data transfer utility?**
 
-My motivation to write *croc*, as stupid as it sounds, is because I wanted to create a program that made it easy to send a 3GB+ PBS documentary to my friend in a different country. My friend has a Windows computer and is not comfortable using a terminal. So I wanted to write a program that, while secure, is simple to receive a file. *croc* accomplishes this, and now I find myself using it almost everyday at work. To receive a file you can just download the executable and double click on it (sending a file requires opening a terminal still, though). The name is inspired by the [fable of the frog and the crocodile](https://web.archive.org/web/20180926035731/http://allaboutfrogs.org/stories/crocodile.html).
+My motivation to write *croc*, as stupid as it sounds, is because I wanted to create a program that made it easy to send a 3GB+ PBS documentary to my friend in a different country. My friend has a Windows computer and is not comfortable using a terminal. So I wanted to write a program that, while secure, is simple to receive a file. *croc* accomplishes this, and now I find myself using it almost everyday at work. To receive a file you can just download the executable and double click on it. The name is inspired by the [fable of the frog and the crocodile](https://web.archive.org/web/20180926035731/http://allaboutfrogs.org/stories/crocodile.html).
 
 ## Examples
 
