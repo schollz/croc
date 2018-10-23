@@ -5,7 +5,6 @@ go:
 
 env:
   - "PATH=/home/travis/gopath/bin:$PATH"
-  - "GO111MODULE=on"
 
 script:
   - go build -v
