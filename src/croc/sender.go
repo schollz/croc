@@ -491,6 +491,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 						}
 					}(i, &wg, dataChan)
 				}
+
 				// block until this is done
 				log.Debug("waiting for tcp goroutines")
 				wg.Wait()

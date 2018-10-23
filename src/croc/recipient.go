@@ -444,33 +444,81 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 				}
 			} else {
 				log.Debugf("starting listening with tcp with %d connections", len(tcpConnections))
-				// using TCP
-				var wg sync.WaitGroup
-				wg.Add(len(tcpConnections))
-				for i := range tcpConnections {
-					defer func(i int) {
-						log.Debugf("closing connection %d", i)
-						tcpConnections[i].Close()
-					}(i)
-					go func(wg *sync.WaitGroup, j int) {
-						defer wg.Done()
-						for {
-							log.Debugf("waiting to read on %d", j)
-							// read from TCP connection
-							message, _, _, err := tcpConnections[j].Read()
-							// log.Debugf("message: %s", message)
-							if err != nil {
-								panic(err)
-							}
-							if bytes.Equal(message, []byte("magic")) {
-								log.Debugf("%d got magic, leaving", j)
+
+				// check to see if any messages are sent
+				stopMessageSignal := make(chan bool, 1)
+				errorsDuringTransfer := make(chan error, 24)
+				go func() {
+					for {
+						select {
+						case sig := <-stopMessageSignal:
+							errorsDuringTransfer <- nil
+							log.Debugf("got message signal: %+v", sig)
+							return
+						case wsMessage := <-websocketMessages:
+							log.Debugf("got message: %s", wsMessage.message)
+							if bytes.HasPrefix(wsMessage.message, []byte("error")) {
+								log.Debug("stopping transfer")
+								for i := 0; i < len(tcpConnections)+1; i++ {
+									errorsDuringTransfer <- fmt.Errorf("%s", wsMessage.message)
+								}
 								return
 							}
-							dataChan <- message
+						default:
+							continue
 						}
-					}(&wg, i)
+					}
+				}()
+
+				// using TCP
+				go func() {
+					var wg sync.WaitGroup
+					wg.Add(len(tcpConnections))
+					for i := range tcpConnections {
+						defer func(i int) {
+							log.Debugf("closing connection %d", i)
+							tcpConnections[i].Close()
+						}(i)
+						go func(wg *sync.WaitGroup, j int) {
+							defer wg.Done()
+							for {
+								select {
+								case _ = <-errorsDuringTransfer:
+									log.Debugf("%d got stop", i)
+									return
+								default:
+								}
+
+								log.Debugf("waiting to read on %d", j)
+								// read from TCP connection
+								message, _, _, err := tcpConnections[j].Read()
+								// log.Debugf("message: %s", message)
+								if err != nil {
+									panic(err)
+								}
+								if bytes.Equal(message, []byte("magic")) {
+									log.Debugf("%d got magic, leaving", j)
+									return
+								}
+								dataChan <- message
+							}
+						}(&wg, i)
+					}
+					log.Debug("waiting for tcp goroutines")
+					wg.Wait()
+					errorsDuringTransfer <- nil
+				}()
+
+				// block until this is done
+
+				log.Debug("waiting for error")
+				errorDuringTransfer := <-errorsDuringTransfer
+				log.Debug("sending stop message signal")
+				stopMessageSignal <- true
+				if errorDuringTransfer != nil {
+					log.Debugf("got error during transfer: %s", errorDuringTransfer.Error())
+					return errorDuringTransfer
 				}
-				wg.Wait()
 			}
 
 			_ = <-finished
