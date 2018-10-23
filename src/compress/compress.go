@@ -6,10 +6,17 @@ import (
 	"io"
 )
 
+// CompressWithOption returns compressed data using the specified level
+func CompressWithOption(src []byte, level int) []byte {
+	compressedData := new(bytes.Buffer)
+	compress(src, compressedData, level)
+	return compressedData.Bytes()
+}
+
 // Compress returns a compressed byte slice.
 func Compress(src []byte) []byte {
 	compressedData := new(bytes.Buffer)
-	compress(src, compressedData, 9)
+	compress(src, compressedData, -2)
 	return compressedData.Bytes()
 }
 
