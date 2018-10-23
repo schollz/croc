@@ -67,9 +67,9 @@ func TestSendReceiveLocalWebsockets(t *testing.T) {
 	sendAndReceive(t, 1, true)
 }
 
-// func TestSendReceiveLocalTCP(t *testing.T) {
-// 	sendAndReceive(t, 2, true)
-// }
+func TestSendReceiveLocalTCP(t *testing.T) {
+	sendAndReceive(t, 2, true)
+}
 
 func generateRandomFile(megabytes int) (fname string) {
 	// generate a random file

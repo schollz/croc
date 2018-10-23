@@ -102,9 +102,26 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 		return
 	}
 
+	// start the reader
+	websocketMessages := make(chan WebSocketMessage, 1024)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Debugf("recovered from %s", r)
+			}
+		}()
+		for {
+			messageType, message, err := c.ReadMessage()
+			websocketMessages <- WebSocketMessage{messageType, message, err}
+		}
+	}()
+
 	step := 0
 	for {
-		messageType, message, errRead := c.ReadMessage()
+		websocketMessage := <-websocketMessages
+		messageType := websocketMessage.messageType
+		message := websocketMessage.message
+		errRead := websocketMessage.err
 		if errRead != nil {
 			return errRead
 		}
