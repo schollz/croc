@@ -139,6 +139,7 @@ func zipFiles(fnames []string, compress bool, zipWriter *zip.Writer) (err error)
 			log.Error(err)
 			return err
 		}
+		absPath = filepath.ToSlash(absPath)
 
 		// get path to file and the filename
 		fpath, fname := filepath.Split(absPath)
@@ -185,7 +186,7 @@ func zipFiles(fnames []string, compress bool, zipWriter *zip.Writer) (err error)
 				if baseDir != "" {
 					header.Name = path.Join(fname, strings.TrimPrefix(curpath, baseDir))
 				}
-				header.Name = filepath.Clean(filepath.ToSlash(header.Name))
+				header.Name = filepath.ToSlash(filepath.Clean(header.Name))
 				log.Debug(header.Name)
 
 				if info.IsDir() {
