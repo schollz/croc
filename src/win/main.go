@@ -154,16 +154,15 @@ func main() {
 			return
 		}
 
-		// change into the receiving directory
-		cwd, _ := os.Getwd()
-		defer os.Chdir(cwd)
-		os.Chdir(fn)
-
 		cr := croc.Init(false)
 		cr.WindowRecipientPrompt = true
 
 		done := make(chan bool)
 		go func() {
+			// change into the receiving directory
+			cwd, _ := os.Getwd()
+			defer os.Chdir(cwd)
+			os.Chdir(fn)
 			err := cr.Receive(codePhrase)
 			if err == nil {
 				open.Run(fn)
