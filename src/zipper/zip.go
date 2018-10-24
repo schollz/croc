@@ -3,6 +3,7 @@ package zipper
 import (
 	"archive/zip"
 	"compress/flate"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -77,28 +78,39 @@ func UnzipFile(src, dest string) (err error) {
 	return
 }
 
-// ZipFile will zip the folder
-func ZipFile(fname string, compress bool) (writtenFilename string, err error) {
+// ZipFiles will zip all the files and the folders as if they were in the same directory
+func ZipFiles(fnames []string, compress bool) (writtenFilename string, err error) {
 	logger.SetLogLevel(DebugLevel)
-	log.Debugf("zipping %s with compression? %v", fname, compress)
-
-	// get absolute filename
-	fname, err = filepath.Abs(fname)
-	if err != nil {
-		log.Error(err)
+	if len(fnames) == 0 {
+		err = fmt.Errorf("must provide files to zip")
 		return
 	}
 
-	// get path to file and the filename
-	fpath, fname := filepath.Split(fname)
+	log.Debugf("zipping %s with compression? %v", fnames, compress)
+	writtenFilename = fmt.Sprintf("%d_files.croc.zip", len(fnames))
+	err = makeZip(writtenFilename, fnames, compress)
+	return
+}
 
-	writtenFilename = fname + ".croc.zip"
+// ZipFile will zip the folder
+func ZipFile(fname string, compress bool) (writtenFilename string, err error) {
+	logger.SetLogLevel(DebugLevel)
+
+	// get path to file and the filename
+	_, filename := filepath.Split(fname)
+	writtenFilename = filename + ".croc.zip"
+	err = makeZip(writtenFilename, []string{fname}, compress)
+	return
+}
+
+func makeZip(writtenFilename string, fnames []string, compress bool) (err error) {
 	log.Debugf("creating file: %s", writtenFilename)
 	f, err := os.Create(writtenFilename)
 	if err != nil {
 		log.Error(err)
 		return
 	}
+	defer f.Close()
 
 	zipWriter := zip.NewWriter(f)
 	zipWriter.RegisterCompressor(zip.Deflate, func(out io.Writer) (io.WriteCloser, error) {
@@ -110,88 +122,108 @@ func ZipFile(fname string, compress bool) (writtenFilename string, err error) {
 	})
 	defer zipWriter.Close()
 
-	// Get the file information for the target
-	log.Debugf("checking %s", path.Join(fpath, fname))
-	ftarget, err := os.Open(path.Join(fpath, fname))
-	if err != nil {
+	err = zipFiles(fnames, compress, zipWriter)
+	if err == nil {
+		log.Debugf("wrote zip file to %s", writtenFilename)
+	} else {
 		log.Error(err)
-		return
 	}
-	defer ftarget.Close()
-	info, err := ftarget.Stat()
-	if err != nil {
-		log.Error(err)
-		return
-	}
+	return
+}
 
-	// write header informaiton
-	header, err := zip.FileInfoHeader(info)
-	if err != nil {
-		log.Error(err)
-		return
-	}
+func zipFiles(fnames []string, compress bool, zipWriter *zip.Writer) (err error) {
+	for _, fname := range fnames {
+		// get absolute filename
+		absPath, err := filepath.Abs(filepath.Clean(fname))
+		if err != nil {
+			log.Error(err)
+			return err
+		}
 
-	var writer io.Writer
-	if info.IsDir() {
-		baseDir := path.Join(fpath, fname)
-		log.Debugf("walking base dir: %s", baseDir)
-		filepath.Walk(baseDir, func(curpath string, info os.FileInfo, err error) error {
-			if err != nil {
-				log.Error(err)
+		// get path to file and the filename
+		fpath, fname := filepath.Split(absPath)
+
+		// Get the file information for the target
+		log.Debugf("checking %s", absPath)
+		ftarget, err := os.Open(absPath)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+		defer ftarget.Close()
+		info, err := ftarget.Stat()
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+
+		// write header informaiton
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			log.Error(err)
+			return err
+		}
+
+		var writer io.Writer
+		if info.IsDir() {
+			baseDir := filepath.Clean(path.Join(fpath, fname))
+			log.Debugf("walking base dir: %s", baseDir)
+			filepath.Walk(baseDir, func(curpath string, info os.FileInfo, err error) error {
+				curpath = filepath.Clean(curpath)
+
+				if err != nil {
+					log.Error(err)
+					return err
+				}
+
+				header, err := zip.FileInfoHeader(info)
+				if err != nil {
+					log.Error(err)
+					return err
+				}
+
+				if baseDir != "" {
+					header.Name = path.Join(fname, strings.TrimPrefix(curpath, baseDir))
+				}
+				header.Name = filepath.Clean(filepath.ToSlash(header.Name))
+				log.Debug(header.Name)
+
+				if info.IsDir() {
+					header.Name += "/"
+				} else {
+					header.Method = zip.Deflate
+				}
+
+				writer, err = zipWriter.CreateHeader(header)
+				if err != nil {
+					return err
+				}
+
+				if info.IsDir() {
+					return nil
+				}
+
+				file, err := os.Open(curpath)
+				if err != nil {
+					log.Error(err)
+					return err
+				}
+				defer file.Close()
+				_, err = io.Copy(writer, file)
 				return err
-			}
-
-			header, err := zip.FileInfoHeader(info)
-			if err != nil {
-				log.Error(err)
-				return err
-			}
-
-			if baseDir != "" {
-				baseDir = filepath.Clean(baseDir)
-				header.Name = path.Join(fname, strings.TrimPrefix(curpath, baseDir))
-			}
-			log.Debug(header.Name)
-
-			if info.IsDir() {
-				header.Name += "/"
-			} else {
-				header.Method = zip.Deflate
-			}
-
-			header.Name = filepath.ToSlash(header.Name)
-
+			})
+		} else {
 			writer, err = zipWriter.CreateHeader(header)
 			if err != nil {
+				log.Error(err)
 				return err
 			}
-
-			if info.IsDir() {
-				return nil
-			}
-
-			file, err := os.Open(curpath)
+			_, err = io.Copy(writer, ftarget)
 			if err != nil {
 				log.Error(err)
 				return err
 			}
-			defer file.Close()
-			_, err = io.Copy(writer, file)
-			return err
-		})
-	} else {
-		writer, err = zipWriter.CreateHeader(header)
-		if err != nil {
-			log.Error(err)
-			return
-		}
-		_, err = io.Copy(writer, ftarget)
-		if err != nil {
-			log.Error(err)
-			return
 		}
 	}
-
-	log.Debugf("wrote zip file to %s", writtenFilename)
-	return
+	return nil
 }
