@@ -59,7 +59,7 @@ In version 4, there is now a GUI available for [Windows](https://github.com/scho
 
 [Download the latest release for your system](https://github.com/schollz/croc/releases/latest).
 
-Or, you can [install Go](https://golang.org/dl/) and build from source with `go get github.com/schollz/croc`.
+Or, you can [install Go](https://golang.org/dl/) and build from source with `go get github.com/schollz/croc`. Since *croc* uses [Go modules](https://golang.org/doc/go1.11#modules) it requires Go version 1.11+.
 
 Or, you can quickly install a release from the command-line:
 
