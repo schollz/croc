@@ -143,7 +143,11 @@ install_croc()
 	fi
 
 	echo "Verifying checksum..."
-	checksum="$(sha256sum ${dl}) $croc_file"
+	if [[ $unameu == *DARWIN* ]]; then
+		checksum="$(shasum -a 256 ${dl}) $croc_file"
+	else
+		checksum="$(sha256sum ${dl}) $croc_file"
+	fi
 	checksum_check="$(cat ${dl_checksum} | grep $croc_file) $croc_file"
 
 	if [[ "$s1" != "$s2" ]]; then
