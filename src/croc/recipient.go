@@ -74,8 +74,8 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 	// start a spinner
 	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 	spin.Writer = os.Stderr
-	spin.Suffix = " performing PAKE..."
-	cr.StateString = "Performing PAKE..."
+	spin.Suffix = " connecting..."
+	cr.StateString = "Connecting as recipient..."
 	spin.Start()
 	defer spin.Stop()
 
@@ -98,10 +98,28 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 
 	step := 0
 	for {
-		websocketMessage := <-websocketMessages
-		messageType := websocketMessage.messageType
-		message := websocketMessage.message
-		err := websocketMessage.err
+		var websocketMessageMain WebSocketMessage
+		// websocketMessageMain = <-websocketMessages
+		timeWaitingForMessage := time.Now()
+		for {
+			done := false
+			select {
+			case websocketMessageMain = <-websocketMessages:
+				done = true
+			default:
+				time.Sleep(10 * time.Millisecond)
+			}
+			if done {
+				break
+			}
+			if time.Since(timeWaitingForMessage).Seconds() > 3 && step == 0 {
+				return fmt.Errorf("You are trying to receive a file with no sender.")
+			}
+		}
+
+		messageType := websocketMessageMain.messageType
+		message := websocketMessageMain.message
+		err := websocketMessageMain.err
 		if err != nil {
 			return err
 		}
@@ -115,6 +133,10 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 		log.Debugf("got %d: %s", messageType, message)
 		switch step {
 		case 0:
+			spin.Stop()
+			spin.Suffix = " performing PAKE..."
+			cr.StateString = "Performing PAKE..."
+			spin.Start()
 			// sender has initiated, sends their initial data
 			var initialData models.Initial
 			err = json.Unmarshal(message, &initialData)
