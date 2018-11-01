@@ -1,4 +1,4 @@
-module github.com/schollz/croc/v4
+module github.com/schollz/croc
 
 require (
 	github.com/BurntSushi/toml v0.3.1
