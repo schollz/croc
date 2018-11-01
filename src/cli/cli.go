@@ -131,8 +131,9 @@ func Run() {
 
 	err := app.Run(os.Args)
 	if err != nil {
-		fmt.Printf("\nerror: %s", err.Error())
+		fmt.Fprintf(os.Stderr, "\nerror: %s", err.Error())
 	}
+	fmt.Fprintf(os.Stderr, "\r\n")
 }
 
 func saveDefaultConfig(c *cli.Context) error {
