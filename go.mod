@@ -18,6 +18,6 @@ require (
 	github.com/skratchdot/open-golang v0.0.0-20160302144031-75fb7ed4208c
 	github.com/stretchr/testify v1.2.2
 	github.com/urfave/cli v1.20.0
-	golang.org/x/crypto v0.0.0-20180904163835-0709b304e793
-	golang.org/x/net v0.0.0-20181017193950-04a2e542c03f // indirect
+	golang.org/x/crypto v0.0.0-20181030102418-4d3f4d9ffa16
+	golang.org/x/net v0.0.0-20181029044818-c44066c5c816 // indirect
 )
