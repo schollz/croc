@@ -95,6 +95,14 @@ func Run() {
 		fmt.Fprintf(c.App.Writer, "send\nreceive\relay")
 	}
 	app.Action = func(c *cli.Context) error {
+		// if trying to send but forgot send, let the user know
+		if c.Args().First() != "" && utils.Exists(c.Args().First()) {
+			_, fname := filepath.Split(c.Args().First())
+			yn := utils.GetInput(fmt.Sprintf("Did you mean to send '%s'? (y/n)", fname))
+			if strings.ToLower(yn) == "y" {
+				return send(c)
+			}
+		}
 		return receive(c)
 	}
 	app.Before = func(c *cli.Context) error {
