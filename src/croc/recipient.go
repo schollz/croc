@@ -609,7 +609,7 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 					if useStdout {
 						cr.FileInfo.Name = "stdout"
 					}
-					fmt.Fprintf(os.Stderr, "\nReceived %s written to %s (%2.1f %s)\n", folderOrFile, cr.FileInfo.Name, transferRate, transferType)
+					fmt.Fprintf(os.Stderr, "\nReceived %s written to %s (%2.1f %s)", folderOrFile, cr.FileInfo.Name, transferRate, transferType)
 					os.Remove(progressFile)
 					cr.StateString = fmt.Sprintf("Received %s written to %s (%2.1f %s)", folderOrFile, cr.FileInfo.Name, transferRate, transferType)
 				}
