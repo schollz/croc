@@ -98,7 +98,7 @@ func Run() {
 		// if trying to send but forgot send, let the user know
 		if c.Args().First() != "" && utils.Exists(c.Args().First()) {
 			_, fname := filepath.Split(c.Args().First())
-			yn := utils.GetInput(fmt.Sprintf("Did you mean to send '%s'? (y/n)", fname))
+			yn := utils.GetInput(fmt.Sprintf("Did you mean to send '%s'? (y/n) ", fname))
 			if strings.ToLower(yn) == "y" {
 				return send(c)
 			}
@@ -204,6 +204,9 @@ func send(c *cli.Context) error {
 		cr.Codephrase,
 		cr.Codephrase,
 	)
+	if cr.Debug {
+		croc.SetDebugLevel("debug")
+	}
 	return cr.Send(fname, cr.Codephrase)
 }
 
@@ -225,6 +228,9 @@ func receive(c *cli.Context) error {
 	}
 	if cr.Codephrase == "" {
 		cr.Codephrase = utils.GetInput("Enter receive code: ")
+	}
+	if cr.Debug {
+		croc.SetDebugLevel("debug")
 	}
 	err := cr.Receive(cr.Codephrase)
 	if err == nil && openFolder {

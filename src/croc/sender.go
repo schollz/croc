@@ -219,10 +219,12 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 		case 2:
 			// P recieves H(k),v from Q
 			log.Debugf("[%d] P computes k, H(k), sends H(k) to Q", step)
-			if err := P.Update(message); err != nil {
-				return err
-			}
+			err := P.Update(message)
 			c.WriteMessage(websocket.BinaryMessage, P.Bytes())
+			if err != nil {
+				return fmt.Errorf("Recipient is using wrong code phrase.")
+			}
+
 			sessionKey, _ = P.SessionKey()
 			// check(err)
 			log.Debugf("%x\n", sessionKey)
@@ -235,7 +237,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 		case 3:
 			log.Debugf("[%d] recipient declares readiness for file info", step)
 			if !bytes.HasPrefix(message, []byte("ready")) {
-				return errors.New("recipient refused file")
+				return errors.New("Recipient refused file")
 			}
 
 			err = <-fileReady // block until file is ready
@@ -393,7 +395,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 
 			log.Debugf("[%d] recipient declares readiness for file data", step)
 			if !bytes.HasPrefix(message, []byte("ready")) {
-				return errors.New("recipient refused file")
+				return errors.New("Recipient refused file")
 			}
 			cr.StateString = "Transfer in progress..."
 			fmt.Fprintf(os.Stderr, "\rSending (->%s)...\n", cr.OtherIP)

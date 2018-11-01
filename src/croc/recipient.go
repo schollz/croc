@@ -178,13 +178,13 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 			// Q receives u
 			log.Debugf("[%d] Q computes k, sends H(k), v back to P", step)
 			if err := Q.Update(message); err != nil {
-				return err
+				return fmt.Errorf("Recipient is using wrong code phrase.")
 			}
 
 			// Q has the session key now, but we will still check if its valid
 			sessionKey, err = Q.SessionKey()
 			if err != nil {
-				return err
+				return fmt.Errorf("Recipient is using wrong code phrase.")
 			}
 			log.Debugf("%x\n", sessionKey)
 
@@ -221,7 +221,8 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 			log.Debugf("[%d] Q recieves H(k) from P", step)
 			// check if everything is still kosher with our computed session key
 			if err := Q.Update(message); err != nil {
-				return err
+				log.Debug(err)
+				return fmt.Errorf("Recipient is using wrong code phrase.")
 			}
 			c.WriteMessage(websocket.BinaryMessage, []byte("ready"))
 		case 3:
@@ -289,7 +290,7 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 			)
 			if !noPrompt {
 				if "y" != utils.GetInput("ok? (y/N): ") {
-					fmt.Fprintf(os.Stderr, "cancelling request")
+					fmt.Fprintf(os.Stderr, "Cancelling request")
 					c.WriteMessage(websocket.BinaryMessage, []byte("no"))
 					return nil
 				}
@@ -302,7 +303,7 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 						if cr.WindowRecipientAccept {
 							break
 						} else {
-							fmt.Fprintf(os.Stderr, "cancelling request")
+							fmt.Fprintf(os.Stderr, "Cancelling request")
 							c.WriteMessage(websocket.BinaryMessage, []byte("no"))
 							return nil
 						}
