@@ -413,6 +413,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 				progressbar.OptionSetRenderBlankState(true),
 				progressbar.OptionSetBytes(int(cr.FileInfo.Size)),
 				progressbar.OptionSetWriter(os.Stderr),
+				progressbar.OptionThrottle(1/60*time.Second),
 			)
 			cr.Bar.Add(blockSize * len(blocksToSkip))
 
