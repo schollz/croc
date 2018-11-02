@@ -31,19 +31,13 @@ import (
 var DebugLevel string
 
 // Receive is the async operation to receive a file
-func (cr *Croc) startRecipient(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, done chan struct{}, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) {
+func (cr *Croc) startRecipient(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, done chan error, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) {
 	logger.SetLogLevel(DebugLevel)
 	err := cr.receive(forceSend, serverAddress, tcpPorts, isLocal, c, codephrase, noPrompt, useStdout)
-	if err != nil {
-		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
-			fmt.Fprintf(os.Stderr, "\n"+err.Error())
-			cr.StateString = err.Error()
-			err = errors.Wrap(err, "error in recipient:")
-			c.WriteMessage(websocket.TextMessage, []byte(err.Error()))
-			time.Sleep(50 * time.Millisecond)
-		}
+	if err != nil && strings.HasPrefix(err.Error(), "websocket: close 100") {
+		err = nil
 	}
-	done <- struct{}{}
+	done <- err
 }
 
 func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, c *websocket.Conn, codephrase string, noPrompt bool, useStdout bool) (err error) {

@@ -29,22 +29,14 @@ import (
 )
 
 // Send is the async call to send data
-func (cr *Croc) startSender(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, done chan struct{}, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) {
+func (cr *Croc) startSender(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, done chan error, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) {
 	logger.SetLogLevel(DebugLevel)
 	log.Debugf("sending %s", fname)
 	err := cr.send(forceSend, serverAddress, tcpPorts, isLocal, c, fname, codephrase, useCompression, useEncryption)
-	if err != nil {
-		log.Debug(err)
-		if !strings.HasPrefix(err.Error(), "websocket: close 100") {
-			fmt.Fprintf(os.Stderr, "\n"+err.Error())
-			err = errors.Wrap(err, "error in sender:")
-			c.WriteMessage(websocket.TextMessage, []byte(err.Error()))
-			time.Sleep(50 * time.Millisecond)
-			cr.StateString = err.Error()
-		}
+	if err != nil && strings.HasPrefix(err.Error(), "websocket: close 100") {
+		err = nil
 	}
-
-	done <- struct{}{}
+	done <- err
 }
 
 func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isLocal bool, c *websocket.Conn, fname string, codephrase string, useCompression bool, useEncryption bool) (err error) {
@@ -128,7 +120,7 @@ func (cr *Croc) send(forceSend int, serverAddress string, tcpPorts []string, isL
 		if messageType == websocket.PongMessage || messageType == websocket.PingMessage {
 			continue
 		}
-		if messageType == websocket.TextMessage && bytes.Equal(message, []byte("interrupt")) {
+		if messageType == websocket.TextMessage && bytes.HasPrefix(message, []byte("interrupt")) {
 			return errors.New("\rinterrupted by other party")
 		}
 		if messageType == websocket.TextMessage && bytes.HasPrefix(message, []byte("err")) {

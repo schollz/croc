@@ -142,7 +142,7 @@ func (c *Croc) sendReceive(address, websocketPort string, tcpPorts []string, fna
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	done := make(chan struct{})
+	done := make(chan error)
 	// connect to server
 	websocketAddress := ""
 	if len(websocketPort) > 0 {
@@ -173,9 +173,14 @@ func (c *Croc) sendReceive(address, websocketPort string, tcpPorts []string, fna
 
 	for {
 		select {
-		case <-done:
+		case doneError := <-done:
 			log.Debug("received done signal")
-			return nil
+			if doneError != nil {
+				c.StateString = doneError.Error()
+				sock.WriteMessage(websocket.TextMessage, []byte("error: "+doneError.Error()))
+				time.Sleep(50 * time.Millisecond)
+			}
+			return doneError
 		case <-interrupt:
 			if !c.Debug {
 				SetDebugLevel("critical")

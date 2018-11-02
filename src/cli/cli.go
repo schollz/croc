@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
+	"github.com/pkg/errors"
 	"github.com/schollz/croc/src/croc"
 	"github.com/schollz/croc/src/utils"
 	"github.com/skratchdot/open-golang/open"
@@ -131,7 +131,7 @@ func Run() {
 
 	err := app.Run(os.Args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "\nerror: %s", err.Error())
+		fmt.Fprintf(os.Stderr, "\r\n%s", err.Error())
 	}
 	fmt.Fprintf(os.Stderr, "\r\n")
 }
