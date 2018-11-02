@@ -13,7 +13,7 @@ require (
 	github.com/schollz/mnemonicode v1.0.1
 	github.com/schollz/pake v1.1.0
 	github.com/schollz/peerdiscovery v1.2.2
-	github.com/schollz/progressbar/v2 v2.6.0
+	github.com/schollz/progressbar/v2 v2.7.0
 	github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9
 	github.com/skratchdot/open-golang v0.0.0-20160302144031-75fb7ed4208c
 	github.com/stretchr/testify v1.2.2

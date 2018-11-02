@@ -357,6 +357,7 @@ func (cr *Croc) receive(forceSend int, serverAddress string, tcpPorts []string, 
 				progressbar.OptionSetRenderBlankState(true),
 				progressbar.OptionSetBytes(int(cr.FileInfo.Size)),
 				progressbar.OptionSetWriter(os.Stderr),
+				progressbar.OptionThrottle(1/60*time.Second),
 			)
 			cr.Bar.Add((len(blocks) * blockSize))
 			finished := make(chan bool)
