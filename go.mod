@@ -5,6 +5,8 @@ require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/dustin/go-humanize v1.0.0
 	github.com/fatih/color v1.7.0 // indirect
+	github.com/gonutz/w32 v1.0.0
+	github.com/gonutz/wui v1.0.0
 	github.com/gorilla/websocket v1.4.0
 	github.com/mattn/go-colorable v0.0.9 // indirect
 	github.com/mattn/go-isatty v0.0.4 // indirect
