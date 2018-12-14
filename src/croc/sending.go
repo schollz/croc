@@ -54,7 +54,7 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 					TimeLimit:        600 * time.Second,
 					Delay:            50 * time.Millisecond,
 					Payload:          []byte(c.RelayWebsocketPort + "- " + strings.Join(c.RelayTCPPorts, ",")),
-					MulticastAddress: "239.255.255.252",
+					MulticastAddress: fmt.Sprintf("239.255.255.%d", 230+int64(time.Now().Minute()/5)),
 				})
 				log.Debug(discovered, err)
 			}()
@@ -91,7 +91,7 @@ func (c *Croc) Receive(codephrase string) (err error) {
 			Payload:          []byte("checking"),
 			AllowSelf:        true,
 			DisableBroadcast: true,
-			MulticastAddress: "239.255.255.252",
+			MulticastAddress: fmt.Sprintf("239.255.255.%d", 230+int64(time.Now().Minute()/5)),
 		})
 		log.Debug("finished")
 		log.Debug(discovered)
