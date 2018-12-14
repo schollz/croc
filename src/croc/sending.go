@@ -50,10 +50,11 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 			go func() {
 				log.Debug("starting local discovery...")
 				discovered, err := peerdiscovery.Discover(peerdiscovery.Settings{
-					Limit:     1,
-					TimeLimit: 600 * time.Second,
-					Delay:     50 * time.Millisecond,
-					Payload:   []byte(c.RelayWebsocketPort + "- " + strings.Join(c.RelayTCPPorts, ",")),
+					Limit:            1,
+					TimeLimit:        600 * time.Second,
+					Delay:            50 * time.Millisecond,
+					Payload:          []byte(c.RelayWebsocketPort + "- " + strings.Join(c.RelayTCPPorts, ",")),
+					MulticastAddress: "239.255.255.252",
 				})
 				log.Debug(discovered, err)
 			}()
@@ -76,11 +77,12 @@ func (c *Croc) Send(fname, codephrase string) (err error) {
 
 // Receive the file
 func (c *Croc) Receive(codephrase string) (err error) {
+	defer log.Flush()
 	log.Debug("receiving")
 
 	// use local relay first
 	if !c.NoLocal {
-		log.Debug("trying discovering")
+		log.Debug("trying to discover")
 		// try to discovery codephrase and server through peer network
 		discovered, errDiscover := peerdiscovery.Discover(peerdiscovery.Settings{
 			Limit:            1,
@@ -89,6 +91,7 @@ func (c *Croc) Receive(codephrase string) (err error) {
 			Payload:          []byte("checking"),
 			AllowSelf:        true,
 			DisableBroadcast: true,
+			MulticastAddress: "239.255.255.252",
 		})
 		log.Debug("finished")
 		log.Debug(discovered)
