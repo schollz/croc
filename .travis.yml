@@ -8,4 +8,12 @@ env:
 
 script:
   - go build -v
-  - go test -v -cover ./...
+  - go test -v -cover github.com/schollz/croc/src/compress
+  - go test -v -cover github.com/schollz/croc/src/croc
+  - go test -v -cover github.com/schollz/croc/src/crypt
+  - go test -v -cover github.com/schollz/croc/src/models
+  - go test -v -cover github.com/schollz/croc/src/relay
+  - go test -v -cover github.com/schollz/croc/src/tcp
+  - go test -v -cover github.com/schollz/croc/src/utils
+  - go test -v -cover github.com/schollz/croc/src/zipper
+  
