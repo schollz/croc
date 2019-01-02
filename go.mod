@@ -15,11 +15,11 @@ require (
 	github.com/schollz/mnemonicode v1.0.1
 	github.com/schollz/pake v1.1.0
 	github.com/schollz/peerdiscovery v1.2.2
-	github.com/schollz/progressbar/v2 v2.7.0
+	github.com/schollz/progressbar/v2 v2.8.0
 	github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9
 	github.com/skratchdot/open-golang v0.0.0-20160302144031-75fb7ed4208c
 	github.com/stretchr/testify v1.2.2
 	github.com/urfave/cli v1.20.0
-	golang.org/x/crypto v0.0.0-20181030102418-4d3f4d9ffa16
-	golang.org/x/net v0.0.0-20181029044818-c44066c5c816 // indirect
+	golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9
+	golang.org/x/net v0.0.0-20181220203305-927f97764cc3 // indirect
 )
