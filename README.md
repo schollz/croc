@@ -124,7 +124,7 @@ All of the other text printed to the console is going to `stderr` so it will not
 
 ### Self-host relay
 
-The relay is needed to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses a public relay at, `ws://198.199.67.130:8153`. You can also run your own relay, it is very easy, just run:
+The relay is needed to staple the parallel incoming and outgoing connections. The relay temporarily stores connection information and the encrypted meta information. The default uses a public relay at, `croc4.schollz.com`. You can also run your own relay, it is very easy, just run:
 
 ```
 $ croc relay
@@ -132,10 +132,10 @@ $ croc relay
 
 Make sure to open up TCP ports (see `croc relay --help` for which ports to open). Relays can also be customized to which elliptic curve they will use (default is siec).
 
-You can send files using your relay by entering `-relay` to change the relay that you are using if you want to custom host your own.
+You can send files using your relay by entering `-addr` to change the relay that you are using if you want to custom host your own.
 
 ```
-$ croc -relay "ws://myrelay.example.com" send [filename]
+$ croc -addr "myrelay.example.com" send [filename]
 ```
 
 ### Configuration file 
