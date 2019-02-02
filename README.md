@@ -7,7 +7,7 @@
 <a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-4.1.4-brightgreen.svg?style=flat-square" alt="Version"></a>
 <img src="https://img.shields.io/badge/coverage-77%25-brightgreen.svg?style=flat-square" alt="Code coverage">
 <a href="https://travis-ci.org/schollz/croc"><img
-src="https://img.shields.io/travis-ci/schollz/croc.svg?style=flat-square" alt="Build
+src="https://img.shields.io/travis/schollz/croc.svg?style=flat-square" alt="Build
 Status"></a> 
 <a href="https://saythanks.io/to/schollz"><img src="https://img.shields.io/badge/Say%20Thanks-!-brightgreen.svg?style=flat-square" alt="Say thanks"></a>
 </p>
