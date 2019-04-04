@@ -20,7 +20,7 @@ import (
 	"github.com/pions/webrtc/examples/util"
 	"github.com/pions/webrtc/pkg/datachannel"
 	"github.com/pions/webrtc/pkg/ice"
-	"github.com/schollz/croc/src/utils"
+	"github.com/schollz/croc/v5/src/utils"
 	"github.com/schollz/pake"
 	"github.com/schollz/progressbar/v2"
 	"github.com/sirupsen/logrus"
