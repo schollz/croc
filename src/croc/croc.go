@@ -383,6 +383,7 @@ func (c *Client) processMessage(m Message) (err error) {
 			Message: Encode(answer),
 		}.String()).Err()
 	case "datachannel-answer":
+		c.log.Debug("got answer:", m.Message)
 		var answer webrtc.SessionDescription
 
 		err = Decode(m.Message, &answer)
@@ -394,6 +395,7 @@ func (c *Client) processMessage(m Message) (err error) {
 	case "close-sender":
 		c.peerConnection.Close()
 		c.peerConnection = nil
+		c.dataChannel.Close()
 		c.dataChannel = nil
 		c.Step4FileTransfer = false
 		c.Step3RecipientRequestFile = false
@@ -403,6 +405,7 @@ func (c *Client) processMessage(m Message) (err error) {
 	case "close-recipient":
 		c.peerConnection.Close()
 		c.peerConnection = nil
+		c.dataChannel = nil
 		c.Step4FileTransfer = false
 		c.Step3RecipientRequestFile = false
 	}
@@ -551,57 +554,61 @@ func (c *Client) dataChannelReceive() (err error) {
 
 	// Register data channel creation handling
 	c.peerConnection.OnDataChannel(func(d *webrtc.DataChannel) {
-		fmt.Printf("New DataChannel %s %d\n", d.Label, d.ID)
-	})
 
-	sendBytes := make(chan []byte, 1024)
-	// Register channel opening handling
-	c.dataChannel.OnOpen(func() {
-		log.Debugf("Data channel '%s'-'%d' open", c.dataChannel.Label, c.dataChannel.ID)
-		for {
-			data := <-sendBytes
-			err := c.dataChannel.Send(data)
-			if err != nil {
-				c.log.Debug(err)
+		// Register channel opening handling
+		d.OnOpen(func() {
+			c.log.Debugf("Data channel '%s'-'%d' open. Random messages will now be sent to any connected DataChannels every 5 seconds\n", d.Label(), d.ID())
+		})
+
+		startTime := false
+		timer := time.Now()
+		var mutex = &sync.Mutex{}
+		piecesToDo := make(map[int64]bool)
+		for i := int64(0); i < c.FilesToTransfer[c.FilesToTransferCurrentNum].Size; i += 4096 {
+			piecesToDo[i] = true
+		}
+		// Register message handling
+		bar := progressbar.NewOptions64(
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
+			progressbar.OptionSetRenderBlankState(true),
+			progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
+			progressbar.OptionSetWriter(os.Stderr),
+			progressbar.OptionThrottle(1/60*time.Second),
+		)
+		d.OnMessage(func(msg webrtc.DataChannelMessage) {
+			if bytes.Equal([]byte("done"), msg.Data) {
+				c.CurrentFile.Close()
+				c.log.Debug(time.Since(timer))
+				c.log.Debug("telling transfer is over")
+				err = c.redisdb.Publish(c.nameOutChannel, Message{
+					Type: "close-sender",
+				}.String()).Err()
+				if err != nil {
+					panic(err)
+				}
+				return
 			}
-		}
-	})
 
-	startTime := false
-	timer := time.Now()
-	var mutex = &sync.Mutex{}
-	piecesToDo := make(map[int64]bool)
-	for i := int64(0); i < c.FilesToTransfer[c.FilesToTransferCurrentNum].Size; i += 4096 {
-		piecesToDo[i] = true
-	}
-	// Register message handling
-	bar := progressbar.NewOptions64(
-		c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
-		progressbar.OptionSetRenderBlankState(true),
-		progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
-		progressbar.OptionSetWriter(os.Stderr),
-		progressbar.OptionThrottle(1/60*time.Second),
-	)
-	c.dataChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
+			if !startTime {
+				startTime = true
+				timer = time.Now()
+			}
+			var chunk Chunk
+			errM := json.Unmarshal(msg.Data, &chunk)
+			if errM != nil {
+				panic(errM)
+			}
+			var n int
+			mutex.Lock()
+			n, err = c.CurrentFile.WriteAt(chunk.Bytes, chunk.Location)
+			mutex.Unlock()
+			if err != nil {
+				panic(err)
+			}
+			// c.log.Debugf("wrote %d bytes to %d", n, chunk.Location)
+			bar.Add(n)
+		})
 
-		if !startTime {
-			startTime = true
-			timer = time.Now()
-		}
-		var chunk Chunk
-		errM := json.Unmarshal(msg.Data, &chunk)
-		if errM != nil {
-			panic(errM)
-		}
-		var n int
-		mutex.Lock()
-		n, err = c.CurrentFile.WriteAt(chunk.Bytes, chunk.Location)
-		mutex.Unlock()
-		if err != nil {
-			panic(err)
-		}
-		// c.log.Debugf("wrote %d bytes to %d", n, chunk.Location)
-		bar.Add(n)
 	})
 
 	// Block forever
@@ -638,9 +645,8 @@ func (c *Client) dataChannelSend() (err error) {
 		fmt.Printf("ICE Connection State has changed: %s\n", connectionState.String())
 	})
 
-	// Register channel opening handling
 	c.dataChannel.OnOpen(func() {
-		fmt.Printf("Data channel '%s'-'%d' open\n", c.dataChannel.Label, c.dataChannel.ID)
+		fmt.Printf("Data channel '%s'-'%d' open. Random messages will now be sent to any connected DataChannels every 5 seconds\n", c.dataChannel.Label(), c.dataChannel.ID())
 		time.Sleep(100 * time.Microsecond)
 
 		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
@@ -686,35 +692,28 @@ func (c *Client) dataChannelSend() (err error) {
 				continue
 			}
 			location += int64(bytesread)
-			time.Sleep(100 * time.Microsecond)
+			time.Sleep(1000 * time.Microsecond)
 		}
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					log.Debug("Recovered in f", r)
-				}
-			}()
-			for {
-				c.log.Debug("sending done signal")
-				if c.dataChannel == nil {
-					return
-				}
-				err = c.dataChannel.Send([]byte("done"))
-				if err != nil {
-					c.log.Debug(err)
-				}
-				time.Sleep(1 * time.Second)
-			}
-		}()
+		c.log.Debug("sending done signal")
+		err = c.dataChannel.Send([]byte("done"))
+		if err != nil {
+			c.log.Debug(err)
+		}
+		time.Sleep(1 * time.Second)
 	})
 
-	// Register the OnMessage to handle incoming messages
+	// Register text message handling
 	c.dataChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
 		fmt.Printf("Message from DataChannel '%s': '%s'\n", c.dataChannel.Label(), string(msg.Data))
 	})
-
 	// Create an offer to send to the browser
 	offer, err := c.peerConnection.CreateOffer(nil)
+	if err != nil {
+		return
+	}
+
+	// Sets the LocalDescription, and starts our UDP listeners
+	err = c.peerConnection.SetLocalDescription(offer)
 	if err != nil {
 		return
 	}
