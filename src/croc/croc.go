@@ -26,7 +26,7 @@ import (
 
 var log = logrus.New()
 
-const BufferSize = 4096
+const BufferSize = 4096 * 2
 
 func init() {
 	log.SetFormatter(&logrus.TextFormatter{ForceColors: true})
@@ -475,7 +475,7 @@ func (c *Client) updateState() (err error) {
 		if errStats == nil {
 			if fstats.Size() == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size {
 				// just request missing chunks
-				c.CurrentFileChunks = MissingChunks(pathToFile, fstats.Size(), 4096)
+				c.CurrentFileChunks = MissingChunks(pathToFile, fstats.Size(), BufferSize)
 				log.Debugf("found %d missing chunks", len(c.CurrentFileChunks))
 				overwrite = false
 			}
@@ -564,7 +564,7 @@ func (c *Client) dataChannelReceive() (err error) {
 		timer := time.Now()
 		var mutex = &sync.Mutex{}
 		piecesToDo := make(map[int64]bool)
-		for i := int64(0); i < c.FilesToTransfer[c.FilesToTransferCurrentNum].Size; i += 4096 {
+		for i := int64(0); i < c.FilesToTransfer[c.FilesToTransferCurrentNum].Size; i += BufferSize {
 			piecesToDo[i] = true
 		}
 		// Register message handling
