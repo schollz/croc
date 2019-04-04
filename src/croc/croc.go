@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,6 +40,7 @@ type Client struct {
 	SharedSecret string
 	Pake         *pake.Pake
 	Filename     string
+	Folder       string
 
 	// steps involved in forming relationship
 	Step1ChannelSecured     bool
@@ -74,9 +78,9 @@ type Chunk struct {
 
 type FileInfo struct {
 	Name         string    `json:"n,omitempty"`
+	Folder       string    `json:"f,omitempty"`
 	Size         int64     `json:"s,omitempty"`
 	ModTime      time.Time `json:"m,omitempty"`
-	IsDir        bool      `json:"d,omitempty"`
 	IsCompressed bool      `json:"c,omitempty"`
 	IsEncrypted  bool      `json:"e,omitempty"`
 }
@@ -146,21 +150,64 @@ func New(sender bool, sharedSecret string) (c *Client, err error) {
 	return
 }
 
+type TransferOptions struct {
+	PathToFile       string
+	KeepPathInRemote bool
+}
+
 // Send will send the specified file
-func (c *Client) Send(fname string) (err error) {
-	return c.transfer(fname)
+func (c *Client) Send(options TransferOptions) (err error) {
+	return c.transfer(options)
 }
 
 // Receive will receive a file
 func (c *Client) Receive() (err error) {
-	return c.transfer()
+	return c.transfer(TransferOptions{})
 }
 
-func (c *Client) transfer(fnameOption ...string) (err error) {
-	if len(fnameOption) > 0 {
-		c.Filename = fnameOption[0]
-	}
+func (c *Client) transfer(options TransferOptions) (err error) {
+	if c.IsSender {
+		var fstats os.FileInfo
+		fstats, err = os.Stat(path.Join(options.PathToFile))
+		if err != nil {
+			return
+		}
+		c.FileInfo = FileInfo{
+			Name:    fstats.Name(),
+			Folder:  ".",
+			Size:    fstats.Size(),
+			ModTime: fstats.ModTime(),
+		}
+		if options.KeepPathInRemote {
+			var fullPath, curFolder string
+			fullPath, err = filepath.Abs(options.PathToFile)
+			if err != nil {
+				return
+			}
+			fullPath = filepath.Clean(fullPath)
+			folderName, _ := filepath.Split(fullPath)
 
+			curFolder, err = os.Getwd()
+			if err != nil {
+				return
+			}
+			curFolder, err = filepath.Abs(curFolder)
+			if err != nil {
+				return
+			}
+			if !strings.HasPrefix(folderName, curFolder) {
+				err = fmt.Errorf("remote directory must be relative to current")
+				return
+			}
+			c.FileInfo.Folder = strings.TrimPrefix(folderName, curFolder)
+			c.FileInfo.Folder = filepath.ToSlash(c.FileInfo.Folder)
+			c.FileInfo.Folder = strings.TrimPrefix(c.FileInfo.Folder, "/")
+			if c.FileInfo.Folder == "" {
+				c.FileInfo.Folder = "."
+			}
+		}
+		log.Debugf("file info: %+v", c.FileInfo)
+	}
 	// create channel for quitting
 	// quit with c.quit <- true
 	c.quit = make(chan bool)
@@ -265,7 +312,13 @@ func (c *Client) processMessage(m Message) (err error) {
 			return
 		}
 		c.log.Debug(c.FileInfo)
-		c.f, err = os.Create("d.txt")
+		if c.FileInfo.Folder != "." {
+			err = os.MkdirAll(c.FileInfo.Folder, os.ModeDir)
+			if err != nil {
+				return
+			}
+		}
+		c.f, err = os.Create(path.Join(c.FileInfo.Folder, c.FileInfo.Name))
 		if err != nil {
 			return
 		}
@@ -321,15 +374,15 @@ func (c *Client) processMessage(m Message) (err error) {
 func (c *Client) updateState() (err error) {
 	if c.IsSender && c.Step1ChannelSecured && !c.Step2FileInfoTransfered {
 		var fstats os.FileInfo
-		fstats, err = os.Stat(c.Filename)
+		fstats, err = os.Stat(path.Join(c.Folder, c.Filename))
 		if err != nil {
 			return
 		}
 		c.FileInfo = FileInfo{
-			Name:    fstats.Name(),
+			Name:    c.Filename,
+			Folder:  c.Folder,
 			Size:    fstats.Size(),
 			ModTime: fstats.ModTime(),
-			IsDir:   fstats.IsDir(),
 		}
 		b, _ := json.Marshal(c.FileInfo)
 		err = c.redisdb.Publish(c.nameOutChannel, Message{

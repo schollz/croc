@@ -15,7 +15,12 @@ func main() {
 		panic(err)
 	}
 	if sender {
-		err = c.Send("test.txt")
+		err = c.Send(croc.TransferOptions{
+			// PathToFile: "../wskeystore/README.md",
+			// PathToFile:       "./src/croc/croc.go",
+			PathToFile:       "C:\\Users\\zacks\\go\\src\\github.com\\schollz\\croc\\src\\croc\\croc.go",
+			KeepPathInRemote: false,
+		})
 	} else {
 		err = c.Receive()
 	}
