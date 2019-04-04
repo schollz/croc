@@ -692,7 +692,7 @@ func (c *Client) dataChannelSend() (err error) {
 				continue
 			}
 			location += int64(bytesread)
-			time.Sleep(1000 * time.Microsecond)
+			time.Sleep(100 * time.Microsecond)
 		}
 		c.log.Debug("sending done signal")
 		err = c.dataChannel.Send([]byte("done"))
