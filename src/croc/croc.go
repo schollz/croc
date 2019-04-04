@@ -26,7 +26,7 @@ import (
 
 var log = logrus.New()
 
-const BufferSize = 4096 * 4
+const BufferSize = 4096 * 2
 
 func init() {
 	log.SetFormatter(&logrus.TextFormatter{ForceColors: true})
