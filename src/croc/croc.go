@@ -189,15 +189,17 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 				return
 			}
 			fullPath = filepath.Clean(fullPath)
+			var folderName string
+			folderName, _ = filepath.Split(fullPath)
 
-			fstats, err = os.Stat(path.Join(fullPath))
+			fstats, err = os.Stat(fullPath)
 			if err != nil {
 				return
 			}
 			c.FilesToTransfer[i] = FileInfo{
 				Name:         fstats.Name(),
 				FolderRemote: ".",
-				FolderSource: fullPath,
+				FolderSource: folderName,
 				Size:         fstats.Size(),
 				ModTime:      fstats.ModTime(),
 			}
@@ -207,8 +209,6 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 			}
 			if options.KeepPathInRemote {
 				var curFolder string
-				folderName, _ := filepath.Split(fullPath)
-
 				curFolder, err = os.Getwd()
 				if err != nil {
 					return
@@ -378,6 +378,12 @@ func (c *Client) processMessage(m Message) (err error) {
 		answer := util.Decode(m.Message)
 		// Apply the answer as the remote description
 		err = c.peerConnection.SetRemoteDescription(answer)
+	case "finished-transfer":
+		c.Step3RecipientRequestFile = false
+		c.Step4FileTransfer = false
+		err = c.redisdb.Publish(c.nameOutChannel, Message{
+			Type: "thanks",
+		}.String()).Err()
 	}
 	if err != nil {
 		return
@@ -548,7 +554,15 @@ func (c *Client) dataChannelReceive() (err error) {
 				if bytes.Equal(p.Data, []byte("done")) {
 					c.CurrentFile.Close()
 					c.log.Debug(time.Since(timer))
-					// TODO: handle done, close file, reset things and check for missing blocks
+					c.log.Debug("telling transfer is over")
+					c.Step4FileTransfer = false
+					c.Step3RecipientRequestFile = false
+					err = c.redisdb.Publish(c.nameOutChannel, Message{
+						Type: "finished-transfer",
+					}.String()).Err()
+					if err != nil {
+						panic(err)
+					}
 				}
 			case *datachannel.PayloadBinary:
 				if !startTime {
