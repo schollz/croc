@@ -4,7 +4,7 @@
     src="https://user-images.githubusercontent.com/6550035/46709024-9b23ad00-cbf6-11e8-9fb2-ca8b20b7dbec.jpg"
     width="408px" border="0" alt="croc">
 <br>
-<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-4.1.5-brightgreen.svg?style=flat-square" alt="Version"></a>
+<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-5.0.0-brightgreen.svg?style=flat-square" alt="Version"></a>
 <img src="https://img.shields.io/badge/coverage-77%25-brightgreen.svg?style=flat-square" alt="Code coverage">
 <a href="https://travis-ci.org/schollz/croc"><img
 src="https://img.shields.io/travis/schollz/croc.svg?style=flat-square" alt="Build
@@ -149,6 +149,21 @@ $ croc config
 which will generate the file that you can edit. 
 Any changes you make to the configuration file will be applied *before* the command-line flags, if any.
 
+
+## Notes
+
+How to determine if p2p is working:
+
+
+```
+watch -n1 netstat -au
+```
+
+Look for the port transmitting data
+
+```
+sudo tcpdump -i wlp3s0 udp port XX -vv -n
+```
 
 ## License
 
