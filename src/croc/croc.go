@@ -620,7 +620,7 @@ func (c *Client) dataChannelReceive(num int) (err error) {
 			var n int
 			c.mutex.Lock()
 			n, err = c.CurrentFile.WriteAt(chunk.Bytes, chunk.Location)
-			c.log.Debugf("wrote %d bytes to %d (%d)", n, chunk.Location,num)
+			// c.log.Debugf("wrote %d bytes to %d (%d)", n, chunk.Location,num)
 			c.mutex.Unlock()
 			if err != nil {
 				panic(err)
