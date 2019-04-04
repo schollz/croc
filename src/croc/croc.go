@@ -26,7 +26,8 @@ import (
 
 var log = logrus.New()
 
-const BufferSize = 4096 * 2
+const BufferSize = 4096
+const Channels = 2
 
 func init() {
 	log.SetFormatter(&logrus.TextFormatter{ForceColors: true})
@@ -63,16 +64,20 @@ type Client struct {
 	nameInChannel          string
 
 	// webrtc connections
-	peerConnection *webrtc.PeerConnection
-	dataChannel    *webrtc.DataChannel
+	peerConnection [8]*webrtc.PeerConnection
+	dataChannel    [8]*webrtc.DataChannel
 
-	quit chan bool
+	bar *progressbar.ProgressBar
+
+	mutex *sync.Mutex
+	quit  chan bool
 }
 
 type Message struct {
 	Type    string `json:"t,omitempty"`
 	Message string `json:"m,omitempty"`
 	Bytes   []byte `json:"b,omitempty"`
+	Num     int    `json:"n,omitempty"`
 }
 
 type Chunk struct {
@@ -158,6 +163,7 @@ func New(sender bool, sharedSecret string) (c *Client, err error) {
 		})
 	}
 
+	c.mutex = &sync.Mutex{}
 	return
 }
 
@@ -275,7 +281,7 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 
 func (c *Client) sendOverRedis() (err error) {
 	go func() {
-		bar := progressbar.NewOptions(
+		c.bar = progressbar.NewOptions(
 			int(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
 			progressbar.OptionSetRenderBlankState(true),
 			progressbar.OptionSetBytes(int(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)),
@@ -290,7 +296,7 @@ func (c *Client) sendOverRedis() (err error) {
 		for {
 			buf := make([]byte, 4096*128)
 			n, errRead := c.CurrentFile.Read(buf)
-			bar.Add(n)
+			c.bar.Add(n)
 			chunk := Chunk{
 				Bytes:    buf[:n],
 				Location: location,
@@ -363,16 +369,16 @@ func (c *Client) processMessage(m Message) (err error) {
 		if err != nil {
 			return
 		}
-		c.log.Debug("got offer:", m.Message)
+		c.log.Debugf("got offer for %d:", m.Num)
 		// Set the remote SessionDescription
-		err = c.peerConnection.SetRemoteDescription(offer)
+		err = c.peerConnection[m.Num].SetRemoteDescription(offer)
 		if err != nil {
 			return
 		}
 
 		// Sets the LocalDescription, and starts our UDP listeners
 		var answer webrtc.SessionDescription
-		answer, err = c.peerConnection.CreateAnswer(nil)
+		answer, err = c.peerConnection[m.Num].CreateAnswer(nil)
 		if err != nil {
 			return
 		}
@@ -381,6 +387,7 @@ func (c *Client) processMessage(m Message) (err error) {
 		err = c.redisdb.Publish(c.nameOutChannel, Message{
 			Type:    "datachannel-answer",
 			Message: Encode(answer),
+			Num:     m.Num,
 		}.String()).Err()
 	case "datachannel-answer":
 		c.log.Debug("got answer:", m.Message)
@@ -391,23 +398,24 @@ func (c *Client) processMessage(m Message) (err error) {
 			return
 		}
 		// Apply the answer as the remote description
-		err = c.peerConnection.SetRemoteDescription(answer)
+		err = c.peerConnection[m.Num].SetRemoteDescription(answer)
 	case "close-sender":
-		c.peerConnection.Close()
-		c.peerConnection = nil
-		c.dataChannel.Close()
-		c.dataChannel = nil
-		c.Step4FileTransfer = false
-		c.Step3RecipientRequestFile = false
+		c.peerConnection[m.Num].Close()
+		c.peerConnection[m.Num] = nil
+		c.dataChannel[m.Num].Close()
+		c.dataChannel[m.Num] = nil
+		// c.Step4FileTransfer = false
+		// c.Step3RecipientRequestFile = false
 		err = c.redisdb.Publish(c.nameOutChannel, Message{
 			Type: "close-recipient",
+			Num:  m.Num,
 		}.String()).Err()
 	case "close-recipient":
-		c.peerConnection.Close()
-		c.peerConnection = nil
-		c.dataChannel = nil
-		c.Step4FileTransfer = false
-		c.Step3RecipientRequestFile = false
+		c.peerConnection[m.Num].Close()
+		c.peerConnection[m.Num] = nil
+		c.dataChannel[m.Num] = nil
+		// c.Step4FileTransfer = false
+		// c.Step3RecipientRequestFile = false
 	}
 	if err != nil {
 		return
@@ -510,27 +518,47 @@ func (c *Client) updateState() (err error) {
 		}
 		c.Step3RecipientRequestFile = true
 		// start receiving data
-		go func() {
-			err = c.dataChannelReceive()
-			if err != nil {
-				panic(err)
-			}
-		}()
+		// Register message handling
+		c.bar = progressbar.NewOptions64(
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
+			progressbar.OptionSetRenderBlankState(true),
+			progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
+			progressbar.OptionSetWriter(os.Stderr),
+			progressbar.OptionThrottle(1/60*time.Second),
+		)
+
+		for inum := 0; inum < Channels; inum++ {
+			go func(i int) {
+				err = c.dataChannelReceive(i)
+				if err != nil {
+					panic(err)
+				}
+			}(inum)
+		}
 	}
 	if c.IsSender && c.Step3RecipientRequestFile && !c.Step4FileTransfer {
 		c.log.Debug("start sending data!")
 		c.Step4FileTransfer = true
-		go func() {
-			err = c.dataChannelSend()
-			if err != nil {
-				panic(err)
-			}
-		}()
+		c.bar = progressbar.NewOptions64(
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
+			progressbar.OptionSetRenderBlankState(true),
+			progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
+			progressbar.OptionSetWriter(os.Stderr),
+			progressbar.OptionThrottle(1/60*time.Second),
+		)
+		for inum := 0; inum < Channels; inum++ {
+			go func(i int) {
+				err = c.dataChannelSend(i)
+				if err != nil {
+					panic(err)
+				}
+			}(inum)
+		}
 	}
 	return
 }
 
-func (c *Client) dataChannelReceive() (err error) {
+func (c *Client) dataChannelReceive(num int) (err error) {
 	// Prepare the configuration
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
@@ -541,19 +569,19 @@ func (c *Client) dataChannelReceive() (err error) {
 	}
 
 	// Create a new RTCPeerConnection
-	c.peerConnection, err = webrtc.NewPeerConnection(config)
+	c.peerConnection[num], err = webrtc.NewPeerConnection(config)
 	if err != nil {
 		return
 	}
 
 	// Set the handler for ICE connection state
 	// This will notify you when the peer has connected/disconnected
-	c.peerConnection.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
+	c.peerConnection[num].OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
 		fmt.Printf("ICE Connection State has changed: %s\n", connectionState.String())
 	})
 
 	// Register data channel creation handling
-	c.peerConnection.OnDataChannel(func(d *webrtc.DataChannel) {
+	c.peerConnection[num].OnDataChannel(func(d *webrtc.DataChannel) {
 
 		// Register channel opening handling
 		d.OnOpen(func() {
@@ -562,26 +590,17 @@ func (c *Client) dataChannelReceive() (err error) {
 
 		startTime := false
 		timer := time.Now()
-		var mutex = &sync.Mutex{}
 		piecesToDo := make(map[int64]bool)
 		for i := int64(0); i < c.FilesToTransfer[c.FilesToTransferCurrentNum].Size; i += BufferSize {
 			piecesToDo[i] = true
 		}
-		// Register message handling
-		bar := progressbar.NewOptions64(
-			c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
-			progressbar.OptionSetRenderBlankState(true),
-			progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
-			progressbar.OptionSetWriter(os.Stderr),
-			progressbar.OptionThrottle(1/60*time.Second),
-		)
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			if bytes.Equal([]byte("done"), msg.Data) {
-				c.CurrentFile.Close()
 				c.log.Debug(time.Since(timer))
 				c.log.Debug("telling transfer is over")
 				err = c.redisdb.Publish(c.nameOutChannel, Message{
 					Type: "close-sender",
+					Num:  num,
 				}.String()).Err()
 				if err != nil {
 					panic(err)
@@ -599,14 +618,14 @@ func (c *Client) dataChannelReceive() (err error) {
 				panic(errM)
 			}
 			var n int
-			mutex.Lock()
+			c.mutex.Lock()
 			n, err = c.CurrentFile.WriteAt(chunk.Bytes, chunk.Location)
-			mutex.Unlock()
+			c.log.Debugf("wrote %d bytes to %d (%d)", n, chunk.Location,num)
+			c.mutex.Unlock()
 			if err != nil {
 				panic(err)
 			}
-			// c.log.Debugf("wrote %d bytes to %d", n, chunk.Location)
-			bar.Add(n)
+			c.bar.Add(n)
 		})
 
 	})
@@ -615,7 +634,7 @@ func (c *Client) dataChannelReceive() (err error) {
 	return
 }
 
-func (c *Client) dataChannelSend() (err error) {
+func (c *Client) dataChannelSend(num int) (err error) {
 	// Everything below is the pion-WebRTC API! Thanks for using it ❤️.
 
 	// Prepare the configuration
@@ -628,25 +647,25 @@ func (c *Client) dataChannelSend() (err error) {
 	}
 
 	// Create a new RTCPeerConnection
-	c.peerConnection, err = webrtc.NewPeerConnection(config)
+	c.peerConnection[num], err = webrtc.NewPeerConnection(config)
 	if err != nil {
 		return
 	}
 
 	// Create a datachannel with label 'data'
-	c.dataChannel, err = c.peerConnection.CreateDataChannel("data", nil)
+	c.dataChannel[num], err = c.peerConnection[num].CreateDataChannel("data", nil)
 	if err != nil {
 		return
 	}
 
 	// Set the handler for ICE connection state
 	// This will notify you when the peer has connected/disconnected
-	c.peerConnection.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
+	c.peerConnection[num].OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
 		fmt.Printf("ICE Connection State has changed: %s\n", connectionState.String())
 	})
 
-	c.dataChannel.OnOpen(func() {
-		fmt.Printf("Data channel '%s'-'%d' open. Random messages will now be sent to any connected DataChannels every 5 seconds\n", c.dataChannel.Label(), c.dataChannel.ID())
+	c.dataChannel[num].OnOpen(func() {
+		fmt.Printf("Data channel '%s'-'%d' open. Random messages will now be sent to any connected DataChannels every 5 seconds\n", c.dataChannel[num].Label(), c.dataChannel[num].ID())
 		time.Sleep(100 * time.Microsecond)
 
 		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
@@ -659,17 +678,9 @@ func (c *Client) dataChannelSend() (err error) {
 		}
 		defer file.Close()
 
-		fstats, _ := file.Stat()
-		bar := progressbar.NewOptions64(
-			fstats.Size(),
-			progressbar.OptionSetRenderBlankState(true),
-			progressbar.OptionSetBytes64(fstats.Size()),
-			progressbar.OptionSetWriter(os.Stderr),
-			progressbar.OptionThrottle(1/60*time.Second),
-		)
-
 		buffer := make([]byte, BufferSize)
 		var location int64
+		chunkNum := 0.0
 		for {
 			bytesread, err := file.Read(buffer)
 			if err != nil {
@@ -679,23 +690,26 @@ func (c *Client) dataChannelSend() (err error) {
 				break
 			}
 
-			mSend := Chunk{
-				Bytes:    buffer[:bytesread],
-				Location: location,
+			if math.Mod(chunkNum, float64(Channels)) == float64(num) {
+				mSend := Chunk{
+					Bytes:    buffer[:bytesread],
+					Location: location,
+				}
+				dataToSend, _ := json.Marshal(mSend)
+				c.bar.Add(bytesread)
+				err = c.dataChannel[num].Send(dataToSend)
+				if err != nil {
+					c.log.Debug("Could not send on data channel", err.Error())
+					continue
+				}
+				time.Sleep(100 * time.Microsecond)
 			}
-			dataToSend, _ := json.Marshal(mSend)
 
-			bar.Add(bytesread)
-			err = c.dataChannel.Send(dataToSend)
-			if err != nil {
-				c.log.Debug("Could not send on data channel", err.Error())
-				continue
-			}
 			location += int64(bytesread)
-			time.Sleep(100 * time.Microsecond)
+			chunkNum += 1.0
 		}
 		c.log.Debug("sending done signal")
-		err = c.dataChannel.Send([]byte("done"))
+		err = c.dataChannel[num].Send([]byte("done"))
 		if err != nil {
 			c.log.Debug(err)
 		}
@@ -703,17 +717,17 @@ func (c *Client) dataChannelSend() (err error) {
 	})
 
 	// Register text message handling
-	c.dataChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
-		fmt.Printf("Message from DataChannel '%s': '%s'\n", c.dataChannel.Label(), string(msg.Data))
+	c.dataChannel[num].OnMessage(func(msg webrtc.DataChannelMessage) {
+		fmt.Printf("Message from DataChannel '%s': '%s'\n", c.dataChannel[num].Label(), string(msg.Data))
 	})
 	// Create an offer to send to the browser
-	offer, err := c.peerConnection.CreateOffer(nil)
+	offer, err := c.peerConnection[num].CreateOffer(nil)
 	if err != nil {
 		return
 	}
 
 	// Sets the LocalDescription, and starts our UDP listeners
-	err = c.peerConnection.SetLocalDescription(offer)
+	err = c.peerConnection[num].SetLocalDescription(offer)
 	if err != nil {
 		return
 	}
@@ -723,6 +737,7 @@ func (c *Client) dataChannelSend() (err error) {
 	err = c.redisdb.Publish(c.nameOutChannel, Message{
 		Type:    "datachannel-offer",
 		Message: Encode(offer),
+		Num:     num,
 	}.String()).Err()
 	if err != nil {
 		return
