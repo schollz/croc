@@ -26,7 +26,7 @@ import (
 
 var log = logrus.New()
 
-const BufferSize = 4096
+const BufferSize = 4096 * 16
 const Channels = 1
 
 func init() {
