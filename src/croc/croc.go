@@ -26,7 +26,7 @@ import (
 
 var log = logrus.New()
 
-const BufferSize = 64000
+const BufferSize = 4096 * 4
 const Channels = 1
 
 func init() {
@@ -735,7 +735,7 @@ func (c *Client) dataChannelSend(num int) (err error) {
 						c.log.Debug("Could not send on data channel", err.Error())
 						continue
 					}
-					time.Sleep(100 * time.Microsecond)
+					time.Sleep(1 * time.Second)
 				}
 
 				location += int64(bytesread)
