@@ -85,3 +85,9 @@ func (s *Session) CreateOffer() (string, error) {
 func (s *Session) SetSDP(sdp string) error {
 	return s.sess.SetSDP(sdp)
 }
+
+func (s *Session) TransferFile() {
+	go s.readFile()
+	<-s.sess.Done
+	s.sess.OnCompletion()
+}

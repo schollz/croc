@@ -18,6 +18,7 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/mattn/go-colorable"
 	"github.com/pions/webrtc"
+	common "github.com/schollz/croc/v5/pkg/session/common"
 	recvSess "github.com/schollz/croc/v5/pkg/session/receiver"
 	sendSess "github.com/schollz/croc/v5/pkg/session/sender"
 	"github.com/schollz/croc/v5/src/utils"
@@ -60,8 +61,8 @@ type Client struct {
 	CurrentFile       *os.File
 	CurrentFileChunks []int64
 
-	sendSess sendSess.Session
-	recvSess recvSess.Session
+	sendSess *sendSess.Session
+	recvSess *recvSess.Session
 
 	// channel data
 	incomingMessageChannel <-chan *redis.Message
@@ -557,6 +558,19 @@ func (c *Client) dataChannelReceive(num int) (err error) {
 }
 
 func (c *Client) dataChannelSend(num int) (err error) {
+	pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
+	c.CurrentFile, err = os.Open(pathToFile)
+	if err != nil {
+		return
+	}
+	c.sendSess = sendSess.NewWith(sendSess.Config{
+		Stream: c.CurrentFile,
+		Configuration: common.Configuration{
+			OnCompletion: func() {
+			},
+		},
+	})
+
 	if err := c.sendSess.CreateConnection(); err != nil {
 		log.Error(err)
 		return err
