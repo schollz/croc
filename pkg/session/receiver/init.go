@@ -51,6 +51,11 @@ func (s *Session) CreateDataHandler() {
 	})
 }
 
+func (s *Session) ReceiveData() {
+	s.receiveData()
+	s.sess.OnCompletion()
+}
+
 func (s *Session) receiveData() {
 	log.Infoln("Starting to receive data...")
 	defer log.Infoln("Stopped receiving data...")

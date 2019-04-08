@@ -361,6 +361,8 @@ func (c *Client) processMessage(m Message) (err error) {
 		c.FilesToTransferCurrentNum = remoteFile.FilesToTransferCurrentNum
 		c.CurrentFileChunks = remoteFile.CurrentFileChunks
 		c.Step3RecipientRequestFile = true
+		err = c.dataChannelSend()
+
 	case "chunk":
 		var chunk Chunk
 		err = json.Unmarshal(m.Bytes, &chunk)
@@ -370,6 +372,10 @@ func (c *Client) processMessage(m Message) (err error) {
 		_, err = c.CurrentFile.WriteAt(chunk.Bytes, chunk.Location)
 		c.log.Debug("writing chunk", chunk.Location)
 	case "datachannel-offer":
+		err = c.dataChannelReceive()
+		if err != nil {
+			return
+		}
 		err = c.recvSess.SetSDP(m.Message)
 		if err != nil {
 			return
@@ -385,6 +391,9 @@ func (c *Client) processMessage(m Message) (err error) {
 			Message: answer,
 			Num:     m.Num,
 		}.String()).Err()
+		// start receiving data
+		c.recvSess.ReceiveData()
+
 	case "datachannel-answer":
 		c.log.Debug("got answer:", m.Message)
 		// Apply the answer as the remote description
@@ -457,13 +466,13 @@ func (c *Client) updateState() (err error) {
 		// start initiating the process to receive a new file
 		log.Debugf("working on file %d", c.FilesToTransferCurrentNum)
 
-		// setup folder for new file
-		if c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote != "." {
-			err = os.MkdirAll(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, os.ModeDir)
-			if err != nil {
-				return
-			}
-		}
+		// // setup folder for new file
+		// if c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote != "." {
+		// 	err = os.MkdirAll(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, os.ModeDir)
+		// 	if err != nil {
+		// 		return
+		// 	}
+		// }
 
 		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 
@@ -480,19 +489,19 @@ func (c *Client) updateState() (err error) {
 		} else {
 			c.CurrentFileChunks = []int64{}
 		}
-		if overwrite {
-			os.Remove(pathToFile)
-			c.CurrentFile, err = os.Create(pathToFile)
-			if err != nil {
-				return
-			}
-			err = c.CurrentFile.Truncate(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
-		} else {
-			c.CurrentFile, err = os.OpenFile(pathToFile, os.O_RDWR|os.O_CREATE, 0755)
-		}
-		if err != nil {
-			return
-		}
+		// if overwrite {
+		// 	os.Remove(pathToFile)
+		// 	c.CurrentFile, err = os.Create(pathToFile)
+		// 	if err != nil {
+		// 		return
+		// 	}
+		// 	err = c.CurrentFile.Truncate(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
+		// } else {
+		// 	c.CurrentFile, err = os.OpenFile(pathToFile, os.O_RDWR|os.O_CREATE, 0755)
+		// }
+		// if err != nil {
+		// 	return
+		// }
 
 		// recipient requests the file and chunks (if empty, then should receive all chunks)
 		bRequest, _ := json.Marshal(RemoteFileRequest{
@@ -507,48 +516,16 @@ func (c *Client) updateState() (err error) {
 			return
 		}
 		c.Step3RecipientRequestFile = true
-		// start receiving data
-		// Register message handling
-		c.bar = progressbar.NewOptions64(
-			c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
-			progressbar.OptionSetRenderBlankState(true),
-			progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
-			progressbar.OptionSetWriter(os.Stderr),
-			progressbar.OptionThrottle(1/60*time.Second),
-		)
-
-		for inum := 0; inum < Channels; inum++ {
-			go func(i int) {
-				err = c.dataChannelReceive(i)
-				if err != nil {
-					panic(err)
-				}
-			}(inum)
-		}
 	}
 	if c.IsSender && c.Step3RecipientRequestFile && !c.Step4FileTransfer {
 		c.log.Debug("start sending data!")
 		c.Step4FileTransfer = true
-		c.bar = progressbar.NewOptions64(
-			c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
-			progressbar.OptionSetRenderBlankState(true),
-			progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
-			progressbar.OptionSetWriter(os.Stderr),
-			progressbar.OptionThrottle(1/60*time.Second),
-		)
-		for inum := 0; inum < Channels; inum++ {
-			go func(i int) {
-				err = c.dataChannelSend(i)
-				if err != nil {
-					panic(err)
-				}
-			}(inum)
-		}
+		c.sendSess.TransferFile()
 	}
 	return
 }
 
-func (c *Client) dataChannelReceive(num int) (err error) {
+func (c *Client) dataChannelReceive() (err error) {
 	pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 	os.MkdirAll(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, os.ModeDir)
 	c.CurrentFile, err = os.OpenFile(pathToFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
@@ -568,7 +545,7 @@ func (c *Client) dataChannelReceive(num int) (err error) {
 	return
 }
 
-func (c *Client) dataChannelSend(num int) (err error) {
+func (c *Client) dataChannelSend() (err error) {
 	pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 	c.CurrentFile, err = os.Open(pathToFile)
 	if err != nil {
