@@ -1,7 +1,6 @@
 package sender
 
 import (
-	"io"
 	"sync"
 
 	"github.com/pion/webrtc/v2"
@@ -23,7 +22,6 @@ type outputMsg struct {
 // Session is a sender session
 type Session struct {
 	sess        internalSess.Session
-	stream      io.Reader
 	initialized bool
 
 	dataChannel *webrtc.DataChannel
@@ -40,10 +38,9 @@ type Session struct {
 }
 
 // New creates a new sender session
-func new(s internalSess.Session, f io.Reader) *Session {
+func new(s internalSess.Session) *Session {
 	return &Session{
 		sess:         s,
-		stream:       f,
 		initialized:  false,
 		dataBuff:     make([]byte, senderBuffSize),
 		stopSending:  make(chan struct{}, 1),
@@ -54,24 +51,18 @@ func new(s internalSess.Session, f io.Reader) *Session {
 }
 
 // New creates a new receiver session
-func New(f io.Reader) *Session {
-	return new(internalSess.New(nil, nil), f)
+func New() *Session {
+	return new(internalSess.New(nil, nil))
 }
 
 // Config contains custom configuration for a session
 type Config struct {
 	common.Configuration
-	Stream io.Reader // The Stream to read from
 }
 
 // NewWith createa a new sender Session with custom configuration
 func NewWith(c Config) *Session {
-	return new(internalSess.New(c.SDPProvider, c.SDPOutput), c.Stream)
-}
-
-// SetStream changes the stream, useful for WASM integration
-func (s *Session) SetStream(stream io.Reader) {
-	s.stream = stream
+	return new(internalSess.New(c.SDPProvider, c.SDPOutput))
 }
 
 func (s *Session) CreateConnection() (err error) {
@@ -86,7 +77,7 @@ func (s *Session) SetSDP(sdp string) error {
 	return s.sess.SetSDP(sdp)
 }
 
-func (s *Session) TransferFile() {
-	s.readFile()
+func (s *Session) TransferFile(pathToFile string) {
+	s.readFile(pathToFile)
 	s.sess.OnCompletion()
 }

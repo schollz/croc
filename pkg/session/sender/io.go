@@ -3,14 +3,20 @@ package sender
 import (
 	"fmt"
 	"io"
+	"os"
 
 	log "github.com/sirupsen/logrus"
 )
 
-func (s *Session) readFile() {
+func (s *Session) readFile(pathToFile string) error {
+	f, err := os.Open(pathToFile)
+	if err != nil {
+		return err
+	}
 	log.Infof("Starting to read data...")
 	s.readingStats.Start()
 	defer func() {
+		f.Close()
 		s.readingStats.Pause()
 		log.Infof("Stopped reading data...")
 		close(s.output)
@@ -19,15 +25,15 @@ func (s *Session) readFile() {
 	for {
 		// Read file
 		s.dataBuff = s.dataBuff[:cap(s.dataBuff)]
-		n, err := s.stream.Read(s.dataBuff)
+		n, err := f.Read(s.dataBuff)
 		if err != nil {
 			if err == io.EOF {
 				s.readingStats.Stop()
 				log.Debugf("Got EOF after %v bytes!\n", s.readingStats.Bytes())
-				return
+				return nil
 			}
 			log.Errorf("Read Error: %v\n", err)
-			return
+			return err
 		}
 		s.dataBuff = s.dataBuff[:n]
 		s.readingStats.AddBytes(uint64(n))
@@ -38,6 +44,7 @@ func (s *Session) readFile() {
 			buff: append([]byte(nil), s.dataBuff...),
 		}
 	}
+	return nil
 }
 
 func (s *Session) onBufferedAmountLow() func() {

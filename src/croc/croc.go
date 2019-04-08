@@ -396,7 +396,8 @@ func (c *Client) processMessage(m Message) (err error) {
 		c.log.Debug("got answer:", m.Message)
 		// Apply the answer as the remote description
 		err = c.sendSess.SetSDP(m.Message)
-		c.sendSess.TransferFile()
+		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
+		c.sendSess.TransferFile(pathToFile)
 	case "close-sender":
 		c.peerConnection[m.Num].Close()
 		c.peerConnection[m.Num] = nil
@@ -551,7 +552,6 @@ func (c *Client) dataChannelSend() (err error) {
 		return
 	}
 	c.sendSess = sendSess.NewWith(sendSess.Config{
-		Stream: c.CurrentFile,
 		Configuration: common.Configuration{
 			OnCompletion: func() {
 			},
