@@ -2,6 +2,7 @@ package receiver
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/pion/webrtc/v2"
 	log "github.com/sirupsen/logrus"
@@ -51,15 +52,21 @@ func (s *Session) CreateDataHandler() {
 	})
 }
 
-func (s *Session) ReceiveData() {
-	s.receiveData()
+func (s *Session) ReceiveData(pathToFile string) {
+	s.receiveData(pathToFile)
 	s.sess.OnCompletion()
 }
 
-func (s *Session) receiveData() {
+func (s *Session) receiveData(pathToFile string) error {
 	log.Infoln("Starting to receive data...")
-	defer log.Infoln("Stopped receiving data...")
-
+	f, err := os.OpenFile(pathToFile, os.O_RDWR|os.O_CREATE, 0755)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		log.Infoln("Stopped receiving data...")
+		f.Close()
+	}()
 	// Consume the message channel, until done
 	// Does not stop on error
 	for {
@@ -67,12 +74,12 @@ func (s *Session) receiveData() {
 		case <-s.sess.Done:
 			s.sess.NetworkStats.Stop()
 			fmt.Printf("\nNetwork: %s\n", s.sess.NetworkStats.String())
-			return
+			return nil
 		case msg := <-s.msgChannel:
-			n, err := s.stream.Write(msg.Data)
+			n, err := f.Write(msg.Data)
 
 			if err != nil {
-				log.Errorln(err)
+				return err
 			} else {
 				currentSpeed := s.sess.NetworkStats.Bandwidth()
 				fmt.Printf("Transferring at %.2f MB/s\r", currentSpeed)
@@ -80,6 +87,7 @@ func (s *Session) receiveData() {
 			}
 		}
 	}
+	return nil
 }
 
 func (s *Session) CreateConnection() (err error) {

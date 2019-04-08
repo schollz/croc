@@ -390,7 +390,8 @@ func (c *Client) processMessage(m Message) (err error) {
 			Num:     m.Num,
 		}.String()).Err()
 		// start receiving data
-		c.recvSess.ReceiveData()
+		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
+		c.recvSess.ReceiveData(pathToFile)
 
 	case "datachannel-answer":
 		c.log.Debug("got answer:", m.Message)
@@ -533,9 +534,7 @@ func (c *Client) dataChannelReceive() (err error) {
 		return err
 	}
 
-	c.recvSess = recvSess.NewWith(recvSess.Config{
-		Stream: c.CurrentFile,
-	})
+	c.recvSess = recvSess.NewWith(recvSess.Config{})
 
 	err = c.recvSess.CreateConnection()
 	if err != nil {
