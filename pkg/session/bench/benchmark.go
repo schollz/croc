@@ -4,9 +4,9 @@ import (
 	"sync"
 	"time"
 
-	internalSess "github.com/schollz/croc/internal/session"
-	"github.com/schollz/croc/pkg/session/common"
-	"github.com/schollz/croc/pkg/stats"
+	internalSess "github.com/schollz/croc/v5/internal/session"
+	"github.com/schollz/croc/v5/pkg/session/common"
+	"github.com/schollz/croc/v5/pkg/stats"
 )
 
 const (

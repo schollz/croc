@@ -3,8 +3,8 @@ package receiver
 import (
 	"io"
 
-	internalSess "github.com/schollz/croc/internal/session"
-	"github.com/schollz/croc/pkg/session/common"
+	internalSess "github.com/schollz/croc/v5/internal/session"
+	"github.com/schollz/croc/v5/pkg/session/common"
 	"github.com/pion/webrtc/v2"
 )
 

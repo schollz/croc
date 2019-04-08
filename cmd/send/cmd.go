@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/schollz/croc/pkg/session/common"
-	"github.com/schollz/croc/pkg/session/sender"
+	"github.com/schollz/croc/v5/pkg/session/common"
+	"github.com/schollz/croc/v5/pkg/session/sender"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/urfave/cli.v1"
 )

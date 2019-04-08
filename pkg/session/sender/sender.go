@@ -5,9 +5,9 @@ import (
 	"sync"
 
 	"github.com/pion/webrtc/v2"
-	internalSess "github.com/schollz/croc/internal/session"
-	"github.com/schollz/croc/pkg/session/common"
-	"github.com/schollz/croc/pkg/stats"
+	internalSess "github.com/schollz/croc/v5/internal/session"
+	"github.com/schollz/croc/v5/pkg/session/common"
+	"github.com/schollz/croc/v5/pkg/stats"
 )
 
 const (
@@ -72,4 +72,16 @@ func NewWith(c Config) *Session {
 // SetStream changes the stream, useful for WASM integration
 func (s *Session) SetStream(stream io.Reader) {
 	s.stream = stream
+}
+
+func (s *Session) CreateConnection() (err error) {
+	return s.sess.CreateConnection(s.onConnectionStateChange())
+}
+
+func (s *Session) CreateOffer() (string, error) {
+	return s.sess.CreateOffer()
+}
+
+func (s *Session) SetSDP(sdp string) error {
+	return s.sess.SetSDP(sdp)
 }

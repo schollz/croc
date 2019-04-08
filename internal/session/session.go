@@ -1,13 +1,12 @@
 package session
 
 import (
-	"fmt"
 	"io"
 	"os"
 
-	"github.com/schollz/croc/pkg/stats"
-	"github.com/schollz/croc/pkg/utils"
 	"github.com/pion/webrtc/v2"
+	"github.com/schollz/croc/v5/pkg/stats"
+	"github.com/schollz/croc/v5/pkg/utils"
 )
 
 // CompletionHandler to be called when transfer is done
@@ -60,19 +59,12 @@ func (s *Session) CreateConnection(onConnectionStateChange func(connectionState 
 	return nil
 }
 
-// ReadSDP from the SDP input stream
-func (s *Session) ReadSDP() error {
+// SetSDP sets the SDP
+func (s *Session) SetSDP(encoded string) error {
 	var sdp webrtc.SessionDescription
-
-	fmt.Println("Please, paste the remote SDP:")
-	for {
-		encoded, err := utils.MustReadStream(s.sdpInput)
-		if err == nil {
-			if err := utils.Decode(encoded, &sdp); err == nil {
-				break
-			}
-		}
-		fmt.Println("Invalid SDP, try again...")
+	err := utils.Decode(encoded, &sdp)
+	if err != nil {
+		return err
 	}
 	return s.peerConnection.SetRemoteDescription(sdp)
 }
@@ -88,41 +80,35 @@ func (s *Session) OnDataChannel(handler func(d *webrtc.DataChannel)) {
 }
 
 // CreateAnswer set the local description and print the answer SDP
-func (s *Session) CreateAnswer() error {
+func (s *Session) CreateAnswer() (string, error) {
 	// Create an answer
 	answer, err := s.peerConnection.CreateAnswer(nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	return s.createSessionDescription(answer)
 }
 
 // CreateOffer set the local description and print the offer SDP
-func (s *Session) CreateOffer() error {
+func (s *Session) CreateOffer() (string, error) {
 	// Create an offer
 	answer, err := s.peerConnection.CreateOffer(nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	return s.createSessionDescription(answer)
 }
 
 // createSessionDescription set the local description and print the SDP
-func (s *Session) createSessionDescription(desc webrtc.SessionDescription) error {
+func (s *Session) createSessionDescription(desc webrtc.SessionDescription) (string, error) {
 	// Sets the LocalDescription, and starts our UDP listeners
 	if err := s.peerConnection.SetLocalDescription(desc); err != nil {
-		return err
+		return "", err
 	}
 	desc.SDP = utils.StripSDP(desc.SDP)
 
 	// Output the SDP in base64 so we can paste it in browser
-	resp, err := utils.Encode(desc)
-	if err != nil {
-		return err
-	}
-	fmt.Println("Send this SDP:")
-	fmt.Fprintf(s.sdpOutput, "%s\n", resp)
-	return nil
+	return utils.Encode(desc)
 }
 
 // OnCompletion is called when session ends

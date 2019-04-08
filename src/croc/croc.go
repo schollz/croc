@@ -18,6 +18,8 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/mattn/go-colorable"
 	"github.com/pions/webrtc"
+	recvSess "github.com/schollz/croc/v5/pkg/session/receiver"
+	sendSess "github.com/schollz/croc/v5/pkg/session/sender"
 	"github.com/schollz/croc/v5/src/utils"
 	"github.com/schollz/pake"
 	"github.com/schollz/progressbar/v2"
@@ -57,6 +59,9 @@ type Client struct {
 	// send / receive information of current file
 	CurrentFile       *os.File
 	CurrentFileChunks []int64
+
+	sendSess sendSess.Session
+	recvSess recvSess.Session
 
 	// channel data
 	incomingMessageChannel <-chan *redis.Message
@@ -364,41 +369,25 @@ func (c *Client) processMessage(m Message) (err error) {
 		_, err = c.CurrentFile.WriteAt(chunk.Bytes, chunk.Location)
 		c.log.Debug("writing chunk", chunk.Location)
 	case "datachannel-offer":
-		offer := webrtc.SessionDescription{}
-		err = Decode(m.Message, &offer)
+		err = c.recvSess.SetSDP(m.Message)
 		if err != nil {
 			return
 		}
-		c.log.Debugf("got offer for %d:", m.Num)
-		// Set the remote SessionDescription
-		err = c.peerConnection[m.Num].SetRemoteDescription(offer)
+		var answer string
+		answer, err = c.recvSess.CreateAnswer()
 		if err != nil {
 			return
 		}
-
-		// Sets the LocalDescription, and starts our UDP listeners
-		var answer webrtc.SessionDescription
-		answer, err = c.peerConnection[m.Num].CreateAnswer(nil)
-		if err != nil {
-			return
-		}
-
 		// Output the answer in base64 so we can paste it in browser
 		err = c.redisdb.Publish(c.nameOutChannel, Message{
 			Type:    "datachannel-answer",
-			Message: Encode(answer),
+			Message: answer,
 			Num:     m.Num,
 		}.String()).Err()
 	case "datachannel-answer":
 		c.log.Debug("got answer:", m.Message)
-		var answer webrtc.SessionDescription
-
-		err = Decode(m.Message, &answer)
-		if err != nil {
-			return
-		}
 		// Apply the answer as the remote description
-		err = c.peerConnection[m.Num].SetRemoteDescription(answer)
+		err = c.sendSess.SetSDP(m.Message)
 	case "close-sender":
 		c.peerConnection[m.Num].Close()
 		c.peerConnection[m.Num] = nil
@@ -559,221 +548,33 @@ func (c *Client) updateState() (err error) {
 }
 
 func (c *Client) dataChannelReceive(num int) (err error) {
-	// Prepare the configuration
-	config := webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{
-			{
-				URLs: []string{"stun:stun.l.google.com:19302"},
-			},
-		},
-	}
-
-	// Create a SettingEngine and enable Detach
-	s := webrtc.SettingEngine{}
-	s.DetachDataChannels()
-
-	// Create an API object with the engine
-	api := webrtc.NewAPI(webrtc.WithSettingEngine(s))
-
-	// Create a new RTCPeerConnection
-	c.peerConnection[num], err = api.NewPeerConnection(config)
+	err = c.recvSess.CreateConnection()
 	if err != nil {
 		return
 	}
-
-	// Set the handler for ICE connection state
-	// This will notify you when the peer has connected/disconnected
-	c.peerConnection[num].OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
-		fmt.Printf("ICE Connection State has changed: %s\n", connectionState.String())
-	})
-
-	// Register data channel creation handling
-	c.peerConnection[num].OnDataChannel(func(d *webrtc.DataChannel) {
-
-		// Register channel opening handling
-		d.OnOpen(func() {
-			c.log.Debugf("Data channel '%s'-'%d' open. Random messages will now be sent to any connected DataChannels every 5 seconds\n", d.Label(), d.ID())
-
-			// Detach the data channel
-			raw, dErr := d.Detach()
-			if dErr != nil {
-				panic(dErr)
-			}
-
-			startTime := false
-			timer := time.Now()
-
-			// Handle reading from the data channel
-			go func(d io.Reader) {
-				for {
-					buffer := make([]byte, BufferSize*2)
-					n, err := d.Read(buffer)
-					if err != nil {
-						fmt.Println("Datachannel closed; Exit the readloop:", err)
-						return
-					}
-					if bytes.Equal([]byte("done"), buffer[:n]) {
-						c.log.Debug(time.Since(timer))
-						c.log.Debug("telling transfer is over")
-						err = c.redisdb.Publish(c.nameOutChannel, Message{
-							Type: "close-sender",
-							Num:  num,
-						}.String()).Err()
-						if err != nil {
-							panic(err)
-						}
-						return
-					}
-
-					if !startTime {
-						startTime = true
-						timer = time.Now()
-					}
-					var chunk Chunk
-					errM := json.Unmarshal(buffer[:n], &chunk)
-					if errM != nil {
-						panic(errM)
-					}
-					var nBytes int
-					c.mutex.Lock()
-					nBytes, err = c.CurrentFile.WriteAt(chunk.Bytes, chunk.Location)
-					// c.log.Debugf("wrote %d bytes to %d (%d)", n, chunk.Location,num)
-					c.mutex.Unlock()
-					if err != nil {
-						panic(err)
-					}
-					c.bar.Add(nBytes)
-
-				}
-			}(raw)
-
-		})
-
-	})
-
-	// Block forever
+	c.recvSess.CreateDataHandler()
 	return
 }
 
 func (c *Client) dataChannelSend(num int) (err error) {
-	// Everything below is the pion-WebRTC API! Thanks for using it ❤️.
-
-	// Prepare the configuration
-	config := webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{
-			{
-				URLs: []string{"stun:stun.l.google.com:19302"},
-			},
-		},
+	if err := c.sendSess.CreateConnection(); err != nil {
+		log.Error(err)
+		return err
 	}
-
-	// Create a SettingEngine and enable Detach
-	s := webrtc.SettingEngine{}
-	s.DetachDataChannels()
-
-	// Create an API object with the engine
-	api := webrtc.NewAPI(webrtc.WithSettingEngine(s))
-
-	// Create a new RTCPeerConnection
-	c.peerConnection[num], err = api.NewPeerConnection(config)
+	if err := c.sendSess.CreateDataChannel(); err != nil {
+		log.Error(err)
+		return err
+	}
+	offer, err := c.sendSess.CreateOffer()
 	if err != nil {
-		return
+		log.Error(err)
+		return err
 	}
 
-	// Create a datachannel with label 'data'
-	c.dataChannel[num], err = c.peerConnection[num].CreateDataChannel("data", nil)
-	if err != nil {
-		return
-	}
-
-	// Set the handler for ICE connection state
-	// This will notify you when the peer has connected/disconnected
-	c.peerConnection[num].OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
-		fmt.Printf("ICE Connection State has changed: %s\n", connectionState.String())
-	})
-
-	c.dataChannel[num].OnOpen(func() {
-		fmt.Printf("Data channel '%s'-'%d' open. Random messages will now be sent to any connected DataChannels every 5 seconds\n", c.dataChannel[num].Label(), c.dataChannel[num].ID())
-		// Detach the data channel
-		raw, dErr := c.dataChannel[num].Detach()
-		if dErr != nil {
-			panic(dErr)
-		}
-
-		go func(d io.Writer) {
-			pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
-			c.log.Debugf("sending '%s'", pathToFile)
-
-			file, err := os.Open(pathToFile)
-			if err != nil {
-				c.log.Debug(err)
-				return
-			}
-			defer file.Close()
-
-			buffer := make([]byte, BufferSize)
-			var location int64
-			chunkNum := 0.0
-			for {
-				bytesread, err := file.Read(buffer)
-				if err != nil {
-					if err != io.EOF {
-						c.log.Debug(err)
-					}
-					break
-				}
-
-				if math.Mod(chunkNum, float64(Channels)) == float64(num) {
-					mSend := Chunk{
-						Bytes:    buffer[:bytesread],
-						Location: location,
-					}
-					dataToSend, _ := json.Marshal(mSend)
-					c.bar.Add(bytesread)
-					_, err = d.Write(dataToSend)
-					if err != nil {
-						c.log.Debug("Could not send on data channel", err.Error())
-						continue
-					}
-					time.Sleep(10000 * time.Microsecond)
-				}
-
-				location += int64(bytesread)
-				chunkNum += 1.0
-			}
-			c.log.Debug("sending done signal")
-			_, err = d.Write([]byte("done"))
-			if err != nil {
-				c.log.Debug(err)
-			}
-			time.Sleep(1 * time.Second)
-
-		}(raw)
-
-	})
-
-	// Register text message handling
-	c.dataChannel[num].OnMessage(func(msg webrtc.DataChannelMessage) {
-		fmt.Printf("Message from DataChannel '%s': '%s'\n", c.dataChannel[num].Label(), string(msg.Data))
-	})
-	// Create an offer to send to the browser
-	offer, err := c.peerConnection[num].CreateOffer(nil)
-	if err != nil {
-		return
-	}
-
-	// Sets the LocalDescription, and starts our UDP listeners
-	err = c.peerConnection[num].SetLocalDescription(offer)
-	if err != nil {
-		return
-	}
-
-	// Output the offer in base64 so we can paste it in browser
-	c.log.Debug("sending offer")
+	// sending offer
 	err = c.redisdb.Publish(c.nameOutChannel, Message{
 		Type:    "datachannel-offer",
-		Message: Encode(offer),
-		Num:     num,
+		Message: offer,
 	}.String()).Err()
 	if err != nil {
 		return

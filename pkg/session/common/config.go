@@ -3,7 +3,7 @@ package common
 import (
 	"io"
 
-	"github.com/schollz/croc/internal/session"
+	"github.com/schollz/croc/v5/internal/session"
 )
 
 // Configuration common to both Sender and Receiver session

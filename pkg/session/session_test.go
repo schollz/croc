@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/schollz/croc/internal/buffer"
-	"github.com/schollz/croc/pkg/session/common"
-	"github.com/schollz/croc/pkg/session/receiver"
-	"github.com/schollz/croc/pkg/session/sender"
-	"github.com/schollz/croc/pkg/utils"
+	"github.com/schollz/croc/v5/internal/buffer"
+	"github.com/schollz/croc/v5/pkg/session/common"
+	"github.com/schollz/croc/v5/pkg/session/receiver"
+	"github.com/schollz/croc/v5/pkg/session/sender"
+	"github.com/schollz/croc/v5/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
 
