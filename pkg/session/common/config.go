@@ -3,7 +3,7 @@ package common
 import (
 	"io"
 
-	"github.com/antonito/gfile/internal/session"
+	"github.com/schollz/croc/internal/session"
 )
 
 // Configuration common to both Sender and Receiver session

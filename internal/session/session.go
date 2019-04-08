@@ -5,8 +5,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/antonito/gfile/pkg/stats"
-	"github.com/antonito/gfile/pkg/utils"
+	"github.com/schollz/croc/pkg/stats"
+	"github.com/schollz/croc/pkg/utils"
 	"github.com/pion/webrtc/v2"
 )
 

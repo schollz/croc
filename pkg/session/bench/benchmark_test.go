@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/antonito/gfile/internal/buffer"
-	"github.com/antonito/gfile/pkg/session/common"
-	"github.com/antonito/gfile/pkg/utils"
+	"github.com/schollz/croc/internal/buffer"
+	"github.com/schollz/croc/pkg/session/common"
+	"github.com/schollz/croc/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
 

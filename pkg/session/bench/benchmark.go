@@ -4,9 +4,9 @@ import (
 	"sync"
 	"time"
 
-	internalSess "github.com/antonito/gfile/internal/session"
-	"github.com/antonito/gfile/pkg/session/common"
-	"github.com/antonito/gfile/pkg/stats"
+	internalSess "github.com/schollz/croc/internal/session"
+	"github.com/schollz/croc/pkg/session/common"
+	"github.com/schollz/croc/pkg/stats"
 )
 
 const (

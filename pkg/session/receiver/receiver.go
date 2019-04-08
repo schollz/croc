@@ -3,8 +3,8 @@ package receiver
 import (
 	"io"
 
-	internalSess "github.com/antonito/gfile/internal/session"
-	"github.com/antonito/gfile/pkg/session/common"
+	internalSess "github.com/schollz/croc/internal/session"
+	"github.com/schollz/croc/pkg/session/common"
 	"github.com/pion/webrtc/v2"
 )
 
