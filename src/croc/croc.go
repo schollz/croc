@@ -549,6 +549,17 @@ func (c *Client) updateState() (err error) {
 }
 
 func (c *Client) dataChannelReceive(num int) (err error) {
+	pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
+	os.MkdirAll(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, os.ModeDir)
+	c.CurrentFile, err = os.OpenFile(pathToFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+
+	c.recvSess = recvSess.NewWith(recvSess.Config{
+		Stream: c.CurrentFile,
+	})
+
 	err = c.recvSess.CreateConnection()
 	if err != nil {
 		return
