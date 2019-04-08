@@ -87,7 +87,6 @@ func (s *Session) SetSDP(sdp string) error {
 }
 
 func (s *Session) TransferFile() {
-	go s.readFile()
-	<-s.sess.Done
+	s.readFile()
 	s.sess.OnCompletion()
 }

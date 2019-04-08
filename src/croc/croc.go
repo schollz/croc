@@ -361,8 +361,6 @@ func (c *Client) processMessage(m Message) (err error) {
 		c.FilesToTransferCurrentNum = remoteFile.FilesToTransferCurrentNum
 		c.CurrentFileChunks = remoteFile.CurrentFileChunks
 		c.Step3RecipientRequestFile = true
-		err = c.dataChannelSend()
-
 	case "chunk":
 		var chunk Chunk
 		err = json.Unmarshal(m.Bytes, &chunk)
@@ -398,6 +396,7 @@ func (c *Client) processMessage(m Message) (err error) {
 		c.log.Debug("got answer:", m.Message)
 		// Apply the answer as the remote description
 		err = c.sendSess.SetSDP(m.Message)
+		c.sendSess.TransferFile()
 	case "close-sender":
 		c.peerConnection[m.Num].Close()
 		c.peerConnection[m.Num] = nil
@@ -474,21 +473,20 @@ func (c *Client) updateState() (err error) {
 		// 	}
 		// }
 
-		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
-
+		// pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 		// check if file should be overwritten, or simply fixed with missing chunks
-		overwrite := true
-		fstats, errStats := os.Stat(pathToFile)
-		if errStats == nil {
-			if fstats.Size() == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size {
-				// just request missing chunks
-				c.CurrentFileChunks = MissingChunks(pathToFile, fstats.Size(), BufferSize)
-				log.Debugf("found %d missing chunks", len(c.CurrentFileChunks))
-				overwrite = false
-			}
-		} else {
-			c.CurrentFileChunks = []int64{}
-		}
+		// overwrite := true
+		// fstats, errStats := os.Stat(pathToFile)
+		// if errStats == nil {
+		// 	if fstats.Size() == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size {
+		// 		// just request missing chunks
+		// 		c.CurrentFileChunks = MissingChunks(pathToFile, fstats.Size(), BufferSize)
+		// 		log.Debugf("found %d missing chunks", len(c.CurrentFileChunks))
+		// 		overwrite = false
+		// 	}
+		// } else {
+		// 	c.CurrentFileChunks = []int64{}
+		// }
 		// if overwrite {
 		// 	os.Remove(pathToFile)
 		// 	c.CurrentFile, err = os.Create(pathToFile)
@@ -516,11 +514,12 @@ func (c *Client) updateState() (err error) {
 			return
 		}
 		c.Step3RecipientRequestFile = true
+		err = c.dataChannelReceive()
 	}
 	if c.IsSender && c.Step3RecipientRequestFile && !c.Step4FileTransfer {
 		c.log.Debug("start sending data!")
+		err = c.dataChannelSend()
 		c.Step4FileTransfer = true
-		c.sendSess.TransferFile()
 	}
 	return
 }
