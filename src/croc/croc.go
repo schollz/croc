@@ -27,10 +27,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var log = logrus.New()
-
 const BufferSize = 4096 * 10
 const Channels = 1
+
+var log = logrus.New()
 
 func init() {
 	log.SetFormatter(&logrus.TextFormatter{ForceColors: true})
