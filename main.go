@@ -35,7 +35,7 @@ func main() {
 			// PathToFile: "../wskeystore/README.md",
 			// PathToFile:       "./src/croc/croc.go",
 			// PathToFiles: []string{"C:\\Users\\zacks\\go\\src\\github.com\\schollz\\croc\\src\\croc\\croc.go", "croc.exe"},
-			PathToFiles:      []string{"croc.exe"},
+			PathToFiles:      []string{"100mb.file"},
 			KeepPathInRemote: false,
 		})
 	} else {
