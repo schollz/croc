@@ -76,10 +76,12 @@ func (s *Session) onBufferedAmountLow() func() {
 
 func (s *Session) writeToNetwork() {
 	// Set callback, as transfer may be paused
+	fmt.Println("\nwriting")
 	s.dataChannel.OnBufferedAmountLow(s.onBufferedAmountLow())
-
+	fmt.Println("\ndone")
 	<-s.stopSending
+	fmt.Println("\nstopped sending")
 	s.dataChannel.OnBufferedAmountLow(nil)
-	s.sess.NetworkStats.Pause()
 	log.Infof("Pausing network I/O... (remaining at least %v packets)\n", len(s.output))
+	s.sess.NetworkStats.Pause()
 }

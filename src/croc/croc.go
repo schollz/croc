@@ -392,7 +392,10 @@ func (c *Client) processMessage(m Message) (err error) {
 		// start receiving data
 		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 		c.recvSess.ReceiveData(pathToFile)
-
+		fmt.Println("\ndone receiving")
+		err = c.redisdb.Publish(c.nameOutChannel, Message{
+			Type: "close-sender",
+		}.String()).Err()
 	case "datachannel-answer":
 		c.log.Debug("got answer:", m.Message)
 		// Apply the answer as the remote description
@@ -400,22 +403,16 @@ func (c *Client) processMessage(m Message) (err error) {
 		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 		c.sendSess.TransferFile(pathToFile)
 	case "close-sender":
-		c.peerConnection[m.Num].Close()
-		c.peerConnection[m.Num] = nil
-		c.dataChannel[m.Num].Close()
-		c.dataChannel[m.Num] = nil
-		// c.Step4FileTransfer = false
-		// c.Step3RecipientRequestFile = false
+		c.Step4FileTransfer = false
+		c.Step3RecipientRequestFile = false
+		c.sendSess.StopSending()
 		err = c.redisdb.Publish(c.nameOutChannel, Message{
 			Type: "close-recipient",
 			Num:  m.Num,
 		}.String()).Err()
 	case "close-recipient":
-		c.peerConnection[m.Num].Close()
-		c.peerConnection[m.Num] = nil
-		c.dataChannel[m.Num] = nil
-		// c.Step4FileTransfer = false
-		// c.Step3RecipientRequestFile = false
+		c.Step4FileTransfer = false
+		c.Step3RecipientRequestFile = false
 	}
 	if err != nil {
 		return

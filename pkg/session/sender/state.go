@@ -7,11 +7,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+func (s *Session) StopSending() {
+	s.stopSending <- struct{}{}
+}
+
 func (s *Session) onConnectionStateChange() func(connectionState webrtc.ICEConnectionState) {
 	return func(connectionState webrtc.ICEConnectionState) {
 		log.Infof("ICE Connection State has changed: %s\n", connectionState.String())
 		if connectionState == webrtc.ICEConnectionStateDisconnected {
-			s.stopSending <- struct{}{}
+			s.StopSending()
 		}
 	}
 }
