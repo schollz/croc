@@ -21,7 +21,7 @@ func main() {
 	// 	if err != nil {
 	// 		break
 	// 	}
-	// 	fmt.Println(bytes.Equal(buffer[:bytesread], emptyBuffer[:bytesread]))
+	// 	log.Debugln(bytes.Equal(buffer[:bytesread], emptyBuffer[:bytesread]))
 	// }
 	var sender bool
 	flag.BoolVar(&sender, "sender", false, "sender")
@@ -35,7 +35,8 @@ func main() {
 			// PathToFile: "../wskeystore/README.md",
 			// PathToFile:       "./src/croc/croc.go",
 			// PathToFiles: []string{"C:\\Users\\zacks\\go\\src\\github.com\\schollz\\croc\\src\\croc\\croc.go", "croc.exe"},
-			PathToFiles:      []string{"croc2.exe", "croc3.exe"},
+			// PathToFiles:      []string{"croc2.exe"}, //,"croc2.exe", "croc3.exe"},
+			PathToFiles:      []string{"README.md"}, //,"croc2.exe", "croc3.exe"},
 			KeepPathInRemote: false,
 		})
 	} else {

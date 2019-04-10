@@ -1,39 +1,13 @@
 package utils
 
 import (
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
-	"io"
 	"io/ioutil"
 	"strings"
 )
-
-// MustReadStream blocks until input is received from the stream
-func MustReadStream(stream io.Reader) (string, error) {
-	r := bufio.NewReader(stream)
-
-	var in string
-	for {
-		var err error
-		in, err = r.ReadString('\n')
-		if err != io.EOF {
-			if err != nil {
-				return "", err
-			}
-		}
-		in = strings.TrimSpace(in)
-		if len(in) > 0 {
-			break
-		}
-	}
-
-	fmt.Println("")
-	return in, nil
-}
 
 // StripSDP remove useless elements from an SDP
 func StripSDP(originalSDP string) string {

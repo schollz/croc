@@ -5,9 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/base64"
-	"errors"
-	"strings"
+	"encoding/json"
 
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -20,26 +18,26 @@ type Encryption struct {
 }
 
 func (e Encryption) Bytes() []byte {
-	return []byte(base64.StdEncoding.EncodeToString(e.Encrypted) + "-" + base64.StdEncoding.EncodeToString(e.Salt) + "-" + base64.StdEncoding.EncodeToString(e.IV))
+	b, _ := json.Marshal(e)
+	return b
 }
 
 func FromBytes(b []byte) (enc Encryption, err error) {
-	enc = Encryption{}
-	items := strings.Split(string(b), "-")
-	if len(items) != 3 {
-		err = errors.New("not valid")
-		return
-	}
-	enc.Encrypted, err = base64.StdEncoding.DecodeString(items[0])
-	if err != nil {
-		return
-	}
-	enc.Salt, err = base64.StdEncoding.DecodeString(items[1])
-	if err != nil {
-		return
-	}
-	enc.IV, err = base64.StdEncoding.DecodeString(items[2])
+	err = json.Unmarshal(b, &enc)
 	return
+}
+
+func DecryptFromBytes(b []byte, passphrase []byte, dontencrypt ...bool) (decrypted []byte, err error) {
+	enc, err := FromBytes(b)
+	if err != nil {
+		return
+	}
+	return enc.Decrypt(passphrase, dontencrypt...)
+}
+
+func EncryptToBytes(plaintext []byte, passphrase []byte, dontencrypt ...bool) []byte {
+	enc := Encrypt(plaintext, passphrase, dontencrypt...)
+	return enc.Bytes()
 }
 
 // Encrypt will generate an encryption

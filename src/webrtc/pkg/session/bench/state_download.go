@@ -24,7 +24,7 @@ func (s *Session) onOpenHandlerDownload(dc *webrtc.DataChannel) func() {
 		// Useful for unit tests
 		if dc != nil {
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-				fmt.Printf("Downloading at %.2f MB/s\r", s.downloadNetworkStats.Bandwidth())
+				log.Debugf("Downloading at %.2f MB/s\r", s.downloadNetworkStats.Bandwidth())
 				s.downloadNetworkStats.AddBytes(uint64(len(msg.Data)))
 			})
 		} else {
@@ -32,7 +32,7 @@ func (s *Session) onOpenHandlerDownload(dc *webrtc.DataChannel) func() {
 		}
 
 		timeoutErr := time.After(s.testDurationError)
-		fmt.Printf("Downloading random datas ... (%d s)\n", int(s.testDuration.Seconds()))
+		log.Debugf("Downloading random datas ... (%d s)\n", int(s.testDuration.Seconds()))
 
 		select {
 		case <-s.downloadDone:
@@ -46,7 +46,7 @@ func (s *Session) onOpenHandlerDownload(dc *webrtc.DataChannel) func() {
 			close(s.startPhase2)
 		}
 
-		fmt.Printf("\n")
+		log.Debugf("\n")
 		s.downloadNetworkStats.Stop()
 		s.wg.Done()
 	}

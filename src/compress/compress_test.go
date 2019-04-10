@@ -68,11 +68,11 @@ func BenchmarkCompressLevelNineBinary(b *testing.B) {
 func TestCompress(t *testing.T) {
 	compressedB := CompressWithOption(fable, 9)
 	dataRateSavings := 100 * (1.0 - float64(len(compressedB))/float64(len(fable)))
-	fmt.Printf("Level 9: %2.0f%% percent space savings\n", dataRateSavings)
+	log.Debugf("Level 9: %2.0f%% percent space savings\n", dataRateSavings)
 	assert.True(t, len(compressedB) < len(fable))
 
 	compressedB = CompressWithOption(fable, -2)
 	dataRateSavings = 100 * (1.0 - float64(len(compressedB))/float64(len(fable)))
-	fmt.Printf("Level -2: %2.0f%% percent space savings\n", dataRateSavings)
+	log.Debugf("Level -2: %2.0f%% percent space savings\n", dataRateSavings)
 	assert.True(t, len(compressedB) < len(fable))
 }

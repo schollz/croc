@@ -394,7 +394,6 @@ func (c *Client) processMessage(m Message) (err error) {
 		// start receiving data
 		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 		c.recvSess.ReceiveData(pathToFile, c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
-		fmt.Println("\ndone receiving")
 		err = c.redisdb.Publish(c.nameOutChannel, Message{
 			Type: "close-sender",
 		}.String()).Err()

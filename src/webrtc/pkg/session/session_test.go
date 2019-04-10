@@ -69,7 +69,7 @@ func Test_TransferSmallMessage(t *testing.T) {
 	// Get SDP from sender and send it to the client
 	sdp, err := utils.MustReadStream(senderSDPOutput)
 	assert.Nil(err)
-	fmt.Printf("READ SDP -> %s\n", sdp)
+	log.Debugf("READ SDP -> %s\n", sdp)
 	sdp += "\n"
 	n, err = clientSDPProvider.WriteString(sdp)
 	assert.Nil(err)
@@ -89,7 +89,7 @@ func Test_TransferSmallMessage(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(len(sdp), n)
 
-	fmt.Println("Waiting for everyone to be done...")
+	log.Debugln("Waiting for everyone to be done...")
 	<-senderDone
 	<-clientDone
 

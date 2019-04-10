@@ -31,7 +31,7 @@ func (s *Session) onOpenUploadHandler(dc *webrtc.DataChannel) func() {
 			dc.SetBufferedAmountLowThreshold(s.bufferThreshold)
 			dc.OnBufferedAmountLow(func() {
 				if err := dc.Send(token); err == nil {
-					fmt.Printf("Uploading at %.2f MB/s\r", s.uploadNetworkStats.Bandwidth())
+					log.Debugf("Uploading at %.2f MB/s\r", s.uploadNetworkStats.Bandwidth())
 					s.uploadNetworkStats.AddBytes(lenToken)
 				}
 			})
@@ -39,7 +39,7 @@ func (s *Session) onOpenUploadHandler(dc *webrtc.DataChannel) func() {
 			log.Warningln("No DataChannel provided")
 		}
 
-		fmt.Printf("Uploading random datas ... (%d s)\n", int(s.testDuration.Seconds()))
+		log.Debugf("Uploading random datas ... (%d s)\n", int(s.testDuration.Seconds()))
 		timeout := time.After(s.testDuration)
 		timeoutErr := time.After(s.testDurationError)
 
@@ -59,7 +59,7 @@ func (s *Session) onOpenUploadHandler(dc *webrtc.DataChannel) func() {
 				break SENDING_LOOP
 			}
 		}
-		fmt.Printf("\n")
+		log.Debugf("\n")
 		s.uploadNetworkStats.Stop()
 
 		if dc != nil {

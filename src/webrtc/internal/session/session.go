@@ -2,7 +2,6 @@ package session
 
 import (
 	"io"
-	"log"
 	"os"
 
 	"github.com/pion/webrtc/v2"
@@ -30,7 +29,6 @@ type Session struct {
 
 // New creates a new Session
 func New(sdpInput io.Reader, sdpOutput io.Writer) Session {
-	log.Println("making new channel")
 	if sdpInput == nil {
 		sdpInput = os.Stdin
 	}

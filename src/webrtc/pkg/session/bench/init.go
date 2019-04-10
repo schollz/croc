@@ -33,8 +33,8 @@ func (s *Session) Start() error {
 	// Wait for benchmarks to be done
 	s.wg.Wait()
 
-	fmt.Printf("Upload:   %s\n", s.uploadNetworkStats.String())
-	fmt.Printf("Download: %s\n", s.downloadNetworkStats.String())
+	log.Debugf("Upload:   %s\n", s.uploadNetworkStats.String())
+	log.Debugf("Download: %s\n", s.downloadNetworkStats.String())
 	s.sess.OnCompletion()
 	return nil
 }

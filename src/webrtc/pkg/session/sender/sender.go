@@ -2,7 +2,6 @@ package sender
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -10,6 +9,8 @@ import (
 
 	colorable "github.com/mattn/go-colorable"
 	"github.com/pion/webrtc/v2"
+	"github.com/schollz/croc/v5/src/compress"
+	"github.com/schollz/croc/v5/src/crypt"
 	internalSess "github.com/schollz/croc/v5/src/webrtc/internal/session"
 	"github.com/schollz/croc/v5/src/webrtc/pkg/session/common"
 	"github.com/schollz/croc/v5/src/webrtc/pkg/stats"
@@ -19,7 +20,9 @@ import (
 
 const (
 	// Must be <= 16384
-	senderBuffSize  = 16376
+	// 8 bytes for position
+	// 3000 bytes for encryption / compression overhead
+	senderBuffSize  = 13376
 	bufferThreshold = 512 * 1024 // 512kB
 )
 
@@ -205,13 +208,18 @@ func (s *Session) readFile(pathToFile string) error {
 		}
 		s.dataBuff = s.dataBuff[:n]
 		s.readingStats.AddBytes(uint64(n))
+
 		posByte := make([]byte, 8)
 		binary.LittleEndian.PutUint64(posByte, pos)
+
 		buff := append([]byte(nil), posByte...)
+		buff = append(buff, s.dataBuff...)
+		buff = compress.Compress(buff)
+		buff = crypt.EncryptToBytes(buff, []byte{1, 2, 3, 4})
 		s.output <- outputMsg{
 			n: n,
 			// Make a copy of the buffer
-			buff: append(buff, s.dataBuff...),
+			buff: buff,
 		}
 		pos += uint64(n)
 	}
@@ -230,7 +238,7 @@ func (s *Session) onBufferedAmountLow() func() {
 		}
 
 		// currentSpeed := s.sess.NetworkStats.Bandwidth()
-		// fmt.Printf("Transferring at %.2f MB/s\r", currentSpeed)
+		// log.Debugf("Transferring at %.2f MB/s\r", currentSpeed)
 
 		for len(s.msgToBeSent) != 0 {
 			cur := s.msgToBeSent[0]
@@ -303,8 +311,5 @@ func (s *Session) close(calledFromCloseHandler bool) {
 }
 
 func (s *Session) dumpStats() {
-	fmt.Printf(`
-Disk   : %s
-Network: %s
-`, s.readingStats.String(), s.sess.NetworkStats.String())
+	log.Debugf(`Disk   : %s, Network: %s`, s.readingStats.String(), s.sess.NetworkStats.String())
 }

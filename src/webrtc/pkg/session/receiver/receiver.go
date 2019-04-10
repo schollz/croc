@@ -2,13 +2,14 @@ package receiver
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 	"os"
 	"time"
 
 	"github.com/mattn/go-colorable"
 	"github.com/pion/webrtc/v2"
+	"github.com/schollz/croc/v5/src/compress"
+	"github.com/schollz/croc/v5/src/crypt"
 	internalSess "github.com/schollz/croc/v5/src/webrtc/internal/session"
 	"github.com/schollz/croc/v5/src/webrtc/pkg/session/common"
 	"github.com/schollz/progressbar/v2"
@@ -164,11 +165,17 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 		select {
 		case <-s.sess.Done:
 			s.sess.NetworkStats.Stop()
-			fmt.Printf("\nNetwork: %s\n", s.sess.NetworkStats.String())
+			log.Debugf("Network: %s", s.sess.NetworkStats.String())
 			return nil
 		case msg := <-s.msgChannel:
-			pos := int64(binary.LittleEndian.Uint64(msg.Data[:8]))
-			n, err := f.WriteAt(msg.Data[8:], pos)
+			buff, errDecrypt := crypt.DecryptFromBytes(msg.Data, []byte{1, 2, 3, 4})
+			if errDecrypt != nil {
+				log.Error(errDecrypt)
+				return errDecrypt
+			}
+			buff = compress.Decompress(buff)
+			pos := int64(binary.LittleEndian.Uint64(buff[:8]))
+			n, err := f.WriteAt(buff[8:], pos)
 			if err != nil {
 				return err
 			} else {
@@ -184,7 +191,7 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 				}
 				bar.Add(n)
 				// currentSpeed := s.sess.NetworkStats.Bandwidth()
-				// fmt.Printf("Transferring at %.2f MB/s\r", currentSpeed)
+				// log.Debugf("Transferring at %.2f MB/s\r", currentSpeed)
 				// s.sess.NetworkStats.AddBytes(uint64(n))
 			}
 		}
