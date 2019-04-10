@@ -6,7 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/schollz/croc/v5/pkg/session/receiver"
+	"github.com/schollz/croc/v5/src/webrtc/pkg/session/receiver"
 	"gopkg.in/urfave/cli.v1"
 )
 

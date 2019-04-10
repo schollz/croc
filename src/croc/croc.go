@@ -18,10 +18,10 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/mattn/go-colorable"
 	"github.com/pions/webrtc"
-	common "github.com/schollz/croc/v5/pkg/session/common"
-	recvSess "github.com/schollz/croc/v5/pkg/session/receiver"
-	sendSess "github.com/schollz/croc/v5/pkg/session/sender"
 	"github.com/schollz/croc/v5/src/utils"
+	common "github.com/schollz/croc/v5/src/webrtc/pkg/session/common"
+	recvSess "github.com/schollz/croc/v5/src/webrtc/pkg/session/receiver"
+	sendSess "github.com/schollz/croc/v5/src/webrtc/pkg/session/sender"
 	"github.com/schollz/pake"
 	"github.com/schollz/progressbar/v2"
 	"github.com/sirupsen/logrus"
@@ -524,15 +524,7 @@ func (c *Client) updateState() (err error) {
 }
 
 func (c *Client) dataChannelReceive() (err error) {
-	pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
-	os.MkdirAll(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, os.ModeDir)
-	c.CurrentFile, err = os.OpenFile(pathToFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		return err
-	}
-
 	c.recvSess = recvSess.NewWith(recvSess.Config{})
-
 	err = c.recvSess.CreateConnection()
 	if err != nil {
 		return
@@ -542,11 +534,6 @@ func (c *Client) dataChannelReceive() (err error) {
 }
 
 func (c *Client) dataChannelSend() (err error) {
-	pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
-	c.CurrentFile, err = os.Open(pathToFile)
-	if err != nil {
-		return
-	}
 	c.sendSess = sendSess.NewWith(sendSess.Config{
 		Configuration: common.Configuration{
 			OnCompletion: func() {
