@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/mattn/go-colorable"
 	"github.com/pion/webrtc/v2"
 	internalSess "github.com/schollz/croc/v5/src/webrtc/internal/session"
 	"github.com/schollz/croc/v5/src/webrtc/pkg/session/common"
+	"github.com/schollz/progressbar/v2"
 	logrus "github.com/sirupsen/logrus"
 )
 
@@ -118,14 +120,26 @@ func (s *Session) CreateDataHandler() {
 	})
 }
 
-func (s *Session) ReceiveData(pathToFile string) {
-	s.receiveData(pathToFile)
+func (s *Session) ReceiveData(pathToFile string, fileSize int64) {
+	s.receiveData(pathToFile, fileSize)
 	s.sess.OnCompletion()
 }
 
-func (s *Session) receiveData(pathToFile string) error {
+func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 	log.Debugln("Starting to receive data...")
 	log.Debugf("receiving %s", pathToFile)
+
+	// truncate if nessecary
+	stat, errStat := os.Stat(pathToFile)
+	if errStat == nil {
+		if stat.Size() != fileSize {
+			err := os.Truncate(pathToFile, fileSize)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	f, err := os.OpenFile(pathToFile, os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
 		return err
@@ -134,6 +148,9 @@ func (s *Session) receiveData(pathToFile string) error {
 		log.Debugln("Stopped receiving data...")
 		f.Close()
 	}()
+
+	firstByte := true
+	var bar *progressbar.ProgressBar
 	// Consume the message channel, until done
 	// Does not stop on error
 	for {
@@ -144,13 +161,23 @@ func (s *Session) receiveData(pathToFile string) error {
 			return nil
 		case msg := <-s.msgChannel:
 			n, err := f.Write(msg.Data)
-
 			if err != nil {
 				return err
 			} else {
-				currentSpeed := s.sess.NetworkStats.Bandwidth()
-				fmt.Printf("Transferring at %.2f MB/s\r", currentSpeed)
-				s.sess.NetworkStats.AddBytes(uint64(n))
+				if firstByte {
+					bar = progressbar.NewOptions64(
+						fileSize,
+						progressbar.OptionSetRenderBlankState(true),
+						progressbar.OptionSetBytes64(fileSize),
+						progressbar.OptionSetWriter(os.Stderr),
+						progressbar.OptionThrottle(1/60*time.Second),
+					)
+					firstByte = false
+				}
+				bar.Add(n)
+				// currentSpeed := s.sess.NetworkStats.Bandwidth()
+				// fmt.Printf("Transferring at %.2f MB/s\r", currentSpeed)
+				// s.sess.NetworkStats.AddBytes(uint64(n))
 			}
 		}
 	}
