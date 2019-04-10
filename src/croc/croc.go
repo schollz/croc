@@ -19,9 +19,9 @@ import (
 	"github.com/mattn/go-colorable"
 	"github.com/pions/webrtc"
 	"github.com/schollz/croc/v5/src/utils"
-	common "github.com/schollz/croc/v5/src/webrtc/pkg/session/common"
-	recvSess "github.com/schollz/croc/v5/src/webrtc/pkg/session/receiver"
-	sendSess "github.com/schollz/croc/v5/src/webrtc/pkg/session/sender"
+	"github.com/schollz/croc/v5/src/webrtc/pkg/session/common"
+	"github.com/schollz/croc/v5/src/webrtc/pkg/session/receiver"
+	"github.com/schollz/croc/v5/src/webrtc/pkg/session/sender"
 	"github.com/schollz/pake"
 	"github.com/schollz/progressbar/v2"
 	"github.com/sirupsen/logrus"
@@ -36,6 +36,8 @@ func init() {
 	log.SetFormatter(&logrus.TextFormatter{ForceColors: true})
 	log.SetOutput(colorable.NewColorableStdout())
 	log.SetLevel(logrus.DebugLevel)
+	receiver.Debug()
+	sender.Debug()
 }
 
 type Client struct {
@@ -61,8 +63,8 @@ type Client struct {
 	CurrentFile       *os.File
 	CurrentFileChunks []int64
 
-	sendSess *sendSess.Session
-	recvSess *recvSess.Session
+	sendSess *sender.Session
+	recvSess *receiver.Session
 
 	// channel data
 	incomingMessageChannel <-chan *redis.Message
@@ -524,7 +526,7 @@ func (c *Client) updateState() (err error) {
 }
 
 func (c *Client) dataChannelReceive() (err error) {
-	c.recvSess = recvSess.NewWith(recvSess.Config{})
+	c.recvSess = receiver.NewWith(receiver.Config{})
 	err = c.recvSess.CreateConnection()
 	if err != nil {
 		return
@@ -534,7 +536,7 @@ func (c *Client) dataChannelReceive() (err error) {
 }
 
 func (c *Client) dataChannelSend() (err error) {
-	c.sendSess = sendSess.NewWith(sendSess.Config{
+	c.sendSess = sender.NewWith(sender.Config{
 		Configuration: common.Configuration{
 			OnCompletion: func() {
 			},

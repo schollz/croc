@@ -5,11 +5,24 @@ import (
 	"io"
 	"os"
 
+	"github.com/mattn/go-colorable"
 	"github.com/pion/webrtc/v2"
 	internalSess "github.com/schollz/croc/v5/src/webrtc/internal/session"
 	"github.com/schollz/croc/v5/src/webrtc/pkg/session/common"
-	log "github.com/sirupsen/logrus"
+	logrus "github.com/sirupsen/logrus"
 )
+
+var log = logrus.New()
+
+func init() {
+	log.SetFormatter(&logrus.TextFormatter{ForceColors: true})
+	log.SetOutput(colorable.NewColorableStdout())
+	log.SetLevel(logrus.WarnLevel)
+}
+
+func Debug() {
+	log.SetLevel(logrus.DebugLevel)
+}
 
 // Session is a receiver session
 type Session struct {
@@ -44,7 +57,7 @@ func NewWith(c Config) *Session {
 
 func (s *Session) onConnectionStateChange() func(connectionState webrtc.ICEConnectionState) {
 	return func(connectionState webrtc.ICEConnectionState) {
-		log.Infof("ICE Connection State has changed: %s\n", connectionState.String())
+		log.Debugf("ICE Connection State has changed: %s\n", connectionState.String())
 	}
 }
 
@@ -111,14 +124,14 @@ func (s *Session) ReceiveData(pathToFile string) {
 }
 
 func (s *Session) receiveData(pathToFile string) error {
-	log.Infoln("Starting to receive data...")
-	log.Infof("receiving %s", pathToFile)
+	log.Debugln("Starting to receive data...")
+	log.Debugf("receiving %s", pathToFile)
 	f, err := os.OpenFile(pathToFile, os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		log.Infoln("Stopped receiving data...")
+		log.Debugln("Stopped receiving data...")
 		f.Close()
 	}()
 	// Consume the message channel, until done

@@ -5,12 +5,14 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	colorable "github.com/mattn/go-colorable"
 	"github.com/pion/webrtc/v2"
 	internalSess "github.com/schollz/croc/v5/src/webrtc/internal/session"
 	"github.com/schollz/croc/v5/src/webrtc/pkg/session/common"
 	"github.com/schollz/croc/v5/src/webrtc/pkg/stats"
+	"github.com/schollz/progressbar/v2"
 	"github.com/sirupsen/logrus"
 )
 
@@ -25,6 +27,10 @@ var log = logrus.New()
 func init() {
 	log.SetFormatter(&logrus.TextFormatter{ForceColors: true})
 	log.SetOutput(colorable.NewColorableStdout())
+	log.SetLevel(logrus.WarnLevel)
+}
+
+func Debug() {
 	log.SetLevel(logrus.DebugLevel)
 }
 
@@ -49,6 +55,7 @@ type Session struct {
 
 	// Stats/infos
 	readingStats *stats.Stats
+	bar          *progressbar.ProgressBar
 }
 
 // New creates a new sender session
@@ -165,12 +172,20 @@ func (s *Session) readFile(pathToFile string) error {
 		log.Error(err)
 		return err
 	}
-	log.Infof("Starting to read data from '%s'", pathToFile)
+	stat, _ := f.Stat()
+	s.bar = progressbar.NewOptions64(
+		stat.Size(),
+		progressbar.OptionSetRenderBlankState(true),
+		progressbar.OptionSetBytes64(stat.Size()),
+		progressbar.OptionSetWriter(os.Stderr),
+		progressbar.OptionThrottle(1/60*time.Second),
+	)
+	log.Debugf("Starting to read data from '%s'", pathToFile)
 	s.readingStats.Start()
 	defer func() {
 		f.Close()
 		s.readingStats.Pause()
-		log.Infof("Stopped reading data...")
+		log.Debugf("Stopped reading data...")
 		close(s.output)
 	}()
 
@@ -210,8 +225,8 @@ func (s *Session) onBufferedAmountLow() func() {
 			return
 		}
 
-		currentSpeed := s.sess.NetworkStats.Bandwidth()
-		fmt.Printf("Transferring at %.2f MB/s\r", currentSpeed)
+		// currentSpeed := s.sess.NetworkStats.Bandwidth()
+		// fmt.Printf("Transferring at %.2f MB/s\r", currentSpeed)
 
 		for len(s.msgToBeSent) != 0 {
 			cur := s.msgToBeSent[0]
@@ -221,6 +236,7 @@ func (s *Session) onBufferedAmountLow() func() {
 				return
 			}
 			s.sess.NetworkStats.AddBytes(uint64(cur.n))
+			s.bar.Add(cur.n)
 			s.msgToBeSent = s.msgToBeSent[1:]
 		}
 	}
@@ -228,13 +244,10 @@ func (s *Session) onBufferedAmountLow() func() {
 
 func (s *Session) writeToNetwork() {
 	// Set callback, as transfer may be paused
-	fmt.Println("\nwriting")
 	s.dataChannel.OnBufferedAmountLow(s.onBufferedAmountLow())
-	fmt.Println("\ndone")
 	<-s.stopSending
-	fmt.Println("\nstopped sending")
 	s.dataChannel.OnBufferedAmountLow(nil)
-	log.Infof("Pausing network I/O... (remaining at least %v packets)\n", len(s.output))
+	log.Debugf("Pausing network I/O... (remaining at least %v packets)\n", len(s.output))
 	s.sess.NetworkStats.Pause()
 }
 
@@ -244,7 +257,7 @@ func (s *Session) StopSending() {
 
 func (s *Session) onConnectionStateChange() func(connectionState webrtc.ICEConnectionState) {
 	return func(connectionState webrtc.ICEConnectionState) {
-		log.Infof("ICE Connection State has changed: %s\n", connectionState.String())
+		log.Debugf("ICE Connection State has changed: %s\n", connectionState.String())
 		if connectionState == webrtc.ICEConnectionStateDisconnected {
 			s.StopSending()
 		}
@@ -255,8 +268,8 @@ func (s *Session) onOpenHandler() func() {
 	return func() {
 		s.sess.NetworkStats.Start()
 
-		log.Infof("Starting to send data...")
-		defer log.Infof("Stopped sending data...")
+		log.Debugf("Starting to send data...")
+		defer log.Debugf("Stopped sending data...")
 
 		s.writeToNetwork()
 	}

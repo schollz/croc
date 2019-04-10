@@ -7,6 +7,6 @@ import (
 
 func (s *Session) onConnectionStateChange() func(connectionState webrtc.ICEConnectionState) {
 	return func(connectionState webrtc.ICEConnectionState) {
-		log.Infof("ICE Connection State has changed: %s\n", connectionState.String())
+		log.Debugf("ICE Connection State has changed: %s\n", connectionState.String())
 	}
 }
