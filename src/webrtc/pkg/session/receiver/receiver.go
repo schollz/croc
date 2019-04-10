@@ -1,6 +1,7 @@
 package receiver
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -138,6 +139,12 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 				return err
 			}
 		}
+	} else {
+		os.Create(pathToFile)
+		err := os.Truncate(pathToFile, fileSize)
+		if err != nil {
+			return err
+		}
 	}
 
 	f, err := os.OpenFile(pathToFile, os.O_RDWR|os.O_CREATE, 0755)
@@ -160,7 +167,8 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 			fmt.Printf("\nNetwork: %s\n", s.sess.NetworkStats.String())
 			return nil
 		case msg := <-s.msgChannel:
-			n, err := f.Write(msg.Data)
+			pos := int64(binary.LittleEndian.Uint64(msg.Data[:8]))
+			n, err := f.WriteAt(msg.Data[8:], pos)
 			if err != nil {
 				return err
 			} else {

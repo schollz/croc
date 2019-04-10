@@ -446,6 +446,9 @@ func (c *Client) updateState() (err error) {
 			}
 			fileHash, errHash := utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name))
 			if errHash != nil || !bytes.Equal(fileHash, fileInfo.Hash) {
+				if !bytes.Equal(fileHash, fileInfo.Hash) {
+					log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
+				}
 				finished = false
 				c.FilesToTransferCurrentNum = i
 				break

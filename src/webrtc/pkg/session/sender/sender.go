@@ -1,6 +1,7 @@
 package sender
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -18,7 +19,7 @@ import (
 
 const (
 	// Must be <= 16384
-	senderBuffSize  = 16384
+	senderBuffSize  = 16376
 	bufferThreshold = 512 * 1024 // 512kB
 )
 
@@ -188,7 +189,7 @@ func (s *Session) readFile(pathToFile string) error {
 		log.Debugf("Stopped reading data...")
 		close(s.output)
 	}()
-
+	pos := uint64(0)
 	for {
 		// Read file
 		s.dataBuff = s.dataBuff[:cap(s.dataBuff)]
@@ -204,12 +205,15 @@ func (s *Session) readFile(pathToFile string) error {
 		}
 		s.dataBuff = s.dataBuff[:n]
 		s.readingStats.AddBytes(uint64(n))
-
+		posByte := make([]byte, 8)
+		binary.LittleEndian.PutUint64(posByte, pos)
+		buff := append([]byte(nil), posByte...)
 		s.output <- outputMsg{
 			n: n,
 			// Make a copy of the buffer
-			buff: append([]byte(nil), s.dataBuff...),
+			buff: append(buff, s.dataBuff...),
 		}
+		pos += uint64(n)
 	}
 	return nil
 }
