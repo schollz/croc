@@ -10,6 +10,11 @@ import (
 	"github.com/schollz/croc/v5/pkg/utils"
 )
 
+// SDPProvider returns the SDP input
+func (s *Session) SDPProvider() io.Reader {
+	return s.sdpInput
+}
+
 // CompletionHandler to be called when transfer is done
 type CompletionHandler func()
 
