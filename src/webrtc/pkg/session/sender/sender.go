@@ -2,6 +2,7 @@ package sender
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -185,7 +186,7 @@ func (s *Session) readFile(pathToFile string) error {
 	}
 	stat, _ := f.Stat()
 	s.fileSize = stat.Size()
-	s.fname = stat.Name()
+	s.fname = fmt.Sprintf("%12s", stat.Name())
 	s.firstByte = true
 	log.Debugf("Starting to read data from '%s'", pathToFile)
 	s.readingStats.Start()
@@ -253,8 +254,10 @@ func (s *Session) onBufferedAmountLow() func() {
 			s.sess.NetworkStats.AddBytes(uint64(cur.n))
 			if s.firstByte {
 				s.firstByte = false
+				fmt.Fprint(os.Stderr, "\n")
 				s.bar = progressbar.NewOptions64(
 					s.fileSize,
+					progressbar.OptionSetWidth(8),
 					progressbar.OptionSetDescription(s.fname),
 					progressbar.OptionSetRenderBlankState(true),
 					progressbar.OptionSetBytes64(s.fileSize),

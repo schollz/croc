@@ -2,8 +2,10 @@ package receiver
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/mattn/go-colorable"
@@ -168,6 +170,8 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 	}()
 
 	firstByte := true
+	_, fname := filepath.Split(pathToFile)
+	fname = fmt.Sprintf("%10s", fname)
 	var bar *progressbar.ProgressBar
 	// Consume the message channel, until done
 	// Does not stop on error
@@ -194,6 +198,8 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 				if firstByte {
 					bar = progressbar.NewOptions64(
 						fileSize,
+						progressbar.OptionSetWidth(8),
+						progressbar.OptionSetDescription(fname),
 						progressbar.OptionSetRenderBlankState(true),
 						progressbar.OptionSetBytes64(fileSize),
 						progressbar.OptionSetWriter(os.Stderr),
