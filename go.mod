@@ -7,6 +7,7 @@ require (
 	github.com/mattn/go-colorable v0.1.1
 	github.com/pion/webrtc/v2 v2.0.2
 	github.com/pions/webrtc v1.2.1-0.20190404195536-1202dbaa06ad
+	github.com/pkg/errors v0.8.1
 	github.com/schollz/mnemonicode v1.0.1
 	github.com/schollz/pake v1.1.0
 	github.com/schollz/progressbar/v2 v2.11.0

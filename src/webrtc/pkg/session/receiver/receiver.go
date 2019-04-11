@@ -141,16 +141,16 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 		stat, _ := f.Stat()
 		truncate = stat.Size() != fileSize
 	} else {
-		f, err := os.Create(pathToFile)
-		if err != nil {
-			err = errors.Wrap(err, "could not create "+pathToFile)
-			log.Error(err)
-			return err
+		f, errOpen = os.Create(pathToFile)
+		if errOpen != nil {
+			errOpen = errors.Wrap(errOpen, "could not create "+pathToFile)
+			log.Error(errOpen)
+			return errOpen
 		}
 		truncate = true
 	}
 
-	if trucnate {
+	if truncate {
 		err := f.Truncate(fileSize)
 		if err != nil {
 			err = errors.Wrap(err, "could not truncate "+pathToFile)
