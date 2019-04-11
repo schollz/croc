@@ -3,6 +3,7 @@ module github.com/schollz/croc/v5
 go 1.12
 
 require (
+	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/go-redis/redis v6.15.2+incompatible
 	github.com/mattn/go-colorable v0.1.1
 	github.com/pion/webrtc/v2 v2.0.2

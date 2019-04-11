@@ -34,8 +34,12 @@ func init() {
 	log.SetLevel(logrus.WarnLevel)
 }
 
-func Debug() {
-	log.SetLevel(logrus.DebugLevel)
+func Debug(debug bool) {
+	if debug {
+		log.SetLevel(logrus.DebugLevel)
+	} else {
+		log.SetLevel(logrus.WarnLevel)
+	}
 }
 
 type outputMsg struct {

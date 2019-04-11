@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/denisbrodbeck/machineid"
 	"github.com/go-redis/redis"
 	"github.com/mattn/go-colorable"
 	"github.com/pions/webrtc"
@@ -36,8 +37,16 @@ func init() {
 	log.SetFormatter(&logrus.TextFormatter{ForceColors: true})
 	log.SetOutput(colorable.NewColorableStdout())
 	log.SetLevel(logrus.DebugLevel)
-	receiver.Debug()
-	sender.Debug()
+}
+
+func Debug(debug bool) {
+	receiver.Debug(debug)
+	sender.Debug(debug)
+	if debug {
+		log.SetLevel(logrus.DebugLevel)
+	} else {
+		log.SetLevel(logrus.WarnLevel)
+	}
 }
 
 type Client struct {
@@ -193,6 +202,7 @@ func (c *Client) Receive() (err error) {
 func (c *Client) transfer(options TransferOptions) (err error) {
 	if c.IsSender {
 		c.FilesToTransfer = make([]FileInfo, len(options.PathToFiles))
+		totalFilesSize := int64(0)
 		for i, pathToFile := range options.PathToFiles {
 			var fstats os.FileInfo
 			var fullPath string
@@ -216,6 +226,7 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 				ModTime:      fstats.ModTime(),
 			}
 			c.FilesToTransfer[i].Hash, err = utils.HashFile(fullPath)
+			totalFilesSize += fstats.Size()
 			if err != nil {
 				return
 			}
@@ -242,6 +253,19 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 			}
 			log.Debugf("file %d info: %+v", i, c.FilesToTransfer[i])
 		}
+		fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
+		if len(c.FilesToTransfer) == 1 {
+			fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
+		}
+		machID, macIDerr := machineid.ID()
+		if macIDerr != nil {
+			log.Error(macIDerr)
+			return
+		}
+		if len(machID) > 6 {
+			machID = machID[:6]
+		}
+		fmt.Fprintf(os.Stderr, "Sending %s (%s) as '%s'\n", fname, utils.ByteCountDecimal(totalFilesSize), machID)
 	}
 	// create channel for quitting
 	// quit with c.quit <- true
