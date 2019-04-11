@@ -148,13 +148,14 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 		}
 	}
 
-	f, err := os.OpenFile(pathToFile, os.O_RDWR|os.O_CREATE, 0755)
+	f, err := os.Open(pathToFile)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		log.Debugln("Stopped receiving data...")
 		f.Close()
+		os.Exit(0)
 	}()
 
 	firstByte := true
