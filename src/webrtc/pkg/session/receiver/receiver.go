@@ -16,6 +16,7 @@ import (
 	internalSess "github.com/schollz/croc/v5/src/webrtc/internal/session"
 	"github.com/schollz/croc/v5/src/webrtc/pkg/session/common"
 	"github.com/schollz/progressbar/v2"
+	"github.com/schollz/spinner"
 	logrus "github.com/sirupsen/logrus"
 )
 
@@ -40,13 +41,18 @@ type Session struct {
 	sess        internalSess.Session
 	msgChannel  chan webrtc.DataChannelMessage
 	initialized bool
+	spinner     *spinner.Spinner
 }
 
 func new(s internalSess.Session) *Session {
+	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+	spin.Writer = os.Stderr
+	spin.Suffix = " creating channel..."
 	return &Session{
 		sess:        s,
 		msgChannel:  make(chan webrtc.DataChannelMessage, 4096*2),
 		initialized: false,
+		spinner:     spin,
 	}
 }
 
@@ -68,6 +74,9 @@ func NewWith(c Config) *Session {
 
 func (s *Session) onConnectionStateChange() func(connectionState webrtc.ICEConnectionState) {
 	return func(connectionState webrtc.ICEConnectionState) {
+		if !s.spinner.Active() {
+			s.spinner.Start()
+		}
 		log.Debugf("ICE Connection State has changed: %s\n", connectionState.String())
 	}
 }
@@ -196,6 +205,7 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 				return err
 			} else {
 				if firstByte {
+					s.spinner.Stop()
 					bar = progressbar.NewOptions64(
 						fileSize,
 						progressbar.OptionSetWidth(8),
@@ -203,7 +213,7 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 						progressbar.OptionSetRenderBlankState(true),
 						progressbar.OptionSetBytes64(fileSize),
 						progressbar.OptionSetWriter(os.Stderr),
-						progressbar.OptionThrottle(1/60*time.Second),
+						progressbar.OptionThrottle(100*time.Millisecond),
 					)
 					firstByte = false
 				}

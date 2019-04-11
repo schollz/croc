@@ -16,6 +16,7 @@ import (
 	"github.com/schollz/croc/v5/src/webrtc/pkg/session/common"
 	"github.com/schollz/croc/v5/src/webrtc/pkg/stats"
 	"github.com/schollz/progressbar/v2"
+	"github.com/schollz/spinner"
 	"github.com/sirupsen/logrus"
 )
 
@@ -68,10 +69,14 @@ type Session struct {
 	fileSize     int64
 	fname        string
 	firstByte    bool
+	spinner      *spinner.Spinner
 }
 
 // New creates a new sender session
 func new(s internalSess.Session) *Session {
+	spin := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+	spin.Writer = os.Stderr
+	spin.Suffix = " creating channel..."
 	return &Session{
 		sess:         s,
 		initialized:  false,
@@ -80,6 +85,7 @@ func new(s internalSess.Session) *Session {
 		output:       make(chan outputMsg, senderBuffSize*10),
 		doneCheck:    false,
 		readingStats: stats.New(),
+		spinner:      spin,
 	}
 }
 
@@ -159,6 +165,7 @@ func (s *Session) SDPProvider() io.Reader {
 // }
 
 func (s *Session) CreateDataChannel() error {
+	s.spinner.Start()
 	ordered := true
 	maxPacketLifeTime := uint16(10000)
 	dataChannel, err := s.sess.CreateDataChannel(&webrtc.DataChannelInit{
@@ -254,6 +261,7 @@ func (s *Session) onBufferedAmountLow() func() {
 			s.sess.NetworkStats.AddBytes(uint64(cur.n))
 			if s.firstByte {
 				s.firstByte = false
+				s.spinner.Stop()
 				fmt.Fprint(os.Stderr, "\n")
 				s.bar = progressbar.NewOptions64(
 					s.fileSize,
