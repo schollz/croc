@@ -394,6 +394,7 @@ func (c *Client) processMessage(m Message) (err error) {
 		// start receiving data
 		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 		c.recvSess.ReceiveData(pathToFile, c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
+		log.Debug("sending close-sender")
 		err = c.redisdb.Publish(c.nameOutChannel, Message{
 			Type: "close-sender",
 		}.String()).Err()
@@ -407,6 +408,7 @@ func (c *Client) processMessage(m Message) (err error) {
 		c.Step4FileTransfer = false
 		c.Step3RecipientRequestFile = false
 		c.sendSess.StopSending()
+		log.Debug("sending close-recipient")
 		err = c.redisdb.Publish(c.nameOutChannel, Message{
 			Type: "close-recipient",
 			Num:  m.Num,
