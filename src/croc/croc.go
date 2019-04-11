@@ -36,7 +36,7 @@ var log = logrus.New()
 func init() {
 	log.SetFormatter(&logrus.TextFormatter{ForceColors: true})
 	log.SetOutput(colorable.NewColorableStdout())
-	log.SetLevel(logrus.DebugLevel)
+	Debug(false)
 }
 
 func Debug(debug bool) {
@@ -268,7 +268,7 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 		if len(machID) > 6 {
 			machID = machID[:6]
 		}
-		fmt.Fprintf(os.Stderr, "Sending %s (%s) as '%s'\n", fname, utils.ByteCountDecimal(totalFilesSize), machID)
+		fmt.Fprintf(os.Stderr, "Sending %s (%s) from your machine, '%s'\n", fname, utils.ByteCountDecimal(totalFilesSize), machID)
 	}
 	// create channel for quitting
 	// quit with c.quit <- true

@@ -65,6 +65,7 @@ type Session struct {
 	readingStats *stats.Stats
 	bar          *progressbar.ProgressBar
 	fileSize     int64
+	fname        string
 	firstByte    bool
 }
 
@@ -184,6 +185,7 @@ func (s *Session) readFile(pathToFile string) error {
 	}
 	stat, _ := f.Stat()
 	s.fileSize = stat.Size()
+	s.fname = stat.Name()
 	s.firstByte = true
 	log.Debugf("Starting to read data from '%s'", pathToFile)
 	s.readingStats.Start()
@@ -253,10 +255,11 @@ func (s *Session) onBufferedAmountLow() func() {
 				s.firstByte = false
 				s.bar = progressbar.NewOptions64(
 					s.fileSize,
+					progressbar.OptionSetDescription(s.fname),
 					progressbar.OptionSetRenderBlankState(true),
 					progressbar.OptionSetBytes64(s.fileSize),
 					progressbar.OptionSetWriter(os.Stderr),
-					progressbar.OptionThrottle(1/60*time.Second),
+					progressbar.OptionThrottle(100*time.Millisecond),
 				)
 			}
 			s.bar.Add(cur.n)
