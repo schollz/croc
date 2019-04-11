@@ -405,6 +405,7 @@ func (c *Client) processMessage(m Message) (err error) {
 		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 		c.sendSess.TransferFile(pathToFile)
 	case "close-sender":
+		log.Debug("close-sender received...")
 		c.Step4FileTransfer = false
 		c.Step3RecipientRequestFile = false
 		c.sendSess.StopSending()

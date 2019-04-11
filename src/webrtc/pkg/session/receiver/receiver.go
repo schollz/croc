@@ -166,6 +166,7 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 		case <-s.sess.Done:
 			s.sess.NetworkStats.Stop()
 			log.Debugf("Network: %s", s.sess.NetworkStats.String())
+			log.Debug("closed gracefully")
 			return nil
 		case msg := <-s.msgChannel:
 			buff, errDecrypt := crypt.DecryptFromBytes(msg.Data, []byte{1, 2, 3, 4})
@@ -177,6 +178,7 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 			pos := int64(binary.LittleEndian.Uint64(buff[:8]))
 			n, err := f.WriteAt(buff[8:], pos)
 			if err != nil {
+				log.Error(err)
 				return err
 			} else {
 				if firstByte {

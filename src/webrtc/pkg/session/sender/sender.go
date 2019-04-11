@@ -271,6 +271,7 @@ func (s *Session) writeToNetwork() {
 }
 
 func (s *Session) StopSending() {
+	log.Debug("StopSending() triggered")
 	s.stopSending <- struct{}{}
 }
 
