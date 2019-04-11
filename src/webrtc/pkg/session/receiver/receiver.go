@@ -16,6 +16,7 @@ import (
 	internalSess "github.com/schollz/croc/v5/src/webrtc/internal/session"
 	"github.com/schollz/croc/v5/src/webrtc/pkg/session/common"
 	"github.com/schollz/progressbar/v2"
+	"github.com/schollz/spinner"
 	logrus "github.com/sirupsen/logrus"
 )
 
@@ -218,6 +219,10 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 }
 
 func (s *Session) CreateConnection() (err error) {
+	s.spinner = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+	s.spinner.Writer = os.Stderr
+	s.spinner.Suffix = " connecting..."
+
 	return s.sess.CreateConnection(s.onConnectionStateChange())
 }
 

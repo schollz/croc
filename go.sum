@@ -5,6 +5,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/denisbrodbeck/machineid v1.0.1 h1:geKr9qtkB876mXguW2X6TU4ZynleN6ezuMSRhl4D7AQ=
 github.com/denisbrodbeck/machineid v1.0.1/go.mod h1:dJUwb7PTidGDeYyUBmXZ2GphQBbjJCrnectwCyxcUSI=
+github.com/fatih/color v1.7.0 h1:DkWD4oS2D8LGGgTQ6IvwJJXSL5Vp2ffcQg58nFV38Ys=
+github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV9I=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/go-redis/redis v6.15.2+incompatible h1:9SpNVG76gr6InJGxoZ6IuuxaCOQwDAhzyXg+Bs+0Sb4=
@@ -106,6 +108,8 @@ github.com/schollz/pake v1.1.0 h1:+tYqsPVkuirFpmeRePjYTUhIHHKLufdmd7QfuspaXCk=
 github.com/schollz/pake v1.1.0/go.mod h1:pL7Z08gnQ4OQ3G27s5e5T6TEzp6cFc5GzCwLm0f75Io=
 github.com/schollz/progressbar/v2 v2.11.0 h1:lQZYMKqH/kSSOc9rjL+9sa4bZavGS6EkBAZKKYdOjz4=
 github.com/schollz/progressbar/v2 v2.11.0/go.mod h1:fBI3onORwtNtwCWJHsrXtjE3QnJOtqIZrvr3rDaF7L0=
+github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9 h1:y08o5oQ/slxXE/F0uh5dd8mdVvb+w4NLcNSDSq4c2F0=
+github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9/go.mod h1:kCMoQsqzx4MzGJWaALr6tKyCnlrY0kILGLkA1FOiLF4=
 github.com/sirupsen/logrus v1.4.1 h1:GL2rEmy6nsikmW0r8opw9JIRScdMF5hA8cOYLH7In1k=
 github.com/sirupsen/logrus v1.4.1/go.mod h1:ni0Sbl8bgC9z8RoU9G6nDWqqs/fq4eDPysMBDgk/93Q=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

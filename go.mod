@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/denisbrodbeck/machineid v1.0.1
+	github.com/fatih/color v1.7.0 // indirect
 	github.com/go-redis/redis v6.15.2+incompatible
 	github.com/mattn/go-colorable v0.1.1
 	github.com/pion/webrtc/v2 v2.0.2
@@ -12,6 +13,7 @@ require (
 	github.com/schollz/mnemonicode v1.0.1
 	github.com/schollz/pake v1.1.0
 	github.com/schollz/progressbar/v2 v2.11.0
+	github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9
 	github.com/sirupsen/logrus v1.4.1
 	github.com/stretchr/testify v1.3.0
 	golang.org/x/crypto v0.0.0-20190404164418-38d8ce5564a5
