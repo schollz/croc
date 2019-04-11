@@ -25,6 +25,7 @@ import (
 	"github.com/schollz/croc/v5/src/webrtc/pkg/session/sender"
 	"github.com/schollz/pake"
 	"github.com/schollz/progressbar/v2"
+	"github.com/schollz/spinner"
 	"github.com/sirupsen/logrus"
 )
 
@@ -84,7 +85,8 @@ type Client struct {
 	peerConnection [8]*webrtc.PeerConnection
 	dataChannel    [8]*webrtc.DataChannel
 
-	bar *progressbar.ProgressBar
+	bar     *progressbar.ProgressBar
+	spinner *spinner.Spinner
 
 	mutex *sync.Mutex
 	quit  chan bool
@@ -183,6 +185,10 @@ func New(sender bool, sharedSecret string) (c *Client, err error) {
 		})
 	}
 
+	c.spinner = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+	c.spinner.Writer = os.Stderr
+	c.spinner.Suffix = " connecting..."
+
 	c.mutex = &sync.Mutex{}
 	return
 }
@@ -269,7 +275,9 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 			machID = machID[:6]
 		}
 		fmt.Fprintf(os.Stderr, "Sending %s (%s) from your machine, '%s'\n", fname, utils.ByteCountDecimal(totalFilesSize), machID)
+
 	}
+	c.spinner.Start()
 	// create channel for quitting
 	// quit with c.quit <- true
 	c.quit = make(chan bool)
@@ -359,6 +367,11 @@ func (c *Client) sendOverRedis() (err error) {
 func (c *Client) processMessage(m Message) (err error) {
 	switch m.Type {
 	case "pake":
+		if c.spinner.Suffix != " performing PAKE..." {
+			c.spinner.Stop()
+			c.spinner.Suffix = " performing PAKE..."
+			c.spinner.Start()
+		}
 		notVerified := !c.Pake.IsVerified()
 		err = c.Pake.Update(m.Bytes)
 		if err != nil {
@@ -420,6 +433,7 @@ func (c *Client) processMessage(m Message) (err error) {
 		}.String()).Err()
 		// start receiving data
 		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
+		c.spinner.Stop()
 		c.recvSess.ReceiveData(pathToFile, c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
 		log.Debug("sending close-sender")
 		err = c.redisdb.Publish(c.nameOutChannel, Message{
@@ -430,6 +444,7 @@ func (c *Client) processMessage(m Message) (err error) {
 		// Apply the answer as the remote description
 		err = c.sendSess.SetSDP(m.Message)
 		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
+		c.spinner.Stop()
 		c.sendSess.TransferFile(pathToFile)
 	case "close-sender":
 		log.Debug("close-sender received...")
