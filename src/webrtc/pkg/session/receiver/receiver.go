@@ -8,6 +8,7 @@ import (
 
 	"github.com/mattn/go-colorable"
 	"github.com/pion/webrtc/v2"
+	"github.com/pkg/errors"
 	"github.com/schollz/croc/v5/src/compress"
 	"github.com/schollz/croc/v5/src/crypt"
 	internalSess "github.com/schollz/croc/v5/src/webrtc/internal/session"
@@ -135,28 +136,28 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 	var f *os.File
 	var errOpen error
 	f, errOpen = os.OpenFile(pathToFile, os.O_WRONLY, 0666)
+	truncate := false
 	if errOpen == nil {
 		stat, _ := f.Stat()
-		if stat.Size() != fileSize {
-			err := f.Truncate(fileSize)
-			if err != nil {
-				log.Error(err)
-				return err
-			}
-		}
+		truncate = stat.Size() != fileSize
 	} else {
 		f, err := os.Create(pathToFile)
 		if err != nil {
+			err = errors.Wrap(err, "could not create "+pathToFile)
 			log.Error(err)
 			return err
 		}
-		err = f.Truncate(fileSize)
+		truncate = true
+	}
+
+	if trucnate {
+		err := f.Truncate(fileSize)
 		if err != nil {
+			err = errors.Wrap(err, "could not truncate "+pathToFile)
 			log.Error(err)
 			return err
 		}
 	}
-
 	defer func() {
 		log.Debugln("Stopped receiving data...")
 		f.Close()
