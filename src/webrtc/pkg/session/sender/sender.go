@@ -22,7 +22,7 @@ const (
 	// Must be <= 16384
 	// 8 bytes for position
 	// 3000 bytes for encryption / compression overhead
-	senderBuffSize  = 13376
+	senderBuffSize  = 8192
 	bufferThreshold = 512 * 1024 // 512kB
 )
 

@@ -398,7 +398,6 @@ func (c *Client) processMessage(m Message) (err error) {
 		err = c.redisdb.Publish(c.nameOutChannel, Message{
 			Type: "close-sender",
 		}.String()).Err()
-		os.Exit(1)
 	case "datachannel-answer":
 		c.log.Debug("got answer:", m.Message)
 		// Apply the answer as the remote description
