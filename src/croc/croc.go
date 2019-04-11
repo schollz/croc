@@ -118,6 +118,9 @@ type RemoteFileRequest struct {
 	FilesToTransferCurrentNum int
 }
 
+type SenderInfo struct {
+}
+
 func (m Message) String() string {
 	b, _ := json.Marshal(m)
 	return string(b)
