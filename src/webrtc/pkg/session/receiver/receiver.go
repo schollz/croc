@@ -132,26 +132,31 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 	log.Debugf("receiving %s", pathToFile)
 
 	// truncate if nessecary
-	stat, errStat := os.Stat(pathToFile)
-	if errStat == nil {
+	var f *os.File
+	var errOpen error
+	f, errOpen = os.OpenFile(pathToFile, os.O_WRONLY, 0666)
+	if errOpen == nil {
+		stat, _ := f.Stat()
 		if stat.Size() != fileSize {
-			err := os.Truncate(pathToFile, fileSize)
+			err := f.Truncate(fileSize)
 			if err != nil {
+				log.Error(err)
 				return err
 			}
 		}
 	} else {
-		os.Create(pathToFile)
-		err := os.Truncate(pathToFile, fileSize)
+		f, err := os.Create(pathToFile)
 		if err != nil {
+			log.Error(err)
+			return err
+		}
+		err = f.Truncate(fileSize)
+		if err != nil {
+			log.Error(err)
 			return err
 		}
 	}
 
-	f, err := os.Open(pathToFile)
-	if err != nil {
-		return err
-	}
 	defer func() {
 		log.Debugln("Stopped receiving data...")
 		f.Close()
