@@ -416,6 +416,7 @@ func (c *Client) processMessage(m Message) (err error) {
 	case "close-recipient":
 		c.Step4FileTransfer = false
 		c.Step3RecipientRequestFile = false
+		os.Exit(1)
 	}
 	if err != nil {
 		return

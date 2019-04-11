@@ -155,7 +155,6 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 	defer func() {
 		log.Debugln("Stopped receiving data...")
 		f.Close()
-		os.Exit(0)
 	}()
 
 	firstByte := true
