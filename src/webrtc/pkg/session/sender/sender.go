@@ -60,6 +60,8 @@ type Session struct {
 	// Stats/infos
 	readingStats *stats.Stats
 	bar          *progressbar.ProgressBar
+	fileSize     int64
+	firstByte    bool
 }
 
 // New creates a new sender session
@@ -177,13 +179,8 @@ func (s *Session) readFile(pathToFile string) error {
 		return err
 	}
 	stat, _ := f.Stat()
-	s.bar = progressbar.NewOptions64(
-		stat.Size(),
-		progressbar.OptionSetRenderBlankState(true),
-		progressbar.OptionSetBytes64(stat.Size()),
-		progressbar.OptionSetWriter(os.Stderr),
-		progressbar.OptionThrottle(1/60*time.Second),
-	)
+	s.fileSize = stat.Size()
+	s.firstByte = true
 	log.Debugf("Starting to read data from '%s'", pathToFile)
 	s.readingStats.Start()
 	defer func() {
@@ -248,6 +245,16 @@ func (s *Session) onBufferedAmountLow() func() {
 				return
 			}
 			s.sess.NetworkStats.AddBytes(uint64(cur.n))
+			if s.firstByte {
+				s.firstByte = false
+				s.bar = progressbar.NewOptions64(
+					s.fileSize,
+					progressbar.OptionSetRenderBlankState(true),
+					progressbar.OptionSetBytes64(s.fileSize),
+					progressbar.OptionSetWriter(os.Stderr),
+					progressbar.OptionThrottle(1/60*time.Second),
+				)
+			}
 			s.bar.Add(cur.n)
 			s.msgToBeSent = s.msgToBeSent[1:]
 		}
