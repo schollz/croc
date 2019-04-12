@@ -208,6 +208,9 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 					s.spinner.Stop()
 					bar = progressbar.NewOptions64(
 						fileSize,
+						progressbar.OptionOnCompletion(func() {
+							fmt.Println(" sent.")
+						}),
 						progressbar.OptionSetWidth(8),
 						progressbar.OptionSetDescription(fname),
 						progressbar.OptionSetRenderBlankState(true),
