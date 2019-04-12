@@ -19,6 +19,7 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/mattn/go-colorable"
 	"github.com/pions/webrtc"
+	"github.com/schollz/croc/v5/src/crypt"
 	"github.com/schollz/croc/v5/src/utils"
 	"github.com/schollz/croc/v5/src/webrtc/pkg/session/common"
 	"github.com/schollz/croc/v5/src/webrtc/pkg/session/receiver"
@@ -393,7 +394,14 @@ func (c *Client) processMessage(m Message) (err error) {
 		}
 	case "fileinfo":
 		var senderInfo SenderInfo
-		err = json.Unmarshal(m.Bytes, &senderInfo)
+		var decryptedBytes []byte
+		key, _ := c.Pake.SessionKey()
+		decryptedBytes, err = crypt.DecryptFromBytes(m.Bytes, key)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		err = json.Unmarshal(decryptedBytes, &senderInfo)
 		if err != nil {
 			log.Error(err)
 			return
@@ -415,7 +423,14 @@ func (c *Client) processMessage(m Message) (err error) {
 		c.Step2FileInfoTransfered = true
 	case "recipientready":
 		var remoteFile RemoteFileRequest
-		err = json.Unmarshal(m.Bytes, &remoteFile)
+		var decryptedBytes []byte
+		key, _ := c.Pake.SessionKey()
+		decryptedBytes, err = crypt.DecryptFromBytes(m.Bytes, key)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		err = json.Unmarshal(decryptedBytes, &remoteFile)
 		if err != nil {
 			return
 		}
@@ -498,9 +513,10 @@ func (c *Client) updateState() (err error) {
 			log.Error(err)
 			return
 		}
+		key, _ := c.Pake.SessionKey()
 		err = c.redisdb.Publish(c.nameOutChannel, Message{
 			Type:  "fileinfo",
-			Bytes: b,
+			Bytes: crypt.EncryptToBytes(b, key),
 		}.String()).Err()
 		if err != nil {
 			return
@@ -581,9 +597,10 @@ func (c *Client) updateState() (err error) {
 			CurrentFileChunks:         c.CurrentFileChunks,
 			FilesToTransferCurrentNum: c.FilesToTransferCurrentNum,
 		})
+		key, _ := c.Pake.SessionKey()
 		err = c.redisdb.Publish(c.nameOutChannel, Message{
 			Type:  "recipientready",
-			Bytes: bRequest,
+			Bytes: crypt.EncryptToBytes(bRequest, key),
 		}.String()).Err()
 		if err != nil {
 			return
