@@ -52,6 +52,7 @@ func Debug(debug bool) {
 }
 
 type Client struct {
+	Options Options
 	// basic setup
 	redisdb      *redis.Client
 	log          *logrus.Entry
@@ -132,14 +133,23 @@ func (m Message) String() string {
 	return string(b)
 }
 
+type Options struct {
+	IsSender     bool
+	SharedSecret string
+	Debug        bool
+	AddressRelay string
+	Stdout       bool
+	NoPrompt     bool
+}
+
 // New establishes a new connection for transfering files between two instances.
-func New(sender bool, sharedSecret string) (c *Client, err error) {
+func New(ops Options) (c *Client, err error) {
 	c = new(Client)
 
 	// setup basic info
-	c.IsSender = sender
-	c.SharedSecret = sharedSecret
-	c.SharedSecret = sharedSecret
+	c.IsSender = ops.Sender
+	c.SharedSecret = ops.SharedSecret
+	c.SharedSecret = ops.SharedSecret
 	if sender {
 		c.nameOutChannel = c.SharedSecret + "2"
 		c.nameInChannel = c.SharedSecret + "1"
@@ -448,14 +458,6 @@ func (c *Client) processMessage(m Message) (err error) {
 		c.FilesToTransferCurrentNum = remoteFile.FilesToTransferCurrentNum
 		c.CurrentFileChunks = remoteFile.CurrentFileChunks
 		c.Step3RecipientRequestFile = true
-	case "chunk":
-		var chunk Chunk
-		err = json.Unmarshal(m.Bytes, &chunk)
-		if err != nil {
-			return
-		}
-		_, err = c.CurrentFile.WriteAt(chunk.Bytes, chunk.Location)
-		c.log.Debug("writing chunk", chunk.Location)
 	case "datachannel-offer":
 		err = c.dataChannelReceive()
 		if err != nil {
@@ -566,42 +568,6 @@ func (c *Client) updateState() (err error) {
 
 		// start initiating the process to receive a new file
 		log.Debugf("working on file %d", c.FilesToTransferCurrentNum)
-
-		// // setup folder for new file
-		// if c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote != "." {
-		// 	err = os.MkdirAll(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, os.ModeDir)
-		// 	if err != nil {
-		// 		return
-		// 	}
-		// }
-
-		// pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
-		// check if file should be overwritten, or simply fixed with missing chunks
-		// overwrite := true
-		// fstats, errStats := os.Stat(pathToFile)
-		// if errStats == nil {
-		// 	if fstats.Size() == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size {
-		// 		// just request missing chunks
-		// 		c.CurrentFileChunks = MissingChunks(pathToFile, fstats.Size(), BufferSize)
-		// 		log.Debugf("found %d missing chunks", len(c.CurrentFileChunks))
-		// 		overwrite = false
-		// 	}
-		// } else {
-		// 	c.CurrentFileChunks = []int64{}
-		// }
-		// if overwrite {
-		// 	os.Remove(pathToFile)
-		// 	c.CurrentFile, err = os.Create(pathToFile)
-		// 	if err != nil {
-		// 		return
-		// 	}
-		// 	err = c.CurrentFile.Truncate(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
-		// } else {
-		// 	c.CurrentFile, err = os.OpenFile(pathToFile, os.O_RDWR|os.O_CREATE, 0755)
-		// }
-		// if err != nil {
-		// 	return
-		// }
 
 		// recipient requests the file and chunks (if empty, then should receive all chunks)
 		bRequest, _ := json.Marshal(RemoteFileRequest{
