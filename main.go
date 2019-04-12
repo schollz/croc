@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 
 	"github.com/schollz/croc/v5/src/croc"
 )
@@ -43,6 +44,6 @@ func main() {
 		err = c.Receive()
 	}
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
 }

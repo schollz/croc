@@ -392,6 +392,11 @@ func (c *Client) processMessage(m Message) (err error) {
 			c.log.Debug(c.Pake.SessionKey())
 			c.Step1ChannelSecured = true
 		}
+	case "error":
+		c.spinner.Stop()
+		fmt.Print("\r")
+		err = fmt.Errorf("peer error: %s", m.Message)
+		return err
 	case "fileinfo":
 		var senderInfo SenderInfo
 		var decryptedBytes []byte
@@ -417,7 +422,13 @@ func (c *Client) processMessage(m Message) (err error) {
 		}
 		c.spinner.Stop()
 		fmt.Fprintf(os.Stderr, "\rAccept %s (%s) from machine '%s'? (y/n) ", fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
-		utils.GetInput("")
+		if strings.ToLower(strings.TrimSpace(utils.GetInput(""))) != "y" {
+			err = c.redisdb.Publish(c.nameOutChannel, Message{
+				Type:    "error",
+				Message: "refusing files",
+			}.String()).Err()
+			return fmt.Errorf("refused files")
+		}
 		// TODO: accept file question?
 		c.log.Debug(c.FilesToTransfer)
 		c.Step2FileInfoTransfered = true
