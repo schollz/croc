@@ -262,9 +262,11 @@ func (s *Session) onBufferedAmountLow() func() {
 			if s.firstByte {
 				s.firstByte = false
 				s.spinner.Stop()
-				fmt.Fprint(os.Stderr, "\n")
 				s.bar = progressbar.NewOptions64(
 					s.fileSize,
+					progressbar.OptionOnCompletion(func() {
+						fmt.Println(" done")
+					}),
 					progressbar.OptionSetWidth(8),
 					progressbar.OptionSetDescription(s.fname),
 					progressbar.OptionSetRenderBlankState(true),
