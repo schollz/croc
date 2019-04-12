@@ -85,8 +85,9 @@ type Client struct {
 	peerConnection [8]*webrtc.PeerConnection
 	dataChannel    [8]*webrtc.DataChannel
 
-	bar     *progressbar.ProgressBar
-	spinner *spinner.Spinner
+	bar       *progressbar.ProgressBar
+	spinner   *spinner.Spinner
+	machineID string
 
 	mutex *sync.Mutex
 	quit  chan bool
@@ -121,6 +122,8 @@ type RemoteFileRequest struct {
 }
 
 type SenderInfo struct {
+	MachineID       string
+	FilesToTransfer []FileInfo
 }
 
 func (m Message) String() string {
@@ -274,6 +277,7 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 		if len(machID) > 6 {
 			machID = machID[:6]
 		}
+		c.machineID = machID
 		fmt.Fprintf(os.Stderr, "Sending %s (%s) from your machine, '%s'\n", fname, utils.ByteCountDecimal(totalFilesSize), machID)
 
 	}
@@ -388,10 +392,25 @@ func (c *Client) processMessage(m Message) (err error) {
 			c.Step1ChannelSecured = true
 		}
 	case "fileinfo":
-		err = json.Unmarshal(m.Bytes, &c.FilesToTransfer)
+		var senderInfo SenderInfo
+		err = json.Unmarshal(m.Bytes, &senderInfo)
 		if err != nil {
+			log.Error(err)
 			return
 		}
+		c.FilesToTransfer = senderInfo.FilesToTransfer
+		fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
+		if len(c.FilesToTransfer) == 1 {
+			fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
+		}
+		totalSize := int64(0)
+		for _, fi := range c.FilesToTransfer {
+			totalSize += fi.Size
+		}
+		c.spinner.Stop()
+		fmt.Fprintf(os.Stderr, "\rAccept %s (%s) from machine '%s'? (y/n) ", fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
+		utils.GetInput("")
+		// TODO: accept file question?
 		c.log.Debug(c.FilesToTransfer)
 		c.Step2FileInfoTransfered = true
 	case "recipientready":
@@ -470,7 +489,15 @@ func (c *Client) processMessage(m Message) (err error) {
 
 func (c *Client) updateState() (err error) {
 	if c.IsSender && c.Step1ChannelSecured && !c.Step2FileInfoTransfered {
-		b, _ := json.Marshal(c.FilesToTransfer)
+		var b []byte
+		b, err = json.Marshal(SenderInfo{
+			MachineID:       c.machineID,
+			FilesToTransfer: c.FilesToTransfer,
+		})
+		if err != nil {
+			log.Error(err)
+			return
+		}
 		err = c.redisdb.Publish(c.nameOutChannel, Message{
 			Type:  "fileinfo",
 			Bytes: b,
