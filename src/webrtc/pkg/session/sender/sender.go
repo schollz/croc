@@ -265,7 +265,7 @@ func (s *Session) onBufferedAmountLow() func() {
 				s.bar = progressbar.NewOptions64(
 					s.fileSize,
 					progressbar.OptionOnCompletion(func() {
-						fmt.Println(" sent.")
+						fmt.Println(" ✔️")
 					}),
 					progressbar.OptionSetWidth(8),
 					progressbar.OptionSetDescription(s.fname),

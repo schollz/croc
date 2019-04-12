@@ -209,7 +209,7 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 					bar = progressbar.NewOptions64(
 						fileSize,
 						progressbar.OptionOnCompletion(func() {
-							fmt.Println(" sent.")
+							fmt.Println(" ✔️")
 						}),
 						progressbar.OptionSetWidth(8),
 						progressbar.OptionSetDescription(fname),
