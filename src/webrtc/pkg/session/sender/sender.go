@@ -24,7 +24,8 @@ const (
 	// Must be <= 16384
 	// 8 bytes for position
 	// 3000 bytes for encryption / compression overhead
-	senderBuffSize  = 8192
+	maxPacketSize   = 16384
+	senderBuffSize  = 15000
 	bufferThreshold = 512 * 1024 // 512kB
 )
 
@@ -204,6 +205,7 @@ func (s *Session) readFile(pathToFile string) error {
 		close(s.output)
 	}()
 	pos := uint64(0)
+	var lastBytes []byte
 	for {
 		// Read file
 		s.dataBuff = s.dataBuff[:cap(s.dataBuff)]
@@ -223,14 +225,28 @@ func (s *Session) readFile(pathToFile string) error {
 		posByte := make([]byte, 8)
 		binary.LittleEndian.PutUint64(posByte, pos)
 
-		buff := append([]byte(nil), posByte...)
-		buff = append(buff, s.dataBuff...)
-		buff = compress.Compress(buff)
-		buff = crypt.EncryptToBytes(buff, []byte{1, 2, 3, 4})
-		s.output <- outputMsg{
-			n: n,
-			// Make a copy of the buffer
-			buff: buff,
+		for i := 0; i < 10000; i += 1000 {
+			buff := append([]byte(nil), posByte...)
+			if len(lastBytes) > 0 {
+				buff = append(buff, lastBytes...)
+			}
+			buff = append(buff, s.dataBuff[:n-i]...)
+			buff = compress.Compress(buff)
+			buff = crypt.EncryptToBytes(buff, []byte{1, 2, 3, 4})
+			if len(buff) < maxPacketSize {
+				if n-i > 0 {
+					lastBytes = append([]byte(nil), s.dataBuff[n-i:]...)
+				} else {
+					lastBytes = []byte{}
+				}
+				n = n - i
+				log.Debugf("sending packet size %d", len(buff))
+				s.output <- outputMsg{
+					n:    n,
+					buff: buff,
+				}
+				break
+			}
 		}
 		pos += uint64(n)
 	}
