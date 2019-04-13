@@ -54,11 +54,9 @@ func Debug(debug bool) {
 type Client struct {
 	Options Options
 	// basic setup
-	redisdb      *redis.Client
-	log          *logrus.Entry
-	IsSender     bool
-	SharedSecret string
-	Pake         *pake.Pake
+	redisdb *redis.Client
+	log     *logrus.Entry
+	Pake    *pake.Pake
 
 	// steps involved in forming relationship
 	Step1ChannelSecured       bool
@@ -147,20 +145,22 @@ func New(ops Options) (c *Client, err error) {
 	c = new(Client)
 
 	// setup basic info
-	c.IsSender = ops.Sender
-	c.SharedSecret = ops.SharedSecret
-	c.SharedSecret = ops.SharedSecret
-	if sender {
-		c.nameOutChannel = c.SharedSecret + "2"
-		c.nameInChannel = c.SharedSecret + "1"
+	c.Options = ops
+
+	// set channels
+	if c.Options.IsSender {
+		c.nameOutChannel = c.Options.SharedSecret + "2"
+		c.nameInChannel = c.Options.SharedSecret + "1"
 	} else {
-		c.nameOutChannel = c.SharedSecret + "1"
-		c.nameInChannel = c.SharedSecret + "2"
+		c.nameOutChannel = c.Options.SharedSecret + "1"
+		c.nameInChannel = c.Options.SharedSecret + "2"
 	}
+
+	Debug(c.Options.Debug)
 
 	// initialize redis for communication in establishing channel
 	c.redisdb = redis.NewClient(&redis.Options{
-		Addr:         "198.199.67.130:6372",
+		Addr:         c.Options.AddressRelay,
 		Password:     "",
 		DB:           4,
 		WriteTimeout: 1 * time.Hour,
@@ -180,10 +180,10 @@ func New(ops Options) (c *Client, err error) {
 	c.incomingMessageChannel = pubsub.Channel()
 
 	// initialize pake
-	if c.IsSender {
-		c.Pake, err = pake.Init([]byte{1, 2, 3}, 1, elliptic.P521(), 1*time.Microsecond)
+	if c.Options.IsSender {
+		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 1, elliptic.P521(), 1*time.Microsecond)
 	} else {
-		c.Pake, err = pake.Init([]byte{1, 2, 3}, 0, elliptic.P521(), 1*time.Microsecond)
+		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 0, elliptic.P521(), 1*time.Microsecond)
 	}
 	if err != nil {
 		return
@@ -193,7 +193,7 @@ func New(ops Options) (c *Client, err error) {
 	c.log = log.WithFields(logrus.Fields{
 		"is": "sender",
 	})
-	if !c.IsSender {
+	if !c.Options.IsSender {
 		c.log = log.WithFields(logrus.Fields{
 			"is": "recipient",
 		})
@@ -223,7 +223,7 @@ func (c *Client) Receive() (err error) {
 }
 
 func (c *Client) transfer(options TransferOptions) (err error) {
-	if c.IsSender {
+	if c.Options.IsSender {
 		c.FilesToTransfer = make([]FileInfo, len(options.PathToFiles))
 		totalFilesSize := int64(0)
 		for i, pathToFile := range options.PathToFiles {
@@ -299,7 +299,7 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 
 	// if recipient, initialize with sending pake information
 	c.log.Debug("ready")
-	if !c.IsSender && !c.Step1ChannelSecured {
+	if !c.Options.IsSender && !c.Step1ChannelSecured {
 		err = c.redisdb.Publish(c.nameOutChannel, Message{
 			Type:  "pake",
 			Bytes: c.Pake.Bytes(),
@@ -392,7 +392,7 @@ func (c *Client) processMessage(m Message) (err error) {
 		if err != nil {
 			return
 		}
-		if (notVerified && c.Pake.IsVerified() && !c.IsSender) || !c.Pake.IsVerified() {
+		if (notVerified && c.Pake.IsVerified() && !c.Options.IsSender) || !c.Pake.IsVerified() {
 			err = c.redisdb.Publish(c.nameOutChannel, Message{
 				Type:  "pake",
 				Bytes: c.Pake.Bytes(),
@@ -516,7 +516,7 @@ func (c *Client) processMessage(m Message) (err error) {
 }
 
 func (c *Client) updateState() (err error) {
-	if c.IsSender && c.Step1ChannelSecured && !c.Step2FileInfoTransfered {
+	if c.Options.IsSender && c.Step1ChannelSecured && !c.Step2FileInfoTransfered {
 		var b []byte
 		b, err = json.Marshal(SenderInfo{
 			MachineID:       c.machineID,
@@ -536,7 +536,7 @@ func (c *Client) updateState() (err error) {
 		}
 		c.Step2FileInfoTransfered = true
 	}
-	if !c.IsSender && c.Step2FileInfoTransfered && !c.Step3RecipientRequestFile {
+	if !c.Options.IsSender && c.Step2FileInfoTransfered && !c.Step3RecipientRequestFile {
 		// find the next file to transfer and send that number
 		// if the files are the same size, then look for missing chunks
 		finished := true
@@ -585,7 +585,7 @@ func (c *Client) updateState() (err error) {
 		c.Step3RecipientRequestFile = true
 		err = c.dataChannelReceive()
 	}
-	if c.IsSender && c.Step3RecipientRequestFile && !c.Step4FileTransfer {
+	if c.Options.IsSender && c.Step3RecipientRequestFile && !c.Step4FileTransfer {
 		c.log.Debug("start sending data!")
 		err = c.dataChannelSend()
 		c.Step4FileTransfer = true

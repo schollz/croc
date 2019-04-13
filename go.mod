@@ -16,6 +16,7 @@ require (
 	github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9
 	github.com/sirupsen/logrus v1.4.1
 	github.com/stretchr/testify v1.3.0
+	github.com/urfave/cli v1.20.0
 	golang.org/x/crypto v0.0.0-20190404164418-38d8ce5564a5
 	golang.org/x/net v0.0.0-20181220203305-927f97764cc3 // indirect
 	gopkg.in/urfave/cli.v1 v1.20.0

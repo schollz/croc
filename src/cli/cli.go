@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -11,16 +12,16 @@ import (
 	"strings"
 	"time"
 
-	humanize "github.com/dustin/go-humanize"
-	"github.com/pkg/errors"
+	"github.com/schollz/croc/v5/src/croc"
 	"github.com/schollz/croc/v5/src/utils"
-	"github.com/skratchdot/open-golang/open"
 	"github.com/urfave/cli"
 )
 
 var Version string
+var cr *croc.Client
 
-func Run() {
+func Run() (err error) {
+
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	app := cli.NewApp()
 	app.Name = "croc"
@@ -40,8 +41,6 @@ func Run() {
 			Description: "send a file over the relay",
 			ArgsUsage:   "[filename]",
 			Flags: []cli.Flag{
-				cli.BoolFlag{Name: "no-compress, o", Usage: "disable compression"},
-				cli.BoolFlag{Name: "no-encrypt, e", Usage: "disable encryption"},
 				cli.StringFlag{Name: "code, c", Usage: "codephrase used to connect to relay"},
 			},
 			HelpName: "croc send",
@@ -49,32 +48,12 @@ func Run() {
 				return send(c)
 			},
 		},
-		{
-			Name:        "relay",
-			Usage:       "start a croc relay",
-			Description: "the croc relay will handle websocket and TCP connections",
-			Flags:       []cli.Flag{},
-			HelpName:    "croc relay",
-			Action: func(c *cli.Context) error {
-				return relay(c)
-			},
-		},
-		{
-			Name:        "config",
-			Usage:       "generates a config file",
-			Description: "the croc config can be used to set static parameters",
-			Flags:       []cli.Flag{},
-			HelpName:    "croc config",
-			Action: func(c *cli.Context) error {
-				return saveDefaultConfig(c)
-			},
-		},
 	}
 	app.Flags = []cli.Flag{
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
-		cli.StringFlag{Name: "port", Value: "8153", Usage: "port that the websocket listens on"},
+		cli.StringFlag{Name: "relay", Value: "198.199.67.130:6372", Usage: "address of the relay"},
 		cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 	}
 	app.EnableBashCompletion = true
@@ -95,43 +74,26 @@ func Run() {
 		return receive(c)
 	}
 	app.Before = func(c *cli.Context) error {
-		cr = croc.Init(c.GlobalBool("debug"))
-		cr.Version = Version
-		cr.AllowLocalDiscovery = true
-		cr.Address = c.GlobalString("addr")
-		cr.AddressTCPPorts = strings.Split(c.GlobalString("addr-tcp"), ",")
-		cr.AddressWebsocketPort = c.GlobalString("addr-ws")
-		cr.NoRecipientPrompt = c.GlobalBool("yes")
-		cr.Stdout = c.GlobalBool("stdout")
-		cr.LocalOnly = c.GlobalBool("local")
-		cr.NoLocal = c.GlobalBool("no-local")
-		cr.ShowText = true
-		cr.RelayWebsocketPort = c.String("port")
-		cr.RelayTCPPorts = strings.Split(c.String("tcp-port"), ",")
-		cr.CurveType = c.String("curve")
-		if c.GlobalBool("force-tcp") {
-			cr.ForceSend = 2
-		}
-		if c.GlobalBool("force-web") {
-			cr.ForceSend = 1
-		}
-		return nil
+		var err error
+		cr, err = croc.New(croc.Options{
+			Debug:        c.GlobalBool("debug"),
+			NoPrompt:     c.GlobalBool("yes"),
+			AddressRelay: c.GlobalString("relay"),
+			Stdout:       c.GlobalBool("stdout"),
+		})
+		return err
 	}
 
-	err := app.Run(os.Args)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "\r\n%s", err.Error())
-	}
-	fmt.Fprintf(os.Stderr, "\r\n")
+	return app.Run(os.Args)
 }
 
-func saveDefaultConfig(c *cli.Context) error {
-	return croc.SaveDefaultConfig()
-}
+// func saveDefaultConfig(c *cli.Context) error {
+// 	return croc.SaveDefaultConfig()
+// }
 
-func send(c *cli.Context) error {
+func send(c *cli.Context) (err error) {
+	var fnames []string
 	stat, _ := os.Stdin.Stat()
-	var fname string
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
 		f, err := ioutil.TempFile(".", "croc-stdin-")
 		if err != nil {
@@ -145,102 +107,91 @@ func send(c *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		fname = f.Name()
+		fnames = []string{f.Name()}
 		defer func() {
-			err = os.Remove(fname)
+			err = os.Remove(fnames[0])
 			if err != nil {
 				log.Println(err)
 			}
 		}()
 	} else {
-		fname = c.Args().First()
+		fnames = append([]string{c.Args().First()}, c.Args().Tail()...)
 	}
-	if fname == "" {
+	if len(fnames) == 0 {
 		return errors.New("must specify file: croc send [filename]")
 	}
-	cr.UseCompression = !c.Bool("no-compress")
-	cr.UseEncryption = !c.Bool("no-encrypt")
+
 	if c.String("code") != "" {
-		cr.Codephrase = c.String("code")
+		cr.Options.SharedSecret = c.String("code")
 	}
-	cr.LoadConfig()
-	if len(cr.Codephrase) == 0 {
+	// cr.LoadConfig()
+	if len(cr.Options.SharedSecret) == 0 {
 		// generate code phrase
-		cr.Codephrase = utils.GetRandomName()
+		cr.Options.SharedSecret = utils.GetRandomName()
 	}
 
-	// print the text
-	finfo, err := os.Stat(fname)
-	if err != nil {
-		return err
-	}
-	fname, _ = filepath.Abs(fname)
-	fname = filepath.Clean(fname)
-	_, filename := filepath.Split(fname)
-	fileOrFolder := "file"
-	fsize := finfo.Size()
-	if finfo.IsDir() {
-		fileOrFolder = "folder"
-		fsize, err = dirSize(fname)
+	paths := []string{}
+	for _, fname := range fnames {
+		stat, err := os.Stat(fname)
 		if err != nil {
 			return err
 		}
+		if stat.IsDir() {
+			err = filepath.Walk(fname,
+				func(pathName string, info os.FileInfo, err error) error {
+					if err != nil {
+						return err
+					}
+					if !info.IsDir() {
+						paths = append(paths, filepath.ToSlash(pathName))
+					}
+					return nil
+				})
+			if err != nil {
+				return err
+			}
+		} else {
+			paths = append(paths, filepath.ToSlash(fname))
+		}
 	}
-	fmt.Fprintf(os.Stderr,
-		"Sending %s %s named '%s'\nCode is: %s\nOn the other computer, please run:\n\ncroc %s\n\n",
-		humanize.Bytes(uint64(fsize)),
-		fileOrFolder,
-		filename,
-		cr.Codephrase,
-		cr.Codephrase,
-	)
-	if cr.Debug {
-		croc.SetDebugLevel("debug")
-	}
-	return cr.Send(fname, cr.Codephrase)
+
+	err = cr.Send(croc.TransferOptions{
+		PathToFiles:      paths,
+		KeepPathInRemote: false,
+	})
+
+	return
 }
 
-func receive(c *cli.Context) error {
+func receive(c *cli.Context) (err error) {
 	if c.GlobalString("code") != "" {
-		cr.Codephrase = c.GlobalString("code")
+		cr.Options.SharedSecret = c.GlobalString("code")
 	}
 	if c.Args().First() != "" {
-		cr.Codephrase = c.Args().First()
+		cr.Options.SharedSecret = c.Args().First()
+	}
+	if cr.Options.SharedSecret == "" {
+		cr.Options.SharedSecret = utils.GetInput("Enter receive code: ")
 	}
 	if c.GlobalString("out") != "" {
 		os.Chdir(c.GlobalString("out"))
 	}
-	cr.LoadConfig()
-	openFolder := false
-	if len(os.Args) == 1 {
-		// open folder since they didn't give any arguments
-		openFolder = true
-	}
-	if cr.Codephrase == "" {
-		cr.Codephrase = utils.GetInput("Enter receive code: ")
-	}
-	if cr.Debug {
-		croc.SetDebugLevel("debug")
-	}
-	err := cr.Receive(cr.Codephrase)
-	if err == nil && openFolder {
-		cwd, _ := os.Getwd()
-		open.Run(cwd)
-	}
-	return err
+
+	err = cr.Receive()
+	return
 }
 
-func relay(c *cli.Context) error {
-	return cr.Relay()
-}
+// func relay(c *cli.Context) error {
+// 	return cr.Relay()
+// }
 
-func dirSize(path string) (int64, error) {
-	var size int64
-	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
-		if !info.IsDir() {
-			size += info.Size()
-		}
-		return err
-	})
-	return size, err
-}
+// func dirSize(path string) (int64, error) {
+// 	var size int64
+// 	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+// 		if !info.IsDir() {
+// 			size += info.Size()
+// 		}
+// 		return err
+// 	})
+// 	return size, err
+// }
