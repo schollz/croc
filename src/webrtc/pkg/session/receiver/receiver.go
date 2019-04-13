@@ -138,12 +138,12 @@ func (s *Session) CreateDataHandler() {
 	})
 }
 
-func (s *Session) ReceiveData(pathToFile string, fileSize int64) {
-	s.receiveData(pathToFile, fileSize)
+func (s *Session) ReceiveData(pathToFile string, fileSize int64, sharedSecret []byte) {
+	s.receiveData(pathToFile, fileSize, sharedSecret)
 	s.sess.OnCompletion()
 }
 
-func (s *Session) receiveData(pathToFile string, fileSize int64) error {
+func (s *Session) receiveData(pathToFile string, fileSize int64, sharedSecret []byte) error {
 	log.Debugln("Starting to receive data...")
 	log.Debugf("receiving %s", pathToFile)
 
@@ -195,7 +195,7 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 			log.Debug("closed gracefully")
 			return nil
 		case msg := <-s.msgChannel:
-			buff, errDecrypt := crypt.DecryptFromBytes(msg.Data, []byte{1, 2, 3, 4})
+			buff, errDecrypt := crypt.DecryptFromBytes(msg.Data, sharedSecret)
 			if errDecrypt != nil {
 				log.Error(errDecrypt)
 				return errDecrypt

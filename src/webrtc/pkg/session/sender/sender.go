@@ -117,8 +117,8 @@ func (s *Session) SetSDP(sdp string) error {
 	return s.sess.SetSDP(sdp)
 }
 
-func (s *Session) TransferFile(pathToFile string) {
-	s.readFile(pathToFile)
+func (s *Session) TransferFile(pathToFile string, sharedSecret []byte) {
+	s.readFile(pathToFile, sharedSecret)
 	s.sess.OnCompletion()
 }
 
@@ -186,7 +186,7 @@ func (s *Session) CreateDataChannel() error {
 	return nil
 }
 
-func (s *Session) readFile(pathToFile string) error {
+func (s *Session) readFile(pathToFile string, sharedSecret []byte) error {
 	f, err := os.Open(pathToFile)
 	if err != nil {
 		log.Error(err)
@@ -232,7 +232,7 @@ func (s *Session) readFile(pathToFile string) error {
 			}
 			buff = append(buff, s.dataBuff[:n-i]...)
 			buff = compress.Compress(buff)
-			buff = crypt.EncryptToBytes(buff, []byte{1, 2, 3, 4})
+			buff = crypt.EncryptToBytes(buff, sharedSecret)
 			if len(buff) < maxPacketSize {
 				if n-i > 0 {
 					lastBytes = append([]byte(nil), s.dataBuff[n-i:]...)
