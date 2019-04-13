@@ -82,7 +82,7 @@ func new(s internalSess.Session) *Session {
 		initialized:  false,
 		dataBuff:     make([]byte, senderBuffSize),
 		stopSending:  make(chan struct{}, 1),
-		output:       make(chan outputMsg, senderBuffSize*10),
+		output:       make(chan outputMsg, 100),
 		doneCheck:    false,
 		readingStats: stats.New(),
 		spinner:      spin,
