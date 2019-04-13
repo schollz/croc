@@ -484,7 +484,8 @@ func (c *Client) processMessage(m Message) (err error) {
 		// start receiving data
 		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 		c.spinner.Stop()
-		c.recvSess.ReceiveData(pathToFile, c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
+		key, _ := c.Pake.SessionKey()
+		c.recvSess.ReceiveData(pathToFile, c.FilesToTransfer[c.FilesToTransferCurrentNum].Size, key)
 		log.Debug("sending close-sender")
 		err = c.redisdb.Publish(c.nameOutChannel, Message{
 			Type: "close-sender",
@@ -495,7 +496,8 @@ func (c *Client) processMessage(m Message) (err error) {
 		err = c.sendSess.SetSDP(m.Message)
 		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 		c.spinner.Stop()
-		c.sendSess.TransferFile(pathToFile)
+		key, _ := c.Pake.SessionKey()
+		c.sendSess.TransferFile(pathToFile, key)
 	case "close-sender":
 		log.Debug("close-sender received...")
 		c.Step4FileTransfer = false
