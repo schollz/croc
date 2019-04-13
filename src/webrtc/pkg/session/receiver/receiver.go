@@ -148,10 +148,7 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 	log.Debugf("receiving %s", pathToFile)
 
 	folderForFile, _ := filepath.Split(pathToFile)
-	err := os.MkdirAll(folderForFile, os.ModePerm)
-	if err != nil {
-		return err
-	}
+	os.MkdirAll(folderForFile, os.ModePerm)
 
 	// truncate if nessecary
 	var f *os.File
