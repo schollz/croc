@@ -121,6 +121,7 @@ func send(c *cli.Context) (err error) {
 		sharedSecret = utils.GetRandomName()
 	}
 
+	haveFolder := false
 	paths := []string{}
 	for _, fname := range fnames {
 		stat, err := os.Stat(fname)
@@ -128,6 +129,7 @@ func send(c *cli.Context) (err error) {
 			return err
 		}
 		if stat.IsDir() {
+			haveFolder = true
 			err = filepath.Walk(fname,
 				func(pathName string, info os.FileInfo, err error) error {
 					if err != nil {
@@ -159,7 +161,7 @@ func send(c *cli.Context) (err error) {
 
 	err = cr.Send(croc.TransferOptions{
 		PathToFiles:      paths,
-		KeepPathInRemote: false, // TODO: add options to change this
+		KeepPathInRemote: haveFolder,
 	})
 
 	return

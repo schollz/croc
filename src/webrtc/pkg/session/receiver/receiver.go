@@ -147,6 +147,12 @@ func (s *Session) receiveData(pathToFile string, fileSize int64) error {
 	log.Debugln("Starting to receive data...")
 	log.Debugf("receiving %s", pathToFile)
 
+	folderForFile, _ := filepath.Split(pathToFile)
+	err := os.MkdirAll(folderForFile, os.ModePerm)
+	if err != nil {
+		return err
+	}
+
 	// truncate if nessecary
 	var f *os.File
 	var errOpen error
