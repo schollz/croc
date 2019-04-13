@@ -146,6 +146,8 @@ func New(ops Options) (c *Client, err error) {
 
 	// setup basic info
 	c.Options = ops
+	Debug(c.Options.Debug)
+	log.Debugf("options: %+v", c.Options)
 
 	// set channels
 	if c.Options.IsSender {
@@ -155,8 +157,6 @@ func New(ops Options) (c *Client, err error) {
 		c.nameOutChannel = c.Options.SharedSecret + "1"
 		c.nameInChannel = c.Options.SharedSecret + "2"
 	}
-
-	Debug(c.Options.Debug)
 
 	// initialize redis for communication in establishing channel
 	c.redisdb = redis.NewClient(&redis.Options{
@@ -431,15 +431,18 @@ func (c *Client) processMessage(m Message) (err error) {
 			totalSize += fi.Size
 		}
 		c.spinner.Stop()
-		fmt.Fprintf(os.Stderr, "\rAccept %s (%s) from machine '%s'? (y/n) ", fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
-		if strings.ToLower(strings.TrimSpace(utils.GetInput(""))) != "y" {
-			err = c.redisdb.Publish(c.nameOutChannel, Message{
-				Type:    "error",
-				Message: "refusing files",
-			}.String()).Err()
-			return fmt.Errorf("refused files")
+		if !c.Options.NoPrompt {
+			fmt.Fprintf(os.Stderr, "\rAccept %s (%s) from machine '%s'? (y/n) ", fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
+			if strings.ToLower(strings.TrimSpace(utils.GetInput(""))) != "y" {
+				err = c.redisdb.Publish(c.nameOutChannel, Message{
+					Type:    "error",
+					Message: "refusing files",
+				}.String()).Err()
+				return fmt.Errorf("refused files")
+			}
+		} else {
+			fmt.Fprintf(os.Stderr, "\rReceiving %s (%s) from machine '%s'\n", fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
 		}
-		// TODO: accept file question?
 		c.log.Debug(c.FilesToTransfer)
 		c.Step2FileInfoTransfered = true
 	case "recipientready":

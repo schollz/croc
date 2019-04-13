@@ -18,7 +18,6 @@ import (
 )
 
 var Version string
-var cr *croc.Client
 
 func Run() (err error) {
 
@@ -73,16 +72,6 @@ func Run() (err error) {
 		}
 		return receive(c)
 	}
-	app.Before = func(c *cli.Context) error {
-		var err error
-		cr, err = croc.New(croc.Options{
-			Debug:        c.GlobalBool("debug"),
-			NoPrompt:     c.GlobalBool("yes"),
-			AddressRelay: c.GlobalString("relay"),
-			Stdout:       c.GlobalBool("stdout"),
-		})
-		return err
-	}
 
 	return app.Run(os.Args)
 }
@@ -92,6 +81,7 @@ func Run() (err error) {
 // }
 
 func send(c *cli.Context) (err error) {
+
 	var fnames []string
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
@@ -121,13 +111,14 @@ func send(c *cli.Context) (err error) {
 		return errors.New("must specify file: croc send [filename]")
 	}
 
+	var sharedSecret string
 	if c.String("code") != "" {
-		cr.Options.SharedSecret = c.String("code")
+		sharedSecret = c.String("code")
 	}
 	// cr.LoadConfig()
-	if len(cr.Options.SharedSecret) == 0 {
+	if len(sharedSecret) == 0 {
 		// generate code phrase
-		cr.Options.SharedSecret = utils.GetRandomName()
+		sharedSecret = utils.GetRandomName()
 	}
 
 	paths := []string{}
@@ -154,29 +145,52 @@ func send(c *cli.Context) (err error) {
 			paths = append(paths, filepath.ToSlash(fname))
 		}
 	}
+	cr, err := croc.New(croc.Options{
+		SharedSecret: sharedSecret,
+		IsSender:     true,
+		Debug:        c.GlobalBool("debug"),
+		NoPrompt:     c.GlobalBool("yes"),
+		AddressRelay: c.GlobalString("relay"),
+		Stdout:       c.GlobalBool("stdout"),
+	})
+	if err != nil {
+		return
+	}
 
 	err = cr.Send(croc.TransferOptions{
 		PathToFiles:      paths,
-		KeepPathInRemote: false,
+		KeepPathInRemote: false, // TODO: add options to change this
 	})
 
 	return
 }
 
 func receive(c *cli.Context) (err error) {
+	var sharedSecret string
 	if c.GlobalString("code") != "" {
-		cr.Options.SharedSecret = c.GlobalString("code")
+		sharedSecret = c.GlobalString("code")
 	}
 	if c.Args().First() != "" {
-		cr.Options.SharedSecret = c.Args().First()
+		sharedSecret = c.Args().First()
 	}
-	if cr.Options.SharedSecret == "" {
-		cr.Options.SharedSecret = utils.GetInput("Enter receive code: ")
+	if sharedSecret == "" {
+		sharedSecret = utils.GetInput("Enter receive code: ")
 	}
 	if c.GlobalString("out") != "" {
 		os.Chdir(c.GlobalString("out"))
 	}
 
+	cr, err := croc.New(croc.Options{
+		SharedSecret: sharedSecret,
+		IsSender:     false,
+		Debug:        c.GlobalBool("debug"),
+		NoPrompt:     c.GlobalBool("yes"),
+		AddressRelay: c.GlobalString("relay"),
+		Stdout:       c.GlobalBool("stdout"),
+	})
+	if err != nil {
+		return
+	}
 	err = cr.Receive()
 	return
 }
