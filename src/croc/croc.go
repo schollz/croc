@@ -290,7 +290,8 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 		}
 		c.machineID = machID
 		fmt.Fprintf(os.Stderr, "Sending %s (%s) from your machine, '%s'\n", fname, utils.ByteCountDecimal(totalFilesSize), machID)
-
+		fmt.Fprintf(os.Stderr, "Code is: %s\nOn the other computer run\n\ncroc %s\n", c.Options.SharedSecret, c.Options.SharedSecret)
+		c.spinner.Suffix = " waiting for recipient..."
 	}
 	c.spinner.Start()
 	// create channel for quitting
@@ -496,6 +497,7 @@ func (c *Client) processMessage(m Message) (err error) {
 		err = c.sendSess.SetSDP(m.Message)
 		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 		c.spinner.Stop()
+		fmt.Fprintf(os.Stderr, "\r\nTransfering...\n")
 		key, _ := c.Pake.SessionKey()
 		c.sendSess.TransferFile(pathToFile, key)
 	case "close-sender":
