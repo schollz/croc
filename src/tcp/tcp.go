@@ -12,6 +12,8 @@ import (
 	"github.com/schollz/croc/src/models"
 )
 
+const TCP_BUFFER_SIZE = 1024 * 64
+
 type roomInfo struct {
 	first  comm.Comm
 	second comm.Comm
@@ -163,7 +165,7 @@ func chanFromConn(conn net.Conn) chan []byte {
 	c := make(chan []byte)
 
 	go func() {
-		b := make([]byte, models.TCP_BUFFER_SIZE)
+		b := make([]byte, TCP_BUFFER_SIZE)
 
 		for {
 			n, err := conn.Read(b)

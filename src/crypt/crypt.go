@@ -5,85 +5,50 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/base64"
-	"errors"
-	"strings"
 
 	"golang.org/x/crypto/pbkdf2"
 )
 
 // Encryption stores the data
 type Encryption struct {
-	Encrypted []byte `json:"e"`
-	Salt      []byte `json:"s"`
-	IV        []byte `json:"i"`
+	key        []byte
+	passphrase []byte
+	Salt       []byte `json:"s"`
 }
 
-func (e Encryption) Bytes() []byte {
-	return []byte(base64.StdEncoding.EncodeToString(e.Encrypted) + "-" + base64.StdEncoding.EncodeToString(e.Salt) + "-" + base64.StdEncoding.EncodeToString(e.IV))
-}
-
-func FromBytes(b []byte) (enc Encryption, err error) {
-	enc = Encryption{}
-	items := strings.Split(string(b), "-")
-	if len(items) != 3 {
-		err = errors.New("not valid")
-		return
+// New generates a new encryption, using the supplied passphrase and
+// an optional supplied salt.
+func New(passphrase []byte, salt []byte) (e Encryption, err error) {
+	e.passphrase = passphrase
+	if salt == nil {
+		e.Salt = make([]byte, 8)
+		// http://www.ietf.org/rfc/rfc2898.txt
+		// Salt.
+		rand.Read(e.Salt)
+	} else {
+		e.Salt = salt
 	}
-	enc.Encrypted, err = base64.StdEncoding.DecodeString(items[0])
-	if err != nil {
-		return
-	}
-	enc.Salt, err = base64.StdEncoding.DecodeString(items[1])
-	if err != nil {
-		return
-	}
-	enc.IV, err = base64.StdEncoding.DecodeString(items[2])
+	e.key = pbkdf2.Key([]byte(passphrase), e.Salt, 100, 32, sha256.New)
 	return
 }
 
-// Encrypt will generate an encryption
-func Encrypt(plaintext []byte, passphrase []byte, dontencrypt ...bool) Encryption {
-	if len(dontencrypt) > 0 && dontencrypt[0] {
-		return Encryption{
-			Encrypted: plaintext,
-			Salt:      []byte("salt"),
-			IV:        []byte("iv"),
-		}
-	}
-	key, saltBytes := deriveKey(passphrase, nil)
-	ivBytes := make([]byte, 12)
+// Encrypt will generate an encryption, prefixed with the IV
+func (e Encryption) Encrypt(plaintext []byte) []byte {
+	// generate a random iv each time
 	// http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 	// Section 8.2
+	ivBytes := make([]byte, 12)
 	rand.Read(ivBytes)
-	b, _ := aes.NewCipher(key)
+	b, _ := aes.NewCipher(e.key)
 	aesgcm, _ := cipher.NewGCM(b)
 	encrypted := aesgcm.Seal(nil, ivBytes, plaintext, nil)
-	return Encryption{
-		Encrypted: encrypted,
-		Salt:      saltBytes,
-		IV:        ivBytes,
-	}
+	return append(ivBytes, encrypted...)
 }
 
 // Decrypt an encryption
-func (e Encryption) Decrypt(passphrase []byte, dontencrypt ...bool) (plaintext []byte, err error) {
-	if len(dontencrypt) > 0 && dontencrypt[0] {
-		return e.Encrypted, nil
-	}
-	key, _ := deriveKey(passphrase, e.Salt)
-	b, _ := aes.NewCipher(key)
+func (e Encryption) Decrypt(encrypted []byte) (plaintext []byte, err error) {
+	b, _ := aes.NewCipher(e.key)
 	aesgcm, _ := cipher.NewGCM(b)
-	plaintext, err = aesgcm.Open(nil, e.IV, e.Encrypted, nil)
+	plaintext, err = aesgcm.Open(nil, encrypted[:12], encrypted[12:], nil)
 	return
-}
-
-func deriveKey(passphrase []byte, salt []byte) ([]byte, []byte) {
-	if salt == nil {
-		salt = make([]byte, 8)
-		// http://www.ietf.org/rfc/rfc2898.txt
-		// Salt.
-		rand.Read(salt)
-	}
-	return pbkdf2.Key([]byte(passphrase), salt, 100, 32, sha256.New), salt
 }
