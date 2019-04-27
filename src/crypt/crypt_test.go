@@ -23,7 +23,7 @@ func BenchmarkEncryption(b *testing.B) {
 func TestEncryption(t *testing.T) {
 	bob, err := New([]byte("password"), nil)
 	assert.Nil(t, err)
-	jane, err := New([]byte("password"), bob.Salt)
+	jane, err := New([]byte("password"), bob.Salt())
 	assert.Nil(t, err)
 	enc := bob.Encrypt([]byte("hello, world"))
 	dec, err := jane.Decrypt(enc)
