@@ -2,10 +2,9 @@ package comm
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"net"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -14,6 +13,19 @@ import (
 // Comm is some basic TCP communication
 type Comm struct {
 	connection net.Conn
+}
+
+// NewConnection gets a new comm to a tcp address
+func NewConnection(address string) (c Comm, err error) {
+	connection, err := net.DialTimeout("tcp", address, 3*time.Hour)
+	if err != nil {
+		return
+	}
+	connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
+	connection.SetDeadline(time.Now().Add(3 * time.Hour))
+	connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
+	c = New(connection)
+	return
 }
 
 // New returns a new comm
@@ -35,10 +47,12 @@ func (c Comm) Close() {
 }
 
 func (c Comm) Write(b []byte) (int, error) {
-	tmpCopy := make([]byte, len(b)+5)
-	// Copy the buffer so it doesn't get changed while read by the recipient.
-	copy(tmpCopy[:5], []byte(fmt.Sprintf("%0.5d", len(b))))
-	copy(tmpCopy[5:], b)
+	header := new(bytes.Buffer)
+	err := binary.Write(header, binary.LittleEndian, uint32(len(b)))
+	if err != nil {
+		fmt.Println("binary.Write failed:", err)
+	}
+	tmpCopy := append(header.Bytes(), b...)
 	n, err := c.connection.Write(tmpCopy)
 	if n != len(tmpCopy) {
 		if err != nil {
@@ -53,68 +67,48 @@ func (c Comm) Write(b []byte) (int, error) {
 
 func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	// read until we get 5 bytes
-	tmp := make([]byte, 5)
-	n, err := c.connection.Read(tmp)
+	header := make([]byte, 4)
+	n, err := c.connection.Read(header)
 	if err != nil {
 		return
 	}
-	tmpCopy := make([]byte, n)
-	// Copy the buffer so it doesn't get changed while read by the recipient.
-	copy(tmpCopy, tmp[:n])
-	bs = tmpCopy
-
-	tmp = make([]byte, 1)
-	for {
-		// see if we have enough bytes
-		bs = bytes.Trim(bs, "\x00")
-		if len(bs) == 5 {
-			break
-		}
-		n, err := c.connection.Read(tmp)
-		if err != nil {
-			return nil, 0, nil, err
-		}
-		tmpCopy = make([]byte, n)
-		// Copy the buffer so it doesn't get changed while read by the recipient.
-		copy(tmpCopy, tmp[:n])
-		bs = append(bs, tmpCopy...)
+	if n < 4 {
+		err = fmt.Errorf("not enough bytes: %d", n)
+		return
 	}
+	// make it so it won't change
+	header = append([]byte(nil), header...)
 
-	numBytes, err = strconv.Atoi(strings.TrimLeft(string(bs), "0"))
+	var numBytesUint32 uint32
+	rbuf := bytes.NewReader(header)
+	err = binary.Read(rbuf, binary.LittleEndian, &numBytesUint32)
 	if err != nil {
-		return nil, 0, nil, err
+		fmt.Println("binary.Read failed:", err)
 	}
-	buf = []byte{}
-	tmp = make([]byte, numBytes)
+	numBytes = int(numBytesUint32)
 	for {
-		n, err := c.connection.Read(tmp)
-		if err != nil {
-			return nil, 0, nil, err
+		tmp := make([]byte, numBytes)
+		n, errRead := c.connection.Read(tmp)
+		if errRead != nil {
+			err = errRead
+			return
 		}
-		tmpCopy = make([]byte, n)
-		// Copy the buffer so it doesn't get changed while read by the recipient.
-		copy(tmpCopy, tmp[:n])
-		buf = append(buf, bytes.TrimRight(tmpCopy, "\x00")...)
-		if len(buf) < numBytes {
-			// shrink the amount we need to read
-			tmp = tmp[:numBytes-len(buf)]
-		} else {
+		buf = append(buf, tmp[:n]...)
+		if numBytes == len(buf) {
 			break
 		}
 	}
-	// log.Printf("wanted %d and got %d", numBytes, len(buf))
 	return
 }
 
 // Send a message
-func (c Comm) Send(message string) (err error) {
-	_, err = c.Write([]byte(message))
+func (c Comm) Send(message []byte) (err error) {
+	_, err = c.Write(message)
 	return
 }
 
 // Receive a message
-func (c Comm) Receive() (s string, err error) {
-	b, _, _, err := c.Read()
-	s = string(b)
+func (c Comm) Receive() (b []byte, err error) {
+	b, _, _, err = c.Read()
 	return
 }

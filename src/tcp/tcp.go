@@ -13,8 +13,10 @@ import (
 )
 
 type roomInfo struct {
-	receiver comm.Comm
-	opened   time.Time
+	first  comm.Comm
+	second comm.Comm
+	opened time.Time
+	full   bool
 }
 
 type roomMap struct {
@@ -77,37 +79,53 @@ func run(port string) (err error) {
 func clientCommuncation(port string, c comm.Comm) (err error) {
 	// send ok to tell client they are connected
 	log.Debug("sending ok")
-	err = c.Send("ok")
+	err = c.Send([]byte("ok"))
 	if err != nil {
 		return
 	}
 
 	// wait for client to tell me which room they want
 	log.Debug("waiting for answer")
-	room, err := c.Receive()
+	roomBytes, err := c.Receive()
 	if err != nil {
 		return
 	}
+	room := string(roomBytes)
 
 	rooms.Lock()
-	// first connection is always the receiver
+	// create the room if it is new
 	if _, ok := rooms.rooms[room]; !ok {
 		rooms.rooms[room] = roomInfo{
-			receiver: c,
-			opened:   time.Now(),
+			first:  c,
+			opened: time.Now(),
 		}
 		rooms.Unlock()
 		// tell the client that they got the room
-		err = c.Send("recipient")
+		err = c.Send([]byte("ok"))
 		if err != nil {
 			log.Error(err)
 			return
 		}
-		log.Debug("recipient connected")
+		log.Debugf("room %s has 1", room)
 		return nil
 	}
-	log.Debug("sender connected")
-	receiver := rooms.rooms[room].receiver
+	if rooms.rooms[room].full {
+		rooms.Unlock()
+		err = c.Send([]byte("room full"))
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		return nil
+	}
+	log.Debugf("room %s has 2", room)
+	rooms.rooms[room] = roomInfo{
+		first:  rooms.rooms[room].first,
+		second: c,
+		opened: rooms.rooms[room].opened,
+		full:   true,
+	}
+	otherConnection := rooms.rooms[room].first
 	rooms.Unlock()
 
 	// second connection is the sender, time to staple connections
@@ -120,10 +138,10 @@ func clientCommuncation(port string, c comm.Comm) (err error) {
 		pipe(com1.Connection(), com2.Connection())
 		wg.Done()
 		log.Debug("done piping")
-	}(c, receiver, &wg)
+	}(otherConnection, c, &wg)
 
 	// tell the sender everything is ready
-	err = c.Send("sender")
+	err = c.Send([]byte("ok"))
 	if err != nil {
 		return
 	}
@@ -132,6 +150,8 @@ func clientCommuncation(port string, c comm.Comm) (err error) {
 	// delete room
 	rooms.Lock()
 	log.Debugf("deleting room: %s", room)
+	rooms.rooms[room].first.Close()
+	rooms.rooms[room].second.Close()
 	delete(rooms.rooms, room)
 	rooms.Unlock()
 	return nil
