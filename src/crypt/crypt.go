@@ -9,31 +9,34 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 )
 
-// Encryption stores the data
-type Encryption struct {
+type encryption struct {
 	key        []byte
 	passphrase []byte
-	Salt       []byte `json:"s"`
+	salt       []byte
 }
 
 // New generates a new encryption, using the supplied passphrase and
 // an optional supplied salt.
-func New(passphrase []byte, salt []byte) (e Encryption, err error) {
+func New(passphrase []byte, salt []byte) (e encryption, err error) {
 	e.passphrase = passphrase
 	if salt == nil {
-		e.Salt = make([]byte, 8)
+		e.salt = make([]byte, 8)
 		// http://www.ietf.org/rfc/rfc2898.txt
 		// Salt.
-		rand.Read(e.Salt)
+		rand.Read(e.salt)
 	} else {
-		e.Salt = salt
+		e.salt = salt
 	}
-	e.key = pbkdf2.Key([]byte(passphrase), e.Salt, 100, 32, sha256.New)
+	e.key = pbkdf2.Key([]byte(passphrase), e.salt, 100, 32, sha256.New)
 	return
 }
 
+func (e encryption) Salt() []byte {
+	return e.salt
+}
+
 // Encrypt will generate an encryption, prefixed with the IV
-func (e Encryption) Encrypt(plaintext []byte) []byte {
+func (e encryption) Encrypt(plaintext []byte) []byte {
 	// generate a random iv each time
 	// http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 	// Section 8.2
@@ -46,7 +49,7 @@ func (e Encryption) Encrypt(plaintext []byte) []byte {
 }
 
 // Decrypt an encryption
-func (e Encryption) Decrypt(encrypted []byte) (plaintext []byte, err error) {
+func (e encryption) Decrypt(encrypted []byte) (plaintext []byte, err error) {
 	b, _ := aes.NewCipher(e.key)
 	aesgcm, _ := cipher.NewGCM(b)
 	plaintext, err = aesgcm.Open(nil, encrypted[:12], encrypted[12:], nil)
