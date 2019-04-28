@@ -36,22 +36,35 @@ func (e encryption) Salt() []byte {
 }
 
 // Encrypt will generate an encryption, prefixed with the IV
-func (e encryption) Encrypt(plaintext []byte) []byte {
+func (e encryption) Encrypt(plaintext []byte) (encrypted []byte, err error) {
 	// generate a random iv each time
 	// http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 	// Section 8.2
 	ivBytes := make([]byte, 12)
 	rand.Read(ivBytes)
-	b, _ := aes.NewCipher(e.key)
-	aesgcm, _ := cipher.NewGCM(b)
-	encrypted := aesgcm.Seal(nil, ivBytes, plaintext, nil)
-	return append(ivBytes, encrypted...)
+	b, err := aes.NewCipher(e.key)
+	if err != nil {
+		return
+	}
+	aesgcm, err := cipher.NewGCM(b)
+	if err != nil {
+		return
+	}
+	encrypted = aesgcm.Seal(nil, ivBytes, plaintext, nil)
+	encrypted = append(ivBytes, encrypted...)
+	return
 }
 
 // Decrypt an encryption
 func (e encryption) Decrypt(encrypted []byte) (plaintext []byte, err error) {
-	b, _ := aes.NewCipher(e.key)
-	aesgcm, _ := cipher.NewGCM(b)
+	b, err := aes.NewCipher(e.key)
+	if err != nil {
+		return
+	}
+	aesgcm, err := cipher.NewGCM(b)
+	if err != nil {
+		return
+	}
 	plaintext, err = aesgcm.Open(nil, encrypted[:12], encrypted[12:], nil)
 	return
 }
