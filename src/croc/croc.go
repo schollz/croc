@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"path"
@@ -17,7 +16,6 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/denisbrodbeck/machineid"
-	"github.com/go-redis/redis"
 	"github.com/schollz/croc/v6/src/comm"
 	"github.com/schollz/croc/v6/src/crypt"
 	"github.com/schollz/croc/v6/src/logger"
@@ -28,7 +26,6 @@ import (
 	"github.com/schollz/pake"
 	"github.com/schollz/progressbar/v2"
 	"github.com/schollz/spinner"
-	"github.com/sirupsen/logrus"
 )
 
 const BufferSize = 4096 * 10
@@ -132,36 +129,6 @@ func New(ops Options) (c *Client, err error) {
 	Debug(c.Options.Debug)
 	log.Debugf("options: %+v", c.Options)
 
-	// set channels
-	if c.Options.IsSender {
-		c.nameOutChannel = c.Options.SharedSecret + "2"
-		c.nameInChannel = c.Options.SharedSecret + "1"
-	} else {
-		c.nameOutChannel = c.Options.SharedSecret + "1"
-		c.nameInChannel = c.Options.SharedSecret + "2"
-	}
-
-	// initialize redis for communication in establishing channel
-	c.redisdb = redis.NewClient(&redis.Options{
-		Addr:         c.Options.AddressRelay,
-		Password:     "",
-		DB:           4,
-		WriteTimeout: 1 * time.Hour,
-		ReadTimeout:  1 * time.Hour,
-	})
-	_, err = c.redisdb.Ping().Result()
-	if err != nil {
-		return
-	}
-
-	// setup channel for listening
-	pubsub := c.redisdb.Subscribe(c.nameInChannel)
-	_, err = pubsub.Receive()
-	if err != nil {
-		return
-	}
-	c.incomingMessageChannel = pubsub.Channel()
-
 	// initialize pake
 	if c.Options.IsSender {
 		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 1, elliptic.P521(), 1*time.Microsecond)
@@ -171,20 +138,6 @@ func New(ops Options) (c *Client, err error) {
 	if err != nil {
 		return
 	}
-
-	// initialize logger
-	c.log = log.WithFields(logrus.Fields{
-		"is": "sender",
-	})
-	if !c.Options.IsSender {
-		c.log = log.WithFields(logrus.Fields{
-			"is": "recipient",
-		})
-	}
-
-	c.spinner = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
-	c.spinner.Writer = os.Stderr
-	c.spinner.Suffix = " connecting..."
 
 	c.mutex = &sync.Mutex{}
 	return
@@ -282,7 +235,7 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 	c.quit = make(chan bool)
 
 	// if recipient, initialize with sending pake information
-	c.log.Debug("ready")
+	log.Debug("ready")
 	if !c.Options.IsSender && !c.Step1ChannelSecured {
 		err = c.redisdb.Publish(c.nameOutChannel, Message{
 			Type:  "pake",
@@ -321,48 +274,6 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 	return
 }
 
-func (c *Client) sendOverRedis() (err error) {
-	go func() {
-		c.bar = progressbar.NewOptions(
-			int(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
-			progressbar.OptionSetRenderBlankState(true),
-			progressbar.OptionSetBytes(int(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)),
-			progressbar.OptionSetWriter(os.Stderr),
-			progressbar.OptionThrottle(1/60*time.Second),
-		)
-		c.CurrentFile, err = os.Open(c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
-		if err != nil {
-			panic(err)
-		}
-		location := int64(0)
-		for {
-			buf := make([]byte, 4096*128)
-			n, errRead := c.CurrentFile.Read(buf)
-			c.bar.Add(n)
-			chunk := Chunk{
-				Bytes:    buf[:n],
-				Location: location,
-			}
-			chunkB, _ := json.Marshal(chunk)
-			err = c.redisdb.Publish(c.nameOutChannel, Message{
-				Type:  "chunk",
-				Bytes: chunkB,
-			}.String()).Err()
-			if err != nil {
-				panic(err)
-			}
-			location += int64(n)
-			if errRead == io.EOF {
-				break
-			}
-			if errRead != nil {
-				panic(errRead)
-			}
-		}
-	}()
-	return
-}
-
 func (c *Client) processMessage(m Message) (err error) {
 	switch m.Type {
 	case "pake":
@@ -383,7 +294,7 @@ func (c *Client) processMessage(m Message) (err error) {
 			}.String()).Err()
 		}
 		if c.Pake.IsVerified() {
-			c.log.Debug(c.Pake.SessionKey())
+			log.Debug(c.Pake.SessionKey())
 			c.Step1ChannelSecured = true
 		}
 	case "error":
@@ -427,7 +338,7 @@ func (c *Client) processMessage(m Message) (err error) {
 		} else {
 			fmt.Fprintf(os.Stderr, "\rReceiving %s (%s) from machine '%s'\n", fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
 		}
-		c.log.Debug(c.FilesToTransfer)
+		log.Debug(c.FilesToTransfer)
 		c.Step2FileInfoTransfered = true
 	case "recipientready":
 		var remoteFile RemoteFileRequest
@@ -475,7 +386,7 @@ func (c *Client) processMessage(m Message) (err error) {
 			Type: "close-sender",
 		}.String()).Err()
 	case "datachannel-answer":
-		c.log.Debug("got answer:", m.Message)
+		log.Debug("got answer:", m.Message)
 		// Apply the answer as the remote description
 		err = c.sendSess.SetSDP(m.Message)
 		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
@@ -576,7 +487,7 @@ func (c *Client) updateState() (err error) {
 		err = c.dataChannelReceive()
 	}
 	if c.Options.IsSender && c.Step3RecipientRequestFile && !c.Step4FileTransfer {
-		c.log.Debug("start sending data!")
+		log.Debug("start sending data!")
 		err = c.dataChannelSend()
 		c.Step4FileTransfer = true
 	}
