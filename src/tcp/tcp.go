@@ -9,15 +9,16 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/pkg/errors"
-	"github.com/schollz/croc/src/comm"
-	"github.com/schollz/croc/src/logger"
+	"github.com/schollz/croc/v6/src/comm"
+	"github.com/schollz/croc/v6/src/logger"
 )
 
 const TCP_BUFFER_SIZE = 1024 * 64
 
 type server struct {
-	port  string
-	rooms roomMap
+	port       string
+	debugLevel string
+	rooms      roomMap
 }
 
 type roomInfo struct {
@@ -32,18 +33,16 @@ type roomMap struct {
 	sync.Mutex
 }
 
-var rooms roomMap
-
 // Run starts a tcp listener, run async
 func Run(debugLevel, port string) {
-	s = new(server)
+	s := new(server)
 	s.port = port
 	s.debugLevel = debugLevel
 	s.start()
 }
 
 func (s *server) start() {
-	logger.SetLogLevel(debugLevel)
+	logger.SetLogLevel(s.debugLevel)
 	s.rooms.Lock()
 	s.rooms.rooms = make(map[string]roomInfo)
 	s.rooms.Unlock()
@@ -62,17 +61,17 @@ func (s *server) start() {
 		}
 	}()
 
-	err := run(port)
+	err := s.run()
 	if err != nil {
 		log.Error(err)
 	}
 }
 
 func (s *server) run() (err error) {
-	log.Debugf("starting TCP server on " + port)
-	server, err := net.Listen("tcp", "0.0.0.0:"+port)
+	log.Debugf("starting TCP server on " + s.port)
+	server, err := net.Listen("tcp", "0.0.0.0:"+s.port)
 	if err != nil {
-		return errors.Wrap(err, "Error listening on :"+port)
+		return errors.Wrap(err, "Error listening on :"+s.port)
 	}
 	defer server.Close()
 	// spawn a new goroutine whenever a client connects
@@ -83,15 +82,15 @@ func (s *server) run() (err error) {
 		}
 		log.Debugf("client %s connected", connection.RemoteAddr().String())
 		go func(port string, connection net.Conn) {
-			errCommunication := clientCommuncation(port, comm.New(connection))
+			errCommunication := s.clientCommuncation(port, comm.New(connection))
 			if errCommunication != nil {
 				log.Warnf("relay-%s: %s", connection.RemoteAddr().String(), errCommunication.Error())
 			}
-		}(port, connection)
+		}(s.port, connection)
 	}
 }
 
-func clientCommuncation(port string, c *comm.Comm) (err error) {
+func (s *server) clientCommuncation(port string, c *comm.Comm) (err error) {
 	// send ok to tell client they are connected
 	log.Debug("sending ok")
 	err = c.Send([]byte("ok"))
