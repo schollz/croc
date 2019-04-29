@@ -162,7 +162,7 @@ func clientCommuncation(port string, c *comm.Comm) (err error) {
 // chanFromConn creates a channel from a Conn object, and sends everything it
 //  Read()s from the socket to the channel.
 func chanFromConn(conn net.Conn) chan []byte {
-	c := make(chan []byte)
+	c := make(chan []byte, 1)
 
 	go func() {
 		b := make([]byte, TCP_BUFFER_SIZE)
@@ -181,6 +181,7 @@ func chanFromConn(conn net.Conn) chan []byte {
 				break
 			}
 		}
+		log.Debug("exiting")
 	}()
 
 	return c
