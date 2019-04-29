@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/schollz/croc/src/comm"
 	"github.com/schollz/croc/src/logger"
-	"github.com/schollz/croc/src/models"
 )
 
 const TCP_BUFFER_SIZE = 1024 * 64

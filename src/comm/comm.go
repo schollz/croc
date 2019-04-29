@@ -17,13 +17,10 @@ type Comm struct {
 
 // NewConnection gets a new comm to a tcp address
 func NewConnection(address string) (c Comm, err error) {
-	connection, err := net.DialTimeout("tcp", address, 3*time.Hour)
+	connection, err := net.DialTimeout("tcp", address, 3*time.Second)
 	if err != nil {
 		return
 	}
-	connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
-	connection.SetDeadline(time.Now().Add(3 * time.Hour))
-	connection.SetWriteDeadline(time.Now().Add(3 * time.Hour))
 	c = New(connection)
 	return
 }
