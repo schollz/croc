@@ -15,15 +15,16 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/cihub/seelog"
 	"github.com/denisbrodbeck/machineid"
 	"github.com/go-redis/redis"
-	"github.com/mattn/go-colorable"
-	"github.com/pions/webrtc"
-	"github.com/schollz/croc/v5/src/crypt"
-	"github.com/schollz/croc/v5/src/utils"
-	"github.com/schollz/croc/v5/src/webrtc/pkg/session/common"
-	"github.com/schollz/croc/v5/src/webrtc/pkg/session/receiver"
-	"github.com/schollz/croc/v5/src/webrtc/pkg/session/sender"
+	"github.com/schollz/croc/v6/src/comm"
+	"github.com/schollz/croc/v6/src/crypt"
+	"github.com/schollz/croc/v6/src/logger"
+	"github.com/schollz/croc/v6/src/utils"
+	"github.com/schollz/croc/v6/src/webrtc/pkg/session/common"
+	"github.com/schollz/croc/v6/src/webrtc/pkg/session/receiver"
+	"github.com/schollz/croc/v6/src/webrtc/pkg/session/sender"
 	"github.com/schollz/pake"
 	"github.com/schollz/progressbar/v2"
 	"github.com/schollz/spinner"
@@ -33,29 +34,29 @@ import (
 const BufferSize = 4096 * 10
 const Channels = 1
 
-var log = logrus.New()
-
 func init() {
-	log.SetFormatter(&logrus.TextFormatter{ForceColors: true})
-	log.SetOutput(colorable.NewColorableStdout())
-	Debug(false)
+	logger.SetLogLevel("debug")
 }
 
 func Debug(debug bool) {
-	receiver.Debug(debug)
-	sender.Debug(debug)
 	if debug {
-		log.SetLevel(logrus.DebugLevel)
+		logger.SetLogLevel("debug")
 	} else {
-		log.SetLevel(logrus.WarnLevel)
+		logger.SetLogLevel("warn")
 	}
+}
+
+type Options struct {
+	IsSender     bool
+	SharedSecret string
+	Debug        bool
+	AddressRelay string
+	Stdout       bool
+	NoPrompt     bool
 }
 
 type Client struct {
 	Options Options
-	// basic setup
-	redisdb *redis.Client
-	log     *logrus.Entry
 	Pake    *pake.Pake
 
 	// steps involved in forming relationship
@@ -63,7 +64,7 @@ type Client struct {
 	Step2FileInfoTransfered   bool
 	Step3RecipientRequestFile bool
 	Step4FileTransfer         bool
-	Step5CloseChannels        bool // TODO: Step5 should close files and reset things
+	Step5CloseChannels        bool
 
 	// send / receive information of all files
 	FilesToTransfer           []FileInfo
@@ -73,17 +74,8 @@ type Client struct {
 	CurrentFile       *os.File
 	CurrentFileChunks []int64
 
-	sendSess *sender.Session
-	recvSess *receiver.Session
-
-	// channel data
-	incomingMessageChannel <-chan *redis.Message
-	nameOutChannel         string
-	nameInChannel          string
-
-	// webrtc connections
-	peerConnection [8]*webrtc.PeerConnection
-	dataChannel    [8]*webrtc.DataChannel
+	// tcp connectios
+	conn [17]*comm.Comm
 
 	bar       *progressbar.ProgressBar
 	spinner   *spinner.Spinner
@@ -129,15 +121,6 @@ type SenderInfo struct {
 func (m Message) String() string {
 	b, _ := json.Marshal(m)
 	return string(b)
-}
-
-type Options struct {
-	IsSender     bool
-	SharedSecret string
-	Debug        bool
-	AddressRelay string
-	Stdout       bool
-	NoPrompt     bool
 }
 
 // New establishes a new connection for transfering files between two instances.
