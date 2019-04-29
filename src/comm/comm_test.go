@@ -1,6 +1,7 @@
 package comm
 
 import (
+	"crypto/rand"
 	"net"
 	"testing"
 	"time"
@@ -11,6 +12,8 @@ import (
 
 func TestComm(t *testing.T) {
 	defer log.Flush()
+	token := make([]byte, 40000000)
+	rand.Read(token)
 
 	port := "8001"
 	go func() {
@@ -37,6 +40,9 @@ func TestComm(t *testing.T) {
 				data, err = c.Receive()
 				assert.Nil(t, err)
 				assert.Equal(t, []byte{'\x00'}, data)
+				data, err = c.Receive()
+				assert.Nil(t, err)
+				assert.Equal(t, token, data)
 			}(port, connection)
 		}
 	}()
@@ -49,4 +55,7 @@ func TestComm(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Nil(t, a.Send([]byte("hello, computer")))
 	assert.Nil(t, a.Send([]byte{'\x00'}))
+
+	assert.Nil(t, a.Send(token))
+
 }
