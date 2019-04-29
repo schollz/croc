@@ -30,4 +30,17 @@ func TestEncryption(t *testing.T) {
 	dec, err := jane.Decrypt(enc)
 	assert.Nil(t, err)
 	assert.Equal(t, dec, []byte("hello, world"))
+
+	jane2, err := New([]byte("password"), nil)
+	assert.Nil(t, err)
+	dec, err = jane2.Decrypt(enc)
+	assert.NotNil(t, err)
+	assert.NotEqual(t, dec, []byte("hello, world"))
+
+	jane3, err := New([]byte("passwordwrong"), bob.Salt())
+	assert.Nil(t, err)
+	dec, err = jane3.Decrypt(enc)
+	assert.NotNil(t, err)
+	assert.NotEqual(t, dec, []byte("hello, world"))
+
 }
