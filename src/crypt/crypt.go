@@ -9,15 +9,15 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 )
 
-type encryption struct {
+type Encryption struct {
 	key        []byte
 	passphrase []byte
 	salt       []byte
 }
 
-// New generates a new encryption, using the supplied passphrase and
+// New generates a new Encryption, using the supplied passphrase and
 // an optional supplied salt.
-func New(passphrase []byte, salt []byte) (e encryption, err error) {
+func New(passphrase []byte, salt []byte) (e Encryption, err error) {
 	e.passphrase = passphrase
 	if salt == nil {
 		e.salt = make([]byte, 8)
@@ -31,12 +31,12 @@ func New(passphrase []byte, salt []byte) (e encryption, err error) {
 	return
 }
 
-func (e encryption) Salt() []byte {
+func (e Encryption) Salt() []byte {
 	return e.salt
 }
 
-// Encrypt will generate an encryption, prefixed with the IV
-func (e encryption) Encrypt(plaintext []byte) (encrypted []byte, err error) {
+// Encrypt will generate an Encryption, prefixed with the IV
+func (e Encryption) Encrypt(plaintext []byte) (encrypted []byte, err error) {
 	// generate a random iv each time
 	// http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 	// Section 8.2
@@ -55,8 +55,8 @@ func (e encryption) Encrypt(plaintext []byte) (encrypted []byte, err error) {
 	return
 }
 
-// Decrypt an encryption
-func (e encryption) Decrypt(encrypted []byte) (plaintext []byte, err error) {
+// Decrypt an Encryption
+func (e Encryption) Decrypt(encrypted []byte) (plaintext []byte, err error) {
 	b, err := aes.NewCipher(e.key)
 	if err != nil {
 		return
