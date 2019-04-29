@@ -1,12 +1,9 @@
 package tcp
 
 import (
-	"bytes"
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/schollz/croc/src/comm"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,35 +31,4 @@ func TestTCP(t *testing.T) {
 
 	c1.Close()
 	assert.True(t, c1.IsClosed())
-
-	time.Sleep(200 * time.Millisecond)
-	assert.True(t, c2.IsClosed())
-}
-
-func ConnectToTCPServer(address, room string) (c *comm.Comm, err error) {
-	c, err = comm.NewConnection("localhost:8081")
-	if err != nil {
-		return
-	}
-	data, err := c.Receive()
-	if err != nil {
-		return
-	}
-	if !bytes.Equal(data, []byte("ok")) {
-		err = fmt.Errorf("got bad response: %s", data)
-		return
-	}
-	err = c.Send([]byte(room))
-	if err != nil {
-		return
-	}
-	data, err = c.Receive()
-	if err != nil {
-		return
-	}
-	if !bytes.Equal(data, []byte("ok")) {
-		err = fmt.Errorf("got bad response: %s", data)
-		return
-	}
-	return
 }
