@@ -15,8 +15,23 @@ type Comm struct {
 	connection net.Conn
 }
 
+func (c *Comm) IsClosed() bool {
+	one := []byte{}
+	c.connection.SetReadDeadline(time.Now())
+	_, err := c.connection.Read(one)
+	if err != nil {
+		fmt.Println(err)
+		c.connection.Close()
+		c.connection = nil
+		return true
+	} else {
+		c.connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
+	}
+	return false
+}
+
 // NewConnection gets a new comm to a tcp address
-func NewConnection(address string) (c Comm, err error) {
+func NewConnection(address string) (c *Comm, err error) {
 	connection, err := net.DialTimeout("tcp", address, 3*time.Second)
 	if err != nil {
 		return
@@ -26,24 +41,26 @@ func NewConnection(address string) (c Comm, err error) {
 }
 
 // New returns a new comm
-func New(c net.Conn) Comm {
+func New(c net.Conn) *Comm {
 	c.SetReadDeadline(time.Now().Add(3 * time.Hour))
 	c.SetDeadline(time.Now().Add(3 * time.Hour))
 	c.SetWriteDeadline(time.Now().Add(3 * time.Hour))
-	return Comm{c}
+	comm := new(Comm)
+	comm.connection = c
+	return comm
 }
 
 // Connection returns the net.Conn connection
-func (c Comm) Connection() net.Conn {
+func (c *Comm) Connection() net.Conn {
 	return c.connection
 }
 
 // Close closes the connection
-func (c Comm) Close() {
+func (c *Comm) Close() {
 	c.connection.Close()
 }
 
-func (c Comm) Write(b []byte) (int, error) {
+func (c *Comm) Write(b []byte) (int, error) {
 	header := new(bytes.Buffer)
 	err := binary.Write(header, binary.LittleEndian, uint32(len(b)))
 	if err != nil {
@@ -62,7 +79,7 @@ func (c Comm) Write(b []byte) (int, error) {
 	return n, err
 }
 
-func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
+func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	// read until we get 5 bytes
 	header := make([]byte, 4)
 	n, err := c.connection.Read(header)
@@ -99,13 +116,13 @@ func (c Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 }
 
 // Send a message
-func (c Comm) Send(message []byte) (err error) {
+func (c *Comm) Send(message []byte) (err error) {
 	_, err = c.Write(message)
 	return
 }
 
 // Receive a message
-func (c Comm) Receive() (b []byte, err error) {
+func (c *Comm) Receive() (b []byte, err error) {
 	b, _, _, err = c.Read()
 	return
 }

@@ -14,8 +14,8 @@ import (
 const TCP_BUFFER_SIZE = 1024 * 64
 
 type roomInfo struct {
-	first  comm.Comm
-	second comm.Comm
+	first  *comm.Comm
+	second *comm.Comm
 	opened time.Time
 	full   bool
 }
@@ -77,7 +77,7 @@ func run(port string) (err error) {
 	}
 }
 
-func clientCommuncation(port string, c comm.Comm) (err error) {
+func clientCommuncation(port string, c *comm.Comm) (err error) {
 	// send ok to tell client they are connected
 	log.Debug("sending ok")
 	err = c.Send([]byte("ok"))
@@ -134,7 +134,7 @@ func clientCommuncation(port string, c comm.Comm) (err error) {
 	wg.Add(1)
 
 	// start piping
-	go func(com1, com2 comm.Comm, wg *sync.WaitGroup) {
+	go func(com1, com2 *comm.Comm, wg *sync.WaitGroup) {
 		log.Debug("starting pipes")
 		pipe(com1.Connection(), com2.Connection())
 		wg.Done()
@@ -153,6 +153,7 @@ func clientCommuncation(port string, c comm.Comm) (err error) {
 	log.Debugf("deleting room: %s", room)
 	rooms.rooms[room].first.Close()
 	rooms.rooms[room].second.Close()
+	rooms.rooms[room] = roomInfo{first: nil, second: nil}
 	delete(rooms.rooms, room)
 	rooms.Unlock()
 	return nil

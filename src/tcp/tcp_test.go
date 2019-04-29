@@ -20,6 +20,7 @@ func TestTCP(t *testing.T) {
 	_, err = ConnectToTCPServer("localhost:8081", "testRoom")
 	assert.NotNil(t, err)
 
+	assert.False(t, c1.IsClosed())
 	// try sending data
 	assert.Nil(t, c1.Send([]byte("hello, c2")))
 	data, err := c2.Receive()
@@ -32,14 +33,13 @@ func TestTCP(t *testing.T) {
 	assert.Equal(t, []byte("hello, c1"), data)
 
 	c1.Close()
+	assert.True(t, c1.IsClosed())
+
 	time.Sleep(200 * time.Millisecond)
-	err = c2.Send([]byte("test"))
-	assert.Nil(t, err)
-	_, err = c2.Receive()
-	assert.NotNil(t, err)
+	assert.True(t, c2.IsClosed())
 }
 
-func ConnectToTCPServer(address, room string) (c comm.Comm, err error) {
+func ConnectToTCPServer(address, room string) (c *comm.Comm, err error) {
 	c, err = comm.NewConnection("localhost:8081")
 	if err != nil {
 		return
