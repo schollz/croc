@@ -15,6 +15,11 @@ import (
 
 const TCP_BUFFER_SIZE = 1024 * 64
 
+type server struct {
+	port  string
+	rooms roomMap
+}
+
 type roomInfo struct {
 	first  *comm.Comm
 	second *comm.Comm
@@ -31,22 +36,29 @@ var rooms roomMap
 
 // Run starts a tcp listener, run async
 func Run(debugLevel, port string) {
+	s = new(server)
+	s.port = port
+	s.debugLevel = debugLevel
+	s.start()
+}
+
+func (s *server) start() {
 	logger.SetLogLevel(debugLevel)
-	rooms.Lock()
-	rooms.rooms = make(map[string]roomInfo)
-	rooms.Unlock()
+	s.rooms.Lock()
+	s.rooms.rooms = make(map[string]roomInfo)
+	s.rooms.Unlock()
 
 	// delete old rooms
 	go func() {
 		for {
 			time.Sleep(10 * time.Minute)
-			rooms.Lock()
-			for room := range rooms.rooms {
-				if time.Since(rooms.rooms[room].opened) > 3*time.Hour {
-					delete(rooms.rooms, room)
+			s.rooms.Lock()
+			for room := range s.rooms.rooms {
+				if time.Since(s.rooms.rooms[room].opened) > 3*time.Hour {
+					delete(s.rooms.rooms, room)
 				}
 			}
-			rooms.Unlock()
+			s.rooms.Unlock()
 		}
 	}()
 
@@ -56,7 +68,7 @@ func Run(debugLevel, port string) {
 	}
 }
 
-func run(port string) (err error) {
+func (s *server) run() (err error) {
 	log.Debugf("starting TCP server on " + port)
 	server, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
@@ -95,14 +107,14 @@ func clientCommuncation(port string, c *comm.Comm) (err error) {
 	}
 	room := string(roomBytes)
 
-	rooms.Lock()
+	s.rooms.Lock()
 	// create the room if it is new
-	if _, ok := rooms.rooms[room]; !ok {
-		rooms.rooms[room] = roomInfo{
+	if _, ok := s.rooms.rooms[room]; !ok {
+		s.rooms.rooms[room] = roomInfo{
 			first:  c,
 			opened: time.Now(),
 		}
-		rooms.Unlock()
+		s.rooms.Unlock()
 		// tell the client that they got the room
 		err = c.Send([]byte("ok"))
 		if err != nil {
@@ -112,8 +124,8 @@ func clientCommuncation(port string, c *comm.Comm) (err error) {
 		log.Debugf("room %s has 1", room)
 		return nil
 	}
-	if rooms.rooms[room].full {
-		rooms.Unlock()
+	if s.rooms.rooms[room].full {
+		s.rooms.Unlock()
 		err = c.Send([]byte("room full"))
 		if err != nil {
 			log.Error(err)
@@ -122,14 +134,14 @@ func clientCommuncation(port string, c *comm.Comm) (err error) {
 		return nil
 	}
 	log.Debugf("room %s has 2", room)
-	rooms.rooms[room] = roomInfo{
-		first:  rooms.rooms[room].first,
+	s.rooms.rooms[room] = roomInfo{
+		first:  s.rooms.rooms[room].first,
 		second: c,
-		opened: rooms.rooms[room].opened,
+		opened: s.rooms.rooms[room].opened,
 		full:   true,
 	}
-	otherConnection := rooms.rooms[room].first
-	rooms.Unlock()
+	otherConnection := s.rooms.rooms[room].first
+	s.rooms.Unlock()
 
 	// second connection is the sender, time to staple connections
 	var wg sync.WaitGroup
@@ -151,13 +163,13 @@ func clientCommuncation(port string, c *comm.Comm) (err error) {
 	wg.Wait()
 
 	// delete room
-	rooms.Lock()
+	s.rooms.Lock()
 	log.Debugf("deleting room: %s", room)
-	rooms.rooms[room].first.Close()
-	rooms.rooms[room].second.Close()
-	rooms.rooms[room] = roomInfo{first: nil, second: nil}
-	delete(rooms.rooms, room)
-	rooms.Unlock()
+	s.rooms.rooms[room].first.Close()
+	s.rooms.rooms[room].second.Close()
+	s.rooms.rooms[room] = roomInfo{first: nil, second: nil}
+	delete(s.rooms.rooms, room)
+	s.rooms.Unlock()
 	return nil
 }
 
