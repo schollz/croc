@@ -1,6 +1,8 @@
 package tcp
 
 import (
+	"bytes"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -208,4 +210,31 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 			conn1.Write(b2)
 		}
 	}
+}
+func ConnectToTCPServer(address, room string) (c *comm.Comm, err error) {
+	c, err = comm.NewConnection("localhost:8081")
+	if err != nil {
+		return
+	}
+	data, err := c.Receive()
+	if err != nil {
+		return
+	}
+	if !bytes.Equal(data, []byte("ok")) {
+		err = fmt.Errorf("got bad response: %s", data)
+		return
+	}
+	err = c.Send([]byte(room))
+	if err != nil {
+		return
+	}
+	data, err = c.Receive()
+	if err != nil {
+		return
+	}
+	if !bytes.Equal(data, []byte("ok")) {
+		err = fmt.Errorf("got bad response: %s", data)
+		return
+	}
+	return
 }
