@@ -17,7 +17,12 @@ type Encryption struct {
 
 // New generates a new Encryption, using the supplied passphrase and
 // an optional supplied salt.
+// Passing nil passphrase will not use decryption.
 func New(passphrase []byte, salt []byte) (e Encryption, err error) {
+	if passphrase == nil {
+		e = Encryption{nil, nil, nil}
+		return
+	}
 	e.passphrase = passphrase
 	if salt == nil {
 		e.salt = make([]byte, 8)
@@ -37,6 +42,10 @@ func (e Encryption) Salt() []byte {
 
 // Encrypt will generate an Encryption, prefixed with the IV
 func (e Encryption) Encrypt(plaintext []byte) (encrypted []byte, err error) {
+	if e.passphrase == nil {
+		encrypted = plaintext
+		return
+	}
 	// generate a random iv each time
 	// http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 	// Section 8.2
@@ -57,6 +66,10 @@ func (e Encryption) Encrypt(plaintext []byte) (encrypted []byte, err error) {
 
 // Decrypt an Encryption
 func (e Encryption) Decrypt(encrypted []byte) (plaintext []byte, err error) {
+	if e.passphrase == nil {
+		plaintext = encrypted
+		return
+	}
 	b, err := aes.NewCipher(e.key)
 	if err != nil {
 		return
