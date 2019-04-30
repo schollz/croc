@@ -129,18 +129,19 @@ func MissingChunks(fname string, fsize int64, chunkSize int) (chunks []int64) {
 	}
 	defer f.Close()
 
-	buffer := make([]byte, chunkSize)
 	emptyBuffer := make([]byte, chunkSize)
 	chunkNum := 0
 	chunks = make([]int64, int64(math.Ceil(float64(fsize)/float64(chunkSize))))
 	var currentLocation int64
 	for {
+		buffer := make([]byte, chunkSize)
 		bytesread, err := f.Read(buffer)
 		if err != nil {
 			break
 		}
 		if bytes.Equal(buffer[:bytesread], emptyBuffer[:bytesread]) {
 			chunks[chunkNum] = currentLocation
+			chunkNum++
 		}
 		currentLocation += int64(bytesread)
 	}
