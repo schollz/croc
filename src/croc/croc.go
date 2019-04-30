@@ -474,9 +474,19 @@ func (c *Client) updateState() (err error) {
 			pathToFile,
 			os.O_WRONLY, 0666)
 		truncate := false
+		c.CurrentFileChunks = []int64{}
 		if errOpen == nil {
 			stat, _ := c.CurrentFile.Stat()
 			truncate = stat.Size() != c.FilesToTransfer[c.FilesToTransferCurrentNum].Size
+			if truncate == false {
+				// recipient requests the file and chunks (if empty, then should receive all chunks)
+				// TODO: determine the missing chunks
+				c.CurrentFileChunks = utils.MissingChunks(
+					pathToFile,
+					c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
+					models.TCP_BUFFER_SIZE/2,
+				)
+			}
 		} else {
 			c.CurrentFile, errOpen = os.Create(pathToFile)
 			if errOpen != nil {
@@ -510,13 +520,6 @@ func (c *Client) updateState() (err error) {
 		)
 		c.TotalSent = 0
 
-		// recipient requests the file and chunks (if empty, then should receive all chunks)
-		// TODO: determine the missing chunks
-		c.CurrentFileChunks = utils.MissingChunks(
-			pathToFile,
-			c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
-			models.TCP_BUFFER_SIZE/2,
-		)
 		if len(c.CurrentFileChunks) > 0 {
 			c.bar.Add(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
 		}
