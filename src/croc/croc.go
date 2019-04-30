@@ -165,7 +165,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	go func() {
 		discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
 			Limit:     1,
-			Payload:   []byte("192.168.0.4:9009"),
+			Payload:   []byte(c.Options.RelayPorts[0]),
 			Delay:     10 * time.Millisecond,
 			TimeLimit: 30 * time.Second,
 		})
@@ -177,14 +177,15 @@ func (c *Client) Send(options TransferOptions) (err error) {
 
 // Receive will receive a file
 func (c *Client) Receive() (err error) {
-	discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
-		Limit:     1,
-		Payload:   []byte("ok"),
-		Delay:     10 * time.Millisecond,
-		TimeLimit: 100 * time.Millisecond,
-	})
-	fmt.Println(discoveries)
-	fmt.Println(err)
+	// look for peers first
+	//discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
+	//	Limit:     1,
+	//	Payload:   []byte("ok"),
+	//	Delay:     10 * time.Millisecond,
+	//	TimeLimit: 100 * time.Millisecond,
+	//})
+	//fmt.Println(discoveries)
+	//fmt.Println(err)
 	return nil
 
 	return c.transfer(TransferOptions{})
