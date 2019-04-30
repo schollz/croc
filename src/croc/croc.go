@@ -27,6 +27,7 @@ import (
 	"github.com/schollz/croc/v6/src/tcp"
 	"github.com/schollz/croc/v6/src/utils"
 	"github.com/schollz/pake"
+	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v2"
 	"github.com/schollz/spinner"
 )
@@ -160,11 +161,32 @@ type TransferOptions struct {
 
 // Send will send the specified file
 func (c *Client) Send(options TransferOptions) (err error) {
+	// look for peers first
+	go func() {
+		discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
+			Limit:     1,
+			Payload:   []byte("192.168.0.4:9009"),
+			Delay:     10 * time.Millisecond,
+			TimeLimit: 30 * time.Second,
+		})
+		fmt.Println(discoveries, err)
+	}()
+
 	return c.transfer(options)
 }
 
 // Receive will receive a file
 func (c *Client) Receive() (err error) {
+	discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
+		Limit:     1,
+		Payload:   []byte("ok"),
+		Delay:     10 * time.Millisecond,
+		TimeLimit: 100 * time.Millisecond,
+	})
+	fmt.Println(discoveries)
+	fmt.Println(err)
+	return nil
+
 	return c.transfer(TransferOptions{})
 }
 
