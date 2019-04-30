@@ -17,7 +17,7 @@ type Comm struct {
 
 // NewConnection gets a new comm to a tcp address
 func NewConnection(address string) (c *Comm, err error) {
-	connection, err := net.DialTimeout("tcp", address, 3*time.Second)
+	connection, err := net.DialTimeout("tcp", address, 30*time.Second)
 	if err != nil {
 		return
 	}

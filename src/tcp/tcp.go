@@ -70,7 +70,7 @@ func (s *server) start() (err error) {
 
 func (s *server) run() (err error) {
 	log.Debugf("starting TCP server on " + s.port)
-	server, err := net.Listen("tcp", "0.0.0.0:"+s.port)
+	server, err := net.Listen("tcp", ":"+s.port)
 	if err != nil {
 		return errors.Wrap(err, "Error listening on :"+s.port)
 	}
