@@ -65,18 +65,21 @@ func (c *Comm) Write(b []byte) (int, error) {
 }
 
 func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
-	// read until we get 5 bytes
-	header := make([]byte, 4)
-	n, err := c.connection.Read(header)
-	if err != nil {
-		return
+	// read until we get 4 bytes for the header
+	var header []byte
+	numBytes = 4
+	for {
+		tmp := make([]byte,numBytes-len(header))
+		n, errRead := c.connection.Read(tmp)
+		if errRead != nil {
+			err = errRead
+			return
+		}
+		header = append(header, tmp[:n]...)
+		if numBytes == len(header) {
+			break
+		}
 	}
-	if n < 4 {
-		err = fmt.Errorf("not enough bytes: %d", n)
-		return
-	}
-	// make it so it won't change
-	header = append([]byte(nil), header...)
 
 	var numBytesUint32 uint32
 	rbuf := bytes.NewReader(header)
