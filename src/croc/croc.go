@@ -236,7 +236,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 				if c.Options.Debug {
 					debugString = "debug"
 				}
-				err = tcp.Run(debugString, portStr)
+				err = tcp.Run(debugString, portStr, strings.Join(c.Options.RelayPorts, ","))
 				if err != nil {
 					panic(err)
 				}
