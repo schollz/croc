@@ -10,14 +10,14 @@ import (
 
 func TestMessage(t *testing.T) {
 	m := Message{Type: "message", Message: "hello, world"}
-	e, err := crypt.New([]byte("passphrase"), nil)
+	e, err := crypt.New(nil, nil)
 	assert.Nil(t, err)
 	fmt.Println(e.Salt())
-	b, err := Encode(m, e)
+	b, err := Encode(e, m)
 	assert.Nil(t, err)
 	fmt.Printf("%x\n", b)
 
-	m2, err := Decode(b, e)
+	m2, err := Decode(e, b)
 	assert.Nil(t, err)
 	assert.Equal(t, m, m2)
 }

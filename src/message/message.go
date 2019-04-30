@@ -3,9 +3,9 @@ package message
 import (
 	"encoding/json"
 
+	"github.com/schollz/croc/v6/src/comm"
 	"github.com/schollz/croc/v6/src/compress"
 	"github.com/schollz/croc/v6/src/crypt"
-	"github.com/schollz/croc/v6/src/comm"
 )
 
 // Message is the possible payload for messaging
@@ -21,37 +21,32 @@ func (m Message) String() string {
 	return string(b)
 }
 
-// Send will send out 
-func Send(c *comm.Comm, m Message) (err error) {
-	mSend, err := Encode(m)
+// Send will send out
+func Send(c *comm.Comm, key crypt.Encryption, m Message) (err error) {
+	mSend, err := Encode(key, m)
 	if err != nil {
 		return
 	}
 	_, err = c.Write(mSend)
-return
+	return
 }
 
 // Encode will convert to bytes
-func Encode(m Message, e ...crypt.Encryption) (b []byte, err error) {
+func Encode(key crypt.Encryption, m Message) (b []byte, err error) {
 	b, err = json.Marshal(m)
 	if err != nil {
 		return
 	}
-
 	b = compress.Compress(b)
-	if len(e) > 0 {
-		b, err = e[0].Encrypt(b)
-	}
+	b, err = key.Encrypt(b)
 	return
 }
 
 // Decode will convert from bytes
-func Decode(b []byte, e ...crypt.Encryption) (m Message, err error) {
-	if len(e) > 0 {
-		b, err = e[0].Decrypt(b)
-		if err != nil {
-			return
-		}
+func Decode(key crypt.Encryption, b []byte) (m Message, err error) {
+	b, err = key.Decrypt(b)
+	if err != nil {
+		return
 	}
 	b = compress.Decompress(b)
 	err = json.Unmarshal(b, &m)

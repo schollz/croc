@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -16,17 +15,17 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/denisbrodbeck/machineid"
+	"github.com/pkg/errors"
 	"github.com/schollz/croc/v6/src/comm"
 	"github.com/schollz/croc/v6/src/crypt"
 	"github.com/schollz/croc/v6/src/logger"
+	"github.com/schollz/croc/v6/src/message"
+	"github.com/schollz/croc/v6/src/tcp"
 	"github.com/schollz/croc/v6/src/utils"
 	"github.com/schollz/pake"
 	"github.com/schollz/progressbar/v2"
 	"github.com/schollz/spinner"
 )
-
-const BufferSize = 4096 * 10
-const Channels = 1
 
 func init() {
 	logger.SetLogLevel("debug")
@@ -44,7 +43,8 @@ type Options struct {
 	IsSender     bool
 	SharedSecret string
 	Debug        bool
-	AddressRelay string
+	RelayAddress string
+	RelayPorts   []string
 	Stdout       bool
 	NoPrompt     bool
 }
@@ -52,6 +52,7 @@ type Options struct {
 type Client struct {
 	Options Options
 	Pake    *pake.Pake
+	Key     crypt.Encryption
 
 	// steps involved in forming relationship
 	Step1ChannelSecured       bool
@@ -68,8 +69,8 @@ type Client struct {
 	CurrentFile       *os.File
 	CurrentFileChunks []int64
 
-	// tcp connectios
-	conn [17]*comm.Comm
+	// tcp connections
+	conn []*comm.Comm
 
 	bar       *progressbar.ProgressBar
 	spinner   *spinner.Spinner
@@ -77,13 +78,6 @@ type Client struct {
 
 	mutex *sync.Mutex
 	quit  chan bool
-}
-
-type Message struct {
-	Type    string `json:"t,omitempty"`
-	Message string `json:"m,omitempty"`
-	Bytes   []byte `json:"b,omitempty"`
-	Num     int    `json:"n,omitempty"`
 }
 
 type Chunk struct {
@@ -112,11 +106,6 @@ type SenderInfo struct {
 	FilesToTransfer []FileInfo
 }
 
-func (m Message) String() string {
-	b, _ := json.Marshal(m)
-	return string(b)
-}
-
 // New establishes a new connection for transfering files between two instances.
 func New(ops Options) (c *Client, err error) {
 	c = new(Client)
@@ -125,6 +114,22 @@ func New(ops Options) (c *Client, err error) {
 	c.Options = ops
 	Debug(c.Options.Debug)
 	log.Debugf("options: %+v", c.Options)
+
+	log.Debug("establishing connection")
+	c.conn = make([]*comm.Comm, len(c.Options.RelayPorts))
+	// connect to the relay for messaging
+	c.conn[0], err = tcp.ConnectToTCPServer(fmt.Sprintf("%s:%s", c.Options.RelayAddress, c.Options.RelayPorts[0]), c.Options.SharedSecret)
+	if err != nil {
+		err = errors.Wrap(err, fmt.Sprintf("could not connect to %s:%s", c.Options.RelayAddress, c.Options.RelayPorts[0]))
+		return
+	}
+	log.Debugf("connection established: %+v", c.conn[0])
+
+	// use default key (no encryption, until PAKE succeeds)
+	c.Key, err = crypt.New(nil, nil)
+	if err != nil {
+		return
+	}
 
 	// initialize pake
 	if c.Options.IsSender {
@@ -140,6 +145,7 @@ func New(ops Options) (c *Client, err error) {
 	return
 }
 
+// TransferOptions for sending
 type TransferOptions struct {
 	PathToFiles      []string
 	KeepPathInRemote bool
@@ -156,6 +162,8 @@ func (c *Client) Receive() (err error) {
 }
 
 func (c *Client) transfer(options TransferOptions) (err error) {
+	// connect to the server
+
 	if c.Options.IsSender {
 		c.FilesToTransfer = make([]FileInfo, len(options.PathToFiles))
 		totalFilesSize := int64(0)
@@ -224,9 +232,9 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 		c.machineID = machID
 		fmt.Fprintf(os.Stderr, "Sending %s (%s) from your machine, '%s'\n", fname, utils.ByteCountDecimal(totalFilesSize), machID)
 		fmt.Fprintf(os.Stderr, "Code is: %s\nOn the other computer run\n\ncroc %s\n", c.Options.SharedSecret, c.Options.SharedSecret)
-		c.spinner.Suffix = " waiting for recipient..."
+		// // c.spinner.Suffix = " waiting for recipient..."
 	}
-	c.spinner.Start()
+	// c.spinner.Start()
 	// create channel for quitting
 	// quit with c.quit <- true
 	c.quit = make(chan bool)
@@ -234,10 +242,10 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 	// if recipient, initialize with sending pake information
 	log.Debug("ready")
 	if !c.Options.IsSender && !c.Step1ChannelSecured {
-		err = c.redisdb.Publish(c.nameOutChannel, Message{
+		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:  "pake",
 			Bytes: c.Pake.Bytes(),
-		}.String()).Err()
+		})
 		if err != nil {
 			return
 		}
@@ -245,70 +253,63 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 
 	// listen for incoming messages and process them
 	for {
-		select {
-		case <-c.quit:
+		var data []byte
+		data, err = c.conn[0].Receive()
+		if err != nil {
 			return
-		case msg := <-c.incomingMessageChannel:
-			var m Message
-			err = json.Unmarshal([]byte(msg.Payload), &m)
-			if err != nil {
-				return
-			}
-			if m.Type == "finished" {
-				err = c.redisdb.Publish(c.nameOutChannel, Message{
-					Type: "finished",
-				}.String()).Err()
-				return err
-			}
-			err = c.processMessage(m)
-			if err != nil {
-				return
-			}
-		default:
-			time.Sleep(1 * time.Millisecond)
+		}
+		err = c.processMessage(data)
+		if err != nil {
+			return
 		}
 	}
 	return
 }
 
-func (c *Client) processMessage(m Message) (err error) {
+func (c *Client) processMessage(payload []byte) (err error) {
+	m, err := message.Decode(c.Key, payload)
+	if err != nil {
+		return
+	}
+
 	switch m.Type {
 	case "pake":
-		if c.spinner.Suffix != " performing PAKE..." {
-			c.spinner.Stop()
-			c.spinner.Suffix = " performing PAKE..."
-			c.spinner.Start()
-		}
+		// if // c.spinner.Suffix != " performing PAKE..." {
+		// 	// c.spinner.Stop()
+		// 	// c.spinner.Suffix = " performing PAKE..."
+		// 	// c.spinner.Start()
+		// }
 		notVerified := !c.Pake.IsVerified()
 		err = c.Pake.Update(m.Bytes)
 		if err != nil {
 			return
 		}
 		if (notVerified && c.Pake.IsVerified() && !c.Options.IsSender) || !c.Pake.IsVerified() {
-			err = c.redisdb.Publish(c.nameOutChannel, Message{
+			err = message.Send(c.conn[0], c.Key, message.Message{
 				Type:  "pake",
 				Bytes: c.Pake.Bytes(),
-			}.String()).Err()
+			})
 		}
 		if c.Pake.IsVerified() {
-			log.Debug(c.Pake.SessionKey())
+			log.Debug("session key is verified, generating encryption")
+			key, err := c.Pake.SessionKey()
+			if err != nil {
+				return err
+			}
+			c.Key, err = crypt.New(key, []byte(c.Options.SharedSecret))
+			if err != nil {
+				return err
+			}
 			c.Step1ChannelSecured = true
 		}
 	case "error":
-		c.spinner.Stop()
+		// c.spinner.Stop()
 		fmt.Print("\r")
 		err = fmt.Errorf("peer error: %s", m.Message)
 		return err
 	case "fileinfo":
 		var senderInfo SenderInfo
-		var decryptedBytes []byte
-		key, _ := c.Pake.SessionKey()
-		decryptedBytes, err = crypt.DecryptFromBytes(m.Bytes, key)
-		if err != nil {
-			log.Error(err)
-			return
-		}
-		err = json.Unmarshal(decryptedBytes, &senderInfo)
+		err = json.Unmarshal(m.Bytes, &senderInfo)
 		if err != nil {
 			log.Error(err)
 			return
@@ -322,14 +323,14 @@ func (c *Client) processMessage(m Message) (err error) {
 		for _, fi := range c.FilesToTransfer {
 			totalSize += fi.Size
 		}
-		c.spinner.Stop()
+		// c.spinner.Stop()
 		if !c.Options.NoPrompt {
 			fmt.Fprintf(os.Stderr, "\rAccept %s (%s) from machine '%s'? (y/n) ", fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
 			if strings.ToLower(strings.TrimSpace(utils.GetInput(""))) != "y" {
-				err = c.redisdb.Publish(c.nameOutChannel, Message{
+				err = message.Send(c.conn[0], c.Key, message.Message{
 					Type:    "error",
 					Message: "refusing files",
-				}.String()).Err()
+				})
 				return fmt.Errorf("refused files")
 			}
 		} else {
@@ -339,68 +340,22 @@ func (c *Client) processMessage(m Message) (err error) {
 		c.Step2FileInfoTransfered = true
 	case "recipientready":
 		var remoteFile RemoteFileRequest
-		var decryptedBytes []byte
-		key, _ := c.Pake.SessionKey()
-		decryptedBytes, err = crypt.DecryptFromBytes(m.Bytes, key)
-		if err != nil {
-			log.Error(err)
-			return
-		}
-		err = json.Unmarshal(decryptedBytes, &remoteFile)
+		err = json.Unmarshal(m.Bytes, &remoteFile)
 		if err != nil {
 			return
 		}
 		c.FilesToTransferCurrentNum = remoteFile.FilesToTransferCurrentNum
 		c.CurrentFileChunks = remoteFile.CurrentFileChunks
 		c.Step3RecipientRequestFile = true
-	case "datachannel-offer":
-		err = c.dataChannelReceive()
-		if err != nil {
-			return
-		}
-		err = c.recvSess.SetSDP(m.Message)
-		if err != nil {
-			return
-		}
-		var answer string
-		answer, err = c.recvSess.CreateAnswer()
-		if err != nil {
-			return
-		}
-		// Output the answer in base64 so we can paste it in browser
-		err = c.redisdb.Publish(c.nameOutChannel, Message{
-			Type:    "datachannel-answer",
-			Message: answer,
-			Num:     m.Num,
-		}.String()).Err()
-		// start receiving data
-		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
-		c.spinner.Stop()
-		key, _ := c.Pake.SessionKey()
-		c.recvSess.ReceiveData(pathToFile, c.FilesToTransfer[c.FilesToTransferCurrentNum].Size, key)
-		log.Debug("sending close-sender")
-		err = c.redisdb.Publish(c.nameOutChannel, Message{
-			Type: "close-sender",
-		}.String()).Err()
-	case "datachannel-answer":
-		log.Debug("got answer:", m.Message)
-		// Apply the answer as the remote description
-		err = c.sendSess.SetSDP(m.Message)
-		pathToFile := path.Join(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
-		c.spinner.Stop()
-		fmt.Fprintf(os.Stderr, "\r\nTransfering...\n")
-		key, _ := c.Pake.SessionKey()
-		c.sendSess.TransferFile(pathToFile, key)
 	case "close-sender":
 		log.Debug("close-sender received...")
 		c.Step4FileTransfer = false
 		c.Step3RecipientRequestFile = false
-		c.sendSess.StopSending()
 		log.Debug("sending close-recipient")
-		err = c.redisdb.Publish(c.nameOutChannel, Message{
+		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type: "close-recipient",
 			Num:  m.Num,
-		}.String()).Err()
+		})
 	case "close-recipient":
 		c.Step4FileTransfer = false
 		c.Step3RecipientRequestFile = false
@@ -424,11 +379,10 @@ func (c *Client) updateState() (err error) {
 			log.Error(err)
 			return
 		}
-		key, _ := c.Pake.SessionKey()
-		err = c.redisdb.Publish(c.nameOutChannel, Message{
+		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:  "fileinfo",
-			Bytes: crypt.EncryptToBytes(b, key),
-		}.String()).Err()
+			Bytes: b,
+		})
 		if err != nil {
 			return
 		}
@@ -456,9 +410,9 @@ func (c *Client) updateState() (err error) {
 		if finished {
 			// TODO: do the last finishing stuff
 			log.Debug("finished")
-			err = c.redisdb.Publish(c.nameOutChannel, Message{
+			err = message.Send(c.conn[0], c.Key, message.Message{
 				Type: "finished",
-			}.String()).Err()
+			})
 			if err != nil {
 				panic(err)
 			}
@@ -472,103 +426,20 @@ func (c *Client) updateState() (err error) {
 			CurrentFileChunks:         c.CurrentFileChunks,
 			FilesToTransferCurrentNum: c.FilesToTransferCurrentNum,
 		})
-		key, _ := c.Pake.SessionKey()
-		err = c.redisdb.Publish(c.nameOutChannel, Message{
+		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:  "recipientready",
-			Bytes: crypt.EncryptToBytes(bRequest, key),
-		}.String()).Err()
+			Bytes: bRequest,
+		})
 		if err != nil {
 			return
 		}
 		c.Step3RecipientRequestFile = true
-		err = c.dataChannelReceive()
+		// TODO: receive
 	}
 	if c.Options.IsSender && c.Step3RecipientRequestFile && !c.Step4FileTransfer {
 		log.Debug("start sending data!")
-		err = c.dataChannelSend()
+		// TODO: send
 		c.Step4FileTransfer = true
-	}
-	return
-}
-
-func (c *Client) dataChannelReceive() (err error) {
-	c.recvSess = receiver.NewWith(receiver.Config{})
-	err = c.recvSess.CreateConnection()
-	if err != nil {
-		return
-	}
-	c.recvSess.CreateDataHandler()
-	return
-}
-
-func (c *Client) dataChannelSend() (err error) {
-	c.sendSess = sender.NewWith(sender.Config{
-		Configuration: common.Configuration{
-			OnCompletion: func() {
-			},
-		},
-	})
-
-	if err := c.sendSess.CreateConnection(); err != nil {
-		log.Error(err)
-		return err
-	}
-	if err := c.sendSess.CreateDataChannel(); err != nil {
-		log.Error(err)
-		return err
-	}
-	offer, err := c.sendSess.CreateOffer()
-	if err != nil {
-		log.Error(err)
-		return err
-	}
-
-	// sending offer
-	err = c.redisdb.Publish(c.nameOutChannel, Message{
-		Type:    "datachannel-offer",
-		Message: offer,
-	}.String()).Err()
-	if err != nil {
-		return
-	}
-
-	return
-}
-
-// MissingChunks returns the positions of missing chunks.
-// If file doesn't exist, it returns an empty chunk list (all chunks).
-// If the file size is not the same as requested, it returns an empty chunk list (all chunks).
-func MissingChunks(fname string, fsize int64, chunkSize int) (chunks []int64) {
-	fstat, err := os.Stat(fname)
-	if fstat.Size() != fsize {
-		return
-	}
-
-	f, err := os.Open(fname)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-
-	buffer := make([]byte, chunkSize)
-	emptyBuffer := make([]byte, chunkSize)
-	chunkNum := 0
-	chunks = make([]int64, int64(math.Ceil(float64(fsize)/float64(chunkSize))))
-	var currentLocation int64
-	for {
-		bytesread, err := f.Read(buffer)
-		if err != nil {
-			break
-		}
-		if bytes.Equal(buffer[:bytesread], emptyBuffer[:bytesread]) {
-			chunks[chunkNum] = currentLocation
-		}
-		currentLocation += int64(bytesread)
-	}
-	if chunkNum == 0 {
-		chunks = []int64{}
-	} else {
-		chunks = chunks[:chunkNum]
 	}
 	return
 }
