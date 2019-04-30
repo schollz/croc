@@ -153,6 +153,9 @@ type TransferOptions struct {
 
 // Send will send the specified file
 func (c *Client) Send(options TransferOptions) (err error) {
+	// connect to the relay for messaging
+	errchan := make(chan error, 1)
+
 	// look for peers first
 	go func() {
 		discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
@@ -161,11 +164,12 @@ func (c *Client) Send(options TransferOptions) (err error) {
 			Delay:     10 * time.Millisecond,
 			TimeLimit: 30 * time.Second,
 		})
-		fmt.Println(discoveries, err)
-	}()
+		log.Debugf("discoveries: %+v", discoveries)
 
-	// connect to the relay for messaging
-	errchan := make(chan error, 1)
+		if err == nil && len(discoveries) > 0 {
+			log.Debug("using local server")
+		}
+	}()
 
 	go func() {
 		log.Debug("establishing connection")
@@ -175,7 +179,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 			return
 		}
 		log.Debugf("connection established: %+v", c.conn[0])
-		fmt.Println(c.conn[0].Receive())
+		log.Debug(c.conn[0].Receive())
 		log.Debug("exchanged header message")
 		errchan <- c.transfer(options)
 	}()
@@ -186,14 +190,13 @@ func (c *Client) Send(options TransferOptions) (err error) {
 // Receive will receive a file
 func (c *Client) Receive() (err error) {
 	// look for peers first
-	//discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
-	//	Limit:     1,
-	//	Payload:   []byte("ok"),
-	//	Delay:     10 * time.Millisecond,
-	//	TimeLimit: 100 * time.Millisecond,
-	//})
-	//fmt.Println(discoveries)
-	//fmt.Println(err)
+	discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
+		Limit:     1,
+		Payload:   []byte("ok"),
+		Delay:     10 * time.Millisecond,
+		TimeLimit: 100 * time.Millisecond,
+	})
+	log.Debugf("discoveries: %+v", discoveries)
 	log.Debug("establishing connection")
 	c.conn[0], err = tcp.ConnectToTCPServer(c.Options.RelayAddress+":"+c.Options.RelayPorts[0], c.Options.SharedSecret)
 	if err != nil {
