@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/schollz/croc/v6/src/croc"
+	"github.com/schollz/croc/v6/src/tcp"
 	"github.com/schollz/croc/v6/src/utils"
 	"github.com/urfave/cli"
 )
@@ -47,12 +48,21 @@ func Run() (err error) {
 				return send(c)
 			},
 		},
+		{
+			Name:        "relay",
+			Description: "start relay",
+			HelpName:    "croc relay",
+			Action: func(c *cli.Context) error {
+				return relay(c)
+			},
+		},
 	}
 	app.Flags = []cli.Flag{
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
-		cli.StringFlag{Name: "relay", Value: "198.199.67.130:6372", Usage: "address of the relay"},
+		cli.StringFlag{Name: "relay", Value: "198.199.67.130", Usage: "address of the relay"},
+		cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013,9014,9015,9016,9017,9018", Usage: "address of the relay"},
 		cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 	}
 	app.EnableBashCompletion = true
@@ -153,6 +163,7 @@ func send(c *cli.Context) (err error) {
 		Debug:        c.GlobalBool("debug"),
 		NoPrompt:     c.GlobalBool("yes"),
 		RelayAddress: c.GlobalString("relay"),
+		RelayPorts:   strings.Split(c.GlobalString("ports"), ","),
 		Stdout:       c.GlobalBool("stdout"),
 	})
 	if err != nil {
@@ -189,6 +200,7 @@ func receive(c *cli.Context) (err error) {
 		NoPrompt:     c.GlobalBool("yes"),
 		RelayAddress: c.GlobalString("relay"),
 		Stdout:       c.GlobalBool("stdout"),
+		RelayPorts:   strings.Split(c.GlobalString("ports"), ","),
 	})
 	if err != nil {
 		return
@@ -197,9 +209,25 @@ func receive(c *cli.Context) (err error) {
 	return
 }
 
-// func relay(c *cli.Context) error {
-// 	return cr.Relay()
-// }
+func relay(c *cli.Context) (err error) {
+	debugString := "warn"
+	if c.GlobalBool("debug") {
+		debugString = "debug"
+	}
+	ports := strings.Split(c.GlobalString("ports"), ",")
+	for i, port := range ports {
+		if i == 0 {
+			continue
+		}
+		go func(portStr string) {
+			err = tcp.Run(debugString, portStr)
+			if err != nil {
+				panic(err)
+			}
+		}(port)
+	}
+	return tcp.Run(debugString, ports[0])
+}
 
 // func dirSize(path string) (int64, error) {
 // 	var size int64
