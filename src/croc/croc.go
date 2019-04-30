@@ -3,6 +3,7 @@ package croc
 import (
 	"bytes"
 	"crypto/elliptic"
+	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -396,14 +397,13 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 			})
 		}
 		if c.Pake.IsVerified() {
-			log.Debug("session key is verified, generating encryption")
-			key, err := c.Pake.SessionKey()
-			if err != nil {
-				return true, err
-			}
-			c.Key, err = crypt.New(key, []byte(c.Options.SharedSecret))
-			if err != nil {
-				return true, err
+			if c.Options.IsSender {
+				salt := make([]byte, 8)
+				rand.Read(salt)
+				err = message.Send(c.conn[0], c.Key, message.Message{
+					Type:  "salt",
+					Bytes: salt,
+				})
 			}
 
 			// connects to the other ports of the server for transfer
@@ -425,8 +425,24 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 				}(i)
 			}
 			wg.Wait()
-			c.Step1ChannelSecured = true
 		}
+	case "salt":
+		if !c.Options.IsSender {
+			err = message.Send(c.conn[0], c.Key, message.Message{
+				Type:  "salt",
+				Bytes: m.Bytes,
+			})
+		}
+		log.Debugf("session key is verified, generating encryption with salt: %x", m.Bytes)
+		key, err := c.Pake.SessionKey()
+		if err != nil {
+			return true, err
+		}
+		c.Key, err = crypt.New(key, m.Bytes)
+		if err != nil {
+			return true, err
+		}
+		c.Step1ChannelSecured = true
 	case "error":
 		// c.spinner.Stop()
 		fmt.Print("\r")
