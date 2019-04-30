@@ -518,11 +518,8 @@ func (c *Client) updateState() (err error) {
 			progressbar.OptionSetWriter(os.Stderr),
 			progressbar.OptionThrottle(100*time.Millisecond),
 		)
+		c.bar.Add(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
 		c.TotalSent = 0
-
-		if len(c.CurrentFileChunks) > 0 {
-			c.bar.Add(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
-		}
 		bRequest, _ := json.Marshal(RemoteFileRequest{
 			CurrentFileChunks:         c.CurrentFileChunks,
 			FilesToTransferCurrentNum: c.FilesToTransferCurrentNum,
@@ -552,10 +549,7 @@ func (c *Client) updateState() (err error) {
 			progressbar.OptionSetWriter(os.Stderr),
 			progressbar.OptionThrottle(100*time.Millisecond),
 		)
-		log.Info(c.CurrentFileChunks)
-		// if len(c.CurrentFileChunks) > 0 {
-		// 	c.bar.Add(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
-		// }
+		c.bar.Add(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
 		c.TotalSent = 0
 		for i := 1; i < len(c.Options.RelayPorts); i++ {
 			go c.sendData(i)
@@ -655,7 +649,7 @@ func (c *Client) sendData(i int) {
 			}
 			c.mutex.Unlock()
 			if usableChunk {
-				log.Debugf("sending chunk %d", pos)
+				// log.Debugf("sending chunk %d", pos)
 				posByte := make([]byte, 8)
 				binary.LittleEndian.PutUint64(posByte, pos)
 
@@ -676,7 +670,7 @@ func (c *Client) sendData(i int) {
 				c.TotalSent += int64(n)
 				// time.Sleep(100 * time.Millisecond)
 			} else {
-				log.Debugf("skipping chunk %d", pos)
+				// log.Debugf("skipping chunk %d", pos)
 			}
 		}
 
