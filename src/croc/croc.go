@@ -156,6 +156,16 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	// connect to the relay for messaging
 	errchan := make(chan error, 1)
 
+	// setup the relay locally
+	for _, port := range c.Options.RelayPorts {
+		go func(portStr string) {
+			err = tcp.Run("debug", portStr)
+			if err != nil {
+				panic(err)
+			}
+		}(port)
+	}
+
 	// look for peers first
 	go func() {
 		discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
@@ -172,14 +182,42 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	}()
 
 	go func() {
+		time.Sleep(500 * time.Millisecond)
 		log.Debug("establishing connection")
-		c.conn[0], err = tcp.ConnectToTCPServer(c.Options.RelayAddress+":"+c.Options.RelayPorts[0], c.Options.SharedSecret)
+		conn, err := tcp.ConnectToTCPServer("localhost:"+c.Options.RelayPorts[0], c.Options.SharedSecret)
 		if err != nil {
 			err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
 			return
 		}
-		log.Debugf("connection established: %+v", c.conn[0])
-		log.Debug(c.conn[0].Receive())
+		log.Debugf("connection established: %+v", conn)
+		for {
+			data, _ := conn.Receive()
+			if bytes.Equal(data, []byte("handshake")) {
+				break
+			}
+		}
+		c.conn[0] = conn
+		log.Debug("exchanged header message")
+		c.Options.RelayAddress = "localhost"
+		errchan <- c.transfer(options)
+	}()
+
+	go func() {
+		log.Debug("establishing connection")
+		conn, err := tcp.ConnectToTCPServer(c.Options.RelayAddress+":"+c.Options.RelayPorts[0], c.Options.SharedSecret)
+		if err != nil {
+			err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
+			return
+		}
+		log.Debugf("connection established: %+v", conn)
+		for {
+			data, _ := conn.Receive()
+			if bytes.Equal(data, []byte("handshake")) {
+				break
+			}
+		}
+
+		c.conn[0] = conn
 		log.Debug("exchanged header message")
 		errchan <- c.transfer(options)
 	}()
