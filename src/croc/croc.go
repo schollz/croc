@@ -132,7 +132,11 @@ func New(ops Options) (c *Client, err error) {
 		return
 	}
 	log.Debugf("connection established: %+v", c.conn[0])
-	fmt.Println(c.conn[0].Receive())
+	if c.Options.IsSender {
+		fmt.Println(c.conn[0].Receive())
+	} else {
+		c.conn[0].Send([]byte("hello"))
+	}
 
 	// use default key (no encryption, until PAKE succeeds)
 	c.Key, err = crypt.New(nil, nil)
