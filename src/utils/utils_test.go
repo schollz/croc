@@ -16,7 +16,7 @@ func TestExists(t *testing.T) {
 func TestHashFile(t *testing.T) {
 	b, err := HashFile("utils.go")
 	assert.Nil(t, err)
-	assert.Equal(t, "9a66e5c18b9759073666953da376c037", fmt.Sprintf("%x", b))
+	assert.Equal(t, "6d39c2f3468e0d5869e0c9b349503175", fmt.Sprintf("%x", b))
 }
 
 // SHA256 returns sha256 sum
@@ -26,4 +26,9 @@ func TestSHA256(t *testing.T) {
 
 func TestByteCountDecimal(t *testing.T) {
 	assert.Equal(t, "10.0 kB", ByteCountDecimal(10000))
+}
+
+func TestMissingChunks(t *testing.T) {
+	chunks := MissingChunks("test",11346432,1024 * 32)
+	assert.Equal(t,202,len(chunks))
 }

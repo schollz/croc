@@ -70,9 +70,11 @@ type Client struct {
 	FilesToTransferCurrentNum int
 
 	// send / receive information of current file
-	CurrentFile       *os.File
-	CurrentFileChunks []int64
-	TotalSent         int64
+	CurrentFile           *os.File
+	CurrentFileChunks     []int64
+	TotalSent             int64
+	TotalChunksTransfered int
+	chunkMap              map[uint64]struct{}
 
 	// tcp connections
 	conn []*comm.Comm
@@ -381,6 +383,11 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		}
 		c.FilesToTransferCurrentNum = remoteFile.FilesToTransferCurrentNum
 		c.CurrentFileChunks = remoteFile.CurrentFileChunks
+		log.Debugf("current file chunks: %+v", c.CurrentFileChunks)
+		c.chunkMap = make(map[uint64]struct{})
+		for _, chunk := range c.CurrentFileChunks {
+			c.chunkMap[uint64(chunk)] = struct{}{}
+		}
 		c.Step3RecipientRequestFile = true
 	case "close-sender":
 		log.Debug("close-sender received...")
@@ -504,6 +511,13 @@ func (c *Client) updateState() (err error) {
 		c.TotalSent = 0
 
 		// recipient requests the file and chunks (if empty, then should receive all chunks)
+		// TODO: determine the missing chunks
+		c.CurrentFileChunks = utils.MissingChunks(
+			pathToFile,
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
+			models.TCP_BUFFER_SIZE/2,
+		)
+		c.bar.Add(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
 		bRequest, _ := json.Marshal(RemoteFileRequest{
 			CurrentFileChunks:         c.CurrentFileChunks,
 			FilesToTransferCurrentNum: c.FilesToTransferCurrentNum,
@@ -533,6 +547,7 @@ func (c *Client) updateState() (err error) {
 			progressbar.OptionSetWriter(os.Stderr),
 			progressbar.OptionThrottle(100*time.Millisecond),
 		)
+		c.bar.Add(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
 		c.TotalSent = 0
 		for i := 1; i < len(c.Options.RelayPorts); i++ {
 			go c.sendData(i)
@@ -573,8 +588,9 @@ func (c *Client) receiveData(i int) {
 		}
 		c.bar.Add(len(data[8:]))
 		c.TotalSent += int64(len(data[8:]))
+		c.TotalChunksTransfered++
 		log.Debugf("block: %+v", positionInt64)
-		if c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size {
+		if c.TotalChunksTransfered == len(c.CurrentFileChunks) || c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size {
 			log.Debug("finished receiving!")
 			c.CurrentFile.Close()
 			log.Debug("sending close-sender")
@@ -619,25 +635,41 @@ func (c *Client) sendData(i int) {
 		}
 
 		if math.Mod(curi, float64(len(c.Options.RelayPorts)-1))+1 == float64(i) {
-			posByte := make([]byte, 8)
-			binary.LittleEndian.PutUint64(posByte, pos)
-
-			dataToSend, err := c.Key.Encrypt(
-				compress.Compress(
-					append(posByte, data[:n]...),
-				),
-			)
-			if err != nil {
-				panic(err)
+			// check to see if this is a chunk that the recipient wants
+			usableChunk := true
+			c.mutex.Lock()
+			if len(c.chunkMap) != 0 {
+				if _, ok := c.chunkMap[pos]; !ok {
+					usableChunk = false
+				} else {
+					delete(c.chunkMap, pos)
+				}
 			}
+			c.mutex.Unlock()
+			if usableChunk {
+				log.Debugf("sending chunk %d", pos)
+				posByte := make([]byte, 8)
+				binary.LittleEndian.PutUint64(posByte, pos)
 
-			err = c.conn[i].Send(dataToSend)
-			if err != nil {
-				panic(err)
+				dataToSend, err := c.Key.Encrypt(
+					compress.Compress(
+						append(posByte, data[:n]...),
+					),
+				)
+				if err != nil {
+					panic(err)
+				}
+
+				err = c.conn[i].Send(dataToSend)
+				if err != nil {
+					panic(err)
+				}
+				c.bar.Add(n)
+				c.TotalSent += int64(n)
+				// time.Sleep(100 * time.Millisecond)
+			} else {
+				log.Debugf("skipping chunk %d", pos)
 			}
-			c.bar.Add(n)
-			c.TotalSent += int64(n)
-			// time.Sleep(100 * time.Millisecond)
 		}
 
 		curi++
