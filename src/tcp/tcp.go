@@ -14,10 +14,10 @@ import (
 	"github.com/schollz/croc/v6/src/models"
 )
 
-
 type server struct {
 	port       string
 	debugLevel string
+	banner     string
 	rooms      roomMap
 }
 
@@ -34,10 +34,13 @@ type roomMap struct {
 }
 
 // Run starts a tcp listener, run async
-func Run(debugLevel, port string) (err error) {
+func Run(debugLevel, port string, banner ...string) (err error) {
 	s := new(server)
 	s.port = port
 	s.debugLevel = debugLevel
+	if len(banner) > 0 {
+		s.banner = banner[0]
+	}
 	return s.start()
 }
 
@@ -64,8 +67,8 @@ func (s *server) start() (err error) {
 	err = s.run()
 	if err != nil {
 		log.Error(err)
-		}
-		return
+	}
+	return
 }
 
 func (s *server) run() (err error) {
@@ -94,7 +97,7 @@ func (s *server) run() (err error) {
 func (s *server) clientCommuncation(port string, c *comm.Comm) (err error) {
 	// send ok to tell client they are connected
 	log.Debug("sending ok")
-	err = c.Send([]byte("ok"))
+	err = c.Send([]byte(s.banner))
 	if err != nil {
 		return
 	}
@@ -224,7 +227,7 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 	}
 }
 
-func ConnectToTCPServer(address, room string) (c *comm.Comm, err error) {
+func ConnectToTCPServer(address, room string) (c *comm.Comm, banner string, err error) {
 	c, err = comm.NewConnection(address)
 	if err != nil {
 		return
@@ -233,10 +236,7 @@ func ConnectToTCPServer(address, room string) (c *comm.Comm, err error) {
 	if err != nil {
 		return
 	}
-	if !bytes.Equal(data, []byte("ok")) {
-		err = fmt.Errorf("got bad response: %s", data)
-		return
-	}
+	banner = string(data)
 	err = c.Send([]byte(room))
 	if err != nil {
 		return

@@ -261,7 +261,9 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		go func() {
 			time.Sleep(500 * time.Millisecond)
 			log.Debug("establishing connection")
-			conn, err := tcp.ConnectToTCPServer("localhost:"+c.Options.RelayPorts[0], c.Options.SharedSecret)
+			var banner string
+			conn, banner, err := tcp.ConnectToTCPServer("localhost:"+c.Options.RelayPorts[0], c.Options.SharedSecret)
+			log.Debugf("banner: %s", banner)
 			if err != nil {
 				err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
 				return
@@ -282,7 +284,9 @@ func (c *Client) Send(options TransferOptions) (err error) {
 
 	go func() {
 		log.Debug("establishing connection")
-		conn, err := tcp.ConnectToTCPServer(c.Options.RelayAddress+":"+c.Options.RelayPorts[0], c.Options.SharedSecret)
+		var banner string
+		conn, banner, err := tcp.ConnectToTCPServer(c.Options.RelayAddress+":"+c.Options.RelayPorts[0], c.Options.SharedSecret)
+		log.Debugf("banner: %s", banner)
 		if err != nil {
 			err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
 			return
@@ -318,7 +322,9 @@ func (c *Client) Receive() (err error) {
 		log.Debugf("discoveries: %+v", discoveries)
 		log.Debug("establishing connection")
 	}
-	c.conn[0], err = tcp.ConnectToTCPServer(c.Options.RelayAddress+":"+c.Options.RelayPorts[0], c.Options.SharedSecret)
+	var banner string
+	c.conn[0], banner, err = tcp.ConnectToTCPServer(c.Options.RelayAddress+":"+c.Options.RelayPorts[0], c.Options.SharedSecret)
+	log.Debugf("banner: %s", banner)
 	if err != nil {
 		err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
 		return
@@ -412,7 +418,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 			for i := 1; i < len(c.Options.RelayPorts); i++ {
 				go func(j int) {
 					defer wg.Done()
-					c.conn[j], err = tcp.ConnectToTCPServer(
+					c.conn[j], _, err = tcp.ConnectToTCPServer(
 						fmt.Sprintf("%s:%s", c.Options.RelayAddress, c.Options.RelayPorts[j]),
 						fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret)[:7], j),
 					)
@@ -640,7 +646,7 @@ func (c *Client) updateState() (err error) {
 }
 
 func (c *Client) setBar() {
-	description := fmt.Sprintf("%28s", c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
+	description := fmt.Sprintf("%-28s", c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 	if len(c.FilesToTransfer) == 1 {
 		description = c.FilesToTransfer[c.FilesToTransferCurrentNum].Name
 	}
