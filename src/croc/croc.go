@@ -278,6 +278,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 			c.conn[0] = conn
 			log.Debug("exchanged header message")
 			c.Options.RelayAddress = "localhost"
+			c.Options.RelayPorts = strings.Split(banner, ",")
 			errchan <- c.transfer(options)
 		}()
 	}
@@ -300,6 +301,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		}
 
 		c.conn[0] = conn
+		c.Options.RelayPorts = strings.Split(banner, ",")
 		log.Debug("exchanged header message")
 		errchan <- c.transfer(options)
 	}()
@@ -311,7 +313,6 @@ func (c *Client) Send(options TransferOptions) (err error) {
 func (c *Client) Receive() (err error) {
 	// look for peers first
 	if !c.Options.DisableLocal {
-
 		discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
 			Limit:     1,
 			Payload:   []byte("ok"),
@@ -331,6 +332,7 @@ func (c *Client) Receive() (err error) {
 	}
 	log.Debugf("connection established: %+v", c.conn[0])
 	c.conn[0].Send([]byte("handshake"))
+	c.Options.RelayPorts = strings.Split(banner, ",")
 	log.Debug("exchanged header message")
 	return c.transfer(TransferOptions{})
 }
@@ -404,22 +406,29 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		}
 		if c.Pake.IsVerified() {
 			if c.Options.IsSender {
+				log.Debug("generating salt")
 				salt := make([]byte, 8)
 				rand.Read(salt)
 				err = message.Send(c.conn[0], c.Key, message.Message{
 					Type:  "salt",
 					Bytes: salt,
 				})
+				if err != nil {
+					return
+				}
 			}
 
 			// connects to the other ports of the server for transfer
 			var wg sync.WaitGroup
 			wg.Add(len(c.Options.RelayPorts))
 			for i := 0; i < len(c.Options.RelayPorts); i++ {
+				log.Debugf("port: [%s]", c.Options.RelayPorts[i])
 				go func(j int) {
 					defer wg.Done()
-					c.conn[j], _, err = tcp.ConnectToTCPServer(
-						fmt.Sprintf("%s:%s", c.Options.RelayAddress, c.Options.RelayPorts[j]),
+					server := fmt.Sprintf("%s:%s", strings.Split(c.Options.RelayAddress, ":")[0], c.Options.RelayPorts[j])
+					log.Debugf("connecting to %s", server)
+					c.conn[j+1], _, err = tcp.ConnectToTCPServer(
+						server,
 						fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret)[:7], j),
 					)
 					if err != nil {
@@ -433,6 +442,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 			wg.Wait()
 		}
 	case "salt":
+		log.Debug("received salt")
 		if !c.Options.IsSender {
 			err = message.Send(c.conn[0], c.Key, message.Message{
 				Type:  "salt",
@@ -668,7 +678,7 @@ func (c *Client) setBar() {
 func (c *Client) receiveData(i int) {
 	for {
 		log.Debug("waiting for data")
-		data, err := c.conn[i].Receive()
+		data, err := c.conn[i+1].Receive()
 		if err != nil {
 			break
 		}
@@ -768,7 +778,7 @@ func (c *Client) sendData(i int) {
 					panic(err)
 				}
 
-				err = c.conn[i].Send(dataToSend)
+				err = c.conn[i+1].Send(dataToSend)
 				if err != nil {
 					panic(err)
 				}
