@@ -30,6 +30,7 @@ func TestCroc(t *testing.T) {
 		RelayPorts:   []string{"8081", "8082", "8083"},
 		Stdout:       false,
 		NoPrompt:     true,
+		DisableLocal: true,
 	})
 	if err != nil {
 		panic(err)
@@ -44,6 +45,7 @@ func TestCroc(t *testing.T) {
 		RelayPorts:   []string{"8081", "8082", "8083"},
 		Stdout:       false,
 		NoPrompt:     true,
+		DisableLocal: true,
 	})
 	if err != nil {
 		panic(err)
