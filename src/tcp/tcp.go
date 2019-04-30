@@ -11,9 +11,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/schollz/croc/v6/src/comm"
 	"github.com/schollz/croc/v6/src/logger"
+	"github.com/schollz/croc/v6/src/models"
 )
 
-const TCP_BUFFER_SIZE = 1024 * 64
 
 type server struct {
 	port       string
@@ -179,7 +179,7 @@ func chanFromConn(conn net.Conn) chan []byte {
 	c := make(chan []byte, 1)
 
 	go func() {
-		b := make([]byte, TCP_BUFFER_SIZE)
+		b := make([]byte, models.TCP_BUFFER_SIZE)
 
 		for {
 			n, err := conn.Read(b)

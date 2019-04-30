@@ -23,6 +23,7 @@ import (
 	"github.com/schollz/croc/v6/src/crypt"
 	"github.com/schollz/croc/v6/src/logger"
 	"github.com/schollz/croc/v6/src/message"
+	"github.com/schollz/croc/v6/src/models"
 	"github.com/schollz/croc/v6/src/tcp"
 	"github.com/schollz/croc/v6/src/utils"
 	"github.com/schollz/pake"
@@ -536,10 +537,13 @@ func (c *Client) updateState() (err error) {
 
 func (c *Client) receiveData(i int) {
 	for {
+		log.Debug("waiting for data")
 		data, err := c.conn[i].Receive()
 		if err != nil {
 			log.Errorf("%s: %s", i, err.Error())
+			continue
 		}
+
 		data, err = c.Key.Decrypt(data)
 		if err != nil {
 			panic(err)
@@ -563,7 +567,7 @@ func (c *Client) receiveData(i int) {
 		}
 		c.bar.Add(len(data[8:]))
 		c.TotalSent += int64(len(data[8:]))
-		log.Debugf("state: %+v", c.bar.State())
+		log.Debugf("block: %+v", positionInt64)
 		if c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size {
 			log.Debug("finished receiving!")
 			c.CurrentFile.Close()
@@ -599,11 +603,11 @@ func (c *Client) sendData(i int) {
 	curi := float64(0)
 	for {
 		// Read file
-		data := make([]byte, 40000)
+		data := make([]byte, models.TCP_BUFFER_SIZE/2)
 		n, err := f.Read(data)
 		if err != nil {
 			if err == io.EOF {
-				return
+				break
 			}
 			panic(err)
 		}
@@ -628,12 +632,13 @@ func (c *Client) sendData(i int) {
 			c.bar.Add(n)
 			c.TotalSent += int64(n)
 			log.Debug(c.TotalSent)
-			// time.Sleep(10 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		}
 
 		curi++
 		pos += uint64(n)
 	}
-	return
 
+	time.Sleep(10 * time.Second)
+	return
 }
