@@ -153,13 +153,87 @@ type TransferOptions struct {
 
 // Send will send the specified file
 func (c *Client) Send(options TransferOptions) (err error) {
+	c.FilesToTransfer = make([]FileInfo, len(options.PathToFiles))
+	totalFilesSize := int64(0)
+	for i, pathToFile := range options.PathToFiles {
+		var fstats os.FileInfo
+		var fullPath string
+		fullPath, err = filepath.Abs(pathToFile)
+		if err != nil {
+			return
+		}
+		fullPath = filepath.Clean(fullPath)
+		var folderName string
+		folderName, _ = filepath.Split(fullPath)
+
+		fstats, err = os.Stat(fullPath)
+		if err != nil {
+			return
+		}
+		c.FilesToTransfer[i] = FileInfo{
+			Name:         fstats.Name(),
+			FolderRemote: ".",
+			FolderSource: folderName,
+			Size:         fstats.Size(),
+			ModTime:      fstats.ModTime(),
+		}
+		c.FilesToTransfer[i].Hash, err = utils.HashFile(fullPath)
+		totalFilesSize += fstats.Size()
+		if err != nil {
+			return
+		}
+		if options.KeepPathInRemote {
+			var curFolder string
+			curFolder, err = os.Getwd()
+			if err != nil {
+				return
+			}
+			curFolder, err = filepath.Abs(curFolder)
+			if err != nil {
+				return
+			}
+			if !strings.HasPrefix(folderName, curFolder) {
+				err = fmt.Errorf("remote directory must be relative to current")
+				return
+			}
+			c.FilesToTransfer[i].FolderRemote = strings.TrimPrefix(folderName, curFolder)
+			c.FilesToTransfer[i].FolderRemote = filepath.ToSlash(c.FilesToTransfer[i].FolderRemote)
+			c.FilesToTransfer[i].FolderRemote = strings.TrimPrefix(c.FilesToTransfer[i].FolderRemote, "/")
+			if c.FilesToTransfer[i].FolderRemote == "" {
+				c.FilesToTransfer[i].FolderRemote = "."
+			}
+		}
+		log.Debugf("file %d info: %+v", i, c.FilesToTransfer[i])
+	}
+	fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
+	if len(c.FilesToTransfer) == 1 {
+		fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
+	}
+	machID, macIDerr := machineid.ID()
+	if macIDerr != nil {
+		log.Error(macIDerr)
+		return
+	}
+	if len(machID) > 6 {
+		machID = machID[:6]
+	}
+	c.machineID = machID
+	fmt.Fprintf(os.Stderr, "Sending %s (%s) from your machine, '%s'\n", fname, utils.ByteCountDecimal(totalFilesSize), machID)
+	fmt.Fprintf(os.Stderr, "Code is: %s\nOn the other computer run\n\ncroc %s\n", c.Options.SharedSecret, c.Options.SharedSecret)
+	// // c.spinner.Suffix = " waiting for recipient..."
+	// c.spinner.Start()
+	// create channel for quitting
 	// connect to the relay for messaging
 	errchan := make(chan error, 1)
 
 	// setup the relay locally
 	for _, port := range c.Options.RelayPorts {
 		go func(portStr string) {
-			err = tcp.Run("debug", portStr)
+			debugString := "warn"
+			if c.Options.Debug {
+				debugString = "debug"
+			}
+			err = tcp.Run(debugString, portStr)
 			if err != nil {
 				panic(err)
 			}
@@ -250,78 +324,6 @@ func (c *Client) Receive() (err error) {
 func (c *Client) transfer(options TransferOptions) (err error) {
 	// connect to the server
 
-	if c.Options.IsSender {
-		c.FilesToTransfer = make([]FileInfo, len(options.PathToFiles))
-		totalFilesSize := int64(0)
-		for i, pathToFile := range options.PathToFiles {
-			var fstats os.FileInfo
-			var fullPath string
-			fullPath, err = filepath.Abs(pathToFile)
-			if err != nil {
-				return
-			}
-			fullPath = filepath.Clean(fullPath)
-			var folderName string
-			folderName, _ = filepath.Split(fullPath)
-
-			fstats, err = os.Stat(fullPath)
-			if err != nil {
-				return
-			}
-			c.FilesToTransfer[i] = FileInfo{
-				Name:         fstats.Name(),
-				FolderRemote: ".",
-				FolderSource: folderName,
-				Size:         fstats.Size(),
-				ModTime:      fstats.ModTime(),
-			}
-			c.FilesToTransfer[i].Hash, err = utils.HashFile(fullPath)
-			totalFilesSize += fstats.Size()
-			if err != nil {
-				return
-			}
-			if options.KeepPathInRemote {
-				var curFolder string
-				curFolder, err = os.Getwd()
-				if err != nil {
-					return
-				}
-				curFolder, err = filepath.Abs(curFolder)
-				if err != nil {
-					return
-				}
-				if !strings.HasPrefix(folderName, curFolder) {
-					err = fmt.Errorf("remote directory must be relative to current")
-					return
-				}
-				c.FilesToTransfer[i].FolderRemote = strings.TrimPrefix(folderName, curFolder)
-				c.FilesToTransfer[i].FolderRemote = filepath.ToSlash(c.FilesToTransfer[i].FolderRemote)
-				c.FilesToTransfer[i].FolderRemote = strings.TrimPrefix(c.FilesToTransfer[i].FolderRemote, "/")
-				if c.FilesToTransfer[i].FolderRemote == "" {
-					c.FilesToTransfer[i].FolderRemote = "."
-				}
-			}
-			log.Debugf("file %d info: %+v", i, c.FilesToTransfer[i])
-		}
-		fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
-		if len(c.FilesToTransfer) == 1 {
-			fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
-		}
-		machID, macIDerr := machineid.ID()
-		if macIDerr != nil {
-			log.Error(macIDerr)
-			return
-		}
-		if len(machID) > 6 {
-			machID = machID[:6]
-		}
-		c.machineID = machID
-		fmt.Fprintf(os.Stderr, "Sending %s (%s) from your machine, '%s'\n", fname, utils.ByteCountDecimal(totalFilesSize), machID)
-		fmt.Fprintf(os.Stderr, "Code is: %s\nOn the other computer run\n\ncroc %s\n", c.Options.SharedSecret, c.Options.SharedSecret)
-		// // c.spinner.Suffix = " waiting for recipient..."
-	}
-	// c.spinner.Start()
-	// create channel for quitting
 	// quit with c.quit <- true
 	c.quit = make(chan bool)
 
