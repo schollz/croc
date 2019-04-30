@@ -9,7 +9,9 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"bytes"
 	"net"
+	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -108,4 +110,44 @@ func ByteCountDecimal(b int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "kMGTPE"[exp])
+}
+
+
+
+// MissingChunks returns the positions of missing chunks.
+// If file doesn't exist, it returns an empty chunk list (all chunks).
+// If the file size is not the same as requested, it returns an empty chunk list (all chunks).
+func MissingChunks(fname string, fsize int64, chunkSize int) (chunks []int64) {
+	fstat, err := os.Stat(fname)
+	if fstat.Size() != fsize {
+		return
+	}
+
+	f, err := os.Open(fname)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	buffer := make([]byte, chunkSize)
+	emptyBuffer := make([]byte, chunkSize)
+	chunkNum := 0
+	chunks = make([]int64, int64(math.Ceil(float64(fsize)/float64(chunkSize))))
+	var currentLocation int64
+	for {
+		bytesread, err := f.Read(buffer)
+		if err != nil {
+			break
+		}
+		if bytes.Equal(buffer[:bytesread], emptyBuffer[:bytesread]) {
+			chunks[chunkNum] = currentLocation
+		}
+		currentLocation += int64(bytesread)
+	}
+	if chunkNum == 0 {
+		chunks = []int64{}
+	} else {
+		chunks = chunks[:chunkNum]
+	}
+	return
 }

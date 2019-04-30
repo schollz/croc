@@ -152,7 +152,7 @@ func send(c *cli.Context) (err error) {
 		IsSender:     true,
 		Debug:        c.GlobalBool("debug"),
 		NoPrompt:     c.GlobalBool("yes"),
-		AddressRelay: c.GlobalString("relay"),
+		RelayAddress: c.GlobalString("relay"),
 		Stdout:       c.GlobalBool("stdout"),
 	})
 	if err != nil {
@@ -187,7 +187,7 @@ func receive(c *cli.Context) (err error) {
 		IsSender:     false,
 		Debug:        c.GlobalBool("debug"),
 		NoPrompt:     c.GlobalBool("yes"),
-		AddressRelay: c.GlobalString("relay"),
+		RelayAddress: c.GlobalString("relay"),
 		Stdout:       c.GlobalBool("stdout"),
 	})
 	if err != nil {
