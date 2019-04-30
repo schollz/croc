@@ -123,21 +123,8 @@ func New(ops Options) (c *Client, err error) {
 	Debug(c.Options.Debug)
 	log.Debugf("options: %+v", c.Options)
 
-	log.Debug("establishing connection")
 	c.conn = make([]*comm.Comm, len(c.Options.RelayPorts))
-	// connect to the relay for messaging
-	c.conn[0], err = tcp.ConnectToTCPServer(fmt.Sprintf("%s:%s", c.Options.RelayAddress, c.Options.RelayPorts[0]), c.Options.SharedSecret)
-	if err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("could not connect to %s:%s", c.Options.RelayAddress, c.Options.RelayPorts[0]))
-		return
-	}
-	log.Debugf("connection established: %+v", c.conn[0])
-	if c.Options.IsSender {
-		fmt.Println(c.conn[0].Receive())
-	} else {
-		c.conn[0].Send([]byte("hello"))
-	}
-	log.Debug("exchanged header message")
+	
 
 	// use default key (no encryption, until PAKE succeeds)
 	c.Key, err = crypt.New(nil, nil)
@@ -177,6 +164,26 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		})
 		fmt.Println(discoveries, err)
 	}()
+
+	return 
+}
+
+func (c *Client) send(address string) (err error)
+	
+	// connect to the relay for messaging
+	log.Debug("establishing connection")
+	c.conn[0], err = tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.SharedSecret)
+	if err != nil {
+		err = errors.Wrap(err, fmt.Sprintf("could not connect to %s:%s", c.Options.RelayAddress, c.Options.RelayPorts[0]))
+		return
+	}
+	log.Debugf("connection established: %+v", c.conn[0])
+	if c.Options.IsSender {
+		fmt.Println(c.conn[0].Receive())
+	} else {
+		c.conn[0].Send([]byte("hello"))
+	}
+	log.Debug("exchanged header message")
 
 	return c.transfer(options)
 }
