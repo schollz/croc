@@ -222,8 +222,9 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 		}
 	}
 }
+
 func ConnectToTCPServer(address, room string) (c *comm.Comm, err error) {
-	c, err = comm.NewConnection("localhost:8081")
+	c, err = comm.NewConnection(address)
 	if err != nil {
 		return
 	}
