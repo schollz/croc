@@ -17,7 +17,6 @@ func TestTCP(t *testing.T) {
 	_, err = ConnectToTCPServer("localhost:8081", "testRoom")
 	assert.NotNil(t, err)
 
-	assert.False(t, c1.IsClosed())
 	// try sending data
 	assert.Nil(t, c1.Send([]byte("hello, c2")))
 	data, err := c2.Receive()
@@ -30,5 +29,4 @@ func TestTCP(t *testing.T) {
 	assert.Equal(t, []byte("hello, c1"), data)
 
 	c1.Close()
-	assert.True(t, c1.IsClosed())
 }
