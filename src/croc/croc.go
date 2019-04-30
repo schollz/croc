@@ -192,8 +192,6 @@ func (c *Client) Receive() (err error) {
 	//})
 	//fmt.Println(discoveries)
 	//fmt.Println(err)
-	return nil
-
 	return c.transfer(TransferOptions{})
 }
 
