@@ -317,18 +317,24 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 			}
 
 			// connects to the other ports of the server for transfer
+			var wg sync.WaitGroup
+			wg.Add(len(c.Options.RelayPorts) - 1)
 			for i := 1; i < len(c.Options.RelayPorts); i++ {
-				c.conn[i], err = tcp.ConnectToTCPServer(
-					fmt.Sprintf("%s:%s", c.Options.RelayAddress, c.Options.RelayPorts[i]),
-					fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret)[:7], i),
-				)
-				if err != nil {
-					return true, err
-				}
-				if !c.Options.IsSender {
-					go c.receiveData(i)
-				}
+				go func(j int) {
+					defer wg.Done()
+					c.conn[j], err = tcp.ConnectToTCPServer(
+						fmt.Sprintf("%s:%s", c.Options.RelayAddress, c.Options.RelayPorts[j]),
+						fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret)[:7], j),
+					)
+					if err != nil {
+						panic(err)
+					}
+					if !c.Options.IsSender {
+						go c.receiveData(j)
+					}
+				}(i)
 			}
+			wg.Wait()
 			c.Step1ChannelSecured = true
 		}
 	case "error":
@@ -631,8 +637,7 @@ func (c *Client) sendData(i int) {
 			}
 			c.bar.Add(n)
 			c.TotalSent += int64(n)
-			log.Debug(c.TotalSent)
-			time.Sleep(100 * time.Millisecond)
+			// time.Sleep(100 * time.Millisecond)
 		}
 
 		curi++
