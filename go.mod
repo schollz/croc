@@ -9,7 +9,7 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/schollz/mnemonicode v1.0.1
 	github.com/schollz/pake v1.1.0
-	github.com/schollz/progressbar/v2 v2.12.0
+	github.com/schollz/progressbar/v2 v2.12.1
 	github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9
 	github.com/stretchr/testify v1.3.0
 	github.com/urfave/cli v1.20.0
