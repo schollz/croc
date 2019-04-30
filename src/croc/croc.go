@@ -137,6 +137,7 @@ func New(ops Options) (c *Client, err error) {
 	} else {
 		c.conn[0].Send([]byte("hello"))
 	}
+	log.Debug("exchanged header message")
 
 	// use default key (no encryption, until PAKE succeeds)
 	c.Key, err = crypt.New(nil, nil)
