@@ -220,7 +220,7 @@ func relay(c *cli.Context) (err error) {
 			continue
 		}
 		go func(portStr string) {
-			err = tcp.Run(debugString, portStr)
+			err = tcp.Run(debugString, portStr, c.GlobalString("ports"))
 			if err != nil {
 				panic(err)
 			}
