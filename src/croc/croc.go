@@ -649,7 +649,7 @@ func (c *Client) setBar() {
 		progressbar.OptionOnCompletion(func() {
 			fmt.Fprintf(os.Stderr, " ✔️\n")
 		}),
-		progressbar.OptionSetWidth(8),
+		progressbar.OptionSetWidth(16),
 		progressbar.OptionSetDescription(description),
 		progressbar.OptionSetRenderBlankState(true),
 		progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
