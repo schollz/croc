@@ -52,6 +52,7 @@ type Options struct {
 	RelayPorts   []string
 	Stdout       bool
 	NoPrompt     bool
+	DisableLocal bool
 }
 
 type Client struct {
@@ -226,55 +227,57 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	// connect to the relay for messaging
 	errchan := make(chan error, 1)
 
-	// setup the relay locally
-	for _, port := range c.Options.RelayPorts {
-		go func(portStr string) {
-			debugString := "warn"
-			if c.Options.Debug {
-				debugString = "debug"
+	if !c.Options.DisableLocal {
+		// setup the relay locally
+		for _, port := range c.Options.RelayPorts {
+			go func(portStr string) {
+				debugString := "warn"
+				if c.Options.Debug {
+					debugString = "debug"
+				}
+				err = tcp.Run(debugString, portStr)
+				if err != nil {
+					panic(err)
+				}
+			}(port)
+		}
+
+		// look for peers first
+		go func() {
+			discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
+				Limit:     1,
+				Payload:   []byte("9009"),
+				Delay:     10 * time.Millisecond,
+				TimeLimit: 30 * time.Second,
+			})
+			log.Debugf("discoveries: %+v", discoveries)
+
+			if err == nil && len(discoveries) > 0 {
+				log.Debug("using local server")
 			}
-			err = tcp.Run(debugString, portStr)
+		}()
+
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			log.Debug("establishing connection")
+			conn, err := tcp.ConnectToTCPServer("localhost:"+c.Options.RelayPorts[0], c.Options.SharedSecret)
 			if err != nil {
-				panic(err)
+				err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
+				return
 			}
-		}(port)
+			log.Debugf("connection established: %+v", conn)
+			for {
+				data, _ := conn.Receive()
+				if bytes.Equal(data, []byte("handshake")) {
+					break
+				}
+			}
+			c.conn[0] = conn
+			log.Debug("exchanged header message")
+			c.Options.RelayAddress = "localhost"
+			errchan <- c.transfer(options)
+		}()
 	}
-
-	// look for peers first
-	go func() {
-		discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
-			Limit:     1,
-			Payload:   []byte("9009"),
-			Delay:     10 * time.Millisecond,
-			TimeLimit: 30 * time.Second,
-		})
-		log.Debugf("discoveries: %+v", discoveries)
-
-		if err == nil && len(discoveries) > 0 {
-			log.Debug("using local server")
-		}
-	}()
-
-	go func() {
-		time.Sleep(500 * time.Millisecond)
-		log.Debug("establishing connection")
-		conn, err := tcp.ConnectToTCPServer("localhost:"+c.Options.RelayPorts[0], c.Options.SharedSecret)
-		if err != nil {
-			err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
-			return
-		}
-		log.Debugf("connection established: %+v", conn)
-		for {
-			data, _ := conn.Receive()
-			if bytes.Equal(data, []byte("handshake")) {
-				break
-			}
-		}
-		c.conn[0] = conn
-		log.Debug("exchanged header message")
-		c.Options.RelayAddress = "localhost"
-		errchan <- c.transfer(options)
-	}()
 
 	go func() {
 		log.Debug("establishing connection")
@@ -302,14 +305,18 @@ func (c *Client) Send(options TransferOptions) (err error) {
 // Receive will receive a file
 func (c *Client) Receive() (err error) {
 	// look for peers first
-	discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
-		Limit:     1,
-		Payload:   []byte("ok"),
-		Delay:     10 * time.Millisecond,
-		TimeLimit: 100 * time.Millisecond,
-	})
-	log.Debugf("discoveries: %+v", discoveries)
-	log.Debug("establishing connection")
+	if !c.Options.DisableLocal {
+
+		discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
+			Limit:     1,
+			Payload:   []byte("ok"),
+			Delay:     10 * time.Millisecond,
+			TimeLimit: 100 * time.Millisecond,
+		})
+		_ = err
+		log.Debugf("discoveries: %+v", discoveries)
+		log.Debug("establishing connection")
+	}
 	c.conn[0], err = tcp.ConnectToTCPServer(c.Options.RelayAddress+":"+c.Options.RelayPorts[0], c.Options.SharedSecret)
 	if err != nil {
 		err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
