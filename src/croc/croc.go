@@ -506,19 +506,7 @@ func (c *Client) updateState() (err error) {
 		}
 
 		// setup the progressbar
-		c.bar = progressbar.NewOptions64(
-			c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
-			progressbar.OptionOnCompletion(func() {
-				fmt.Fprintf(os.Stderr, " ✔️\n")
-			}),
-			progressbar.OptionSetWidth(8),
-			progressbar.OptionSetDescription(fmt.Sprintf("%28s", c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)),
-			progressbar.OptionSetRenderBlankState(true),
-			progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
-			progressbar.OptionSetWriter(os.Stderr),
-			progressbar.OptionThrottle(100*time.Millisecond),
-		)
-		c.bar.Add(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
+		c.setBar()
 		c.TotalSent = 0
 		bRequest, _ := json.Marshal(RemoteFileRequest{
 			CurrentFileChunks:         c.CurrentFileChunks,
@@ -537,25 +525,33 @@ func (c *Client) updateState() (err error) {
 		log.Debug("start sending data!")
 		c.Step4FileTransfer = true
 		// setup the progressbar
-		c.bar = progressbar.NewOptions64(
-			c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
-			progressbar.OptionOnCompletion(func() {
-				fmt.Fprintf(os.Stderr, " ✔️\n")
-			}),
-			progressbar.OptionSetWidth(8),
-			progressbar.OptionSetDescription(fmt.Sprintf("%28s", c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)),
-			progressbar.OptionSetRenderBlankState(true),
-			progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
-			progressbar.OptionSetWriter(os.Stderr),
-			progressbar.OptionThrottle(100*time.Millisecond),
-		)
-		c.bar.Add(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
+		c.setBar()
 		c.TotalSent = 0
 		for i := 1; i < len(c.Options.RelayPorts); i++ {
 			go c.sendData(i)
 		}
 	}
 	return
+}
+
+func (c *Client) setBar() {
+	description := fmt.Sprintf("%28s", c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
+	if len(c.FilesToTransfer) == 1 {
+		description = c.FilesToTransfer[c.FilesToTransferCurrentNum].Name
+	}
+	c.bar = progressbar.NewOptions64(
+		c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
+		progressbar.OptionOnCompletion(func() {
+			fmt.Fprintf(os.Stderr, " ✔️\n")
+		}),
+		progressbar.OptionSetWidth(8),
+		progressbar.OptionSetDescription(description),
+		progressbar.OptionSetRenderBlankState(true),
+		progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
+		progressbar.OptionSetWriter(os.Stderr),
+		progressbar.OptionThrottle(100*time.Millisecond),
+	)
+	c.bar.Add(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
 }
 
 func (c *Client) receiveData(i int) {
