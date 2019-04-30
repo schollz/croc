@@ -390,6 +390,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		}
 		c.Step3RecipientRequestFile = true
 	case "close-sender":
+		c.bar.Finish()
 		log.Debug("close-sender received...")
 		c.Step4FileTransfer = false
 		c.Step3RecipientRequestFile = false
