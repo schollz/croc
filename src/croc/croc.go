@@ -3,9 +3,11 @@ package croc
 import (
 	"bytes"
 	"crypto/elliptic"
-	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -17,6 +19,7 @@ import (
 	"github.com/denisbrodbeck/machineid"
 	"github.com/pkg/errors"
 	"github.com/schollz/croc/v6/src/comm"
+	"github.com/schollz/croc/v6/src/compress"
 	"github.com/schollz/croc/v6/src/crypt"
 	"github.com/schollz/croc/v6/src/logger"
 	"github.com/schollz/croc/v6/src/message"
@@ -254,25 +257,35 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 	// listen for incoming messages and process them
 	for {
 		var data []byte
+		var done bool
 		data, err = c.conn[0].Receive()
 		if err != nil {
 			return
 		}
-		err = c.processMessage(data)
+		done, err = c.processMessage(data)
 		if err != nil {
 			return
+		}
+		if done {
+			break
 		}
 	}
 	return
 }
 
-func (c *Client) processMessage(payload []byte) (err error) {
+func (c *Client) processMessage(payload []byte) (done bool, err error) {
 	m, err := message.Decode(c.Key, payload)
 	if err != nil {
 		return
 	}
 
 	switch m.Type {
+	case "finished":
+		err = message.Send(c.conn[0], c.Key, message.Message{
+			Type: "finished",
+		})
+		done = true
+		return
 	case "pake":
 		// if // c.spinner.Suffix != " performing PAKE..." {
 		// 	// c.spinner.Stop()
@@ -294,11 +307,25 @@ func (c *Client) processMessage(payload []byte) (err error) {
 			log.Debug("session key is verified, generating encryption")
 			key, err := c.Pake.SessionKey()
 			if err != nil {
-				return err
+				return true, err
 			}
 			c.Key, err = crypt.New(key, []byte(c.Options.SharedSecret))
 			if err != nil {
-				return err
+				return true, err
+			}
+
+			// connects to the other ports of the server for transfer
+			for i := 1; i < len(c.Options.RelayPorts); i++ {
+				c.conn[i], err = tcp.ConnectToTCPServer(
+					fmt.Sprintf("%s:%s", c.Options.RelayAddress, c.Options.RelayPorts[i]),
+					fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret)[:7], i),
+				)
+				if err != nil {
+					return true, err
+				}
+				if !c.Options.IsSender {
+					go c.receiveData(i)
+				}
 			}
 			c.Step1ChannelSecured = true
 		}
@@ -306,7 +333,7 @@ func (c *Client) processMessage(payload []byte) (err error) {
 		// c.spinner.Stop()
 		fmt.Print("\r")
 		err = fmt.Errorf("peer error: %s", m.Message)
-		return err
+		return true, err
 	case "fileinfo":
 		var senderInfo SenderInfo
 		err = json.Unmarshal(m.Bytes, &senderInfo)
@@ -331,7 +358,7 @@ func (c *Client) processMessage(payload []byte) (err error) {
 					Type:    "error",
 					Message: "refusing files",
 				})
-				return fmt.Errorf("refused files")
+				return true, fmt.Errorf("refused files")
 			}
 		} else {
 			fmt.Fprintf(os.Stderr, "\rReceiving %s (%s) from machine '%s'\n", fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
@@ -354,7 +381,6 @@ func (c *Client) processMessage(payload []byte) (err error) {
 		log.Debug("sending close-recipient")
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type: "close-recipient",
-			Num:  m.Num,
 		})
 	case "close-recipient":
 		c.Step4FileTransfer = false
@@ -421,6 +447,53 @@ func (c *Client) updateState() (err error) {
 		// start initiating the process to receive a new file
 		log.Debugf("working on file %d", c.FilesToTransferCurrentNum)
 
+		// recipient sets the file
+		pathToFile := path.Join(
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
+		)
+		folderForFile, _ := filepath.Split(pathToFile)
+		os.MkdirAll(folderForFile, os.ModePerm)
+		var errOpen error
+		c.CurrentFile, errOpen = os.OpenFile(
+			pathToFile,
+			os.O_WRONLY, 0666)
+		truncate := false
+		if errOpen == nil {
+			stat, _ := c.CurrentFile.Stat()
+			truncate = stat.Size() != c.FilesToTransfer[c.FilesToTransferCurrentNum].Size
+		} else {
+			c.CurrentFile, errOpen = os.Create(pathToFile)
+			if errOpen != nil {
+				errOpen = errors.Wrap(errOpen, "could not create "+pathToFile)
+				log.Error(errOpen)
+				return errOpen
+			}
+			truncate = true
+		}
+		if truncate {
+			err := c.CurrentFile.Truncate(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
+			if err != nil {
+				err = errors.Wrap(err, "could not truncate "+pathToFile)
+				log.Error(err)
+				return err
+			}
+		}
+
+		// setup the progressbar
+		c.bar = progressbar.NewOptions64(
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
+			progressbar.OptionOnCompletion(func() {
+				fmt.Println(" ✔️")
+			}),
+			progressbar.OptionSetWidth(8),
+			progressbar.OptionSetDescription(c.FilesToTransfer[c.FilesToTransferCurrentNum].Name),
+			progressbar.OptionSetRenderBlankState(true),
+			progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
+			progressbar.OptionSetWriter(os.Stderr),
+			progressbar.OptionThrottle(100*time.Millisecond),
+		)
+
 		// recipient requests the file and chunks (if empty, then should receive all chunks)
 		bRequest, _ := json.Marshal(RemoteFileRequest{
 			CurrentFileChunks:         c.CurrentFileChunks,
@@ -434,35 +507,123 @@ func (c *Client) updateState() (err error) {
 			return
 		}
 		c.Step3RecipientRequestFile = true
-		// TODO: receive
 	}
 	if c.Options.IsSender && c.Step3RecipientRequestFile && !c.Step4FileTransfer {
 		log.Debug("start sending data!")
-		// TODO: send
 		c.Step4FileTransfer = true
+		// setup the progressbar
+		c.bar = progressbar.NewOptions64(
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
+			progressbar.OptionOnCompletion(func() {
+				fmt.Println(" ✔️")
+			}),
+			progressbar.OptionSetWidth(8),
+			progressbar.OptionSetDescription(c.FilesToTransfer[c.FilesToTransferCurrentNum].Name),
+			progressbar.OptionSetRenderBlankState(true),
+			progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
+			progressbar.OptionSetWriter(os.Stderr),
+			progressbar.OptionThrottle(100*time.Millisecond),
+		)
+		for i := 1; i < len(c.Options.RelayPorts); i++ {
+			go c.sendData(i)
+		}
 	}
 	return
 }
 
-// Encode encodes the input in base64
-// It can optionally zip the input before encoding
-func Encode(obj interface{}) string {
-	b, err := json.Marshal(obj)
+func (c *Client) receiveData(i int) {
+
+	for {
+		data, err := c.conn[i].Receive()
+		if err != nil {
+			log.Errorf("%s: %s", i, err.Error())
+		}
+		data, err = c.Key.Decrypt(data)
+		if err != nil {
+			panic(err)
+		}
+		data = compress.Decompress(data)
+
+		// get position
+		var position uint64
+		rbuf := bytes.NewReader(data[:8])
+		err = binary.Read(rbuf, binary.LittleEndian, &position)
+		if err != nil {
+			fmt.Println("binary.Read failed:", err)
+		}
+		positionInt64 := int64(position)
+
+		c.mutex.Lock()
+		n, err := c.CurrentFile.WriteAt(data[8:], positionInt64)
+		c.mutex.Unlock()
+		if err != nil {
+			panic(err)
+		}
+		c.bar.Add(n)
+		if c.bar.State().CurrentBytes == float64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size) {
+			log.Debug("finished receiving!")
+			c.CurrentFile.Close()
+			log.Debug("sending close-sender")
+			err = message.Send(c.conn[0], c.Key, message.Message{
+				Type: "close-sender",
+			})
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+
+	return
+}
+
+func (c *Client) sendData(i int) {
+	pathToFile := path.Join(
+		c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource,
+		c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
+	)
+	log.Debugf("opening %s to read", pathToFile)
+	f, err := os.Open(pathToFile)
 	if err != nil {
 		panic(err)
 	}
+	defer f.Close()
 
-	return base64.StdEncoding.EncodeToString(b)
-}
+	pos := uint64(0)
+	curi := float64(0)
+	for {
+		// Read file
+		data := make([]byte, 1000)
+		n, err := f.Read(data)
+		if err != nil {
+			if err == io.EOF {
+				return
+			}
+			panic(err)
+		}
 
-// Decode decodes the input from base64
-// It can optionally unzip the input after decoding
-func Decode(in string, obj interface{}) (err error) {
-	b, err := base64.StdEncoding.DecodeString(in)
-	if err != nil {
-		return
+		if math.Mod(curi, float64(len(c.Options.RelayPorts)-1))+1 == float64(i) {
+			posByte := make([]byte, 8)
+			binary.LittleEndian.PutUint64(posByte, pos)
+
+			dataToSend, err := c.Key.Encrypt(
+				compress.Compress(
+					append(posByte, data[:n]...),
+				),
+			)
+			if err != nil {
+				panic(err)
+			}
+
+			err = c.conn[i].Send(dataToSend)
+			if err != nil {
+				panic(err)
+			}
+			c.bar.Add(n)
+		}
+
+		curi++
+		pos += uint64(n)
 	}
-
-	err = json.Unmarshal(b, obj)
 	return
+
 }
