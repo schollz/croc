@@ -29,4 +29,5 @@ func TestTCP(t *testing.T) {
 	assert.Equal(t, []byte("hello, c1"), data)
 
 	c1.Close()
+	time.Sleep(300 * time.Millisecond)
 }
