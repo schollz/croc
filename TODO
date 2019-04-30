@@ -1,6 +1,0 @@
-# TODO
-
-- [ ] Add function option for the address of the server to connect to
-- [ ] Relay should give information about the available ports
-- [ ] Only Relay has option to select a port
-- [ ] Only send/receive CLI has options to set the address (including port)
