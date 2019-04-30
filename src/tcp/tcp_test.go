@@ -10,11 +10,11 @@ import (
 func TestTCP(t *testing.T) {
 	go Run("debug", "8081")
 	time.Sleep(100 * time.Millisecond)
-	c1, err := ConnectToTCPServer("localhost:8081", "testRoom")
+	c1, _, err := ConnectToTCPServer("localhost:8081", "testRoom")
 	assert.Nil(t, err)
-	c2, err := ConnectToTCPServer("localhost:8081", "testRoom")
+	c2, _, err := ConnectToTCPServer("localhost:8081", "testRoom")
 	assert.Nil(t, err)
-	_, err = ConnectToTCPServer("localhost:8081", "testRoom")
+	_, _, err = ConnectToTCPServer("localhost:8081", "testRoom")
 	assert.NotNil(t, err)
 
 	// try sending data
