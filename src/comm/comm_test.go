@@ -47,7 +47,7 @@ func TestComm(t *testing.T) {
 		}
 	}()
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	a, err := NewConnection("localhost:" + port)
 	assert.Nil(t, err)
 	data, err := a.Receive()

@@ -15,21 +15,6 @@ type Comm struct {
 	connection net.Conn
 }
 
-func (c *Comm) IsClosed() bool {
-	one := []byte{}
-	c.connection.SetReadDeadline(time.Now())
-	_, err := c.connection.Read(one)
-	if err != nil {
-		fmt.Println(err)
-		c.connection.Close()
-		c.connection = nil
-		return true
-	} else {
-		c.connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
-	}
-	return false
-}
-
 // NewConnection gets a new comm to a tcp address
 func NewConnection(address string) (c *Comm, err error) {
 	connection, err := net.DialTimeout("tcp", address, 3*time.Second)

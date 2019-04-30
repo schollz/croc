@@ -16,7 +16,7 @@ func TestExists(t *testing.T) {
 func TestHashFile(t *testing.T) {
 	b, err := HashFile("utils.go")
 	assert.Nil(t, err)
-	assert.Equal(t, "33303e23c9c5e9c194d50b399391754e", fmt.Sprintf("%x", b))
+	assert.Equal(t, "9a66e5c18b9759073666953da376c037", fmt.Sprintf("%x", b))
 }
 
 // SHA256 returns sha256 sum
