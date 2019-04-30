@@ -262,7 +262,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 			time.Sleep(500 * time.Millisecond)
 			log.Debug("establishing connection")
 			var banner string
-			conn, banner, err := tcp.ConnectToTCPServer("localhost:"+c.Options.RelayPorts[0], c.Options.SharedSecret)
+			conn, banner, err := tcp.ConnectToTCPServer("localhost:9001", c.Options.SharedSecret)
 			log.Debugf("banner: %s", banner)
 			if err != nil {
 				err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
@@ -283,9 +283,9 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	}
 
 	go func() {
-		log.Debug("establishing connection")
+		log.Debug("establishing connection to %s", c.Options.RelayAddress)
 		var banner string
-		conn, banner, err := tcp.ConnectToTCPServer(c.Options.RelayAddress+":"+c.Options.RelayPorts[0], c.Options.SharedSecret)
+		conn, banner, err := tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.SharedSecret)
 		log.Debugf("banner: %s", banner)
 		if err != nil {
 			err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
@@ -323,7 +323,7 @@ func (c *Client) Receive() (err error) {
 		log.Debug("establishing connection")
 	}
 	var banner string
-	c.conn[0], banner, err = tcp.ConnectToTCPServer(c.Options.RelayAddress+":"+c.Options.RelayPorts[0], c.Options.SharedSecret)
+	c.conn[0], banner, err = tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.SharedSecret)
 	log.Debugf("banner: %s", banner)
 	if err != nil {
 		err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
@@ -414,8 +414,8 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 
 			// connects to the other ports of the server for transfer
 			var wg sync.WaitGroup
-			wg.Add(len(c.Options.RelayPorts) - 1)
-			for i := 1; i < len(c.Options.RelayPorts); i++ {
+			wg.Add(len(c.Options.RelayPorts))
+			for i := 0; i < len(c.Options.RelayPorts); i++ {
 				go func(j int) {
 					defer wg.Done()
 					c.conn[j], _, err = tcp.ConnectToTCPServer(
@@ -638,7 +638,7 @@ func (c *Client) updateState() (err error) {
 		// setup the progressbar
 		c.setBar()
 		c.TotalSent = 0
-		for i := 1; i < len(c.Options.RelayPorts); i++ {
+		for i := 0; i < len(c.Options.RelayPorts); i++ {
 			go c.sendData(i)
 		}
 	}
@@ -742,7 +742,7 @@ func (c *Client) sendData(i int) {
 			panic(err)
 		}
 
-		if math.Mod(curi, float64(len(c.Options.RelayPorts)-1))+1 == float64(i) {
+		if math.Mod(curi, float64(len(c.Options.RelayPorts))) == float64(i) {
 			// check to see if this is a chunk that the recipient wants
 			usableChunk := true
 			c.mutex.Lock()
