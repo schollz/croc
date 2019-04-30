@@ -71,6 +71,7 @@ type Client struct {
 	// send / receive information of current file
 	CurrentFile       *os.File
 	CurrentFileChunks []int64
+	TotalSent         int64
 
 	// tcp connections
 	conn []*comm.Comm
@@ -493,6 +494,7 @@ func (c *Client) updateState() (err error) {
 			progressbar.OptionSetWriter(os.Stderr),
 			progressbar.OptionThrottle(100*time.Millisecond),
 		)
+		c.TotalSent = 0
 
 		// recipient requests the file and chunks (if empty, then should receive all chunks)
 		bRequest, _ := json.Marshal(RemoteFileRequest{
@@ -524,6 +526,7 @@ func (c *Client) updateState() (err error) {
 			progressbar.OptionSetWriter(os.Stderr),
 			progressbar.OptionThrottle(100*time.Millisecond),
 		)
+		c.TotalSent = 0
 		for i := 1; i < len(c.Options.RelayPorts); i++ {
 			go c.sendData(i)
 		}
@@ -532,7 +535,6 @@ func (c *Client) updateState() (err error) {
 }
 
 func (c *Client) receiveData(i int) {
-
 	for {
 		data, err := c.conn[i].Receive()
 		if err != nil {
@@ -554,13 +556,15 @@ func (c *Client) receiveData(i int) {
 		positionInt64 := int64(position)
 
 		c.mutex.Lock()
-		n, err := c.CurrentFile.WriteAt(data[8:], positionInt64)
+		_, err = c.CurrentFile.WriteAt(data[8:], positionInt64)
 		c.mutex.Unlock()
 		if err != nil {
 			panic(err)
 		}
-		c.bar.Add(n)
-		if c.bar.State().CurrentBytes == float64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size) {
+		c.bar.Add(len(data[8:]))
+		c.TotalSent += int64(len(data[8:]))
+		log.Debugf("state: %+v", c.bar.State())
+		if c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size {
 			log.Debug("finished receiving!")
 			c.CurrentFile.Close()
 			log.Debug("sending close-sender")
@@ -577,6 +581,9 @@ func (c *Client) receiveData(i int) {
 }
 
 func (c *Client) sendData(i int) {
+	defer func() {
+		log.Debugf("finished with %d", i)
+	}()
 	pathToFile := path.Join(
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource,
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
@@ -592,7 +599,7 @@ func (c *Client) sendData(i int) {
 	curi := float64(0)
 	for {
 		// Read file
-		data := make([]byte, 1000)
+		data := make([]byte, 40000)
 		n, err := f.Read(data)
 		if err != nil {
 			if err == io.EOF {
@@ -619,6 +626,9 @@ func (c *Client) sendData(i int) {
 				panic(err)
 			}
 			c.bar.Add(n)
+			c.TotalSent += int64(n)
+			log.Debug(c.TotalSent)
+			// time.Sleep(10 * time.Millisecond)
 		}
 
 		curi++

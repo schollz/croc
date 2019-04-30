@@ -34,14 +34,14 @@ type roomMap struct {
 }
 
 // Run starts a tcp listener, run async
-func Run(debugLevel, port string) {
+func Run(debugLevel, port string) (err error) {
 	s := new(server)
 	s.port = port
 	s.debugLevel = debugLevel
-	s.start()
+	return s.start()
 }
 
-func (s *server) start() {
+func (s *server) start() (err error) {
 	logger.SetLogLevel(s.debugLevel)
 	s.rooms.Lock()
 	s.rooms.rooms = make(map[string]roomInfo)
@@ -61,10 +61,11 @@ func (s *server) start() {
 		}
 	}()
 
-	err := s.run()
+	err = s.run()
 	if err != nil {
 		log.Error(err)
-	}
+		}
+		return
 }
 
 func (s *server) run() (err error) {
