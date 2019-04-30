@@ -86,7 +86,8 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	}
 	numBytes = int(numBytesUint32)
 	for {
-		tmp := make([]byte, numBytes)
+		// log.Debugf("bytes: %d/%d",len(buf),numBytes)
+		tmp := make([]byte, numBytes-len(buf))
 		n, errRead := c.connection.Read(tmp)
 		if errRead != nil {
 			err = errRead
