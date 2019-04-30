@@ -214,20 +214,20 @@ func relay(c *cli.Context) (err error) {
 	if c.GlobalBool("debug") {
 		debugString = "debug"
 	}
-	ports := strings.Split(c.GlobalString("ports"), ",")
+	ports := strings.Split(c.String("ports"), ",")
 	tcpPorts := strings.Join(ports[1:], ",")
 	for i, port := range ports {
 		if i == 0 {
 			continue
 		}
 		go func(portStr string) {
-			err = tcp.Run(debugString, portStr, tcpPorts)
+			err = tcp.Run(debugString, portStr)
 			if err != nil {
 				panic(err)
 			}
 		}(port)
 	}
-	return tcp.Run(debugString, ports[0])
+	return tcp.Run(debugString, ports[0],tcpPorts)
 }
 
 // func dirSize(path string) (int64, error) {
