@@ -509,10 +509,10 @@ func (c *Client) updateState() (err error) {
 		c.bar = progressbar.NewOptions64(
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
 			progressbar.OptionOnCompletion(func() {
-				fmt.Println(" ✔️")
+				fmt.Fprintf(os.Stderr, " ✔️\n")
 			}),
 			progressbar.OptionSetWidth(8),
-			progressbar.OptionSetDescription(c.FilesToTransfer[c.FilesToTransferCurrentNum].Name),
+			progressbar.OptionSetDescription(fmt.Sprintf("%28s", c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)),
 			progressbar.OptionSetRenderBlankState(true),
 			progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
 			progressbar.OptionSetWriter(os.Stderr),
@@ -540,10 +540,10 @@ func (c *Client) updateState() (err error) {
 		c.bar = progressbar.NewOptions64(
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
 			progressbar.OptionOnCompletion(func() {
-				fmt.Println(" ✔️")
+				fmt.Fprintf(os.Stderr, " ✔️\n")
 			}),
 			progressbar.OptionSetWidth(8),
-			progressbar.OptionSetDescription(c.FilesToTransfer[c.FilesToTransferCurrentNum].Name),
+			progressbar.OptionSetDescription(fmt.Sprintf("%28s", c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)),
 			progressbar.OptionSetRenderBlankState(true),
 			progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
 			progressbar.OptionSetWriter(os.Stderr),
@@ -563,8 +563,7 @@ func (c *Client) receiveData(i int) {
 		log.Debug("waiting for data")
 		data, err := c.conn[i].Receive()
 		if err != nil {
-			log.Errorf("%s: %s", i, err.Error())
-			continue
+			break
 		}
 
 		data, err = c.Key.Decrypt(data)
@@ -578,7 +577,7 @@ func (c *Client) receiveData(i int) {
 		rbuf := bytes.NewReader(data[:8])
 		err = binary.Read(rbuf, binary.LittleEndian, &position)
 		if err != nil {
-			fmt.Println("binary.Read failed:", err)
+			panic(err)
 		}
 		positionInt64 := int64(position)
 
