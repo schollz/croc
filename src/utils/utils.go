@@ -119,7 +119,7 @@ func ByteCountDecimal(b int64) string {
 // If the file size is not the same as requested, it returns an empty chunk list (all chunks).
 func MissingChunks(fname string, fsize int64, chunkSize int) (chunks []int64) {
 	fstat, err := os.Stat(fname)
-	if fstat.Size() != fsize {
+	if fstat.Size() != fsize || err != nil {
 		return
 	}
 
