@@ -169,7 +169,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 
 	go func() {
 		log.Debug("establishing connection")
-		c.conn[0], err = tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.SharedSecret)
+		c.conn[0], err = tcp.ConnectToTCPServer(c.Options.RelayAddress+":"+c.Options.RelayPorts[0], c.Options.SharedSecret)
 		if err != nil {
 			err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
 			return
@@ -195,7 +195,7 @@ func (c *Client) Receive() (err error) {
 	//fmt.Println(discoveries)
 	//fmt.Println(err)
 	log.Debug("establishing connection")
-	c.conn[0], err = tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.SharedSecret)
+	c.conn[0], err = tcp.ConnectToTCPServer(c.Options.RelayAddress+":"+c.Options.RelayPorts[0], c.Options.SharedSecret)
 	if err != nil {
 		err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
 		return
