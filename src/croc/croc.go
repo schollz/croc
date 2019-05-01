@@ -393,6 +393,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		done = true
 		return
 	case "pake":
+		log.Debug("received pake payload")
 		// if // c.spinner.Suffix != " performing PAKE..." {
 		// 	// c.spinner.Stop()
 		// 	// c.spinner.Suffix = " performing PAKE..."
@@ -439,6 +440,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 					if err != nil {
 						panic(err)
 					}
+					log.Debugf("connected to %s", server)
 					if !c.Options.IsSender {
 						go c.receiveData(j)
 					}
