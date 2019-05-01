@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -96,13 +97,12 @@ func (s *server) run() (err error) {
 
 func (s *server) clientCommuncation(port string, c *comm.Comm) (err error) {
 	// send ok to tell client they are connected
-	log.Debugf("sending '%s'", s.banner)
-	if len(s.banner) > 0 {
-		err = c.Send([]byte(s.banner))
-	} else {
-		err = c.Send([]byte("ok"))
-
+	banner := s.banner
+	if len(banner) == 0 {
+		banner = "ok"
 	}
+	log.Debugf("sending '%s'", banner)
+	err = c.Send([]byte(banner + "|||" + c.Connection().RemoteAddr().String()))
 	if err != nil {
 		return
 	}
@@ -243,7 +243,7 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 	}
 }
 
-func ConnectToTCPServer(address, room string) (c *comm.Comm, banner string, err error) {
+func ConnectToTCPServer(address, room string) (c *comm.Comm, banner string, ipaddr string, err error) {
 	c, err = comm.NewConnection(address)
 	if err != nil {
 		return
@@ -253,7 +253,8 @@ func ConnectToTCPServer(address, room string) (c *comm.Comm, banner string, err 
 	if err != nil {
 		return
 	}
-	banner = string(data)
+	banner = strings.Split(string(data), "|||")[0]
+	ipaddr = strings.Split(string(data), "|||")[1]
 	log.Debug("sending room")
 	err = c.Send([]byte(room))
 	if err != nil {
