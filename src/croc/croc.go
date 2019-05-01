@@ -58,10 +58,10 @@ type Options struct {
 }
 
 type Client struct {
-	Options    Options
-	Pake       *pake.Pake
-	Key        crypt.Encryption
-	ExternalIP string
+	Options                         Options
+	Pake                            *pake.Pake
+	Key                             crypt.Encryption
+	ExternalIP, ExternalIPConnected string
 
 	// steps involved in forming relationship
 	Step1ChannelSecured       bool
@@ -429,8 +429,9 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 				salt := make([]byte, 8)
 				rand.Read(salt)
 				err = message.Send(c.conn[0], c.Key, message.Message{
-					Type:  "salt",
-					Bytes: salt,
+					Type:    "salt",
+					Bytes:   salt,
+					Message: c.ExternalIP,
 				})
 				if err != nil {
 					return
@@ -466,8 +467,9 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		if !c.Options.IsSender {
 			log.Debug("sending salt back")
 			err = message.Send(c.conn[0], c.Key, message.Message{
-				Type:  "salt",
-				Bytes: m.Bytes,
+				Type:    "salt",
+				Bytes:   m.Bytes,
+				Message: c.ExternalIP,
 			})
 		}
 		log.Debugf("session key is verified, generating encryption with salt: %x", m.Bytes)
@@ -479,6 +481,8 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		if err != nil {
 			return true, err
 		}
+		c.ExternalIPConnected = m.Message
+		log.Debugf("connected as %s -> %s", c.ExternalIP, c.ExternalIPConnected)
 		c.Step1ChannelSecured = true
 	case "error":
 		// c.spinner.Stop()
