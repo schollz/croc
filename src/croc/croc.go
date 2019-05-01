@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math"
 	"os"
 	"path"
@@ -367,15 +368,23 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 		var done bool
 		data, err = c.conn[0].Receive()
 		if err != nil {
-			return
+			break
 		}
 		done, err = c.processMessage(data)
 		if err != nil {
-			return
+			break
 		}
 		if done {
 			break
 		}
+	}
+
+	if c.Options.Stdout && !c.Options.IsSender {
+		pathToFile := path.Join(
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
+		)
+		os.Remove(pathToFile)
 	}
 	return
 }
@@ -720,6 +729,14 @@ func (c *Client) receiveData(i int) {
 		if c.TotalChunksTransfered == len(c.CurrentFileChunks) || c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size {
 			log.Debug("finished receiving!")
 			c.CurrentFile.Close()
+			if c.Options.Stdout {
+				pathToFile := path.Join(
+					c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
+					c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
+				)
+				b, _ := ioutil.ReadFile(pathToFile)
+				fmt.Print(string(b))
+			}
 			log.Debug("sending close-sender")
 			err = message.Send(c.conn[0], c.Key, message.Message{
 				Type: "close-sender",
