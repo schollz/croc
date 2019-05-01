@@ -55,9 +55,6 @@ func Run() (err error) {
 			Action: func(c *cli.Context) error {
 				return relay(c)
 			},
-			Flags: []cli.Flag{
-				cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013,9014,9015,9016,9017,9018", Usage: "ports of the relay"},
-			},
 		},
 	}
 	app.Flags = []cli.Flag{
@@ -66,6 +63,7 @@ func Run() (err error) {
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
 		cli.StringFlag{Name: "relay", Value: "198.199.67.130:9009", Usage: "address of the relay"},
 		cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
+		cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013,9014,9015,9016,9017,9018", Usage: "ports of the relay"},
 	}
 	app.EnableBashCompletion = true
 	app.HideHelp = false
@@ -166,6 +164,7 @@ func send(c *cli.Context) (err error) {
 		NoPrompt:     c.GlobalBool("yes"),
 		RelayAddress: c.GlobalString("relay"),
 		Stdout:       c.GlobalBool("stdout"),
+		RelayPorts:   strings.Split(c.GlobalString("ports"), ","),
 	})
 	if err != nil {
 		return
@@ -214,7 +213,7 @@ func relay(c *cli.Context) (err error) {
 	if c.GlobalBool("debug") {
 		debugString = "debug"
 	}
-	ports := strings.Split(c.String("ports"), ",")
+	ports := strings.Split(c.GlobalString("ports"), ",")
 	tcpPorts := strings.Join(ports[1:], ",")
 	for i, port := range ports {
 		if i == 0 {
@@ -227,7 +226,7 @@ func relay(c *cli.Context) (err error) {
 			}
 		}(port)
 	}
-	return tcp.Run(debugString, ports[0],tcpPorts)
+	return tcp.Run(debugString, ports[0], tcpPorts)
 }
 
 // func dirSize(path string) (int64, error) {
