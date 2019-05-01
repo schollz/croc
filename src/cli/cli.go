@@ -63,7 +63,7 @@ func Run() (err error) {
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
 		cli.StringFlag{Name: "relay", Value: "198.199.67.130:9009", Usage: "address of the relay"},
 		cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
-		cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013,9014,9015,9016,9017,9018", Usage: "ports of the relay"},
+		cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay"},
 	}
 	app.EnableBashCompletion = true
 	app.HideHelp = false
