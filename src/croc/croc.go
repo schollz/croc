@@ -507,7 +507,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		}
 		// c.spinner.Stop()
 		if !c.Options.NoPrompt {
-			fmt.Fprintf(os.Stderr, "\rAccept %s (%s) from machine '%s'? (y/n) ", fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
+			fmt.Fprintf(os.Stderr, "\rAccept %s (%s)? (y/n) ", fname, utils.ByteCountDecimal(totalSize))
 			if strings.ToLower(strings.TrimSpace(utils.GetInput(""))) != "y" {
 				err = message.Send(c.conn[0], c.Key, message.Message{
 					Type:    "error",
@@ -516,8 +516,10 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 				return true, fmt.Errorf("refused files")
 			}
 		} else {
-			fmt.Fprintf(os.Stderr, "\rReceiving %s (%s) from machine '%s'\n", fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
+			fmt.Fprintf(os.Stderr, "\rReceiving %s (%s) \n", fname, utils.ByteCountDecimal(totalSize))
 		}
+		fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)\n", c.ExternalIPConnected)
+
 		log.Debug(c.FilesToTransfer)
 		c.Step2FileInfoTransfered = true
 	case "recipientready":
@@ -669,6 +671,7 @@ func (c *Client) updateState() (err error) {
 	}
 	if c.Options.IsSender && c.Step3RecipientRequestFile && !c.Step4FileTransfer {
 		log.Debug("start sending data!")
+		fmt.Fprintf(os.Stderr, "\nSending (->%s)\n", c.ExternalIPConnected)
 		c.Step4FileTransfer = true
 		// setup the progressbar
 		c.setBar()
