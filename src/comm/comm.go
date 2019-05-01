@@ -69,7 +69,7 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	var header []byte
 	numBytes = 4
 	for {
-		tmp := make([]byte,numBytes-len(header))
+		tmp := make([]byte, numBytes-len(header))
 		n, errRead := c.connection.Read(tmp)
 		if errRead != nil {
 			err = errRead
@@ -88,6 +88,7 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 		fmt.Println("binary.Read failed:", err)
 	}
 	numBytes = int(numBytesUint32)
+	buf = make([]byte, 0)
 	for {
 		// log.Debugf("bytes: %d/%d",len(buf),numBytes)
 		tmp := make([]byte, numBytes-len(buf))
