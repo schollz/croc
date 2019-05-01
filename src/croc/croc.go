@@ -87,6 +87,7 @@ type Client struct {
 	bar       *progressbar.ProgressBar
 	spinner   *spinner.Spinner
 	machineID string
+	firstSend bool
 
 	mutex *sync.Mutex
 	quit  chan bool
@@ -671,7 +672,10 @@ func (c *Client) updateState() (err error) {
 	}
 	if c.Options.IsSender && c.Step3RecipientRequestFile && !c.Step4FileTransfer {
 		log.Debug("start sending data!")
-		fmt.Fprintf(os.Stderr, "\nSending (->%s)\n", c.ExternalIPConnected)
+		if !c.firstSend {
+			fmt.Fprintf(os.Stderr, "\nSending (->%s)\n", c.ExternalIPConnected)
+			c.firstSend = true
+		}
 		c.Step4FileTransfer = true
 		// setup the progressbar
 		c.setBar()
