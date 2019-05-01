@@ -312,6 +312,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 
 // Receive will receive a file
 func (c *Client) Receive() (err error) {
+	fmt.Fprintf(os.Stderr, "connecting...")
 	// recipient will look for peers first
 	// and continue if it doesn't find any within 100 ms
 	if !c.Options.DisableLocal {
