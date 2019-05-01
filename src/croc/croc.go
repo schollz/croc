@@ -231,12 +231,13 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	if !c.Options.DisableLocal {
 		// setup the relay locally
 		for _, port := range c.Options.RelayPorts {
+
 			go func(portStr string) {
 				debugString := "warn"
 				if c.Options.Debug {
 					debugString = "debug"
 				}
-				err = tcp.Run(debugString, portStr, strings.Join(c.Options.RelayPorts, ","))
+				err = tcp.Run(debugString, portStr, strings.Join(c.Options.RelayPorts[1:], ","))
 				if err != nil {
 					panic(err)
 				}
@@ -262,10 +263,10 @@ func (c *Client) Send(options TransferOptions) (err error) {
 			time.Sleep(500 * time.Millisecond)
 			log.Debug("establishing connection")
 			var banner string
-			conn, banner, err := tcp.ConnectToTCPServer("localhost:9001", c.Options.SharedSecret)
+			conn, banner, err := tcp.ConnectToTCPServer("localhost:"+c.Options.RelayPorts[0], c.Options.SharedSecret)
 			log.Debugf("banner: %s", banner)
 			if err != nil {
-				err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
+				err = errors.Wrap(err, fmt.Sprintf("could not connect to localhost:%s", c.Options.RelayPorts[0]))
 				return
 			}
 			log.Debugf("connection established: %+v", conn)
