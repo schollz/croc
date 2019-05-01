@@ -323,7 +323,8 @@ func (c *Client) Receive() (err error) {
 			TimeLimit: 100 * time.Millisecond,
 		})
 		if err == nil && len(discoveries) > 0 {
-			//c.Options.RelayAddress = fmt.Sprintf("%s:%s", discoveries[0].Address, discoveries[0].Payload)
+			log.Debug("switching to local")
+			c.Options.RelayAddress = fmt.Sprintf("%s:%s", discoveries[0].Address, discoveries[0].Payload)
 		}
 		log.Debugf("discoveries: %+v", discoveries)
 		log.Debug("establishing connection")
