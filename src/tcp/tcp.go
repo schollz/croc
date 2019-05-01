@@ -97,7 +97,12 @@ func (s *server) run() (err error) {
 func (s *server) clientCommuncation(port string, c *comm.Comm) (err error) {
 	// send ok to tell client they are connected
 	log.Debugf("sending '%s'", s.banner)
-	err = c.Send([]byte(s.banner))
+	if len(s.banner) > 0 {
+		err = c.Send([]byte(s.banner))
+	} else {
+		err = c.Send([]byte("ok"))
+
+	}
 	if err != nil {
 		return
 	}
