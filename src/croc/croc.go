@@ -323,7 +323,7 @@ func (c *Client) Receive() (err error) {
 			TimeLimit: 100 * time.Millisecond,
 		})
 		if err == nil && len(discoveries) > 0 {
-			c.Options.RelayAddress = fmt.Sprintf("%s:%s", discoveries[0].Address, discoveries[0].Payload)
+			//c.Options.RelayAddress = fmt.Sprintf("%s:%s", discoveries[0].Address, discoveries[0].Payload)
 		}
 		log.Debugf("discoveries: %+v", discoveries)
 		log.Debug("establishing connection")
@@ -451,6 +451,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 	case "salt":
 		log.Debug("received salt")
 		if !c.Options.IsSender {
+			log.Debug("sending salt back")
 			err = message.Send(c.conn[0], c.Key, message.Message{
 				Type:  "salt",
 				Bytes: m.Bytes,
