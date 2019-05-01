@@ -197,13 +197,12 @@ func receive(c *cli.Context) (err error) {
 	}
 
 	cr, err := croc.New(croc.Options{
-		SharedSecret:  sharedSecret,
-		IsSender:      false,
-		Debug:         c.GlobalBool("debug"),
-		NoPrompt:      c.GlobalBool("yes"),
-		RelayAddress:  c.GlobalString("relay"),
-		Stdout:        c.GlobalBool("stdout"),
-		PathToReceive: c.GlobalString("out"),
+		SharedSecret: sharedSecret,
+		IsSender:     false,
+		Debug:        c.GlobalBool("debug"),
+		NoPrompt:     c.GlobalBool("yes"),
+		RelayAddress: c.GlobalString("relay"),
+		Stdout:       c.GlobalBool("stdout"),
 	})
 	if err != nil {
 		return
