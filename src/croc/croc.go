@@ -312,7 +312,8 @@ func (c *Client) Send(options TransferOptions) (err error) {
 
 // Receive will receive a file
 func (c *Client) Receive() (err error) {
-	// look for peers first
+	// recipient will look for peers first
+	// and continue if it doesn't find any within 100 ms
 	if !c.Options.DisableLocal {
 		discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
 			Limit:     1,
@@ -320,7 +321,9 @@ func (c *Client) Receive() (err error) {
 			Delay:     10 * time.Millisecond,
 			TimeLimit: 100 * time.Millisecond,
 		})
-		_ = err
+		if err == nil && len(discoveries) > 0 {
+			c.Options.RelayAddress = fmt.Sprintf("%s:%s", discoveries[0].Address, discoveries[0].Payload)
+		}
 		log.Debugf("discoveries: %+v", discoveries)
 		log.Debug("establishing connection")
 	}
