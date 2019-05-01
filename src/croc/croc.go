@@ -58,9 +58,10 @@ type Options struct {
 }
 
 type Client struct {
-	Options Options
-	Pake    *pake.Pake
-	Key     crypt.Encryption
+	Options    Options
+	Pake       *pake.Pake
+	Key        crypt.Encryption
+	ExternalIP string
 
 	// steps involved in forming relationship
 	Step1ChannelSecured       bool
@@ -264,7 +265,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 			time.Sleep(500 * time.Millisecond)
 			log.Debug("establishing connection")
 			var banner string
-			conn, banner, err := tcp.ConnectToTCPServer("localhost:"+c.Options.RelayPorts[0], c.Options.SharedSecret)
+			conn, banner, ipaddr, err := tcp.ConnectToTCPServer("localhost:"+c.Options.RelayPorts[0], c.Options.SharedSecret)
 			log.Debugf("banner: %s", banner)
 			if err != nil {
 				err = errors.Wrap(err, fmt.Sprintf("could not connect to localhost:%s", c.Options.RelayPorts[0]))
@@ -281,6 +282,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 			log.Debug("exchanged header message")
 			c.Options.RelayAddress = "localhost"
 			c.Options.RelayPorts = strings.Split(banner, ",")
+			c.ExternalIP = ipaddr
 			errchan <- c.transfer(options)
 		}()
 	}
@@ -288,7 +290,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	go func() {
 		log.Debug("establishing connection to %s", c.Options.RelayAddress)
 		var banner string
-		conn, banner, err := tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.SharedSecret)
+		conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.SharedSecret)
 		log.Debugf("banner: %s", banner)
 		if err != nil {
 			err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
@@ -304,6 +306,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 
 		c.conn[0] = conn
 		c.Options.RelayPorts = strings.Split(banner, ",")
+		c.ExternalIP = ipaddr
 		log.Debug("exchanged header message")
 		errchan <- c.transfer(options)
 	}()
@@ -331,7 +334,7 @@ func (c *Client) Receive() (err error) {
 		log.Debug("establishing connection")
 	}
 	var banner string
-	c.conn[0], banner, err = tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.SharedSecret)
+	c.conn[0], banner, c.ExternalIP, err = tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.SharedSecret)
 	log.Debugf("banner: %s", banner)
 	if err != nil {
 		err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
@@ -443,7 +446,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 					defer wg.Done()
 					server := fmt.Sprintf("%s:%s", strings.Split(c.Options.RelayAddress, ":")[0], c.Options.RelayPorts[j])
 					log.Debugf("connecting to %s", server)
-					c.conn[j+1], _, err = tcp.ConnectToTCPServer(
+					c.conn[j+1], _, _, err = tcp.ConnectToTCPServer(
 						server,
 						fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret)[:7], j),
 					)
