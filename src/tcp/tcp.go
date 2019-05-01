@@ -232,15 +232,18 @@ func ConnectToTCPServer(address, room string) (c *comm.Comm, banner string, err 
 	if err != nil {
 		return
 	}
+	log.Debug("waiting for first ok")
 	data, err := c.Receive()
 	if err != nil {
 		return
 	}
 	banner = string(data)
+	log.Debug("sending room")
 	err = c.Send([]byte(room))
 	if err != nil {
 		return
 	}
+	log.Debug("waiting for room confirmation")
 	data, err = c.Receive()
 	if err != nil {
 		return
@@ -249,5 +252,6 @@ func ConnectToTCPServer(address, room string) (c *comm.Comm, banner string, err 
 		err = fmt.Errorf("got bad response: %s", data)
 		return
 	}
+	log.Debug("all set")
 	return
 }
