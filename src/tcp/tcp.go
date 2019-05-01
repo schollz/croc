@@ -122,6 +122,7 @@ func (s *server) clientCommuncation(port string, c *comm.Comm) (err error) {
 		err = c.Send([]byte("ok"))
 		if err != nil {
 			log.Error(err)
+			s.deleteRoom(room)
 			return
 		}
 		log.Debugf("room %s has 1", room)
@@ -132,6 +133,7 @@ func (s *server) clientCommuncation(port string, c *comm.Comm) (err error) {
 		err = c.Send([]byte("room full"))
 		if err != nil {
 			log.Error(err)
+			s.deleteRoom(room)
 			return
 		}
 		return nil
@@ -161,19 +163,28 @@ func (s *server) clientCommuncation(port string, c *comm.Comm) (err error) {
 	// tell the sender everything is ready
 	err = c.Send([]byte("ok"))
 	if err != nil {
+		s.deleteRoom(room)
 		return
 	}
 	wg.Wait()
 
 	// delete room
+	s.deleteRoom(room)
+	return nil
+}
+
+func (s *server) deleteRoom(room string) {
 	s.rooms.Lock()
+	defer s.rooms.Unlock()
+	if _, ok := s.rooms.rooms[room]; !ok {
+		return
+	}
 	log.Debugf("deleting room: %s", room)
 	s.rooms.rooms[room].first.Close()
 	s.rooms.rooms[room].second.Close()
 	s.rooms.rooms[room] = roomInfo{first: nil, second: nil}
 	delete(s.rooms.rooms, room)
-	s.rooms.Unlock()
-	return nil
+
 }
 
 // chanFromConn creates a channel from a Conn object, and sends everything it
