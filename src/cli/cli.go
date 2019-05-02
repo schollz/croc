@@ -212,7 +212,7 @@ func receive(c *cli.Context) (err error) {
 }
 
 func relay(c *cli.Context) (err error) {
-	debugString := "warn"
+	debugString := "info"
 	if c.GlobalBool("debug") {
 		debugString = "debug"
 	}

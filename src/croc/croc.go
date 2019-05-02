@@ -223,7 +223,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		machID = machID[:6]
 	}
 	c.machineID = machID
-	fmt.Fprintf(os.Stderr, "Sending %s (%s) from your machine, '%s'\n", fname, utils.ByteCountDecimal(totalFilesSize), machID)
+	fmt.Fprintf(os.Stderr, "Sending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
 	fmt.Fprintf(os.Stderr, "Code is: %s\nOn the other computer run\n\ncroc %s\n", c.Options.SharedSecret, c.Options.SharedSecret)
 	// // c.spinner.Suffix = " waiting for recipient..."
 	// c.spinner.Start()
