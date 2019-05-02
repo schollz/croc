@@ -25,6 +25,11 @@ func run() (err error) {
 	if err == nil {
 		fmt.Printf("updated cli.go to version %s\n", versionNew)
 	}
+	err = replaceInFile("README.md", `version-`, `-b`, strings.Split(versionNew, "-")[0])
+	if err == nil {
+		fmt.Printf("updated README to version %s\n", strings.Split(versionNew, "-")[0])
+	}
+
 	return
 }
 
