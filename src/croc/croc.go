@@ -252,7 +252,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 			discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
 				Limit:     -1,
 				Payload:   []byte(c.Options.RelayPorts[0]),
-				Delay:     5 * time.Millisecond,
+				Delay:     10 * time.Millisecond,
 				TimeLimit: 30 * time.Second,
 			})
 			log.Debugf("discoveries: %+v", discoveries)
@@ -322,6 +322,7 @@ func (c *Client) Receive() (err error) {
 	// recipient will look for peers first
 	// and continue if it doesn't find any within 100 ms
 	if !c.Options.DisableLocal {
+		log.Debug("attempt to discover peers")
 		discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
 			Limit:     1,
 			Payload:   []byte("ok"),
