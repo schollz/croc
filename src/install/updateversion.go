@@ -30,6 +30,11 @@ func run() (err error) {
 		fmt.Printf("updated README to version %s\n", strings.Split(versionNew, "-")[0])
 	}
 
+	err = replaceInFile("src/install/default.txt", `croc_version="`, `"`, strings.Split(versionNew, "-")[0][1:])
+	if err == nil {
+		fmt.Printf("updated default.txt to version %s\n", strings.Split(versionNew, "-")[0][1:])
+	}
+
 	return
 }
 
