@@ -16,7 +16,7 @@ Status"></a>
 
 `croc` is a tool that allows any two computers to simply and securely transfer files and folders. AFAIK, this is the only CLI file-transfer tool that:
 
-- enables **cross-platform** transferes (Windows, Linux, Mac)
+- enables **cross-platform** transfers (Windows, Linux, Mac)
 - enables secure **peer-to-peer** transferring (through a relay)
 - allows **multiple file** transfers
 - allows **resuming transfers** that are interrupted
@@ -77,13 +77,13 @@ You can pipe to `croc`:
 $ cat [filename] | croc send
 ```
 
-In this case `croc` will automatically use the stdin data and send and assign a filename like "croc-stdin-123456789". To receive to stdout at you can always just use the `--yes` and `--stdout` flags which will automatically approve the transfer and pipe it out to stdout. 
+In this case `croc` will automatically use the stdin data and send and assign a filename like "croc-stdin-123456789". To receive to `stdout` at you can always just use the `--yes` and `--stdout` flags which will automatically approve the transfer and pipe it out to `stdout`. 
 
 ```
 $ croc --yes --stdout [code-phrase] > out
 ```
 
-All of the other text printed to the console is going to `stderr` so it will not interfere with the message going to stdout.
+All of the other text printed to the console is going to `stderr` so it will not interfere with the message going to `stdout`.
 
 ### Self-host relay
 
