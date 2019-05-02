@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"os/exec"
 	"strings"
 )
 
@@ -14,26 +15,32 @@ func main() {
 }
 
 func run() (err error) {
-	b, err := ioutil.ReadFile("README.md")
+	version, err := exec.Command("git", "describe").Output()
 	if err != nil {
 		return
 	}
-	newVersion := GetStringInBetween(string(b), "version-", "-b")
 
-	b, err = ioutil.ReadFile("src/cli/cli.go")
+	err = replaceInFile("src/cli/cli.go", `Version ="`, `"`, string(version))
+	return
+}
+
+func replaceInFile(fname, start, end, replacement string) (err error) {
+	b, err := ioutil.ReadFile(fname)
 	if err != nil {
 		return
 	}
-	oldVersion := GetStringInBetween(string(b), `Version = "`, `"`)
-
-	if newVersion != oldVersion {
-		fmt.Printf("new version: '%s'\n", newVersion)
-		fmt.Printf("old version: '%s'\n", oldVersion)
-		newCli := strings.Replace(string(b), fmt.Sprintf(`Version = "%s"`, oldVersion), fmt.Sprintf(`Version = "%s"`, newVersion), 1)
-		err = ioutil.WriteFile("src/cli/cli.go", []byte(newCli), 0644)
-	} else {
-		fmt.Printf("current version: '%s'\n", oldVersion)
+	oldVersion := GetStringInBetween(string(b), start, end)
+	if oldVersion == "" {
+		err = fmt.Errorf("nothing")
+		return
 	}
+	newF := strings.Replace(
+		string(b),
+		fmt.Sprintf("%s%s%s", start, oldVersion, end),
+		fmt.Sprintf("%s%s%s", start, replacement, end),
+		1,
+	)
+	err = ioutil.WriteFile(fname, []byte(newF), 0644)
 	return
 }
 
