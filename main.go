@@ -1,12 +1,14 @@
 package main
+//go:generate go run src/install/updateversion.go
 
 import (
-	"github.com/schollz/croc/src/cli"
+	"fmt"
+
+	"github.com/schollz/croc/v6/src/cli"
 )
 
-var Version string
-
 func main() {
-	cli.Version = Version
-	cli.Run()
+	if err := cli.Run(); err != nil {
+		fmt.Println(err)
+	}
 }
