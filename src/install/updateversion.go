@@ -19,8 +19,12 @@ func run() (err error) {
 	if err != nil {
 		return
 	}
+	versionNew := strings.TrimSpace(string(version))
 
-	err = replaceInFile("src/cli/cli.go", `Version ="`, `"`, string(version))
+	err = replaceInFile("src/cli/cli.go", `Version = "`, `"`, versionNew)
+	if err == nil {
+		fmt.Printf("updated cli.go to version %s\n", versionNew)
+	}
 	return
 }
 
