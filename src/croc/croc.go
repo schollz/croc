@@ -295,6 +295,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		log.Debugf("banner: %s", banner)
 		if err != nil {
 			err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
+			log.Debug(err)
 			return
 		}
 		log.Debugf("connection established: %+v", conn)
