@@ -250,9 +250,9 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		// look for peers first
 		go func() {
 			discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
-				Limit:     1,
+				Limit:     -1,
 				Payload:   []byte(c.Options.RelayPorts[0]),
-				Delay:     10 * time.Millisecond,
+				Delay:     5 * time.Millisecond,
 				TimeLimit: 30 * time.Second,
 			})
 			log.Debugf("discoveries: %+v", discoveries)
