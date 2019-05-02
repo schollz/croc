@@ -746,7 +746,7 @@ func (c *Client) receiveData(i int) {
 		if c.TotalChunksTransfered == len(c.CurrentFileChunks) || c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size {
 			log.Debug("finished receiving!")
 			c.CurrentFile.Close()
-			if c.Options.Stdout {
+			if c.Options.Stdout ||  strings.HasPrefix(c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,"croc-stdin") {
 				pathToFile := path.Join(
 					c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
 					c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,

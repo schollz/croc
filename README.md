@@ -48,18 +48,19 @@ go get github.com/schollz/croc
 To send a file, simply do: 
 
 ```
-$ croc send FILE
-Sending 'FILE' (X MB)
+$ croc send file-or-folder
+Sending 'file-or-folder' (X MB)
 Code is: code-phrase
 ```
 
-Them to receive the file on another computer, you can just do 
+Them to receive the file (or folder) on another computer, you can just do 
 
 ```
 $ croc code-phrase
 ```
 
 The code phrase is used to establish password-authenticated key agreement ([PAKE](https://en.wikipedia.org/wiki/Password-authenticated_key_agreement)) which generates a secret key for the sender and recipient to use for end-to-end encryption.
+
 
 ### Custom code phrase
 
@@ -78,10 +79,10 @@ You can pipe to `croc`:
 $ cat [filename] | croc send
 ```
 
-In this case `croc` will automatically use the stdin data and send and assign a filename like "croc-stdin-123456789". To receive to `stdout` at you can always just use the `--yes` and `--stdout` flags which will automatically approve the transfer and pipe it out to `stdout`. 
+In this case `croc` will automatically use the stdin data and send and assign a filename like "croc-stdin-123456789". To receive to `stdout` at you can always just use the `--yes`  will automatically approve the transfer and pipe it out to `stdout`. 
 
 ```
-$ croc --yes --stdout [code-phrase] > out
+$ croc --yes [code-phrase] > out
 ```
 
 All of the other text printed to the console is going to `stderr` so it will not interfere with the message going to `stdout`.
