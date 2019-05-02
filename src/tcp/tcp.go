@@ -1,20 +1,32 @@
 package tcp
 
 import (
+	"bytes"
+	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/pkg/errors"
-	"github.com/schollz/croc/src/comm"
-	"github.com/schollz/croc/src/logger"
-	"github.com/schollz/croc/src/models"
+	"github.com/schollz/croc/v6/src/comm"
+	"github.com/schollz/croc/v6/src/logger"
+	"github.com/schollz/croc/v6/src/models"
 )
 
+type server struct {
+	port       string
+	debugLevel string
+	banner     string
+	rooms      roomMap
+}
+
 type roomInfo struct {
-	receiver comm.Comm
-	opened   time.Time
+	first  *comm.Comm
+	second *comm.Comm
+	opened time.Time
+	full   bool
 }
 
 type roomMap struct {
@@ -22,40 +34,49 @@ type roomMap struct {
 	sync.Mutex
 }
 
-var rooms roomMap
-
 // Run starts a tcp listener, run async
-func Run(debugLevel, port string) {
-	logger.SetLogLevel(debugLevel)
-	rooms.Lock()
-	rooms.rooms = make(map[string]roomInfo)
-	rooms.Unlock()
+func Run(debugLevel, port string, banner ...string) (err error) {
+	s := new(server)
+	s.port = port
+	s.debugLevel = debugLevel
+	if len(banner) > 0 {
+		s.banner = banner[0]
+	}
+	return s.start()
+}
+
+func (s *server) start() (err error) {
+	logger.SetLogLevel(s.debugLevel)
+	s.rooms.Lock()
+	s.rooms.rooms = make(map[string]roomInfo)
+	s.rooms.Unlock()
 
 	// delete old rooms
 	go func() {
 		for {
 			time.Sleep(10 * time.Minute)
-			rooms.Lock()
-			for room := range rooms.rooms {
-				if time.Since(rooms.rooms[room].opened) > 3*time.Hour {
-					delete(rooms.rooms, room)
+			s.rooms.Lock()
+			for room := range s.rooms.rooms {
+				if time.Since(s.rooms.rooms[room].opened) > 3*time.Hour {
+					delete(s.rooms.rooms, room)
 				}
 			}
-			rooms.Unlock()
+			s.rooms.Unlock()
 		}
 	}()
 
-	err := run(port)
+	err = s.run()
 	if err != nil {
 		log.Error(err)
 	}
+	return
 }
 
-func run(port string) (err error) {
-	log.Debugf("starting TCP server on " + port)
-	server, err := net.Listen("tcp", "0.0.0.0:"+port)
+func (s *server) run() (err error) {
+	log.Infof("starting TCP server on " + s.port)
+	server, err := net.Listen("tcp", ":"+s.port)
 	if err != nil {
-		return errors.Wrap(err, "Error listening on :"+port)
+		return errors.Wrap(err, "Error listening on :"+s.port)
 	}
 	defer server.Close()
 	// spawn a new goroutine whenever a client connects
@@ -66,81 +87,115 @@ func run(port string) (err error) {
 		}
 		log.Debugf("client %s connected", connection.RemoteAddr().String())
 		go func(port string, connection net.Conn) {
-			errCommunication := clientCommuncation(port, comm.New(connection))
+			errCommunication := s.clientCommuncation(port, comm.New(connection))
 			if errCommunication != nil {
 				log.Warnf("relay-%s: %s", connection.RemoteAddr().String(), errCommunication.Error())
 			}
-		}(port, connection)
+		}(s.port, connection)
 	}
 }
 
-func clientCommuncation(port string, c comm.Comm) (err error) {
+func (s *server) clientCommuncation(port string, c *comm.Comm) (err error) {
 	// send ok to tell client they are connected
-	log.Debug("sending ok")
-	err = c.Send("ok")
+	banner := s.banner
+	if len(banner) == 0 {
+		banner = "ok"
+	}
+	log.Debugf("sending '%s'", banner)
+	err = c.Send([]byte(banner + "|||" + c.Connection().RemoteAddr().String()))
 	if err != nil {
 		return
 	}
 
 	// wait for client to tell me which room they want
 	log.Debug("waiting for answer")
-	room, err := c.Receive()
+	roomBytes, err := c.Receive()
 	if err != nil {
 		return
 	}
+	room := string(roomBytes)
 
-	rooms.Lock()
-	// first connection is always the receiver
-	if _, ok := rooms.rooms[room]; !ok {
-		rooms.rooms[room] = roomInfo{
-			receiver: c,
-			opened:   time.Now(),
+	s.rooms.Lock()
+	// create the room if it is new
+	if _, ok := s.rooms.rooms[room]; !ok {
+		s.rooms.rooms[room] = roomInfo{
+			first:  c,
+			opened: time.Now(),
 		}
-		rooms.Unlock()
+		s.rooms.Unlock()
 		// tell the client that they got the room
-		err = c.Send("recipient")
+		err = c.Send([]byte("ok"))
 		if err != nil {
 			log.Error(err)
+			s.deleteRoom(room)
 			return
 		}
-		log.Debug("recipient connected")
+		log.Debugf("room %s has 1", room)
 		return nil
 	}
-	log.Debug("sender connected")
-	receiver := rooms.rooms[room].receiver
-	rooms.Unlock()
+	if s.rooms.rooms[room].full {
+		s.rooms.Unlock()
+		err = c.Send([]byte("room full"))
+		if err != nil {
+			log.Error(err)
+			s.deleteRoom(room)
+			return
+		}
+		return nil
+	}
+	log.Debugf("room %s has 2", room)
+	s.rooms.rooms[room] = roomInfo{
+		first:  s.rooms.rooms[room].first,
+		second: c,
+		opened: s.rooms.rooms[room].opened,
+		full:   true,
+	}
+	otherConnection := s.rooms.rooms[room].first
+	s.rooms.Unlock()
 
 	// second connection is the sender, time to staple connections
 	var wg sync.WaitGroup
 	wg.Add(1)
 
 	// start piping
-	go func(com1, com2 comm.Comm, wg *sync.WaitGroup) {
+	go func(com1, com2 *comm.Comm, wg *sync.WaitGroup) {
 		log.Debug("starting pipes")
 		pipe(com1.Connection(), com2.Connection())
 		wg.Done()
 		log.Debug("done piping")
-	}(c, receiver, &wg)
+	}(otherConnection, c, &wg)
 
 	// tell the sender everything is ready
-	err = c.Send("sender")
+	err = c.Send([]byte("ok"))
 	if err != nil {
+		s.deleteRoom(room)
 		return
 	}
 	wg.Wait()
 
 	// delete room
-	rooms.Lock()
-	log.Debugf("deleting room: %s", room)
-	delete(rooms.rooms, room)
-	rooms.Unlock()
+	s.deleteRoom(room)
 	return nil
+}
+
+func (s *server) deleteRoom(room string) {
+	s.rooms.Lock()
+	defer s.rooms.Unlock()
+	if _, ok := s.rooms.rooms[room]; !ok {
+		return
+	}
+	log.Debugf("deleting room: %s", room)
+	s.rooms.rooms[room].first.Close()
+	s.rooms.rooms[room].second.Close()
+	s.rooms.rooms[room] = roomInfo{first: nil, second: nil}
+	delete(s.rooms.rooms, room)
+
 }
 
 // chanFromConn creates a channel from a Conn object, and sends everything it
 //  Read()s from the socket to the channel.
 func chanFromConn(conn net.Conn) chan []byte {
-	c := make(chan []byte)
+	c := make(chan []byte, 1)
 
 	go func() {
 		b := make([]byte, models.TCP_BUFFER_SIZE)
@@ -159,6 +214,7 @@ func chanFromConn(conn net.Conn) chan []byte {
 				break
 			}
 		}
+		log.Debug("exiting")
 	}()
 
 	return c
@@ -185,4 +241,34 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 			conn1.Write(b2)
 		}
 	}
+}
+
+func ConnectToTCPServer(address, room string) (c *comm.Comm, banner string, ipaddr string, err error) {
+	c, err = comm.NewConnection(address)
+	if err != nil {
+		return
+	}
+	log.Debug("waiting for first ok")
+	data, err := c.Receive()
+	if err != nil {
+		return
+	}
+	banner = strings.Split(string(data), "|||")[0]
+	ipaddr = strings.Split(string(data), "|||")[1]
+	log.Debug("sending room")
+	err = c.Send([]byte(room))
+	if err != nil {
+		return
+	}
+	log.Debug("waiting for room confirmation")
+	data, err = c.Receive()
+	if err != nil {
+		return
+	}
+	if !bytes.Equal(data, []byte("ok")) {
+		err = fmt.Errorf("got bad response: %s", data)
+		return
+	}
+	log.Debug("all set")
+	return
 }
