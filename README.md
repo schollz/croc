@@ -14,15 +14,16 @@ Status"></a>
 
 <p align="center"><code>curl https://getcroc.schollz.com | bash</code></p>
 
-`croc` is a tool that allows any two computers to simply and securely transfer files and folders. AFAIK, this is the only CLI file-transfer tool that:
+`croc` is a tool that allows any two computers to simply and securely transfer files and folders. AFAIK, *croc* is the only CLI file-transfer tool does **all** of the following:
 
-- enables **cross-platform** transfers (Windows, Linux, Mac)
-- enables secure **peer-to-peer** transferring (through a relay)
+- allows **any two computers** to transfer data (using a relay)
+- provides **end-to-end encryption** (using PAKE)
+- enables easy **cross-platform** transfers (Windows, Linux, Mac)
 - allows **multiple file** transfers
 - allows **resuming transfers** that are interrupted
 - does *not* require a server or port-forwarding
 
-For more information on how `croc` works, see [my blog post](https://schollz.com/software/croc6).
+For more information about `croc`, see [my blog post](https://schollz.com/software/croc6).
 
 
 ## Install
