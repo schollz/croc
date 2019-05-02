@@ -21,14 +21,14 @@ import (
 var Version string
 
 func Run() (err error) {
-
+// use all of the processors
 	runtime.GOMAXPROCS(runtime.NumCPU())
+
 	app := cli.NewApp()
 	app.Name = "croc"
 	if Version == "" {
-		Version = "dev"
+		Version = "6.0.0"
 	}
-
 	app.Version = Version
 	app.Compiled = time.Now()
 	app.Usage = "easily and securely transfer stuff from one computer to another"
