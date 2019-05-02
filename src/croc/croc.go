@@ -346,6 +346,7 @@ func (c *Client) Receive() (err error) {
 	c.conn[0].Send([]byte("handshake"))
 	c.Options.RelayPorts = strings.Split(banner, ",")
 	log.Debug("exchanged header message")
+	fmt.Fprintf(os.Stderr, "\rsecuring channel...")
 	return c.transfer(TransferOptions{})
 }
 
