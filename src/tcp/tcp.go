@@ -55,13 +55,18 @@ func (s *server) start() (err error) {
 	go func() {
 		for {
 			time.Sleep(10 * time.Minute)
+			roomsToDelete := []string{}
 			s.rooms.Lock()
 			for room := range s.rooms.rooms {
 				if time.Since(s.rooms.rooms[room].opened) > 3*time.Hour {
-					delete(s.rooms.rooms, room)
+					roomsToDelete = append(roomsToDelete,room)
 				}
 			}
 			s.rooms.Unlock()
+
+			for _, room := range roomsToDelete {
+				s.deleteRoom(room)
+			}
 		}
 	}()
 
