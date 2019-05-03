@@ -306,11 +306,13 @@ func (c *Client) Send(options TransferOptions) (err error) {
 			data, _ := conn.Receive()
 			if bytes.Equal(data, []byte("ips?")) {
 				var ips []string
-				ips, err = utils.GetLocalIPs()
-				if err != nil {
-					log.Debugf("error getting local ips: %s", err.Error())
+				if !c.Options.DisableLocal {
+					ips, err = utils.GetLocalIPs()
+					if err != nil {
+						log.Debugf("error getting local ips: %s", err.Error())
+					}
+					ips = append([]string{c.Options.RelayPorts[0]}, ips...)
 				}
-				ips = append([]string{c.Options.RelayPorts[0]}, ips...)
 				bips, _ := json.Marshal(ips)
 				conn.Send(bips)
 			}
@@ -378,7 +380,7 @@ func (c *Client) Receive() (err error) {
 			ips = ips[1:]
 			for _, ip := range ips {
 				serverTry := fmt.Sprintf("%s:%s", ip, port)
-				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.SharedSecret)
+				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.SharedSecret, 50*time.Millisecond)
 				if errConn != nil {
 					log.Debugf("could not connect to " + serverTry)
 					continue
