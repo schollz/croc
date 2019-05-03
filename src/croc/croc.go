@@ -600,11 +600,17 @@ func (c *Client) updateState() (err error) {
 		finished := true
 
 		for i, fileInfo := range c.FilesToTransfer {
+			log.Debugf("checking %+v",fileInfo)
 			if i < c.FilesToTransferCurrentNum {
 				continue
 			}
 			fileHash, errHash := utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name))
 			if errHash != nil || !bytes.Equal(fileHash, fileInfo.Hash) {
+				if errHash != nil {
+					log.Error(errHash)
+					err = errHash
+					return
+				}
 				if !bytes.Equal(fileHash, fileInfo.Hash) {
 					log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
 				} else {
@@ -726,10 +732,13 @@ func (c *Client) setBar() {
 	)
 	byteToDo := int64(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
 	if byteToDo > 0 {
-		log.Debug(int64(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2))
+		bytesDone := c.FilesToTransfer[c.FilesToTransferCurrentNum].Size -byteToDo
+		log.Debug(bytesToDo)
 		log.Debug(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
-		bytesDone := c.FilesToTransfer[c.FilesToTransferCurrentNum].Size - int64(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
-		c.bar.Add64(bytesDone)	
+		log.Debug(bytesDone)
+		if bytesDone > 0 {
+			c.bar.Add64(bytesDone)	
+		}
 	}
 }
 
