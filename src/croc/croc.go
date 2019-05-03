@@ -377,10 +377,12 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 		var done bool
 		data, err = c.conn[0].Receive()
 		if err != nil {
+			log.Debugf("got error receiving: %s",err.Error())
 			break
 		}
 		done, err = c.processMessage(data)
 		if err != nil {
+			log.Debugf("got error processing: %s",err.Error())
 			break
 		}
 		if done {
@@ -611,9 +613,8 @@ func (c *Client) updateState() (err error) {
 			fileHash, errHash := utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name))
 			if errHash != nil || !bytes.Equal(fileHash, fileInfo.Hash) {
 				if errHash != nil {
-					log.Error(errHash)
-					err = errHash
-					return
+					// probably can't find, its okay
+					log.Debug(errHash)
 				}
 				if !bytes.Equal(fileHash, fileInfo.Hash) {
 					log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
