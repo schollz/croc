@@ -41,7 +41,7 @@ func GetInput(prompt string) string {
 
 // HashFile returns the hash of a file
 func HashFile(fname string) (hash256 []byte, err error) {
-	return XXHashFile(fname)
+	return IMOHashFile(fname)
 }
 
 func MD5HashFile(fname string) (hash256 []byte, err error) {
