@@ -77,7 +77,9 @@ type Client struct {
 
 	// send / receive information of current file
 	CurrentFile           *os.File
+	CurrentFileChunkRanges     []int64
 	CurrentFileChunks     []int64
+	
 	TotalSent             int64
 	TotalChunksTransfered int
 	chunkMap              map[uint64]struct{}
@@ -111,7 +113,7 @@ type FileInfo struct {
 }
 
 type RemoteFileRequest struct {
-	CurrentFileChunks         []int64
+	CurrentFileChunkRanges        []int64
 	FilesToTransferCurrentNum int
 }
 
@@ -548,7 +550,8 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 			return
 		}
 		c.FilesToTransferCurrentNum = remoteFile.FilesToTransferCurrentNum
-		c.CurrentFileChunks = remoteFile.CurrentFileChunks
+		c.CurrentFileChunkRanges = remoteFile.CurrentFileChunkRanges
+		c.CurrentFileChunks = utils.ChunkRangesToChunks(c.CurrentFileChunkRanges)
 		log.Debugf("current file chunks: %+v", c.CurrentFileChunks)
 		c.chunkMap = make(map[uint64]struct{})
 		for _, chunk := range c.CurrentFileChunks {
@@ -611,6 +614,7 @@ func (c *Client) updateState() (err error) {
 				continue
 			}
 			fileHash, errHash := utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name))
+			log.Debugf("%s %+x %+x %+v",fileInfo.Name,fileHash,fileInfo.Hash,errHash)
 			if errHash != nil || !bytes.Equal(fileHash, fileInfo.Hash) {
 				if errHash != nil {
 					// probably can't find, its okay
@@ -655,13 +659,14 @@ func (c *Client) updateState() (err error) {
 			os.O_WRONLY, 0666)
 		truncate := false
 		c.CurrentFileChunks = []int64{}
+		c.CurrentFileChunkRanges = []int64{}
 		if errOpen == nil {
 			stat, _ := c.CurrentFile.Stat()
 			truncate = stat.Size() != c.FilesToTransfer[c.FilesToTransferCurrentNum].Size
 			if truncate == false {
 				// recipient requests the file and chunks (if empty, then should receive all chunks)
 				// TODO: determine the missing chunks
-				c.CurrentFileChunks = utils.MissingChunks(
+				c.CurrentFileChunkRanges = utils.MissingChunks(
 					pathToFile,
 					c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
 					models.TCP_BUFFER_SIZE/2,
@@ -685,13 +690,17 @@ func (c *Client) updateState() (err error) {
 			}
 		}
 
-		// setup the progressbar
-		c.setBar()
 		c.TotalSent = 0
 		bRequest, _ := json.Marshal(RemoteFileRequest{
-			CurrentFileChunks:         c.CurrentFileChunks,
+			CurrentFileChunkRanges:         c.CurrentFileChunkRanges,
 			FilesToTransferCurrentNum: c.FilesToTransferCurrentNum,
 		})
+		log.Debug("converting to chunk range")
+		c.CurrentFileChunks = utils.ChunkRangesToChunks(c.CurrentFileChunkRanges)
+
+		// setup the progressbar
+		c.setBar()
+
 		log.Debugf("sending recipient ready with %d chunks",len(c.CurrentFileChunks))
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:  "recipientready",

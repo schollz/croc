@@ -2,7 +2,8 @@ package message
 
 import (
 	"encoding/json"
-
+	
+	log "github.com/cihub/seelog"
 	"github.com/schollz/croc/v6/src/comm"
 	"github.com/schollz/croc/v6/src/compress"
 	"github.com/schollz/croc/v6/src/crypt"
@@ -27,6 +28,7 @@ func Send(c *comm.Comm, key crypt.Encryption, m Message) (err error) {
 	if err != nil {
 		return
 	}
+	log.Debugf("writing %s message (%d bytes)",m.Type,len(mSend))
 	_, err = c.Write(mSend)
 	return
 }
