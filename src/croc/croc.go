@@ -76,10 +76,10 @@ type Client struct {
 	FilesToTransferCurrentNum int
 
 	// send / receive information of current file
-	CurrentFile           *os.File
-	CurrentFileChunkRanges     []int64
-	CurrentFileChunks     []int64
-	
+	CurrentFile            *os.File
+	CurrentFileChunkRanges []int64
+	CurrentFileChunks      []int64
+
 	TotalSent             int64
 	TotalChunksTransfered int
 	chunkMap              map[uint64]struct{}
@@ -113,7 +113,7 @@ type FileInfo struct {
 }
 
 type RemoteFileRequest struct {
-	CurrentFileChunkRanges        []int64
+	CurrentFileChunkRanges    []int64
 	FilesToTransferCurrentNum int
 }
 
@@ -304,6 +304,16 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		log.Debugf("connection established: %+v", conn)
 		for {
 			data, _ := conn.Receive()
+			if bytes.Equal(data, []byte("ips?")) {
+				var ips []string
+				ips, err = utils.GetLocalIPs()
+				if err != nil {
+					log.Debugf("error getting local ips: %s", err.Error())
+				}
+				ips = append([]string{c.Options.RelayPorts[0]}, ips...)
+				bips, _ := json.Marshal(ips)
+				conn.Send(bips)
+			}
 			if bytes.Equal(data, []byte("handshake")) {
 				break
 			}
@@ -324,6 +334,7 @@ func (c *Client) Receive() (err error) {
 	fmt.Fprintf(os.Stderr, "connecting...")
 	// recipient will look for peers first
 	// and continue if it doesn't find any within 100 ms
+	usingLocal := false
 	if !c.Options.DisableLocal {
 		log.Debug("attempt to discover peers")
 		discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
@@ -336,6 +347,7 @@ func (c *Client) Receive() (err error) {
 			log.Debug("switching to local")
 			c.Options.RelayAddress = fmt.Sprintf("%s:%s", discoveries[0].Address, discoveries[0].Payload)
 			c.ExternalIPConnected = c.Options.RelayAddress
+			usingLocal = true
 		}
 		log.Debugf("discoveries: %+v", discoveries)
 		log.Debug("establishing connection")
@@ -348,6 +360,18 @@ func (c *Client) Receive() (err error) {
 		return
 	}
 	log.Debugf("connection established: %+v", c.conn[0])
+
+	if !usingLocal && !c.Options.DisableLocal {
+		// ask the sender for their local ips and port
+		// and try to connect to them
+		var data []byte
+		c.conn[0].Send([]byte("ips?"))
+		data, err = c.conn[0].Receive()
+		if err != nil {
+			return
+		}
+		log.Debugf("ips data: %s", data)
+	}
 	c.conn[0].Send([]byte("handshake"))
 	c.Options.RelayPorts = strings.Split(banner, ",")
 	log.Debug("exchanged header message")
@@ -379,12 +403,12 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 		var done bool
 		data, err = c.conn[0].Receive()
 		if err != nil {
-			log.Debugf("got error receiving: %s",err.Error())
+			log.Debugf("got error receiving: %s", err.Error())
 			break
 		}
 		done, err = c.processMessage(data)
 		if err != nil {
-			log.Debugf("got error processing: %s",err.Error())
+			log.Debugf("got error processing: %s", err.Error())
 			break
 		}
 		if done {
@@ -572,12 +596,12 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		c.Step3RecipientRequestFile = false
 	}
 	if err != nil {
-		log.Debugf("got error from processing message: %s",err.Error())
+		log.Debugf("got error from processing message: %s", err.Error())
 		return
 	}
 	err = c.updateState()
 	if err != nil {
-		log.Debugf("got error from updating state: %s",err.Error())
+		log.Debugf("got error from updating state: %s", err.Error())
 		return
 	}
 	return
@@ -609,12 +633,12 @@ func (c *Client) updateState() (err error) {
 		finished := true
 
 		for i, fileInfo := range c.FilesToTransfer {
-			log.Debugf("checking %+v",fileInfo)
+			log.Debugf("checking %+v", fileInfo)
 			if i < c.FilesToTransferCurrentNum {
 				continue
 			}
 			fileHash, errHash := utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name))
-			log.Debugf("%s %+x %+x %+v",fileInfo.Name,fileHash,fileInfo.Hash,errHash)
+			log.Debugf("%s %+x %+x %+v", fileInfo.Name, fileHash, fileInfo.Hash, errHash)
 			if errHash != nil || !bytes.Equal(fileHash, fileInfo.Hash) {
 				if errHash != nil {
 					// probably can't find, its okay
@@ -692,7 +716,7 @@ func (c *Client) updateState() (err error) {
 
 		c.TotalSent = 0
 		bRequest, _ := json.Marshal(RemoteFileRequest{
-			CurrentFileChunkRanges:         c.CurrentFileChunkRanges,
+			CurrentFileChunkRanges:    c.CurrentFileChunkRanges,
 			FilesToTransferCurrentNum: c.FilesToTransferCurrentNum,
 		})
 		log.Debug("converting to chunk range")
@@ -701,7 +725,7 @@ func (c *Client) updateState() (err error) {
 		// setup the progressbar
 		c.setBar()
 
-		log.Debugf("sending recipient ready with %d chunks",len(c.CurrentFileChunks))
+		log.Debugf("sending recipient ready with %d chunks", len(c.CurrentFileChunks))
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:  "recipientready",
 			Bytes: bRequest,
@@ -724,7 +748,7 @@ func (c *Client) updateState() (err error) {
 		c.TotalSent = 0
 		log.Debug("beginning sending comms")
 		for i := 0; i < len(c.Options.RelayPorts); i++ {
-			log.Debugf("starting sending over comm %d",i)
+			log.Debugf("starting sending over comm %d", i)
 			go c.sendData(i)
 		}
 	}
@@ -750,12 +774,12 @@ func (c *Client) setBar() {
 	)
 	byteToDo := int64(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
 	if byteToDo > 0 {
-		bytesDone := c.FilesToTransfer[c.FilesToTransferCurrentNum].Size -byteToDo
+		bytesDone := c.FilesToTransfer[c.FilesToTransferCurrentNum].Size - byteToDo
 		log.Debug(byteToDo)
 		log.Debug(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
 		log.Debug(bytesDone)
 		if bytesDone > 0 {
-			c.bar.Add64(bytesDone)	
+			c.bar.Add64(bytesDone)
 		}
 	}
 }

@@ -35,6 +35,7 @@ func BenchmarkImoHash(b *testing.B) {
 }
 
 func TestExists(t *testing.T) {
+	fmt.Println(GetLocalIPs())
 	assert.True(t, Exists("bigfile.test"))
 	assert.False(t, Exists("doesnotexist"))
 }

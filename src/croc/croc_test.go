@@ -27,6 +27,7 @@ func TestCroc(t *testing.T) {
 		SharedSecret: "test",
 		Debug:        true,
 		RelayAddress: "localhost:8081",
+		RelayPorts:   []string{"8081"},
 		Stdout:       false,
 		NoPrompt:     true,
 		DisableLocal: true,
