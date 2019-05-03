@@ -706,7 +706,9 @@ func (c *Client) updateState() (err error) {
 		// setup the progressbar
 		c.setBar()
 		c.TotalSent = 0
+		log.Debug("beginning sending comms")
 		for i := 0; i < len(c.Options.RelayPorts); i++ {
+			log.Debugf("starting sending over comm %d",i)
 			go c.sendData(i)
 		}
 	}
