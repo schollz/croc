@@ -38,7 +38,7 @@ $ curl https://getcroc.schollz.com | bash
 Or, you can [install Go](https://golang.org/dl/) and build from source (requires Go 1.11+): 
 
 ```
-$ go get github.com/schollz/croc
+$ go get -v github.com/schollz/croc/v6
 ```
 
 
