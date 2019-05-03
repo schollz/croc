@@ -733,7 +733,7 @@ func (c *Client) setBar() {
 	byteToDo := int64(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
 	if byteToDo > 0 {
 		bytesDone := c.FilesToTransfer[c.FilesToTransferCurrentNum].Size -byteToDo
-		log.Debug(bytesToDo)
+		log.Debug(byteToDo)
 		log.Debug(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
 		log.Debug(bytesDone)
 		if bytesDone > 0 {
