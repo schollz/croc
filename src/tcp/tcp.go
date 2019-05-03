@@ -59,7 +59,7 @@ func (s *server) start() (err error) {
 			s.rooms.Lock()
 			for room := range s.rooms.rooms {
 				if time.Since(s.rooms.rooms[room].opened) > 3*time.Hour {
-					roomsToDelete = append(roomsToDelete,room)
+					roomsToDelete = append(roomsToDelete, room)
 				}
 			}
 			s.rooms.Unlock()
@@ -248,8 +248,12 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 	}
 }
 
-func ConnectToTCPServer(address, room string) (c *comm.Comm, banner string, ipaddr string, err error) {
-	c, err = comm.NewConnection(address)
+func ConnectToTCPServer(address, room string, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, err error) {
+	if len(timelimit) > 0 {
+		c, err = comm.NewConnection(address, timelimit[0])
+	} else {
+		c, err = comm.NewConnection(address)
+	}
 	if err != nil {
 		return
 	}
