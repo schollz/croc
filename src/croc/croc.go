@@ -333,6 +333,7 @@ func (c *Client) Receive() (err error) {
 		if err == nil && len(discoveries) > 0 {
 			log.Debug("switching to local")
 			c.Options.RelayAddress = fmt.Sprintf("%s:%s", discoveries[0].Address, discoveries[0].Payload)
+			c.ExternalIPConnected = c.Options.RelayAddress
 		}
 		log.Debugf("discoveries: %+v", discoveries)
 		log.Debug("establishing connection")
@@ -494,7 +495,10 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		if err != nil {
 			return true, err
 		}
-		c.ExternalIPConnected = m.Message
+		if c.ExternalIPConnected == "" {
+			// it can be preset by the local relay
+			c.ExternalIPConnected = m.Message
+		}
 		log.Debugf("connected as %s -> %s", c.ExternalIP, c.ExternalIPConnected)
 		c.Step1ChannelSecured = true
 	case "error":
