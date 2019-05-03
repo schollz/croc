@@ -38,7 +38,7 @@ $ curl https://getcroc.schollz.com | bash
 Or, you can [install Go](https://golang.org/dl/) and build from source (requires Go 1.11+): 
 
 ```
-go get github.com/schollz/croc
+$ go get github.com/schollz/croc
 ```
 
 
@@ -48,7 +48,7 @@ go get github.com/schollz/croc
 To send a file, simply do: 
 
 ```
-$ croc send file-or-folder
+$ croc send [file(s)-or-folder]
 Sending 'file-or-folder' (X MB)
 Code is: code-phrase
 ```
@@ -67,7 +67,7 @@ The code phrase is used to establish password-authenticated key agreement ([PAKE
 You can send with your own code phrase (must be more than 4 characters).
 
 ```
-$ croc send --code [code-phrase] [filename]
+$ croc send --code [code-phrase] [file(s)-or-folder]
 ```
 
 
