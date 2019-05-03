@@ -567,11 +567,13 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		c.Step3RecipientRequestFile = false
 	}
 	if err != nil {
+		log.Debugf("got error from processing message: %s",err.Error())
 		return
 	}
 	err = c.updateState()
 	if err != nil {
 		log.Debugf("got error from updating state: %s",err.Error())
+		return
 	}
 	return
 }
