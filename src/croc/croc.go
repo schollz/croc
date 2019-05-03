@@ -389,7 +389,7 @@ func (c *Client) Receive() (err error) {
 					log.Debugf("could not connect to " + serverTry)
 					continue
 				}
-				log.Debugf("local connection established to %s", conn, serverTry)
+				log.Debugf("local connection established to %s", serverTry)
 				log.Debugf("banner: %s", banner2)
 				// reset to the local port
 				banner = banner2
