@@ -41,7 +41,7 @@ func GetInput(prompt string) string {
 
 // HashFile returns the hash of a file
 func HashFile(fname string) (hash256 []byte, err error) {
-	return IMOHashFile(fname)
+	return XXHashFile(fname)
 }
 
 func MD5HashFile(fname string) (hash256 []byte, err error) {
@@ -145,7 +145,7 @@ func ByteCountDecimal(b int64) string {
 // MissingChunks returns the positions of missing chunks.
 // If file doesn't exist, it returns an empty chunk list (all chunks).
 // If the file size is not the same as requested, it returns an empty chunk list (all chunks).
-func MissingChunks(fname string, fsize int64, chunkSize int) (chunks []int64) {
+func MissingChunks(fname string, fsize int64, chunkSize int) (chunkRanges []int64) {
 	fstat, err := os.Stat(fname)
 	if fstat.Size() != fsize || err != nil {
 		return
@@ -159,7 +159,7 @@ func MissingChunks(fname string, fsize int64, chunkSize int) (chunks []int64) {
 
 	emptyBuffer := make([]byte, chunkSize)
 	chunkNum := 0
-	chunks = make([]int64, int64(math.Ceil(float64(fsize)/float64(chunkSize))))
+	chunks := make([]int64, int64(math.Ceil(float64(fsize)/float64(chunkSize))))
 	var currentLocation int64
 	for {
 		buffer := make([]byte, chunkSize)
@@ -174,9 +174,38 @@ func MissingChunks(fname string, fsize int64, chunkSize int) (chunks []int64) {
 		currentLocation += int64(bytesread)
 	}
 	if chunkNum == 0 {
-		chunks = []int64{}
+		chunkRanges = []int64{}
 	} else {
 		chunks = chunks[:chunkNum]
+		chunkRanges = []int64{int64(chunkSize), chunks[0]}
+		curCount := 0
+		for i, chunk := range chunks {
+			if i == 0 {
+				continue
+			}
+			curCount++
+			if chunk-chunks[i-1] > int64(chunkSize) {
+				chunkRanges = append(chunkRanges, int64(curCount))
+				chunkRanges = append(chunkRanges, chunk)
+				curCount = 0
+			}
+		}
+		chunkRanges = append(chunkRanges, int64(curCount+1))
+		chunks = chunkRanges
+	}
+	return
+}
+
+func ChunkRangesToChunks(chunkRanges []int64) (chunks []int64) {
+	if len(chunkRanges) == 0 {
+		return
+	}
+	chunkSize := chunkRanges[0]
+	chunks = []int64{}
+	for i := 1; i < len(chunkRanges); i += 2 {
+		for j := int64(0); j < (chunkRanges[i+1]); j++ {
+			chunks = append(chunks, chunkRanges[i]+j*chunkSize)
+		}
 	}
 	return
 }
