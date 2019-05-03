@@ -305,12 +305,16 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		for {
 			data, _ := conn.Receive()
 			if bytes.Equal(data, []byte("ips?")) {
+				// recipient wants to try to connect to local ips
 				var ips []string
+				// only get local ips if the local is enabled
 				if !c.Options.DisableLocal {
+					// get list of local ips
 					ips, err = utils.GetLocalIPs()
 					if err != nil {
 						log.Debugf("error getting local ips: %s", err.Error())
 					}
+					// prepend the port that is being listened to
 					ips = append([]string{c.Options.RelayPorts[0]}, ips...)
 				}
 				bips, _ := json.Marshal(ips)
