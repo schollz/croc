@@ -570,7 +570,9 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		return
 	}
 	err = c.updateState()
-
+	if err != nil {
+		log.Debugf("got error from updating state: %s",err.Error())
+	}
 	return
 }
 
@@ -687,11 +689,13 @@ func (c *Client) updateState() (err error) {
 			CurrentFileChunks:         c.CurrentFileChunks,
 			FilesToTransferCurrentNum: c.FilesToTransferCurrentNum,
 		})
+		log.Debugf("sending recipient ready with %d chunks",len(c.CurrentFileChunks))
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:  "recipientready",
 			Bytes: bRequest,
 		})
 		if err != nil {
+			log.Error(err)
 			return
 		}
 		c.Step3RecipientRequestFile = true
