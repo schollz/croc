@@ -21,7 +21,7 @@ import (
 var Version string
 
 func Run() (err error) {
-// use all of the processors
+	// use all of the processors
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	app := cli.NewApp()
@@ -42,6 +42,7 @@ func Run() (err error) {
 			ArgsUsage:   "[filename]",
 			Flags: []cli.Flag{
 				cli.StringFlag{Name: "code, c", Usage: "codephrase used to connect to relay"},
+				cli.BoolFlag{Name: "no-local", Usage: "disable local relay when sending"},
 				cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the local relay (optional)"},
 			},
 			HelpName: "croc send",
@@ -167,6 +168,7 @@ func send(c *cli.Context) (err error) {
 		NoPrompt:     c.GlobalBool("yes"),
 		RelayAddress: c.GlobalString("relay"),
 		Stdout:       c.GlobalBool("stdout"),
+		DisableLocal: c.Bool("no-local"),
 		RelayPorts:   strings.Split(c.String("ports"), ","),
 	})
 	if err != nil {
