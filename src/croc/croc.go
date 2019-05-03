@@ -69,6 +69,7 @@ type Client struct {
 	Step3RecipientRequestFile bool
 	Step4FileTransfer         bool
 	Step5CloseChannels        bool
+	SuccessfulTransfer        bool
 
 	// send / receive information of all files
 	FilesToTransfer           []FileInfo
@@ -385,6 +386,10 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 			break
 		}
 	}
+	// purge errors that come from succesful transfer
+	if c.SuccessfulTransfer {
+		err = nil
+	}
 
 	if c.Options.Stdout && !c.Options.IsSender {
 		pathToFile := path.Join(
@@ -408,6 +413,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 			Type: "finished",
 		})
 		done = true
+		c.SuccessfulTransfer = true
 		return
 	case "pake":
 		log.Debug("received pake payload")
@@ -585,6 +591,7 @@ func (c *Client) updateState() (err error) {
 		// find the next file to transfer and send that number
 		// if the files are the same size, then look for missing chunks
 		finished := true
+
 		for i, fileInfo := range c.FilesToTransfer {
 			if i < c.FilesToTransferCurrentNum {
 				continue
@@ -609,6 +616,7 @@ func (c *Client) updateState() (err error) {
 			if err != nil {
 				panic(err)
 			}
+			c.SuccessfulTransfer = true
 		}
 
 		// start initiating the process to receive a new file
@@ -746,7 +754,7 @@ func (c *Client) receiveData(i int) {
 		if c.TotalChunksTransfered == len(c.CurrentFileChunks) || c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size {
 			log.Debug("finished receiving!")
 			c.CurrentFile.Close()
-			if c.Options.Stdout ||  strings.HasPrefix(c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,"croc-stdin") {
+			if c.Options.Stdout || strings.HasPrefix(c.FilesToTransfer[c.FilesToTransferCurrentNum].Name, "croc-stdin") {
 				pathToFile := path.Join(
 					c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
 					c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
