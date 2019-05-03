@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha256"
@@ -9,13 +10,14 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"bytes"
-	"net"
 	"math"
+	"net"
 	"net/http"
 	"os"
 	"strings"
 
+	"github.com/cespare/xxhash"
+	"github.com/kalafut/imohash"
 	"github.com/schollz/mnemonicode"
 )
 
@@ -37,8 +39,12 @@ func GetInput(prompt string) string {
 	return strings.TrimSpace(text)
 }
 
-// HashFile returns the md5 hash of a file
+// HashFile returns the hash of a file
 func HashFile(fname string) (hash256 []byte, err error) {
+	return IMOHashFile(fname)
+}
+
+func MD5HashFile(fname string) (hash256 []byte, err error) {
 	f, err := os.Open(fname)
 	if err != nil {
 		return
@@ -46,6 +52,30 @@ func HashFile(fname string) (hash256 []byte, err error) {
 	defer f.Close()
 
 	h := md5.New()
+	if _, err = io.Copy(h, f); err != nil {
+		return
+	}
+
+	hash256 = h.Sum(nil)
+	return
+}
+
+// IMOHashFile returns imohash
+func IMOHashFile(fname string) (hash []byte, err error) {
+	b, err := imohash.SumFile(fname)
+	hash = b[:]
+	return
+}
+
+// XXHashFile returns the xxhash of a file
+func XXHashFile(fname string) (hash256 []byte, err error) {
+	f, err := os.Open(fname)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	h := xxhash.New()
 	if _, err = io.Copy(h, f); err != nil {
 		return
 	}
@@ -111,8 +141,6 @@ func ByteCountDecimal(b int64) string {
 	}
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "kMGTPE"[exp])
 }
-
-
 
 // MissingChunks returns the positions of missing chunks.
 // If file doesn't exist, it returns an empty chunk list (all chunks).
