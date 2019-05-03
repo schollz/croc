@@ -371,7 +371,32 @@ func (c *Client) Receive() (err error) {
 			return
 		}
 		log.Debugf("ips data: %s", data)
+		var ips []string
+		json.Unmarshal(data, &ips)
+		if len(ips) > 1 {
+			port := ips[0]
+			ips = ips[1:]
+			for _, ip := range ips {
+				serverTry := fmt.Sprintf("%s:%s", ip, port)
+				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.SharedSecret)
+				if errConn != nil {
+					log.Debugf("could not connect to " + serverTry)
+					continue
+				}
+				log.Debugf("local connection established to %s", conn, serverTry)
+				log.Debugf("banner: %s", banner2)
+				// reset to the local port
+				banner = banner2
+				c.Options.RelayAddress = serverTry
+				c.ExternalIP = externalIP
+				c.conn[0].Close()
+				c.conn[0] = nil
+				c.conn[0] = conn
+				break
+			}
+		}
 	}
+
 	c.conn[0].Send([]byte("handshake"))
 	c.Options.RelayPorts = strings.Split(banner, ",")
 	log.Debug("exchanged header message")
@@ -731,7 +756,6 @@ func (c *Client) updateState() (err error) {
 			Bytes: bRequest,
 		})
 		if err != nil {
-			log.Error(err)
 			return
 		}
 		c.Step3RecipientRequestFile = true
