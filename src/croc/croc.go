@@ -388,6 +388,9 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 	}
 	// purge errors that come from succesful transfer
 	if c.SuccessfulTransfer {
+		if err != nil {
+			log.Debugf("purging error: %s", err)
+		}
 		err = nil
 	}
 
