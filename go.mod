@@ -1,9 +1,11 @@
 module github.com/schollz/croc/v6
 
 require (
+	github.com/cespare/xxhash v1.1.0
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/fatih/color v1.7.0 // indirect
+	github.com/kalafut/imohash v1.0.0
 	github.com/mattn/go-colorable v0.1.1 // indirect
 	github.com/mattn/go-isatty v0.0.7 // indirect
 	github.com/pkg/errors v0.8.1
