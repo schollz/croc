@@ -607,6 +607,8 @@ func (c *Client) updateState() (err error) {
 			if errHash != nil || !bytes.Equal(fileHash, fileInfo.Hash) {
 				if !bytes.Equal(fileHash, fileInfo.Hash) {
 					log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
+				} else {
+					log.Debugf("hashes are equal %x == %x", fileHash, fileInfo.Hash)
 				}
 				finished = false
 				c.FilesToTransferCurrentNum = i
@@ -722,12 +724,17 @@ func (c *Client) setBar() {
 		progressbar.OptionSetWriter(os.Stderr),
 		progressbar.OptionThrottle(100*time.Millisecond),
 	)
-	c.bar.Add(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
+	byteToDo := int64(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
+	if byteToDo > 0 {
+		log.Debug(int64(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2))
+		log.Debug(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
+		bytesDone := c.FilesToTransfer[c.FilesToTransferCurrentNum].Size - int64(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
+		c.bar.Add64(bytesDone)	
+	}
 }
 
 func (c *Client) receiveData(i int) {
 	for {
-		log.Debug("waiting for data")
 		data, err := c.conn[i+1].Receive()
 		if err != nil {
 			break
@@ -757,7 +764,6 @@ func (c *Client) receiveData(i int) {
 		c.bar.Add(len(data[8:]))
 		c.TotalSent += int64(len(data[8:]))
 		c.TotalChunksTransfered++
-		log.Debugf("block: %+v", positionInt64)
 		if c.TotalChunksTransfered == len(c.CurrentFileChunks) || c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size {
 			log.Debug("finished receiving!")
 			c.CurrentFile.Close()
