@@ -15,18 +15,20 @@ func main() {
 }
 
 func run() (err error) {
-	version, err := exec.Command("git", "describe").Output()
+	version, err := exec.Command("git", "describe", "--abbrev=0").Output()
 	if err != nil {
 		return
 	}
-	versionNew := strings.TrimSpace(string(version))	
-	versionHash, err := exec.Command("git", "rev-parse","--short","HEAD").Output()
+	versionNew := strings.TrimSpace(string(version))
+	versionHash, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
 	if err != nil {
 		return
 	}
 	versionHashNew := strings.TrimSpace(string(versionHash))
+	fmt.Println(versionNew)
+	fmt.Println(versionHashNew)
 
-	err = replaceInFile("src/cli/cli.go", `Version = "`, `"`, versionNew + "-"+ versionHashNew)
+	err = replaceInFile("src/cli/cli.go", `Version = "`, `"`, versionNew+"-"+versionHashNew)
 	if err == nil {
 		fmt.Printf("updated cli.go to version %s\n", versionNew)
 	}
