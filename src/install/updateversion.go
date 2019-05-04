@@ -19,9 +19,14 @@ func run() (err error) {
 	if err != nil {
 		return
 	}
-	versionNew := strings.TrimSpace(string(version))
+	versionNew := strings.TrimSpace(string(version))	
+	versionHash, err := exec.Command("git", "rev-parse","--short","HEAD").Output()
+	if err != nil {
+		return
+	}
+	versionHashNew := strings.TrimSpace(string(versionHash))
 
-	err = replaceInFile("src/cli/cli.go", `Version = "`, `"`, versionNew)
+	err = replaceInFile("src/cli/cli.go", `Version = "`, `"`, versionNew + "-"+ versionHashNew)
 	if err == nil {
 		fmt.Printf("updated cli.go to version %s\n", versionNew)
 	}
