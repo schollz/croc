@@ -190,8 +190,12 @@ func (s *server) deleteRoom(room string) {
 		return
 	}
 	log.Debugf("deleting room: %s", room)
-	s.rooms.rooms[room].first.Close()
-	s.rooms.rooms[room].second.Close()
+	if s.rooms.rooms[room].first != nil {
+		s.rooms.rooms[room].first.Close()
+	}
+	if s.rooms.rooms[room].second != nil {
+		s.rooms.rooms[room].second.Close()
+	}
 	s.rooms.rooms[room] = roomInfo{first: nil, second: nil}
 	delete(s.rooms.rooms, room)
 
