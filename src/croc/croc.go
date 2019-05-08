@@ -17,17 +17,16 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/cihub/seelog"
 	"github.com/denisbrodbeck/machineid"
 	"github.com/pkg/errors"
 	"github.com/schollz/croc/v6/src/comm"
 	"github.com/schollz/croc/v6/src/compress"
 	"github.com/schollz/croc/v6/src/crypt"
-	"github.com/schollz/croc/v6/src/logger"
 	"github.com/schollz/croc/v6/src/message"
 	"github.com/schollz/croc/v6/src/models"
 	"github.com/schollz/croc/v6/src/tcp"
 	"github.com/schollz/croc/v6/src/utils"
+	log "github.com/schollz/logger"
 	"github.com/schollz/pake"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v2"
@@ -35,14 +34,14 @@ import (
 )
 
 func init() {
-	logger.SetLogLevel("debug")
+	log.SetLevel("debug")
 }
 
 func Debug(debug bool) {
 	if debug {
-		logger.SetLogLevel("debug")
+		log.SetLevel("debug")
 	} else {
-		logger.SetLogLevel("warn")
+		log.SetLevel("warn")
 	}
 }
 

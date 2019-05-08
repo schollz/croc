@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/cihub/seelog"
+	log "github.com/schollz/logger"
 	"github.com/schollz/croc/v6/src/tcp"
 )
 
