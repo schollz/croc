@@ -5,12 +5,11 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/schollz/logger"
 	"github.com/schollz/croc/v6/src/tcp"
+	log "github.com/schollz/logger"
 )
 
 func TestCroc(t *testing.T) {
-	defer log.Flush()
 
 	go tcp.Run("debug", "8081", "8082,8083,8084,8085")
 	go tcp.Run("debug", "8082")
@@ -19,9 +18,7 @@ func TestCroc(t *testing.T) {
 	go tcp.Run("debug", "8085")
 	time.Sleep(300 * time.Millisecond)
 
-	log.Flush()
 	log.Debug("setting up sender")
-	log.Flush()
 	sender, err := New(Options{
 		IsSender:     true,
 		SharedSecret: "test",

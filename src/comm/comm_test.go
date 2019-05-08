@@ -11,7 +11,6 @@ import (
 )
 
 func TestComm(t *testing.T) {
-	defer log.Flush()
 	token := make([]byte, 40000000)
 	rand.Read(token)
 
