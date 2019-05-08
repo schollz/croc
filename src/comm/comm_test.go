@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/cihub/seelog"
+	log "github.com/schollz/logger"
 	"github.com/stretchr/testify/assert"
 )
 

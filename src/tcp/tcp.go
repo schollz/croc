@@ -8,11 +8,10 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/cihub/seelog"
 	"github.com/pkg/errors"
 	"github.com/schollz/croc/v6/src/comm"
-	"github.com/schollz/croc/v6/src/logger"
 	"github.com/schollz/croc/v6/src/models"
+	log "github.com/schollz/logger"
 )
 
 type server struct {
@@ -46,7 +45,7 @@ func Run(debugLevel, port string, banner ...string) (err error) {
 }
 
 func (s *server) start() (err error) {
-	logger.SetLogLevel(s.debugLevel)
+	log.SetLevel(s.debugLevel)
 	s.rooms.Lock()
 	s.rooms.rooms = make(map[string]roomInfo)
 	s.rooms.Unlock()
