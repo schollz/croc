@@ -291,7 +291,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	}
 
 	go func() {
-		log.Debug("establishing connection to %s", c.Options.RelayAddress)
+		log.Debugf("establishing connection to %s", c.Options.RelayAddress)
 		var banner string
 		conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.SharedSecret)
 		log.Debugf("banner: %s", banner)
