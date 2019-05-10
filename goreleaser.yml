@@ -41,27 +41,28 @@ nfpm:
     netbsd: NetBSD
     freebsd: FreeBSD
     dragonfly: DragonFlyBSD
-archive:
-  format: tar.gz
-  format_overrides:
-    - goos: windows
-      format: zip
-  name_template: "{{.ProjectName}}_{{.Version}}_{{.Os}}-{{.Arch}}"
-  replacements:
-    amd64: 64bit
-    386: 32bit
-    arm: ARM
-    arm64: ARM64
-    darwin: macOS
-    linux: Linux
-    windows: Windows
-    openbsd: OpenBSD
-    netbsd: NetBSD
-    freebsd: FreeBSD
-    dragonfly: DragonFlyBSD
-  files:
-    - README.md
-    - LICENSE
+archives:
+  -
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "{{.ProjectName}}_{{.Version}}_{{.Os}}-{{.Arch}}"
+    replacements:
+      amd64: 64bit
+      386: 32bit
+      arm: ARM
+      arm64: ARM64
+      darwin: macOS
+      linux: Linux
+      windows: Windows
+      openbsd: OpenBSD
+      netbsd: NetBSD
+      freebsd: FreeBSD
+      dragonfly: DragonFlyBSD
+    files:
+      - README.md
+      - LICENSE
 
 brew:
   github:
