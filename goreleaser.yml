@@ -62,3 +62,19 @@ archive:
   files:
     - README.md
     - LICENSE
+
+brew:
+  github:
+    owner: schollz
+    name: homebrew-tap
+  folder: Formula
+  description: "croc is a tool that allows any two computers to simply and securely transfer files and folders."
+  homepage: "https://schollz.com/software/croc/"
+  install: |
+    bin.install "croc"
+
+  dependencies:
+    - caddy
+
+  test: |
+    system "#{bin}/croc --version"

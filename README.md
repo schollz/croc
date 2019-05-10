@@ -42,6 +42,13 @@ $ go get -v github.com/schollz/croc/v6
 ```
 
 
+Or, on macOS you can install the latest release with [Homebrew](https://brew.sh/): 
+
+```
+$ brew install schollz/tap/croc
+```
+
+
 
 ## Usage 
 
