@@ -73,8 +73,5 @@ brew:
   install: |
     bin.install "croc"
 
-  dependencies:
-    - caddy
-
   test: |
     system "#{bin}/croc --version"
