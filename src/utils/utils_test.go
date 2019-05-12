@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func init() {
+func bigFile() {
 	rand.Seed(0)
 	bigBuff := make([]byte, 75000000)
 	rand.Read(bigBuff)
@@ -18,41 +18,55 @@ func init() {
 }
 
 func BenchmarkMD5(b *testing.B) {
+	bigFile()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		MD5HashFile("bigfile.test")
 	}
 }
 
 func BenchmarkXXHash(b *testing.B) {
+	bigFile()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		XXHashFile("bigfile.test")
 	}
 }
 func BenchmarkImoHash(b *testing.B) {
+	bigFile()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		IMOHashFile("bigfile.test")
 	}
 }
 
 func TestExists(t *testing.T) {
+	bigFile()
+	defer os.Remove("bigfile.test")
 	fmt.Println(GetLocalIPs())
 	assert.True(t, Exists("bigfile.test"))
 	assert.False(t, Exists("doesnotexist"))
 }
 
 func TestMD5HashFile(t *testing.T) {
+	bigFile()
+	defer os.Remove("bigfile.test")
 	b, err := MD5HashFile("bigfile.test")
 	assert.Nil(t, err)
 	assert.Equal(t, "9fed05acbacbc6a36555c998501c21f6", fmt.Sprintf("%x", b))
 }
 
 func TestIMOHashFile(t *testing.T) {
+	bigFile()
+	defer os.Remove("bigfile.test")
 	b, err := IMOHashFile("bigfile.test")
 	assert.Nil(t, err)
 	assert.Equal(t, "c0d1e123a96a598ea801cc503d3db8c0", fmt.Sprintf("%x", b))
 }
 
 func TestXXHashFile(t *testing.T) {
+	bigFile()
+	defer os.Remove("bigfile.test")
 	b, err := XXHashFile("bigfile.test")
 	assert.Nil(t, err)
 	assert.Equal(t, "f2da6ee7e75e8324", fmt.Sprintf("%x", b))
