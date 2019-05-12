@@ -1,6 +1,7 @@
 package croc
 
 import (
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -10,7 +11,7 @@ import (
 )
 
 func TestCroc(t *testing.T) {
-
+	defer os.Remove("README.md")
 	go tcp.Run("debug", "8081", "8082,8083,8084,8085")
 	go tcp.Run("debug", "8082")
 	go tcp.Run("debug", "8083")
