@@ -76,3 +76,11 @@ brew:
 
   test: |
     system "#{bin}/croc --version"
+
+scoop:
+  bucket:
+    owner: schollz
+    name: scoop-bucket
+  homepage: "https://schollz.com/software/croc/"
+  description: "croc is a tool that allows any two computers to simply and securely transfer files and folders."
+  license: MIT
