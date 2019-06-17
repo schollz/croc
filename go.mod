@@ -19,8 +19,8 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stretchr/testify v1.3.0
 	github.com/urfave/cli v1.20.0
-	golang.org/x/crypto v0.0.0-20190530122614-20be4c3c3ed5
-	golang.org/x/net v0.0.0-20190603091049-60506f45cf65 // indirect
-	golang.org/x/sys v0.0.0-20190602015325-4c4f7f33c9ed // indirect
+	golang.org/x/crypto v0.0.0-20190617133340-57b3e21c3d56
+	golang.org/x/net v0.0.0-20190613194153-d28f0bde5980 // indirect
+	golang.org/x/sys v0.0.0-20190616124812-15dcb6c0061f // indirect
 	golang.org/x/text v0.3.2 // indirect
 )
