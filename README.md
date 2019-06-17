@@ -68,7 +68,7 @@ Sending 'file-or-folder' (X MB)
 Code is: code-phrase
 ```
 
-Them to receive the file (or folder) on another computer, you can just do 
+Then to receive the file (or folder) on another computer, you can just do 
 
 ```
 $ croc code-phrase
