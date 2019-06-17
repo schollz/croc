@@ -33,7 +33,7 @@ install_croc()
 	croc_os="unsupported"
 	croc_arch="unknown"
 	croc_arm=""
-	croc_version="6.0.8"
+	croc_version="6.0.9"
 
 
 	# Termux on Android has $PREFIX set which already ends with /usr
