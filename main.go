@@ -1,5 +1,9 @@
 package main
+
+//go:generate git tag -af v$VERSION -m "v$VERSION"
 //go:generate go run src/install/updateversion.go
+//go:generate git commit -am "bump $VERSION"
+//go:generate git tag -af v$VERSION -m "v$VERSION"
 
 import (
 	"fmt"
