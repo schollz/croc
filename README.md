@@ -118,6 +118,12 @@ You can send files using your relay by entering `--relay` to change the relay th
 $ croc --relay "myrelay.example.com:9009" send [filename]
 ```
 
+If it's easier you can also run a relay with Docker:
+
+
+```
+$ docker run -d -p 9009:9009 -p 9010:9010 -p 9011:9011 -p 9012:9012 -p 9013:9013 schollz/croc
+```
 
 ## License
 
