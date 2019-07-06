@@ -27,7 +27,7 @@ func Run() (err error) {
 	app := cli.NewApp()
 	app.Name = "croc"
 	if Version == "" {
-		Version = "v6.0.10-1d744f1"
+		Version = "v6.0.11-6d9105a"
 	}
 	app.Version = Version
 	app.Compiled = time.Now()
@@ -66,7 +66,7 @@ func Run() (err error) {
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
-		cli.StringFlag{Name: "relay", Value: "198.199.67.130:9009", Usage: "address of the relay"},
+		cli.StringFlag{Name: "relay", Value: "142.93.177.120:9009", Usage: "address of the relay"},
 		cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 	}
 	app.EnableBashCompletion = true
