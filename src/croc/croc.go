@@ -17,7 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/denisbrodbeck/machineid"
 	"github.com/pkg/errors"
 	"github.com/schollz/croc/v6/src/comm"
 	"github.com/schollz/croc/v6/src/compress"
@@ -88,7 +87,6 @@ type Client struct {
 
 	bar       *progressbar.ProgressBar
 	spinner   *spinner.Spinner
-	machineID string
 	firstSend bool
 
 	mutex *sync.Mutex
@@ -117,7 +115,6 @@ type RemoteFileRequest struct {
 }
 
 type SenderInfo struct {
-	MachineID       string
 	FilesToTransfer []FileInfo
 }
 
@@ -216,15 +213,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	if len(c.FilesToTransfer) == 1 {
 		fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
 	}
-	machID, macIDerr := machineid.ID()
-	if macIDerr != nil {
-		log.Error(macIDerr)
-		return
-	}
-	if len(machID) > 6 {
-		machID = machID[:6]
-	}
-	c.machineID = machID
+
 	fmt.Fprintf(os.Stderr, "Sending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
 	fmt.Fprintf(os.Stderr, "Code is: %s\nOn the other computer run\n\ncroc %s\n", c.Options.SharedSecret, c.Options.SharedSecret)
 	// // c.spinner.Suffix = " waiting for recipient..."
@@ -641,7 +630,6 @@ func (c *Client) updateState() (err error) {
 	if c.Options.IsSender && c.Step1ChannelSecured && !c.Step2FileInfoTransfered {
 		var b []byte
 		b, err = json.Marshal(SenderInfo{
-			MachineID:       c.machineID,
 			FilesToTransfer: c.FilesToTransfer,
 		})
 		if err != nil {
