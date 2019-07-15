@@ -4,7 +4,7 @@
     src="https://user-images.githubusercontent.com/6550035/46709024-9b23ad00-cbf6-11e8-9fb2-ca8b20b7dbec.jpg"
     width="408px" border="0" alt="croc">
 <br>
-<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-v6.0.7-brightgreen.svg?style=flat-square" alt="Version"></a>
+<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-v6.0.11-brightgreen.svg?style=flat-square" alt="Version"></a>
 <a href="https://travis-ci.org/schollz/croc"><img
 src="https://img.shields.io/travis/schollz/croc.svg?style=flat-square" alt="Build
 Status"></a> 
@@ -68,7 +68,7 @@ Sending 'file-or-folder' (X MB)
 Code is: code-phrase
 ```
 
-Them to receive the file (or folder) on another computer, you can just do 
+Then to receive the file (or folder) on another computer, you can just do 
 
 ```
 $ croc code-phrase
@@ -118,6 +118,12 @@ You can send files using your relay by entering `--relay` to change the relay th
 $ croc --relay "myrelay.example.com:9009" send [filename]
 ```
 
+If it's easier you can also run a relay with Docker:
+
+
+```
+$ docker run -d -p 9009:9009 -p 9010:9010 -p 9011:9011 -p 9012:9012 -p 9013:9013 schollz/croc
+```
 
 ## License
 
