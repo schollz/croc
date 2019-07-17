@@ -223,6 +223,8 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	errchan := make(chan error, 1)
 
 	if !c.Options.DisableLocal {
+		// add two things to the error channel
+		errchan = make(chan error, 2)
 		// setup the relay locally
 		for _, port := range c.Options.RelayPorts {
 
@@ -287,6 +289,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		if err != nil {
 			err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
 			log.Debug(err)
+			errchan <- err
 			return
 		}
 		log.Debugf("connection established: %+v", conn)
@@ -320,7 +323,15 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		errchan <- c.transfer(options)
 	}()
 
-	return <-errchan
+	err = <-errchan
+	if err == nil {
+		// return if no error
+		return
+	}
+	if !c.Options.DisableLocal {
+		err = <-errchan
+	}
+	return err
 }
 
 // Receive will receive a file
