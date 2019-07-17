@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -96,14 +97,19 @@ func Run() (err error) {
 // 	return croc.SaveDefaultConfig()
 // }
 
-func makeConfigDir() (err error) {
-	homedir, err := os.UserHomeDir()
+func getConfigDir() (homedir string, err error) {
+	homedir, err = os.UserHomeDir()
 	if err != nil {
 		log.Error(err)
 		return
 	}
 	log.SetLevel("debug")
-	log.Debugf("creating home directory %s", homedir)
+	homedir = path.Join(homedir, ".config", "croc")
+	if _, err := os.Stat(homedir); os.IsNotExist(err) {
+		log.Debugf("creating home directory %s", homedir)
+		err = os.MkdirAll(homedir, 0700)
+
+	}
 	return
 }
 
