@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,6 +15,7 @@ import (
 	"github.com/schollz/croc/v6/src/models"
 	"github.com/schollz/croc/v6/src/tcp"
 	"github.com/schollz/croc/v6/src/utils"
+	log "github.com/schollz/logger"
 	"github.com/urfave/cli"
 )
 
@@ -64,6 +64,7 @@ func Run() (err error) {
 		},
 	}
 	app.Flags = []cli.Flag{
+		cli.BoolFlag{Name: "config", Usage: "save these settings to reuse next time"},
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
@@ -95,8 +96,20 @@ func Run() (err error) {
 // 	return croc.SaveDefaultConfig()
 // }
 
-func send(c *cli.Context) (err error) {
+func makeConfigDir() (err error) {
+	homedir, err := os.UserHomeDir()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	log.SetLevel("debug")
+	log.Debugf("creating home directory %s", homedir)
+	return
+}
 
+func send(c *cli.Context) (err error) {
+	makeConfigDir()
+	os.Exit(0)
 	var fnames []string
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
@@ -116,7 +129,7 @@ func send(c *cli.Context) (err error) {
 		defer func() {
 			err = os.Remove(fnames[0])
 			if err != nil {
-				log.Println(err)
+				log.Error(err)
 			}
 		}()
 	} else {
