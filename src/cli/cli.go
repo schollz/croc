@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -65,7 +66,7 @@ func Run() (err error) {
 		},
 	}
 	app.Flags = []cli.Flag{
-		cli.BoolFlag{Name: "config", Usage: "save these settings to reuse next time"},
+		cli.BoolFlag{Name: "remember", Usage: "save these settings to reuse next time"},
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
@@ -103,19 +104,26 @@ func getConfigDir() (homedir string, err error) {
 		log.Error(err)
 		return
 	}
-	log.SetLevel("debug")
 	homedir = path.Join(homedir, ".config", "croc")
 	if _, err := os.Stat(homedir); os.IsNotExist(err) {
 		log.Debugf("creating home directory %s", homedir)
 		err = os.MkdirAll(homedir, 0700)
-
 	}
 	return
 }
 
 func send(c *cli.Context) (err error) {
-	makeConfigDir()
-	os.Exit(0)
+	if c.GlobalBool("debug") {
+		log.SetLevel("debug")
+		log.Debug("debug mode on")
+	}
+	configFile, err := getConfigDir()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	configFile = path.Join(configFile, "send.json")
+
 	var fnames []string
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
@@ -181,7 +189,7 @@ func send(c *cli.Context) (err error) {
 			paths = append(paths, filepath.ToSlash(fname))
 		}
 	}
-	cr, err := croc.New(croc.Options{
+	crocOptions := croc.Options{
 		SharedSecret: sharedSecret,
 		IsSender:     true,
 		Debug:        c.GlobalBool("debug"),
@@ -190,9 +198,27 @@ func send(c *cli.Context) (err error) {
 		Stdout:       c.GlobalBool("stdout"),
 		DisableLocal: c.Bool("no-local"),
 		RelayPorts:   strings.Split(c.String("ports"), ","),
-	})
+	}
+	cr, err := croc.New(crocOptions)
 	if err != nil {
 		return
+	}
+
+	// save the config
+	if c.GlobalBool("remember") {
+		log.Debug("saving config file")
+		var bConfig []byte
+		bConfig, err = json.MarshalIndent(crocOptions, "", "    ")
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		err = ioutil.WriteFile(configFile, bConfig, 0644)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		log.Debugf("wrote %s", configFile)
 	}
 
 	err = cr.Send(croc.TransferOptions{
