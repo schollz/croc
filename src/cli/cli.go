@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/schollz/croc/v6/src/croc"
+	"github.com/schollz/croc/v6/src/models"
 	"github.com/schollz/croc/v6/src/tcp"
 	"github.com/schollz/croc/v6/src/utils"
 	"github.com/urfave/cli"
@@ -66,7 +67,7 @@ func Run() (err error) {
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
-		cli.StringFlag{Name: "relay", Value: "142.93.177.120:9009", Usage: "address of the relay"},
+		cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay"},
 		cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 	}
 	app.EnableBashCompletion = true

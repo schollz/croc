@@ -215,7 +215,11 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	}
 
 	fmt.Fprintf(os.Stderr, "Sending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
-	fmt.Fprintf(os.Stderr, "Code is: %s\nOn the other computer run\n\ncroc %s\n", c.Options.SharedSecret, c.Options.SharedSecret)
+	otherRelay := ""
+	if c.Options.RelayAddress != models.DEFAULT_RELAY {
+		otherRelay = "--relay " + c.Options.RelayAddress + " "
+	}
+	fmt.Fprintf(os.Stderr, "Code is: %s\nOn the other computer run\n\ncroc %s%s\n", c.Options.SharedSecret, otherRelay, c.Options.SharedSecret)
 	// // c.spinner.Suffix = " waiting for recipient..."
 	// c.spinner.Start()
 	// create channel for quitting
