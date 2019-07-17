@@ -11,6 +11,8 @@ Status"></a>
 <a href="https://saythanks.io/to/schollz"><img src="https://img.shields.io/badge/Say%20Thanks-!-brightgreen.svg?style=flat-square" alt="Say thanks"></a>
 </p>
 
+<center><a href="https://github.com/schollz/croc/releases">Install the most recent release!</p></center>
+
 `croc` is a tool that allows any two computers to simply and securely transfer files and folders. AFAIK, *croc* is the only CLI file-transfer tool does **all** of the following:
 
 - allows **any two computers** to transfer data (using a relay)
