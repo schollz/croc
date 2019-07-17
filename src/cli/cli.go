@@ -126,7 +126,7 @@ func send(c *cli.Context) (err error) {
 
 	var crocOptions croc.Options
 	b, errOpen := ioutil.ReadFile(configFile)
-	if errOpen == nil {
+	if errOpen == nil && !c.GlobalBool("remember") {
 		err = json.Unmarshal(b, &crocOptions)
 		if err != nil {
 			log.Error(err)
@@ -136,19 +136,22 @@ func send(c *cli.Context) (err error) {
 		if crocOptions.Debug != c.GlobalBool("debug") {
 			crocOptions.Debug = c.GlobalBool("debug")
 		}
-		if crocOptions.NoPrompt != c.GlobalBool("yes") {
+		if c.GlobalBool("yes") {
 			crocOptions.NoPrompt = c.GlobalBool("yes")
 		}
 		if crocOptions.RelayAddress != c.GlobalString("relay") {
 			crocOptions.RelayAddress = c.GlobalString("relay")
 		}
-		if crocOptions.Stdout != c.GlobalBool("stdout") {
+		if c.GlobalBool("stdout") {
 			crocOptions.Stdout = c.GlobalBool("stdout")
 		}
-		if crocOptions.DisableLocal != c.Bool("no-local") {
+		// TODO: use c.IsSet
+
+		if c.Bool("no-local") {
 			crocOptions.DisableLocal = c.Bool("no-local")
 		}
 		// TODO: add ports
+
 		if c.String("code") != "" {
 			crocOptions.SharedSecret = ""
 		}
