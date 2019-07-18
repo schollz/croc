@@ -284,6 +284,9 @@ func receive(c *cli.Context) (err error) {
 		if !c.GlobalIsSet("relay") {
 			crocOptions.RelayAddress = rememberedOptions.RelayAddress
 		}
+		if !c.GlobalIsSet("yes") {
+			crocOptions.NoPrompt = rememberedOptions.NoPrompt
+		}
 		if crocOptions.SharedSecret == "" {
 			crocOptions.SharedSecret = rememberedOptions.SharedSecret
 		}
@@ -297,10 +300,27 @@ func receive(c *cli.Context) (err error) {
 	}
 
 	cr, err := croc.New(crocOptions)
-
 	if err != nil {
 		return
 	}
+
+	// save the config
+	if c.GlobalBool("remember") {
+		log.Debug("saving config file")
+		var bConfig []byte
+		bConfig, err = json.MarshalIndent(crocOptions, "", "    ")
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		err = ioutil.WriteFile(configFile, bConfig, 0644)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		log.Debugf("wrote %s", configFile)
+	}
+
 	err = cr.Receive()
 	return
 }
