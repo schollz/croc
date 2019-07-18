@@ -253,28 +253,55 @@ func send(c *cli.Context) (err error) {
 }
 
 func receive(c *cli.Context) (err error) {
-	var sharedSecret string
-	if c.String("code") != "" {
-		sharedSecret = c.String("code")
-	}
-	if c.Args().First() != "" {
-		sharedSecret = c.Args().First()
-	}
-	if sharedSecret == "" {
-		sharedSecret = utils.GetInput("Enter receive code: ")
-	}
-	if c.GlobalString("out") != "" {
-		os.Chdir(c.GlobalString("out"))
-	}
-
-	cr, err := croc.New(croc.Options{
-		SharedSecret: sharedSecret,
+	crocOptions := croc.Options{
+		SharedSecret: c.String("code"),
 		IsSender:     false,
 		Debug:        c.GlobalBool("debug"),
 		NoPrompt:     c.GlobalBool("yes"),
 		RelayAddress: c.GlobalString("relay"),
 		Stdout:       c.GlobalBool("stdout"),
-	})
+	}
+	if c.Args().First() != "" {
+		crocOptions.SharedSecret = c.Args().First()
+	}
+
+	// load options here
+	if c.GlobalBool("debug") {
+		log.SetLevel("debug")
+		log.Debug("debug mode on")
+	}
+	configFile, err := getConfigDir()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	configFile = path.Join(configFile, "receive.json")
+	b, errOpen := ioutil.ReadFile(configFile)
+	if errOpen == nil && !c.GlobalBool("remember") {
+		var rememberedOptions croc.Options
+		err = json.Unmarshal(b, &rememberedOptions)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		// update anything that isn't explicitly set
+		if !c.GlobalIsSet("relay") {
+			crocOptions.RelayAddress = rememberedOptions.RelayAddress
+		}
+		if crocOptions.SharedSecret == "" {
+			crocOptions.SharedSecret = rememberedOptions.SharedSecret
+		}
+	}
+
+	if crocOptions.SharedSecret == "" {
+		crocOptions.SharedSecret = utils.GetInput("Enter receive code: ")
+	}
+	if c.GlobalString("out") != "" {
+		os.Chdir(c.GlobalString("out"))
+	}
+
+	cr, err := croc.New(crocOptions)
+
 	if err != nil {
 		return
 	}
