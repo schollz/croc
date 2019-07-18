@@ -76,6 +76,7 @@ $ croc code-phrase
 
 The code phrase is used to establish password-authenticated key agreement ([PAKE](https://en.wikipedia.org/wiki/Password-authenticated_key_agreement)) which generates a secret key for the sender and recipient to use for end-to-end encryption.
 
+There are a number of configurable options (see `--help`). A set of options (like custom relay, ports, and code phrase) can be set using `--remember`.
 
 ### Custom code phrase
 
@@ -84,7 +85,6 @@ You can send with your own code phrase (must be more than 4 characters).
 ```
 $ croc send --code [code-phrase] [file(s)-or-folder]
 ```
-
 
 ### Use pipes - stdin and stdout
 
