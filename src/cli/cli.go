@@ -124,47 +124,36 @@ func send(c *cli.Context) (err error) {
 	}
 	configFile = path.Join(configFile, "send.json")
 
-	var crocOptions croc.Options
+	crocOptions := croc.Options{
+		SharedSecret: c.String("code"),
+		IsSender:     true,
+		Debug:        c.GlobalBool("debug"),
+		NoPrompt:     c.GlobalBool("yes"),
+		RelayAddress: c.GlobalString("relay"),
+		Stdout:       c.GlobalBool("stdout"),
+		DisableLocal: c.Bool("no-local"),
+		RelayPorts:   strings.Split(c.String("ports"), ","),
+	}
 	b, errOpen := ioutil.ReadFile(configFile)
 	if errOpen == nil && !c.GlobalBool("remember") {
-		err = json.Unmarshal(b, &crocOptions)
+		var rememberedOptions croc.Options
+		err = json.Unmarshal(b, &rememberedOptions)
 		if err != nil {
 			log.Error(err)
 			return
 		}
-		// update anything that has changed
-		if crocOptions.Debug != c.GlobalBool("debug") {
-			crocOptions.Debug = c.GlobalBool("debug")
+		// update anything that isn't explicitly set
+		if !c.GlobalIsSet("relay") {
+			crocOptions.RelayAddress = rememberedOptions.RelayAddress
 		}
-		if c.GlobalBool("yes") {
-			crocOptions.NoPrompt = c.GlobalBool("yes")
+		if !c.IsSet("no-local") {
+			crocOptions.DisableLocal = rememberedOptions.DisableLocal
 		}
-		if crocOptions.RelayAddress != c.GlobalString("relay") {
-			crocOptions.RelayAddress = c.GlobalString("relay")
+		if !c.IsSet("ports") {
+			crocOptions.RelayPorts = rememberedOptions.RelayPorts
 		}
-		if c.GlobalBool("stdout") {
-			crocOptions.Stdout = c.GlobalBool("stdout")
-		}
-		// TODO: use c.IsSet
-
-		if c.Bool("no-local") {
-			crocOptions.DisableLocal = c.Bool("no-local")
-		}
-		// TODO: add ports
-
-		if c.String("code") != "" {
-			crocOptions.SharedSecret = ""
-		}
-	} else {
-		crocOptions = croc.Options{
-			SharedSecret: "",
-			IsSender:     true,
-			Debug:        c.GlobalBool("debug"),
-			NoPrompt:     c.GlobalBool("yes"),
-			RelayAddress: c.GlobalString("relay"),
-			Stdout:       c.GlobalBool("stdout"),
-			DisableLocal: c.Bool("no-local"),
-			RelayPorts:   strings.Split(c.String("ports"), ","),
+		if !c.IsSet("code") {
+			crocOptions.SharedSecret = rememberedOptions.SharedSecret
 		}
 	}
 
@@ -197,9 +186,6 @@ func send(c *cli.Context) (err error) {
 		return errors.New("must specify file: croc send [filename]")
 	}
 
-	if c.String("code") != "" {
-		crocOptions.SharedSecret = c.String("code")
-	}
 	if len(crocOptions.SharedSecret) == 0 {
 		// generate code phrase
 		crocOptions.SharedSecret = utils.GetRandomName()
