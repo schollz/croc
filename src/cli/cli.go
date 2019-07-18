@@ -112,6 +112,8 @@ func send(c *cli.Context) (err error) {
 	if c.GlobalBool("debug") {
 		log.SetLevel("debug")
 		log.Debug("debug mode on")
+	} else {
+		log.SetLevel("info")
 	}
 	configFile, err := getConfigDir()
 	if err != nil {
@@ -265,6 +267,8 @@ func receive(c *cli.Context) (err error) {
 	if c.GlobalBool("debug") {
 		log.SetLevel("debug")
 		log.Debug("debug mode on")
+	} else {
+		log.SetLevel("info")
 	}
 	configFile, err := getConfigDir()
 	if err != nil {
