@@ -94,10 +94,6 @@ func Run() (err error) {
 	return app.Run(os.Args)
 }
 
-// func saveDefaultConfig(c *cli.Context) error {
-// 	return croc.SaveDefaultConfig()
-// }
-
 func getConfigDir() (homedir string, err error) {
 	homedir, err = os.UserHomeDir()
 	if err != nil {
@@ -329,14 +325,3 @@ func relay(c *cli.Context) (err error) {
 	}
 	return tcp.Run(debugString, ports[0], tcpPorts)
 }
-
-// func dirSize(path string) (int64, error) {
-// 	var size int64
-// 	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
-// 		if !info.IsDir() {
-// 			size += info.Size()
-// 		}
-// 		return err
-// 	})
-// 	return size, err
-// }
