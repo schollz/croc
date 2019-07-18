@@ -76,6 +76,7 @@ $ croc code-phrase
 
 The code phrase is used to establish password-authenticated key agreement ([PAKE](https://en.wikipedia.org/wiki/Password-authenticated_key_agreement)) which generates a secret key for the sender and recipient to use for end-to-end encryption.
 
+There are number of options for sending / receiving (use `--help` to see), and any of these options can be saved automatically for reuse next time using the flag `--remember`.
 
 ### Custom code phrase
 
