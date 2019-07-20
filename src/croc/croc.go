@@ -673,6 +673,13 @@ func (c *Client) updateState() (err error) {
 			fileHash, errHash := utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name))
 			if fileInfo.Size == 0 {
 				log.Debugf("touching file with folder / name")
+				emptyFile, errCreate := os.Create(path.Join(fileInfo.FolderRemote, fileInfo.Name))
+				if errCreate != nil {
+					log.Error(errCreate)
+					err = errCreate
+					return
+				}
+				emptyFile.Close()
 				continue
 			}
 			log.Debugf("%s %+x %+x %+v", fileInfo.Name, fileHash, fileInfo.Hash, errHash)
