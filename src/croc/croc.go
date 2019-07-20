@@ -658,6 +658,7 @@ func (c *Client) updateState() (err error) {
 		if err != nil {
 			return
 		}
+
 		c.Step2FileInfoTransfered = true
 	}
 	if !c.Options.IsSender && c.Step2FileInfoTransfered && !c.Step3RecipientRequestFile {
@@ -673,6 +674,13 @@ func (c *Client) updateState() (err error) {
 			fileHash, errHash := utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name))
 			if fileInfo.Size == 0 {
 				log.Debugf("touching file with folder / name")
+				if !utils.Exists(fileInfo.FolderRemote) {
+					err = os.MkdirAll(fileInfo.FolderRemote, os.ModePerm)
+					if err != nil {
+						log.Error(err)
+						return
+					}
+				}
 				emptyFile, errCreate := os.Create(path.Join(fileInfo.FolderRemote, fileInfo.Name))
 				if errCreate != nil {
 					log.Error(errCreate)
@@ -680,6 +688,22 @@ func (c *Client) updateState() (err error) {
 					return
 				}
 				emptyFile.Close()
+				// setup the progressbar
+				description := fmt.Sprintf("%-28s", c.FilesToTransfer[i].Name)
+				if len(c.FilesToTransfer) == 1 {
+					description = c.FilesToTransfer[i].Name
+				}
+				c.bar = progressbar.NewOptions64(1,
+					progressbar.OptionOnCompletion(func() {
+						fmt.Fprintf(os.Stderr, " ✔️\n")
+					}),
+					progressbar.OptionSetWidth(20),
+					progressbar.OptionSetDescription(description),
+					progressbar.OptionSetRenderBlankState(true),
+					progressbar.OptionSetBytes64(1),
+					progressbar.OptionSetWriter(os.Stderr),
+				)
+				c.bar.Finish()
 				continue
 			}
 			log.Debugf("%s %+x %+x %+v", fileInfo.Name, fileHash, fileInfo.Hash, errHash)
@@ -766,8 +790,10 @@ func (c *Client) updateState() (err error) {
 		log.Debug("converting to chunk range")
 		c.CurrentFileChunks = utils.ChunkRangesToChunks(c.CurrentFileChunkRanges)
 
-		// setup the progressbar
-		c.setBar()
+		if !finished {
+			// setup the progressbar
+			c.setBar()
+		}
 
 		log.Debugf("sending recipient ready with %d chunks", len(c.CurrentFileChunks))
 		err = message.Send(c.conn[0], c.Key, message.Message{
@@ -784,6 +810,27 @@ func (c *Client) updateState() (err error) {
 		if !c.firstSend {
 			fmt.Fprintf(os.Stderr, "\nSending (->%s)\n", c.ExternalIPConnected)
 			c.firstSend = true
+			// if there are empty files, show them as already have been transfered now
+			for i := range c.FilesToTransfer {
+				if c.FilesToTransfer[i].Size == 0 {
+					// setup the progressbar and takedown the progress bar for empty files
+					description := fmt.Sprintf("%-28s", c.FilesToTransfer[i].Name)
+					if len(c.FilesToTransfer) == 1 {
+						description = c.FilesToTransfer[i].Name
+					}
+					c.bar = progressbar.NewOptions64(1,
+						progressbar.OptionOnCompletion(func() {
+							fmt.Fprintf(os.Stderr, " ✔️\n")
+						}),
+						progressbar.OptionSetWidth(20),
+						progressbar.OptionSetDescription(description),
+						progressbar.OptionSetRenderBlankState(true),
+						progressbar.OptionSetBytes64(1),
+						progressbar.OptionSetWriter(os.Stderr),
+					)
+					c.bar.Finish()
+				}
+			}
 		}
 		c.Step4FileTransfer = true
 		// setup the progressbar
