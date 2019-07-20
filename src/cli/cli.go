@@ -1,20 +1,23 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/schollz/croc/v6/src/croc"
+	"github.com/schollz/croc/v6/src/models"
 	"github.com/schollz/croc/v6/src/tcp"
 	"github.com/schollz/croc/v6/src/utils"
+	log "github.com/schollz/logger"
 	"github.com/urfave/cli"
 )
 
@@ -27,7 +30,7 @@ func Run() (err error) {
 	app := cli.NewApp()
 	app.Name = "croc"
 	if Version == "" {
-		Version = "v6.0.10-1d744f1"
+		Version = "v6.1.0-6f31418"
 	}
 	app.Version = Version
 	app.Compiled = time.Now()
@@ -63,10 +66,11 @@ func Run() (err error) {
 		},
 	}
 	app.Flags = []cli.Flag{
+		cli.BoolFlag{Name: "remember", Usage: "save these settings to reuse next time"},
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
-		cli.StringFlag{Name: "relay", Value: "198.199.67.130:9009", Usage: "address of the relay"},
+		cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay"},
 		cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 	}
 	app.EnableBashCompletion = true
@@ -90,11 +94,66 @@ func Run() (err error) {
 	return app.Run(os.Args)
 }
 
-// func saveDefaultConfig(c *cli.Context) error {
-// 	return croc.SaveDefaultConfig()
-// }
+func getConfigDir() (homedir string, err error) {
+	homedir, err = os.UserHomeDir()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	homedir = path.Join(homedir, ".config", "croc")
+	if _, err := os.Stat(homedir); os.IsNotExist(err) {
+		log.Debugf("creating home directory %s", homedir)
+		err = os.MkdirAll(homedir, 0700)
+	}
+	return
+}
 
 func send(c *cli.Context) (err error) {
+	if c.GlobalBool("debug") {
+		log.SetLevel("debug")
+		log.Debug("debug mode on")
+	} else {
+		log.SetLevel("info")
+	}
+	configFile, err := getConfigDir()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	configFile = path.Join(configFile, "send.json")
+
+	crocOptions := croc.Options{
+		SharedSecret: c.String("code"),
+		IsSender:     true,
+		Debug:        c.GlobalBool("debug"),
+		NoPrompt:     c.GlobalBool("yes"),
+		RelayAddress: c.GlobalString("relay"),
+		Stdout:       c.GlobalBool("stdout"),
+		DisableLocal: c.Bool("no-local"),
+		RelayPorts:   strings.Split(c.String("ports"), ","),
+	}
+	b, errOpen := ioutil.ReadFile(configFile)
+	if errOpen == nil && !c.GlobalBool("remember") {
+		var rememberedOptions croc.Options
+		err = json.Unmarshal(b, &rememberedOptions)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		// update anything that isn't explicitly set
+		if !c.GlobalIsSet("relay") {
+			crocOptions.RelayAddress = rememberedOptions.RelayAddress
+		}
+		if !c.IsSet("no-local") {
+			crocOptions.DisableLocal = rememberedOptions.DisableLocal
+		}
+		if !c.IsSet("ports") {
+			crocOptions.RelayPorts = rememberedOptions.RelayPorts
+		}
+		if !c.IsSet("code") {
+			crocOptions.SharedSecret = rememberedOptions.SharedSecret
+		}
+	}
 
 	var fnames []string
 	stat, _ := os.Stdin.Stat()
@@ -115,7 +174,7 @@ func send(c *cli.Context) (err error) {
 		defer func() {
 			err = os.Remove(fnames[0])
 			if err != nil {
-				log.Println(err)
+				log.Error(err)
 			}
 		}()
 	} else {
@@ -125,14 +184,9 @@ func send(c *cli.Context) (err error) {
 		return errors.New("must specify file: croc send [filename]")
 	}
 
-	var sharedSecret string
-	if c.String("code") != "" {
-		sharedSecret = c.String("code")
-	}
-	// cr.LoadConfig()
-	if len(sharedSecret) == 0 {
+	if len(crocOptions.SharedSecret) == 0 {
 		// generate code phrase
-		sharedSecret = utils.GetRandomName()
+		crocOptions.SharedSecret = utils.GetRandomName()
 	}
 
 	haveFolder := false
@@ -161,18 +215,31 @@ func send(c *cli.Context) (err error) {
 			paths = append(paths, filepath.ToSlash(fname))
 		}
 	}
-	cr, err := croc.New(croc.Options{
-		SharedSecret: sharedSecret,
-		IsSender:     true,
-		Debug:        c.GlobalBool("debug"),
-		NoPrompt:     c.GlobalBool("yes"),
-		RelayAddress: c.GlobalString("relay"),
-		Stdout:       c.GlobalBool("stdout"),
-		DisableLocal: c.Bool("no-local"),
-		RelayPorts:   strings.Split(c.String("ports"), ","),
-	})
+
+	cr, err := croc.New(crocOptions)
 	if err != nil {
 		return
+	}
+
+	// save the config
+	if c.GlobalBool("remember") {
+		log.Debug("saving config file")
+		var bConfig []byte
+		// if the code wasn't set, don't save it
+		if c.String("code") == "" {
+			crocOptions.SharedSecret = ""
+		}
+		bConfig, err = json.MarshalIndent(crocOptions, "", "    ")
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		err = ioutil.WriteFile(configFile, bConfig, 0644)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		log.Debugf("wrote %s", configFile)
 	}
 
 	err = cr.Send(croc.TransferOptions{
@@ -184,31 +251,80 @@ func send(c *cli.Context) (err error) {
 }
 
 func receive(c *cli.Context) (err error) {
-	var sharedSecret string
-	if c.GlobalString("code") != "" {
-		sharedSecret = c.GlobalString("code")
-	}
-	if c.Args().First() != "" {
-		sharedSecret = c.Args().First()
-	}
-	if sharedSecret == "" {
-		sharedSecret = utils.GetInput("Enter receive code: ")
-	}
-	if c.GlobalString("out") != "" {
-		os.Chdir(c.GlobalString("out"))
-	}
-
-	cr, err := croc.New(croc.Options{
-		SharedSecret: sharedSecret,
+	crocOptions := croc.Options{
+		SharedSecret: c.String("code"),
 		IsSender:     false,
 		Debug:        c.GlobalBool("debug"),
 		NoPrompt:     c.GlobalBool("yes"),
 		RelayAddress: c.GlobalString("relay"),
 		Stdout:       c.GlobalBool("stdout"),
-	})
+	}
+	if c.Args().First() != "" {
+		crocOptions.SharedSecret = c.Args().First()
+	}
+
+	// load options here
+	if c.GlobalBool("debug") {
+		log.SetLevel("debug")
+		log.Debug("debug mode on")
+	} else {
+		log.SetLevel("info")
+	}
+	configFile, err := getConfigDir()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	configFile = path.Join(configFile, "receive.json")
+	b, errOpen := ioutil.ReadFile(configFile)
+	if errOpen == nil && !c.GlobalBool("remember") {
+		var rememberedOptions croc.Options
+		err = json.Unmarshal(b, &rememberedOptions)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		// update anything that isn't explicitly set
+		if !c.GlobalIsSet("relay") {
+			crocOptions.RelayAddress = rememberedOptions.RelayAddress
+		}
+		if !c.GlobalIsSet("yes") {
+			crocOptions.NoPrompt = rememberedOptions.NoPrompt
+		}
+		if crocOptions.SharedSecret == "" {
+			crocOptions.SharedSecret = rememberedOptions.SharedSecret
+		}
+	}
+
+	if crocOptions.SharedSecret == "" {
+		crocOptions.SharedSecret = utils.GetInput("Enter receive code: ")
+	}
+	if c.GlobalString("out") != "" {
+		os.Chdir(c.GlobalString("out"))
+	}
+
+	cr, err := croc.New(crocOptions)
 	if err != nil {
 		return
 	}
+
+	// save the config
+	if c.GlobalBool("remember") {
+		log.Debug("saving config file")
+		var bConfig []byte
+		bConfig, err = json.MarshalIndent(crocOptions, "", "    ")
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		err = ioutil.WriteFile(configFile, bConfig, 0644)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		log.Debugf("wrote %s", configFile)
+	}
+
 	err = cr.Receive()
 	return
 }
@@ -233,14 +349,3 @@ func relay(c *cli.Context) (err error) {
 	}
 	return tcp.Run(debugString, ports[0], tcpPorts)
 }
-
-// func dirSize(path string) (int64, error) {
-// 	var size int64
-// 	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
-// 		if !info.IsDir() {
-// 			size += info.Size()
-// 		}
-// 		return err
-// 	})
-// 	return size, err
-// }

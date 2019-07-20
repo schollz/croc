@@ -4,7 +4,7 @@
     src="https://user-images.githubusercontent.com/6550035/46709024-9b23ad00-cbf6-11e8-9fb2-ca8b20b7dbec.jpg"
     width="408px" border="0" alt="croc">
 <br>
-<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-v6.0.10-brightgreen.svg?style=flat-square" alt="Version"></a>
+<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-v6.1.0-brightgreen.svg?style=flat-square" alt="Version"></a>
 <a href="https://travis-ci.org/schollz/croc"><img
 src="https://img.shields.io/travis/schollz/croc.svg?style=flat-square" alt="Build
 Status"></a> 
@@ -76,6 +76,7 @@ $ croc code-phrase
 
 The code phrase is used to establish password-authenticated key agreement ([PAKE](https://en.wikipedia.org/wiki/Password-authenticated_key_agreement)) which generates a secret key for the sender and recipient to use for end-to-end encryption.
 
+There are a number of configurable options (see `--help`). A set of options (like custom relay, ports, and code phrase) can be set using `--remember`.
 
 ### Custom code phrase
 
@@ -84,7 +85,6 @@ You can send with your own code phrase (must be more than 4 characters).
 ```
 $ croc send --code [code-phrase] [file(s)-or-folder]
 ```
-
 
 ### Use pipes - stdin and stdout
 
@@ -118,6 +118,12 @@ You can send files using your relay by entering `--relay` to change the relay th
 $ croc --relay "myrelay.example.com:9009" send [filename]
 ```
 
+If it's easier you can also run a relay with Docker:
+
+
+```
+$ docker run -d -p 9009:9009 -p 9010:9010 -p 9011:9011 -p 9012:9012 -p 9013:9013 schollz/croc
+```
 
 ## License
 
