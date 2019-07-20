@@ -17,7 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/denisbrodbeck/machineid"
 	"github.com/pkg/errors"
 	"github.com/schollz/croc/v6/src/comm"
 	"github.com/schollz/croc/v6/src/compress"
@@ -88,7 +87,6 @@ type Client struct {
 
 	bar       *progressbar.ProgressBar
 	spinner   *spinner.Spinner
-	machineID string
 	firstSend bool
 
 	mutex *sync.Mutex
@@ -117,7 +115,6 @@ type RemoteFileRequest struct {
 }
 
 type SenderInfo struct {
-	MachineID       string
 	FilesToTransfer []FileInfo
 }
 
@@ -216,17 +213,13 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	if len(c.FilesToTransfer) == 1 {
 		fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
 	}
-	machID, macIDerr := machineid.ID()
-	if macIDerr != nil {
-		log.Error(macIDerr)
-		return
-	}
-	if len(machID) > 6 {
-		machID = machID[:6]
-	}
-	c.machineID = machID
+
 	fmt.Fprintf(os.Stderr, "Sending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
-	fmt.Fprintf(os.Stderr, "Code is: %s\nOn the other computer run\n\ncroc %s\n", c.Options.SharedSecret, c.Options.SharedSecret)
+	otherRelay := ""
+	if c.Options.RelayAddress != models.DEFAULT_RELAY {
+		otherRelay = "--relay " + c.Options.RelayAddress + " "
+	}
+	fmt.Fprintf(os.Stderr, "Code is: %s\nOn the other computer run\n\ncroc %s%s\n", c.Options.SharedSecret, otherRelay, c.Options.SharedSecret)
 	// // c.spinner.Suffix = " waiting for recipient..."
 	// c.spinner.Start()
 	// create channel for quitting
@@ -234,6 +227,8 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	errchan := make(chan error, 1)
 
 	if !c.Options.DisableLocal {
+		// add two things to the error channel
+		errchan = make(chan error, 2)
 		// setup the relay locally
 		for _, port := range c.Options.RelayPorts {
 
@@ -298,6 +293,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		if err != nil {
 			err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
 			log.Debug(err)
+			errchan <- err
 			return
 		}
 		log.Debugf("connection established: %+v", conn)
@@ -331,7 +327,15 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		errchan <- c.transfer(options)
 	}()
 
-	return <-errchan
+	err = <-errchan
+	if err == nil {
+		// return if no error
+		return
+	}
+	if !c.Options.DisableLocal {
+		err = <-errchan
+	}
+	return err
 }
 
 // Receive will receive a file
@@ -641,7 +645,6 @@ func (c *Client) updateState() (err error) {
 	if c.Options.IsSender && c.Step1ChannelSecured && !c.Step2FileInfoTransfered {
 		var b []byte
 		b, err = json.Marshal(SenderInfo{
-			MachineID:       c.machineID,
 			FilesToTransfer: c.FilesToTransfer,
 		})
 		if err != nil {
