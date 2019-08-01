@@ -144,7 +144,7 @@ install_croc()
 
 	echo "Verifying checksum..."
 	if [[ $unameu == *DARWIN* ]]; then
-    checksum="$(shasum -a 256 ${dl}) $croc_file)"
+    checksum="$(shasum -a 256 ${dl}) $croc_file"
   elif [[ $unameu == "FREEBSD" ]]; then
     checksum="$(sha256 -q ${dl})  $croc_file"
 	else
