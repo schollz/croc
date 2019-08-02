@@ -97,7 +97,7 @@ install_croc()
 	elif [[ $unameu == *LINUX* ]]; then
 		croc_os="Linux"
 	elif [[ $unameu == *FREEBSD* ]]; then
-		croc_os="freebsd"
+		croc_os="FreeBSD"
 	elif [[ $unameu == *NETBSD* ]]; then
 		croc_os="NetBSD"
 	elif [[ $unameu == *OPENBSD* ]]; then
@@ -144,17 +144,23 @@ install_croc()
 
 	echo "Verifying checksum..."
 	if [[ $unameu == *DARWIN* ]]; then
-		checksum="$(shasum -a 256 ${dl}) $croc_file"
+    checksum="$(shasum -a 256 ${dl})"
+  elif [[ $unameu == "FREEBSD" ]]; then
+    checksum="$(sha256 -q ${dl})  $croc_file"
 	else
-		checksum="$(sha256sum ${dl}) $croc_file"
+		checksum="$(sha256sum ${dl})"
 	fi
-	checksum_check="$(cat ${dl_checksum} | grep $croc_file) $croc_file"
+	checksum_check="$(cat ${dl_checksum} | grep "${checksum}")"
 
-	if [[ "$s1" != "$s2" ]]; then
+	if [[ "${checksum}" != "${checksum_check}" ]]; then
 		echo "${checksum}"
 		echo "${checksum_check}"
 		echo "checksums are not valid, exiting"
 		return 7
+  else
+    echo "verified checksum"
+    echo "Downloaded: ${checksum}"
+    echo "Remote:     ${checksum_check}"
 	fi
 
 
