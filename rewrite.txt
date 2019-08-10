@@ -1,0 +1,188 @@
+#!/bin/bash - 
+#===============================================================================
+#
+#          FILE: default.txt.sh
+# 
+#         USAGE: ./default.txt.sh 
+# 
+#   DESCRIPTION: 
+# 
+#       OPTIONS: ---
+#  REQUIREMENTS: ---
+#          BUGS: ---
+#         NOTES: ---
+#        AUTHOR: Micheal Quinn, micheal.quinn85@gmail.com
+#       COMPANY: 
+#  ORGANIZATION: 
+#       CREATED: 08/10/2019 16:41
+#      REVISION: 0.0.0
+#===============================================================================
+set -o nounset                              # Treat unset variables as an error
+
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  determine_os
+#   DESCRIPTION:  Attempts to determin host os using uname
+#    PARAMETERS:  none
+#       RETURNS:  0 = OS Detected. Also prints detected os to stdout
+#                 1 = Unkown OS
+#                 2 = 'uname' not found in path
+#-------------------------------------------------------------------------------
+determine_os() {
+  local uname_cmd
+  local uname_out
+
+  uname_cmd="$(command -v uname)"
+
+  if [[ "${uname_cmd}" == "" ]]; then
+    return 2
+  else
+    uname_out="$(uname)"
+  fi
+
+  if [[ "${uname_out}" == "" ]]; then
+    return 1
+  else
+    echo "${uname_out}"
+    return 0
+  fi
+}
+
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  determine_arch
+#   DESCRIPTION:  Attempt to determin architecture of host
+#    PARAMETERS:  none
+#       RETURNS:  0 = Arch Detected. Also prints detected arch to stdout
+#                 1 = Unkown arch
+#                 2 = 'uname' not found in path
+#-------------------------------------------------------------------------------
+determine_arch() {
+  local uname_cmd
+  local uname_out
+
+  uname_cmd="$(command -v uname)"
+
+  if [[ "${uname_cmd}" == "" ]]; then
+    return 2
+  else
+    uname_out="$(uname -m)"
+  fi
+
+  if [[ "${uname_out}" == "" ]]; then
+    return 1
+  else
+    echo "${uname_out}"
+    return 0
+  fi
+}
+
+
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  download_file
+#   DESCRIPTION:  Downloads a file into the specified directory.  Attempts to
+#                 use curl, then wget.  If neither is found, fail.
+#    PARAMETERS:  $1 = url of file to download
+#                 $2 = location to download file into on host system
+#       RETURNS:  If curl or wget found, returns the return code of curl or wget
+#                 2 = Could not find curl and wget
+#-------------------------------------------------------------------------------
+download_file() {
+  local url
+  local dir
+  local filename
+  local rcode
+
+  url="${1}"
+  dir="${2}"
+  filename="${3}"
+
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "${url}" -o "${dir}/${filename}"
+    rcode="${?}"
+  elif command -v wget >/dev/null 2>&1; then
+    wget --quiet  "${url}" -O "${dir}/${filename}"
+    rcode="${?}"
+  else
+    echo "== Could not find curl or wget"
+    rcode="2"
+  fi
+  
+  return "${rcode}"
+}
+
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  main
+#   DESCRIPTION:  Put it all together in a logical way
+#                 ...at least that is the hope...
+#    PARAMETERS:  none
+#       RETURNS:  0 = All good
+#                 1 = Something done broke
+#-------------------------------------------------------------------------------
+main() {
+  local prefix
+  local tmpdir
+  local croc_arch
+  local croc_os
+  local croc_base_url
+  local croc_url
+  local croc_file
+  local croc_bin_name
+  local croc_version
+  local croc_dl_ext
+
+  croc_bin_name="croc"
+  croc_version="6.1.1"
+  croc_dl_ext="tar.gz"
+  croc_base_url="https://github.com/schollz/croc/releases/download"
+  prefix="/usr/local/bin"
+  tmpdir="$(mktemp -d --suffix="_${croc_bin_name}")"
+
+  croc_arch="$(determine_arch)"
+  croc_arch_rcode="${?}"
+  if [[ "${croc_arch_rcode}" == "0" ]]; then
+    echo "== Architecture detected as ${croc_arch}"
+  elif [[ "${croc_arch_rcode}" == "1" ]]; then
+    echo "== Architecture not detected"
+    exit 1
+  else
+    echo "== 'uname' not found in path. Is it installed?"
+  fi
+
+  croc_os="$(determine_os)"
+  croc_os_rcode="${?}"
+  if [[ "${croc_os_rcode}" == "0" ]]; then
+    echo "== OS detected as ${croc_os}"
+  elif [[ "${croc_os_rcode}" == "1" ]]; then
+    echo "== OS not detected"
+    exit 1
+  else
+    echo "== 'uname' not found in path. Is it installed?"
+  fi
+
+  case "${croc_arch}" in
+     "x86_64" ) croc_arch="64bit";;
+      "amd64" ) croc_arch="64bit";;
+    "aarch64" ) croc_arch="ARM64";;
+       "i686" ) croc_arch="32bit";;
+            * ) croc_arch="unknown";;
+  esac
+
+
+  croc_file="${croc_bin_name}_${croc_version}_${croc_os}-${croc_arch}.${croc_dl_ext}"
+  croc_url="${croc_base_url}/v${croc_version}/${croc_file}"
+
+  download_file "${croc_url}" "${tmpdir}" "${croc_file}"
+  download_file_rcode="${?}"
+  if [[ "${download_file_rcode}" == "0" ]]; then
+    echo "== Downloaded croc archive into ${tmpdir}"
+  elif [[ "${download_file_rcode}" == "1" ]]; then
+    echo "== Failed to download croc archive"
+    exit 1
+  elif [[ "${download_file_rcode}" == "2" ]]; then
+    echo "== Failed to locate curl or wget"
+    exit 1
+  else
+    echo "== Return code of download tool returned an unexpected value of ${download_file_rcode}"
+  fi
+}
+
+main
