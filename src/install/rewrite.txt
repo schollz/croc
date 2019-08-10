@@ -110,6 +110,48 @@ download_file() {
 }
 
 #---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  extract_file
+#   DESCRIPTION:  Extracts a file into a location.  Attempts to determine which
+#                 tool to use by checking file extention.
+#    PARAMETERS:  $1 = file to extract
+#                 $2 = location to extract file into
+#                 $3 = extention
+#       RETURNS:  Return code of the tool used to extract the file
+#                 2 = Failed to determine which tool to use
+#                 3 = Failed to find tool in path
+#-------------------------------------------------------------------------------
+extract_file() {
+  local file
+  local dir
+  local ext
+  local rcode
+
+  file="${1}"
+  dir="${2}"
+  ext="${3}"
+
+  case "${ext}" in
+       "zip" ) if command -v unzip >/dev/null 2>&1; then
+                 unzip "${file}" -d "${dir}"
+                 rcode="${?}"
+               else
+                 rcode="3"
+               fi
+               ;;
+    "tar.gz" ) if command -v tar >/dev/null 2>&1; then
+                 tar -xf "${file}" -C "${dir}"
+                 rcode="${?}"
+               else
+                 rcode="3"
+               fi
+               ;;
+           * ) rcode="2";;
+  esac
+
+  return "${rcode}"
+}
+
+#---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  main
 #   DESCRIPTION:  Put it all together in a logical way
 #                 ...at least that is the hope...
@@ -182,6 +224,24 @@ main() {
     exit 1
   else
     echo "== Return code of download tool returned an unexpected value of ${download_file_rcode}"
+  fi
+
+  extract_file "${tmpdir}/${croc_file}" "${tmpdir}/" "${croc_dl_ext}"
+  extract_file_rcode="${?}"
+  if [[ "${extract_file_rcode}" == "0" ]]; then
+    echo "== Extracted ${croc_file} to ${tmpdir}/"
+  elif [[ "${extract_file_rcode}" == "1" ]]; then
+    echo "== Failed to extract ${croc_file}"
+    exit 1
+  elif [[ "${extract_file_rcode}" == "2" ]]; then
+    echo "== Failed to determine which extraction tool to use"
+    exit 1
+  elif [[ "${extract_file_rcode}" == "3" ]]; then
+    echo "== Failed to find extraction tool in path"
+    exit 1
+  else
+    echo "== Unknown error returned from extraction attempt"
+    exit 1
   fi
 }
 
