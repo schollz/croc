@@ -49,11 +49,11 @@ print_help() {
 
   help_header="croc Installer Script"
   help_message="Usage:
-  -p, --prefix
+  -p PREFIX
       Prefix to install croc into.  Directory must already exist.
         Default = /usr/local/bin
   
-  -h, --help
+  -h
       Prints this helpfull message and exit."
 
   echo "${help_header}"
@@ -568,21 +568,16 @@ main() {
 #-------------------------------------------------------------------------------
 #  ARGUMENT PARSING
 #-------------------------------------------------------------------------------
-OPTS=$(getopt -o hp: --long help,prefix: -n 'parse-options' -- "${@}")
-getopt_rcode="${?}"
-if [ ${getopt_rcode} != 0 ] ; then
-  echo "Failed parsing options." >&2
-  exit 1
-fi
-
-eval set -- "${OPTS}"
-
-while true; do
-  case "${1}" in
-    -p | --prefix     ) PREFIX="${2}"; shift 2;;
-    -h | --help       ) print_help; exit 0;;
-    -- ) shift; break ;;
-    * ) break ;;
+OPTS="hp:"
+while getopts "${OPTS}" optchar; do
+  case "${optchar}" in
+    'h' ) print_help
+          exit 0
+          ;;
+    'p' ) PREFIX="${OPTARG}"
+          ;;
+    '?' ) print_message "Unknown option ${OPTARG}" "warn"
+          ;;
   esac
 done
 
