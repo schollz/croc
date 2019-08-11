@@ -30,7 +30,7 @@ make_tempdir() {
   local template
   local tempdir
 
-  template="${1}"
+  template="${1}.XXXXXX"
 
   if command -v mktemp >/dev/null 2>&1; then
     tempdir="$(mktemp -d -t "${template}")"
@@ -228,17 +228,17 @@ extract_file() {
   return "${rcode}"
 }
 
-
 #---  FUNCTION  ----------------------------------------------------------------
-#          NAME:  install_file
-#   DESCRIPTION:  Installs a file into a location using 'install'
+#          NAME:  install_file_freebsd
+#   DESCRIPTION:  Installs a file into a location using 'install'.  If EUID not
+#                 0, then attempt to use sudo.
 #    PARAMETERS:  $1 = file to install
 #                 $2 = location to install file into
 #       RETURNS:  0 = File Installed
 #                 1 = File not installed
 #                 2 = Could not find install command
 #-------------------------------------------------------------------------------
-install_file() {
+install_file_freebsd() {
   local file
   local prefix
   local rcode
@@ -247,8 +247,47 @@ install_file() {
   prefix="${2}"
 
   if command -v install >/dev/null 2>&1; then
-    sudo install -C -b -S '_old' -m 755 -t "${prefix}" "${file}"
-    rcode="${?}"
+    if [[ "${EUID}" == "0" ]]; then
+      install -C -b -B '_old' -m 755 "${file}" "${prefix}"
+      rcode="${?}"
+    else
+      sudo install -C -b -B '_old' -m 755 "${file}" "${prefix}"
+      rcode="${?}"
+    fi
+  else
+    rcode="2"
+  fi
+
+  return "${rcode}"
+}
+
+
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  install_file_linux
+#   DESCRIPTION:  Installs a file into a location using 'install'.  If EUID not
+#                 0, then attempt to use sudo.
+#    PARAMETERS:  $1 = file to install
+#                 $2 = location to install file into
+#       RETURNS:  0 = File Installed
+#                 1 = File not installed
+#                 2 = Could not find install command
+#-------------------------------------------------------------------------------
+install_file_linux() {
+  local file
+  local prefix
+  local rcode
+
+  file="${1}"
+  prefix="${2}"
+
+  if command -v install >/dev/null 2>&1; then
+    if [[ "${EUID}" == "0" ]]; then
+      install -C -b -S '_old' -m 755 -t "${prefix}" "${file}"
+      rcode="${?}"
+    else
+      sudo install -C -b -S '_old' -m 755 -t "${prefix}" "${file}"
+      rcode="${?}"
+    fi
   else
     rcode="2"
   fi
@@ -407,8 +446,12 @@ main() {
     exit 1
   fi
 
-  install_file "${tmpdir}/${croc_bin_name}" "${prefix}/"
-  install_file_rcode="${?}"
+  case "${croc_os}" in
+    "Linux" ) install_file_linux "${tmpdir}/${croc_bin_name}" "${prefix}/";
+              install_file_rcode="${?}";;
+  "FreeBSD" ) install_file_freebsd "${tmpdir}/${croc_bin_name}" "${prefix}/";
+              install_file_rcode="${?}";;
+  esac
   if [[ "${install_file_rcode}" == "0" ]]; then
     echo "== Installed ${croc_bin_name} to ${prefix}/"
   elif [[ "${install_file_rcode}" == "1" ]]; then
@@ -419,6 +462,7 @@ main() {
     exit 1
   else
     echo "== Return code of 'install' returned an unexpected value of ${install_file_rcode}"
+    exit 1
   fi
 
   echo "== Cleaning up ${tmpdir}"
