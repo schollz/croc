@@ -110,6 +110,31 @@ download_file() {
 }
 
 #---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  checksum_check
+#   DESCRIPTION:  Attempt to verify checksum of downloaded file to ensure
+#                 integrity.
+#    PARAMETERS:  $1 = path to checksum file
+#                 $2 = location of file to check
+#                 $3 = working directory
+#       RETURNS:  0 = checkusm verified
+#                 1 = checksum verification failed
+#                 2 = failed to determine tool to use to check checksum
+#                 3 = failed to change into or go back from working dir
+#-------------------------------------------------------------------------------
+checksum_check() {
+  local checksum_file
+  local file
+
+  checksum_file="${1}"
+  file="${2}"
+  dir="${3}"
+
+  cd "${dir}" || return 3
+  sha256sum -c "${checksum_file}" --ignore-missing >/dev/null 2>&1
+  cd - >/dev/null 2>&1 || return 3
+}
+
+#---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  extract_file
 #   DESCRIPTION:  Extracts a file into a location.  Attempts to determine which
 #                 tool to use by checking file extention.
@@ -179,6 +204,21 @@ install_file() {
   return "${rcode}"
 }
 
+
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  cleanup
+#   DESCRIPTION:  Cleanup our temp files
+#    PARAMETERS:  $1 = Path to temp dir to remove
+#       RETURNS:  nothing
+#-------------------------------------------------------------------------------
+cleanup() {
+  local dir
+
+  dir="$1"
+
+  rm -rf "${dir}"
+}
+
 #---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  main
 #   DESCRIPTION:  Put it all together in a logical way
@@ -195,6 +235,7 @@ main() {
   local croc_base_url
   local croc_url
   local croc_file
+  local croc_checksum_file
   local croc_bin_name
   local croc_version
   local croc_dl_ext
@@ -238,7 +279,9 @@ main() {
 
 
   croc_file="${croc_bin_name}_${croc_version}_${croc_os}-${croc_arch}.${croc_dl_ext}"
+  croc_checksum_file="${croc_bin_name}_${croc_version}_checksums.txt"
   croc_url="${croc_base_url}/v${croc_version}/${croc_file}"
+  croc_checksum_url="${croc_base_url}/v${croc_version}/${croc_checksum_file}"
 
   download_file "${croc_url}" "${tmpdir}" "${croc_file}"
   download_file_rcode="${?}"
@@ -253,6 +296,35 @@ main() {
   else
     echo "== Return code of download tool returned an unexpected value of ${download_file_rcode}"
   fi
+  download_file "${croc_checksum_url}" "${tmpdir}" "${croc_checksum_file}"
+  download_checksum_file_rcode="${?}"
+  if [[ "${download_checksum_file_rcode}" == "0" ]]; then
+    echo "== Downloaded croc checksums file into ${tmpdir}"
+  elif [[ "${download_checksum_file_rcode}" == "1" ]]; then
+    echo "== Failed to download croc checksums"
+    exit 1
+  elif [[ "${download_checksum_file_rcode}" == "2" ]]; then
+    echo "== Failed to locate curl or wget"
+    exit 1
+  else
+    echo "== Return code of download tool returned an unexpected value of ${download_checksum_file_rcode}"
+  fi
+
+  checksum_check "${tmpdir}/${croc_checksum_file}" "${tmpdir}/${croc_file}" "${tmpdir}"
+  checksum_check_rcode="${?}"
+  if [[ "${checksum_check_rcode}" == "0" ]]; then
+    echo "== Checksum of ${tmpdir}/${croc_file} verified"
+  elif [[ "${checksum_check_rcode}" == "1" ]]; then
+    echo "== Failed to verify checksum of ${tmpdir}/${croc_file}"
+    exit 1
+  elif [[ "${checksum_check_rcode}" == "2" ]]; then
+    echo "== Failed to find tool to verify sha256 sums"
+    exit 1
+  else
+    echo "== Unknown return code returned while checking checksum of ${tmpdir}/${croc_file}. Returned ${checksum_check_rcode}"
+    exit 1
+  fi
+
 
   extract_file "${tmpdir}/${croc_file}" "${tmpdir}/" "${croc_dl_ext}"
   extract_file_rcode="${?}"
@@ -285,6 +357,9 @@ main() {
   else
     echo "== Return code of 'install' returned an unexpected value of ${install_file_rcode}"
   fi
+
+  echo "== Cleaning up ${tmpdir}"
+  cleanup "${tmpdir}"
 
 }
 
