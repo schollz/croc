@@ -151,6 +151,34 @@ extract_file() {
   return "${rcode}"
 }
 
+
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  install_file
+#   DESCRIPTION:  Installs a file into a location using 'install'
+#    PARAMETERS:  $1 = file to install
+#                 $2 = location to install file into
+#       RETURNS:  0 = File Installed
+#                 1 = File not installed
+#                 2 = Could not find install command
+#-------------------------------------------------------------------------------
+install_file() {
+  local file
+  local prefix
+  local rcode
+
+  file="${1}"
+  prefix="${2}"
+
+  if command -v install >/dev/null 2>&1; then
+    sudo install -C -b -S '_old' -m 755 -t "${prefix}" "${file}"
+    rcode="${?}"
+  else
+    rcode="2"
+  fi
+
+  return "${rcode}"
+}
+
 #---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  main
 #   DESCRIPTION:  Put it all together in a logical way
@@ -243,6 +271,21 @@ main() {
     echo "== Unknown error returned from extraction attempt"
     exit 1
   fi
+
+  install_file "${tmpdir}/${croc_bin_name}" "${prefix}/"
+  install_file_rcode="${?}"
+  if [[ "${install_file_rcode}" == "0" ]]; then
+    echo "== Installed ${croc_bin_name} to ${prefix}/"
+  elif [[ "${install_file_rcode}" == "1" ]]; then
+    echo "== Failed to install ${croc_bin_name}"
+    exit 1
+  elif [[ "${install_file_rcode}" == "2" ]]; then
+    echo "== Failed to locate 'install' command"
+    exit 1
+  else
+    echo "== Return code of 'install' returned an unexpected value of ${install_file_rcode}"
+  fi
+
 }
 
 main
