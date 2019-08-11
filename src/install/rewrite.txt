@@ -20,6 +20,31 @@
 set -o nounset                              # Treat unset variables as an error
 
 #---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  make_tempdir
+#   DESCRIPTION:  Makes a temp dir using mktemp if available
+#    PARAMETERS:  $1 = Directory template
+#       RETURNS:  0 = Created temp dir. Also prints temp file path to stdout
+#                 1 = Failed to create temp dir
+#-------------------------------------------------------------------------------
+make_tempdir() {
+  local template
+  local tempdir
+
+  template="${1}"
+
+  if command -v mktemp >/dev/null 2>&1; then
+    tempdir="$(mktemp -d -t "${template}")"
+    tempdir_rcode="${?}"
+    if [[ "${tempdir_rcode}" == "0" ]]; then
+      echo "${tempdir}"
+      return 0
+    else
+      return 1
+    fi
+  fi
+}
+
+#---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  determine_os
 #   DESCRIPTION:  Attempts to determin host os using uname
 #    PARAMETERS:  none
@@ -112,26 +137,53 @@ download_file() {
 #---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  checksum_check
 #   DESCRIPTION:  Attempt to verify checksum of downloaded file to ensure
-#                 integrity.
+#                 integrity.  Tries multiple tools before faling.
 #    PARAMETERS:  $1 = path to checksum file
 #                 $2 = location of file to check
 #                 $3 = working directory
 #       RETURNS:  0 = checkusm verified
 #                 1 = checksum verification failed
-#                 2 = failed to determine tool to use to check checksum
-#                 3 = failed to change into or go back from working dir
+#                 20 = failed to determine tool to use to check checksum
+#                 30 = failed to change into or go back from working dir
 #-------------------------------------------------------------------------------
 checksum_check() {
   local checksum_file
   local file
+  local shasum_1
+  local shasum_2
 
   checksum_file="${1}"
   file="${2}"
   dir="${3}"
 
   cd "${dir}" || return 3
-  sha256sum -c "${checksum_file}" --ignore-missing >/dev/null 2>&1
-  cd - >/dev/null 2>&1 || return 3
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c "${checksum_file}" --ignore-missing >/dev/null 2>&1
+    rcode="${?}"
+  elif command -v shasum >/dev/null 2>&1; then
+    ## With shasum on FreeBSD, we don't get to --ignore-missing, so filter the checksum file
+    ## to only include the file we downloaded.
+    grep "$(basename "${file}")" "${checksum_file}" > filtered_checksum.txt
+    shasum -s -a 256 -c "filtered_checksum.txt"
+    rcode="${?}"
+  elif command -v sha256 >/dev/null 2>&1; then
+    ## With sha256 on FreeBSD, we don't get to --ignore-missing, so filter the checksum file
+    ## to only include the file we downloaded.
+    ## Also sha256 -c option seems to fail, so fall back to an if statement
+    grep "$(basename "${file}")" "${checksum_file}" > filtered_checksum.txt
+    shasum_1="$(sha256 -q "${file}")"
+    shasum_2="$(awk '{print $1}' filtered_checksum.txt)"
+    if [[ "${shasum_1}" == "${shasum_2}" ]]; then
+      rcode="0"
+    else
+      rcode="1"
+    fi
+  else
+    return 20
+  fi
+  cd - >/dev/null 2>&1 || return 30
+  
+  return "${rcode}"
 }
 
 #---  FUNCTION  ----------------------------------------------------------------
@@ -245,7 +297,15 @@ main() {
   croc_dl_ext="tar.gz"
   croc_base_url="https://github.com/schollz/croc/releases/download"
   prefix="/usr/local/bin"
-  tmpdir="$(mktemp -d --suffix="_${croc_bin_name}")"
+  
+  tmpdir="$(make_tempdir "${croc_bin_name}")"
+  tmpdir_rcode="${?}"
+  if [[ "${tmpdir_rcode}" == "0" ]]; then
+    echo "== Created temp dir at ${tmpdir}"
+  else
+    echo "== Failed to create temp dir at ${tmpdir}"
+    exit 1
+  fi
 
   croc_arch="$(determine_arch)"
   croc_arch_rcode="${?}"
@@ -277,7 +337,6 @@ main() {
             * ) croc_arch="unknown";;
   esac
 
-
   croc_file="${croc_bin_name}_${croc_version}_${croc_os}-${croc_arch}.${croc_dl_ext}"
   croc_checksum_file="${croc_bin_name}_${croc_version}_checksums.txt"
   croc_url="${croc_base_url}/v${croc_version}/${croc_file}"
@@ -295,6 +354,7 @@ main() {
     exit 1
   else
     echo "== Return code of download tool returned an unexpected value of ${download_file_rcode}"
+    exit 1
   fi
   download_file "${croc_checksum_url}" "${tmpdir}" "${croc_checksum_file}"
   download_checksum_file_rcode="${?}"
@@ -308,6 +368,7 @@ main() {
     exit 1
   else
     echo "== Return code of download tool returned an unexpected value of ${download_checksum_file_rcode}"
+    exit 1
   fi
 
   checksum_check "${tmpdir}/${croc_checksum_file}" "${tmpdir}/${croc_file}" "${tmpdir}"
@@ -317,14 +378,16 @@ main() {
   elif [[ "${checksum_check_rcode}" == "1" ]]; then
     echo "== Failed to verify checksum of ${tmpdir}/${croc_file}"
     exit 1
-  elif [[ "${checksum_check_rcode}" == "2" ]]; then
+  elif [[ "${checksum_check_rcode}" == "20" ]]; then
     echo "== Failed to find tool to verify sha256 sums"
+    exit 1
+  elif [[ "${checksum_check_rcode}" == "30" ]]; then
+    echo "== Failed to change into working directory ${tmpdir}"
     exit 1
   else
     echo "== Unknown return code returned while checking checksum of ${tmpdir}/${croc_file}. Returned ${checksum_check_rcode}"
     exit 1
   fi
-
 
   extract_file "${tmpdir}/${croc_file}" "${tmpdir}/" "${croc_dl_ext}"
   extract_file_rcode="${?}"
