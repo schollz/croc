@@ -44,6 +44,9 @@ PREFIX="/usr/local/bin"
 #       RETURNS:  0
 #-------------------------------------------------------------------------------
 print_help() {
+  local help_header
+  local help_message
+
   help_header="croc Installer Script"
   help_message="Usage:
   -p, --prefix
@@ -100,6 +103,7 @@ print_message() {
 make_tempdir() {
   local template
   local tempdir
+  local tempdir_rcode
 
   template="${1}.XXXXXX"
 
@@ -218,6 +222,7 @@ download_file() {
 checksum_check() {
   local checksum_file
   local file
+  local dir
   local rcode
   local shasum_1
   local shasum_2
