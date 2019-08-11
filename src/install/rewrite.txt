@@ -28,6 +28,35 @@
 #===============================================================================
 set -o nounset                              # Treat unset variables as an error
 
+#-------------------------------------------------------------------------------
+# DEFAULTS
+#-------------------------------------------------------------------------------
+PREFIX="/usr/local/bin"
+
+#-------------------------------------------------------------------------------
+# FUNCTIONS
+#-------------------------------------------------------------------------------
+
+#---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  print_help
+#   DESCRIPTION:  Prints out a help message
+#    PARAMETERS:  none
+#       RETURNS:  0
+#-------------------------------------------------------------------------------
+print_help() {
+  help_header="croc Installer Script"
+  help_message="Usage:
+  -p, --prefix
+      Prefix to install croc into.  Directory must already exist.
+        Default = /usr/local/bin
+  
+  -h, --help
+      Prints this helpfull message and exit."
+
+  echo "${help_header}"
+  echo ""
+  echo "${help_message}"
+}
 
 #---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  print_message
@@ -189,6 +218,7 @@ download_file() {
 checksum_check() {
   local checksum_file
   local file
+  local rcode
   local shasum_1
   local shasum_2
 
@@ -277,6 +307,7 @@ extract_file() {
 #       RETURNS:  0 = File Installed
 #                 1 = File not installed
 #                 2 = Could not find install command
+#                 3 = Could not find sudo command
 #-------------------------------------------------------------------------------
 install_file_freebsd() {
   local file
@@ -291,8 +322,12 @@ install_file_freebsd() {
       install -C -b -B '_old' -m 755 "${file}" "${prefix}"
       rcode="${?}"
     else
-      sudo install -C -b -B '_old' -m 755 "${file}" "${prefix}"
-      rcode="${?}"
+      if command -v sudo >/dev/null 2>&1; then
+        sudo install -C -b -B '_old' -m 755 "${file}" "${prefix}"
+        rcode="${?}"
+      else
+        rcode="3"
+      fi
     fi
   else
     rcode="2"
@@ -325,8 +360,12 @@ install_file_linux() {
       install -C -b -S '_old' -m 755 -t "${prefix}" "${file}"
       rcode="${?}"
     else
-      sudo install -C -b -S '_old' -m 755 -t "${prefix}" "${file}"
-      rcode="${?}"
+      if command -v sudo >/dev/null 2>&1; then
+        sudo install -C -b -S '_old' -m 755 "${file}" "${prefix}"
+        rcode="${?}"
+      else
+        rcode="3"
+      fi
     fi
   else
     rcode="2"
@@ -354,15 +393,18 @@ cleanup() {
 #          NAME:  main
 #   DESCRIPTION:  Put it all together in a logical way
 #                 ...at least that is the hope...
-#    PARAMETERS:  none
+#    PARAMETERS:  1 = prefix
 #       RETURNS:  0 = All good
 #                 1 = Something done broke
 #-------------------------------------------------------------------------------
 main() {
   local prefix
   local tmpdir
+  local tmpdir_rcode
   local croc_arch
+  local croc_arch_rcode
   local croc_os
+  local croc_os_rcode
   local croc_base_url
   local croc_url
   local croc_file
@@ -370,12 +412,17 @@ main() {
   local croc_bin_name
   local croc_version
   local croc_dl_ext
+  local download_file_rcode
+  local download_checksum_file_rcode
+  local checksum_check_rcode
+  local extract_file_rcode
+  local install_file_rcode
 
   croc_bin_name="croc"
   croc_version="6.1.1"
   croc_dl_ext="tar.gz"
   croc_base_url="https://github.com/schollz/croc/releases/download"
-  prefix="/usr/local/bin"
+  prefix="${1}"
   
   tmpdir="$(make_tempdir "${croc_bin_name}")"
   tmpdir_rcode="${?}"
@@ -500,15 +547,41 @@ main() {
   elif [[ "${install_file_rcode}" == "2" ]]; then
     print_message "== Failed to locate 'install' command" "error"
     exit 1
+  elif [[ "${install_file_rcode}" == "3" ]]; then
+    print_message "== Failed to locate 'sudo' command" "error"
+    exit 1
   else
-    print_message "== Return code of 'install' returned an unexpected value of ${install_file_rcode}" "error"
+    print_message "== Install attempt returned an unexpected value of ${install_file_rcode}" "error"
     exit 1
   fi
 
   print_message "== Cleaning up ${tmpdir}" "info"
   cleanup "${tmpdir}"
   print_message "== Installation complete" "ok"
-
 }
 
-main
+#-------------------------------------------------------------------------------
+#  ARGUMENT PARSING
+#-------------------------------------------------------------------------------
+OPTS=$(getopt -o hp: --long help,prefix: -n 'parse-options' -- "${@}")
+getopt_rcode="${?}"
+if [ ${getopt_rcode} != 0 ] ; then
+  echo "Failed parsing options." >&2
+  exit 1
+fi
+
+eval set -- "${OPTS}"
+
+while true; do
+  case "${1}" in
+    -p | --prefix     ) PREFIX="${2}"; shift 2;;
+    -h | --help       ) print_help; exit 0;;
+    -- ) shift; break ;;
+    * ) break ;;
+  esac
+done
+
+#-------------------------------------------------------------------------------
+# CALL MAIN
+#-------------------------------------------------------------------------------
+main "${PREFIX}"
