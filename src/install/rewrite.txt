@@ -560,6 +560,8 @@ main() {
               install_file_rcode="${?}";;
   "FreeBSD" ) install_file_freebsd "${tmpdir}/${croc_bin_name}" "${prefix}/";
               install_file_rcode="${?}";;
+    "macOS" ) install_file_freebsd "${tmpdir}/${croc_bin_name}" "${prefix}/";
+              install_file_rcode="${?}";;
   esac
   if [[ "${install_file_rcode}" == "0" ]]; then
     print_message "== Installed ${croc_bin_name} to ${prefix}/" "ok"
