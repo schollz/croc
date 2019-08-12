@@ -12,7 +12,7 @@
 #                This script installs croc into a specified prefix.
 #                Default prefix = /usr/local/bin
 #
-#       OPTIONS: -p, --prefix "${PREFIX}"
+#       OPTIONS: -p, --prefix "${INSTALL_PREFIX}"
 #                      Prefix to install croc into.  Defaults to /usr/local/bin
 #  REQUIREMENTS: bash, uname, tar/unzip, curl/wget, sudo (if not run
 #                as root), install, mktemp, sha256sum/shasum/sha256
@@ -30,7 +30,15 @@ set -o nounset                              # Treat unset variables as an error
 #-------------------------------------------------------------------------------
 # DEFAULTS
 #-------------------------------------------------------------------------------
-PREFIX="/usr/local/bin"
+PREFIX="${PREFIX:-}"
+ANDROID_ROOT="${ANDROID_ROOT:-}"
+
+# Termux on Android has ${PREFIX} set which already ends with '/usr'
+if [[ -n "${ANDROID_ROOT}" && -n "${PREFIX}" ]]; then
+  INSTALL_PREFIX="${PREFIX}/bin"
+else
+  INSTALL_PREFIX="/usr/local/bin"
+fi
 
 #-------------------------------------------------------------------------------
 # FUNCTIONS
@@ -48,9 +56,9 @@ print_help() {
 
   help_header="croc Installer Script"
   help_message="Usage:
-  -p PREFIX
+  -p INSTALL_PREFIX
       Prefix to install croc into.  Directory must already exist.
-        Default = /usr/local/bin
+      Default = /usr/local/bin ('\${PREFIX}/bin' on Termux for Android)
   
   -h
       Prints this helpfull message and exit."
@@ -344,7 +352,7 @@ install_file_freebsd() {
 #---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  install_file_linux
 #   DESCRIPTION:  Installs a file into a location using 'install'.  If EUID not
-#                 0, then attempt to use sudo.
+#                 0, then attempt to use sudo (unless on android).
 #    PARAMETERS:  $1 = file to install
 #                 $2 = location to install file into
 #       RETURNS:  0 = File Installed
@@ -366,6 +374,9 @@ install_file_linux() {
     else
       if command -v sudo >/dev/null 2>&1; then
         sudo install -C -b -S '_old' -m 755 "${file}" "${prefix}"
+        rcode="${?}"
+      elif [[ "${ANDROID_ROOT}" != "" ]]; then
+        install -C -b -S '_old' -m 755 -t "${prefix}" "${file}"
         rcode="${?}"
       else
         rcode="3"
@@ -427,6 +438,8 @@ main() {
   croc_dl_ext="tar.gz"
   croc_base_url="https://github.com/schollz/croc/releases/download"
   prefix="${1}"
+
+  print_message "== Install prefix set to ${prefix}" "info"
   
   tmpdir="$(make_tempdir "${croc_bin_name}")"
   tmpdir_rcode="${?}"
@@ -459,10 +472,15 @@ main() {
     print_message "== 'uname' not found in path. Is it installed?" "error"
   fi
 
+  case "${croc_os}" in
+    "Darwin" ) croc_os="macOS";;
+  esac
+
   case "${croc_arch}" in
      "x86_64" ) croc_arch="64bit";;
       "amd64" ) croc_arch="64bit";;
     "aarch64" ) croc_arch="ARM64";;
+     "armv7l" ) croc_arch="ARM";;
        "i686" ) croc_arch="32bit";;
             * ) croc_arch="unknown";;
   esac
@@ -573,7 +591,7 @@ while getopts "${OPTS}" optchar; do
     'h' ) print_help
           exit 0
           ;;
-    'p' ) PREFIX="${OPTARG}"
+    'p' ) INSTALL_PREFIX="${OPTARG}"
           ;;
      /? ) print_message "Unknown option ${OPTARG}" "warn"
           ;;
@@ -583,4 +601,4 @@ done
 #-------------------------------------------------------------------------------
 # CALL MAIN
 #-------------------------------------------------------------------------------
-main "${PREFIX}"
+main "${INSTALL_PREFIX}"
