@@ -1,7 +1,7 @@
 #!/bin/bash - 
 #===============================================================================
 #
-#          FILE: default.txt.sh
+#          FILE: default.txt
 # 
 #         USAGE: curl https://getcroc.schollz.com | bash
 #                 OR
@@ -22,7 +22,6 @@
 #         NOTES: Homepage: https://schollz.com/software/croc
 #                  Issues: https://github.com/schollz/croc/issues
 #
-#        AUTHOR: Micheal Quinn, micheal.quinn85@gmail.com
 #       CREATED: 08/10/2019 16:41
 #      REVISION: 0.5.0
 #===============================================================================
@@ -576,7 +575,7 @@ while getopts "${OPTS}" optchar; do
           ;;
     'p' ) PREFIX="${OPTARG}"
           ;;
-    '?' ) print_message "Unknown option ${OPTARG}" "warn"
+     /? ) print_message "Unknown option ${OPTARG}" "warn"
           ;;
   esac
 done
