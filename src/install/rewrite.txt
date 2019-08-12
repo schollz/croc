@@ -389,21 +389,6 @@ install_file_linux() {
   return "${rcode}"
 }
 
-
-#---  FUNCTION  ----------------------------------------------------------------
-#          NAME:  cleanup
-#   DESCRIPTION:  Cleanup our temp files
-#    PARAMETERS:  $1 = Path to temp dir to remove
-#       RETURNS:  nothing
-#-------------------------------------------------------------------------------
-cleanup() {
-  local dir
-
-  dir="$1"
-
-  rm -rf "${dir}"
-}
-
 #---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  main
 #   DESCRIPTION:  Put it all together in a logical way
@@ -579,9 +564,9 @@ main() {
     exit 1
   fi
 
-  print_message "== Cleaning up ${tmpdir}" "info"
-  cleanup "${tmpdir}"
   print_message "== Installation complete" "ok"
+  
+  exit 0
 }
 
 #-------------------------------------------------------------------------------
