@@ -1,0 +1,15 @@
+# To Do
+- [ ] Test Multiple ARM Devices
+- [ ] Test Multiple ARM64 Devices
+- [ ] Test Windows (MobaXterm)
+  - [ ] Needs an override for croc_os and croc_dl_ext
+  - [ ] Needs new install_file_windws function
+- [ ] Test Multiple MacOS Devices
+- [ ] Test Multiple Linux Devices
+  - [ ] CentOS 6+
+  - [ ] Archlinux
+  - [ ] Ubuntu Current LTS+
+- [ ] Test Multiple BSD Devices
+  - [ ] FreeBSD
+  - [ ] OpenBSD
+  - [ ] DragonFlyBSD
