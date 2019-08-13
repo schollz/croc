@@ -49,6 +49,12 @@ $ scoop bucket add schollz-bucket https://github.com/schollz/scoop-bucket.git
 $ scoop install croc
 ```
 
+On Unix you can install the latest release with [Nix](https://nixos.org/nix):
+
+```
+$ nix-env -i croc
+```
+
 
 Or, you can [install Go](https://golang.org/dl/) and build from source (requires Go 1.12+): 
 
