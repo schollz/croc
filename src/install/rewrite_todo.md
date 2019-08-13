@@ -9,7 +9,7 @@
   - [ ] CentOS 6+
   - [ ] Archlinux
   - [ ] Ubuntu Current LTS+
-- [ ] Test Multiple BSD Devices
-  - [ ] FreeBSD
-  - [ ] OpenBSD
-  - [ ] DragonFlyBSD
+- [x] Test Multiple BSD Devices
+  - [x] FreeBSD
+  - [x] OpenBSD
+  - [x] DragonFlyBSD
