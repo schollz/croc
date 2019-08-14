@@ -1,14 +1,14 @@
 # To Do
 - [ ] Test Multiple ARM Devices
 - [ ] Test Multiple ARM64 Devices
-- [ ] Test Windows (MobaXterm)
+- [ ] Test Windows (MobaXterm/Cygwin)
   - [x] Needs an override for croc_os and croc_dl_ext
   - [x] Needs new install_file_windws function
-  - [ ] Determine which binary to download when in cygwin
+  - [x] ~~Determine which binary to download when in cygwin~~ Maybe there is a bug
 - [ ] Test Multiple MacOS Devices
 - [ ] Test Multiple Linux Devices
   - [ ] CentOS 6+
-  - [ ] Archlinux
+  - [x] Archlinux
   - [ ] Ubuntu Current LTS+
 - [x] Test Multiple BSD Devices
   - [x] FreeBSD
