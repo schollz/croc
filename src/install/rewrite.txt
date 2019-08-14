@@ -402,7 +402,7 @@ install_file_linux() {
 #                 1 = File not installed
 #                 2 = Could not find install command
 #-------------------------------------------------------------------------------
-install_file_linux() {
+install_file_cygwin() {
   local file
   local prefix
   local rcode
