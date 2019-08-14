@@ -240,7 +240,10 @@ checksum_check() {
 
   cd "${dir}" || return 3
   if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum -c "${checksum_file}" --ignore-missing >/dev/null 2>&1
+    ## Not all sha256sum versions seem to have --ignore-missing, so filter the checksum file
+    ## to only include the file we downloaded.
+    grep "$(basename "${file}")" "${checksum_file}" > filtered_checksum.txt
+    sha256sum -c "filtered_checksum.txt" >/dev/null 2>&1
     rcode="${?}"
   elif command -v shasum >/dev/null 2>&1; then
     ## With shasum on FreeBSD, we don't get to --ignore-missing, so filter the checksum file
@@ -459,6 +462,7 @@ main() {
 
   case "${croc_os}" in
     "Darwin" ) croc_os="macOS";;
+    "CYGWIN"* ) croc_os="Windows";;
   esac
 
   case "${croc_arch}" in
