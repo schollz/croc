@@ -393,6 +393,43 @@ install_file_linux() {
 }
 
 #---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  install_file_cygwin
+#   DESCRIPTION:  Installs a file into a location using 'install'.  If EUID not
+#                 0, then attempt to use sudo.
+#    PARAMETERS:  $1 = file to install
+#                 $2 = location to install file into
+#       RETURNS:  0 = File Installed
+#                 1 = File not installed
+#                 2 = Could not find install command
+#-------------------------------------------------------------------------------
+install_file_linux() {
+  local file
+  local prefix
+  local rcode
+
+  file="${1}"
+  prefix="${2}"
+
+  if command -v install >/dev/null 2>&1; then
+    if [[ "${EUID}" == "0" ]]; then
+      install -m 755 "${prefix}" "${file}"
+      rcode="${?}"
+    else
+      if command -v sudo >/dev/null 2>&1; then
+        sudo install -m 755 "${file}" "${prefix}"
+        rcode="${?}"
+      else
+        rcode="3"
+      fi
+    fi
+  else
+    rcode="2"
+  fi
+
+  return "${rcode}"
+}
+
+#---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  main
 #   DESCRIPTION:  Put it all together in a logical way
 #                 ...at least that is the hope...
