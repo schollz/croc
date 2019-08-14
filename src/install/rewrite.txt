@@ -461,8 +461,9 @@ main() {
   fi
 
   case "${croc_os}" in
-    "Darwin" ) croc_os="macOS";;
-    "CYGWIN"* ) croc_os="Windows";;
+     "Darwin" ) croc_os="macOS";;
+    "CYGWIN"* ) croc_os="Windows";
+                croc_dl_ext="zip";;
   esac
 
   case "${croc_arch}" in
