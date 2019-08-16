@@ -23,5 +23,4 @@
   - [x] FreeBSD
   - [x] OpenBSD
   - [x] DragonFlyBSD
-- [ ] wrong rcode https://github.com/TheQueasle/croc/blob/9e9f43c352482b99e295930073f4b22b14da4fe1/src/install/rewrite.txt#L241
-- [ ] increase function rcodes to avoid clashing with tool rcodes
+- [x] increase function rcodes to avoid clashing with tool rcodes
