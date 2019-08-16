@@ -23,7 +23,7 @@
 #                  Issues: https://github.com/schollz/croc/issues
 #
 #       CREATED: 08/10/2019 16:41
-#      REVISION: 0.5.0
+#      REVISION: 0.6.0
 #===============================================================================
 set -o nounset                              # Treat unset variables as an error
 
@@ -106,6 +106,7 @@ print_message() {
 #    PARAMETERS:  $1 = Directory template
 #       RETURNS:  0 = Created temp dir. Also prints temp file path to stdout
 #                 1 = Failed to create temp dir
+#                 20 = Failed to find mktemp
 #-------------------------------------------------------------------------------
 make_tempdir() {
   local template
@@ -123,6 +124,8 @@ make_tempdir() {
     else
       return 1
     fi
+  else
+    return 20
   fi
 }
 
@@ -132,24 +135,21 @@ make_tempdir() {
 #    PARAMETERS:  none
 #       RETURNS:  0 = OS Detected. Also prints detected os to stdout
 #                 1 = Unkown OS
-#                 2 = 'uname' not found in path
+#                 20 = 'uname' not found in path
 #-------------------------------------------------------------------------------
 determine_os() {
-  local uname_cmd
   local uname_out
 
-  uname_cmd="$(command -v uname)"
-  if [[ "${uname_cmd}" == "" ]]; then
-    return 2
-  else
+  if command -v uname >/dev/null 2>&1; then
     uname_out="$(uname)"
-  fi
-
-  if [[ "${uname_out}" == "" ]]; then
-    return 1
+    if [[ "${uname_out}" == "" ]]; then
+      return 1
+    else
+      echo "${uname_out}"
+      return 0
+    fi
   else
-    echo "${uname_out}"
-    return 0
+    return 20
   fi
 }
 
@@ -159,25 +159,21 @@ determine_os() {
 #    PARAMETERS:  none
 #       RETURNS:  0 = Arch Detected. Also prints detected arch to stdout
 #                 1 = Unkown arch
-#                 2 = 'uname' not found in path
+#                 20 = 'uname' not found in path
 #-------------------------------------------------------------------------------
 determine_arch() {
-  local uname_cmd
   local uname_out
 
-  uname_cmd="$(command -v uname)"
-
-  if [[ "${uname_cmd}" == "" ]]; then
-    return 2
-  else
+  if command -v uname >/dev/null 2>&1; then
     uname_out="$(uname -m)"
-  fi
-
-  if [[ "${uname_out}" == "" ]]; then
-    return 1
+    if [[ "${uname_out}" == "" ]]; then
+      return 1
+    else
+      echo "${uname_out}"
+      return 0
+    fi
   else
-    echo "${uname_out}"
-    return 0
+    return 20
   fi
 }
 
@@ -189,7 +185,7 @@ determine_arch() {
 #    PARAMETERS:  $1 = url of file to download
 #                 $2 = location to download file into on host system
 #       RETURNS:  If curl or wget found, returns the return code of curl or wget
-#                 2 = Could not find curl and wget
+#                 20 = Could not find curl and wget
 #-------------------------------------------------------------------------------
 download_file() {
   local url
@@ -208,7 +204,7 @@ download_file() {
     wget --quiet  "${url}" -O "${dir}/${filename}"
     rcode="${?}"
   else
-    rcode="2"
+    rcode="20"
   fi
   
   return "${rcode}"
@@ -238,7 +234,7 @@ checksum_check() {
   file="${2}"
   dir="${3}"
 
-  cd "${dir}" || return 3
+  cd "${dir}" || return 30
   if command -v sha256sum >/dev/null 2>&1; then
     ## Not all sha256sum versions seem to have --ignore-missing, so filter the checksum file
     ## to only include the file we downloaded.
@@ -279,8 +275,8 @@ checksum_check() {
 #                 $2 = location to extract file into
 #                 $3 = extention
 #       RETURNS:  Return code of the tool used to extract the file
-#                 2 = Failed to determine which tool to use
-#                 3 = Failed to find tool in path
+#                 20 = Failed to determine which tool to use
+#                 30 = Failed to find tool in path
 #-------------------------------------------------------------------------------
 extract_file() {
   local file
@@ -297,17 +293,17 @@ extract_file() {
                  unzip "${file}" -d "${dir}"
                  rcode="${?}"
                else
-                 rcode="3"
+                 rcode="30"
                fi
                ;;
     "tar.gz" ) if command -v tar >/dev/null 2>&1; then
                  tar -xf "${file}" -C "${dir}"
                  rcode="${?}"
                else
-                 rcode="3"
+                 rcode="30"
                fi
                ;;
-           * ) rcode="2";;
+           * ) rcode="20";;
   esac
 
   return "${rcode}"
@@ -321,8 +317,8 @@ extract_file() {
 #                 $2 = location to install file into
 #       RETURNS:  0 = File Installed
 #                 1 = File not installed
-#                 2 = Could not find install command
-#                 3 = Could not find sudo command
+#                 20 = Could not find install command
+#                 21 = Could not find sudo command
 #-------------------------------------------------------------------------------
 install_file_freebsd() {
   local file
@@ -341,11 +337,11 @@ install_file_freebsd() {
         sudo install -C -b -B '_old' -m 755 "${file}" "${prefix}"
         rcode="${?}"
       else
-        rcode="3"
+        rcode="21"
       fi
     fi
   else
-    rcode="2"
+    rcode="20"
   fi
 
   return "${rcode}"
@@ -360,7 +356,8 @@ install_file_freebsd() {
 #                 $2 = location to install file into
 #       RETURNS:  0 = File Installed
 #                 1 = File not installed
-#                 2 = Could not find install command
+#                 20 = Could not find install command
+#                 21 = Could not find sudo command
 #-------------------------------------------------------------------------------
 install_file_linux() {
   local file
@@ -382,11 +379,11 @@ install_file_linux() {
         install -C -b -S '_old' -m 755 -t "${prefix}" "${file}"
         rcode="${?}"
       else
-        rcode="3"
+        rcode="21"
       fi
     fi
   else
-    rcode="2"
+    rcode="20"
   fi
 
   return "${rcode}"
@@ -399,8 +396,8 @@ install_file_linux() {
 #    PARAMETERS:  $1 = file to install
 #                 $2 = location to install file into
 #       RETURNS:  0 = File Installed
-#                 1 = File not installed
-#                 2 = Could not find install command
+#                 20 = Could not find install command
+#                 21 = Could not find sudo command
 #-------------------------------------------------------------------------------
 install_file_cygwin() {
   local file
@@ -419,11 +416,11 @@ install_file_cygwin() {
         sudo install -m 755 "${file}" "${prefix}"
         rcode="${?}"
       else
-        rcode="3"
+        rcode="21"
       fi
     fi
   else
-    rcode="2"
+    rcode="20"
   fi
 
   return "${rcode}"
@@ -470,8 +467,10 @@ main() {
   tmpdir_rcode="${?}"
   if [[ "${tmpdir_rcode}" == "0" ]]; then
     print_message "== Created temp dir at ${tmpdir}" "info"
-  else
+  elif [[ "${tmpdir_rcode}" == "1" ]]; then
     print_message "== Failed to create temp dir at ${tmpdir}" "error"
+  else
+    print_message "== 'mktemp' not found in path. Is it installed?" "error"
     exit 1
   fi
 
@@ -484,6 +483,7 @@ main() {
     exit 1
   else
     print_message "== 'uname' not found in path. Is it installed?" "error"
+    exit 1
   fi
 
   croc_os="$(determine_os)"
@@ -495,6 +495,7 @@ main() {
     exit 1
   else
     print_message "== 'uname' not found in path. Is it installed?" "error"
+    exit 1
   fi
 
   case "${croc_os}" in
@@ -538,7 +539,7 @@ main() {
   elif [[ "${download_checksum_file_rcode}" == "1" ]]; then
     print_message "== Failed to download croc checksums" "error"
     exit 1
-  elif [[ "${download_checksum_file_rcode}" == "2" ]]; then
+  elif [[ "${download_checksum_file_rcode}" == "20" ]]; then
     print_message "== Failed to locate curl or wget" "error"
     exit 1
   else
@@ -571,10 +572,10 @@ main() {
   elif [[ "${extract_file_rcode}" == "1" ]]; then
     print_message "== Failed to extract ${croc_file}" "error"
     exit 1
-  elif [[ "${extract_file_rcode}" == "2" ]]; then
+  elif [[ "${extract_file_rcode}" == "20" ]]; then
     print_message "== Failed to determine which extraction tool to use" "error"
     exit 1
-  elif [[ "${extract_file_rcode}" == "3" ]]; then
+  elif [[ "${extract_file_rcode}" == "30" ]]; then
     print_message "== Failed to find extraction tool in path" "error"
     exit 1
   else
@@ -597,10 +598,10 @@ main() {
   elif [[ "${install_file_rcode}" == "1" ]]; then
     print_message "== Failed to install ${croc_bin_name}" "error"
     exit 1
-  elif [[ "${install_file_rcode}" == "2" ]]; then
+  elif [[ "${install_file_rcode}" == "20" ]]; then
     print_message "== Failed to locate 'install' command" "error"
     exit 1
-  elif [[ "${install_file_rcode}" == "3" ]]; then
+  elif [[ "${install_file_rcode}" == "21" ]]; then
     print_message "== Failed to locate 'sudo' command" "error"
     exit 1
   else
