@@ -7,10 +7,19 @@
   - [x] ~~Determine which binary to download when in cygwin~~ Maybe there is a bug
 - [ ] Test Multiple MacOS Devices
 - [ ] Test Multiple Linux Devices
-  - [ ] CentOS 6+
   - [x] Archlinux
-  - [ ] Ubuntu Current LTS+
-- [x] Test Multiple BSD Devices
+  - [ ] CentOS
+    - [x] CentOS 6
+    - [x] CentOS 7
+    - [ ] CentOS 8 (maybe)
+  - [x] Ubuntu
+    - [x] Ubuntu 14.04 x64
+    - [x] Ubuntu 16.04 x64
+    - [x] Ubuntu 18.04 x64
+    - [x] Ubuntu 19.04 x64
+    - [x] Ubuntu 14.04 x32
+    - [x] Ubuntu 16.04 x32
+- [x] BSD
   - [x] FreeBSD
   - [x] OpenBSD
   - [x] DragonFlyBSD
