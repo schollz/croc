@@ -393,6 +393,7 @@ install_file_linux() {
 #          NAME:  install_file_cygwin
 #   DESCRIPTION:  Installs a file into a location using 'install'.  If EUID not
 #                 0, then attempt to use sudo.
+#                 Not really 100% sure this is how to install croc in cygwin.
 #    PARAMETERS:  $1 = file to install
 #                 $2 = location to install file into
 #       RETURNS:  0 = File Installed
@@ -525,7 +526,7 @@ main() {
   elif [[ "${download_file_rcode}" == "1" ]]; then
     print_message "== Failed to download croc archive" "error"
     exit 1
-  elif [[ "${download_file_rcode}" == "2" ]]; then
+  elif [[ "${download_file_rcode}" == "20" ]]; then
     print_message "== Failed to locate curl or wget" "error"
     exit 1
   else
