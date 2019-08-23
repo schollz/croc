@@ -254,6 +254,7 @@ checksum_check() {
   local rcode
   local shasum_1
   local shasum_2
+  local shasum_c
 
   checksum_file="${1}"
   file="${2}"
@@ -264,13 +265,13 @@ checksum_check() {
     ## Not all sha256sum versions seem to have --ignore-missing, so filter the checksum file
     ## to only include the file we downloaded.
     grep "$(basename "${file}")" "${checksum_file}" > filtered_checksum.txt
-    sha256sum -c "filtered_checksum.txt" >/dev/null 2>&1
+    shasum_c="$(sha256sum -c "filtered_checksum.txt")"
     rcode="${?}"
   elif command -v shasum >/dev/null 2>&1; then
     ## With shasum on FreeBSD, we don't get to --ignore-missing, so filter the checksum file
     ## to only include the file we downloaded.
     grep "$(basename "${file}")" "${checksum_file}" > filtered_checksum.txt
-    shasum -s -a 256 -c "filtered_checksum.txt"
+    shasum_c="$(shasum -a 256 -c "filtered_checksum.txt")"
     rcode="${?}"
   elif command -v sha256 >/dev/null 2>&1; then
     ## With sha256 on FreeBSD, we don't get to --ignore-missing, so filter the checksum file
@@ -284,11 +285,15 @@ checksum_check() {
     else
       rcode="1"
     fi
+    shasum_c="Expected: ${shasum_1}, Got: ${shasum_2}"
   else
     return 20
   fi
   cd - >/dev/null 2>&1 || return 30
   
+  if [[ "${rcode}" -gt "0" ]]; then
+    echo "${shasum_c}"
+  fi
   return "${rcode}"
 }
 
