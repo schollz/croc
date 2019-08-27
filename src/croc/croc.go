@@ -72,6 +72,7 @@ type Client struct {
 	// send / receive information of all files
 	FilesToTransfer           []FileInfo
 	FilesToTransferCurrentNum int
+	FilesHasFinished          map[int]struct{}
 
 	// send / receive information of current file
 	CurrentFile            *os.File
@@ -121,6 +122,7 @@ type SenderInfo struct {
 // New establishes a new connection for transfering files between two instances.
 func New(ops Options) (c *Client, err error) {
 	c = new(Client)
+	c.FilesHasFinished = make(map[int]struct{})
 
 	// setup basic info
 	c.Options = ops
@@ -667,6 +669,9 @@ func (c *Client) updateState() (err error) {
 		finished := true
 
 		for i, fileInfo := range c.FilesToTransfer {
+			if _, ok := c.FilesHasFinished[i]; ok {
+				continue
+			}
 			log.Debugf("checking %+v", fileInfo)
 			if i < c.FilesToTransferCurrentNum {
 				continue
@@ -733,6 +738,7 @@ func (c *Client) updateState() (err error) {
 				panic(err)
 			}
 			c.SuccessfulTransfer = true
+			c.FilesHasFinished[c.FilesToTransferCurrentNum] = struct{}{}
 		}
 
 		// start initiating the process to receive a new file
