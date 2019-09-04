@@ -1,8 +1,6 @@
 package bench
 
 import (
-	"fmt"
-
 	"github.com/pion/webrtc/v2"
 	log "github.com/sirupsen/logrus"
 )

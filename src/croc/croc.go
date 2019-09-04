@@ -18,7 +18,7 @@ import (
 	"github.com/denisbrodbeck/machineid"
 	"github.com/go-redis/redis"
 	"github.com/mattn/go-colorable"
-	"github.com/pions/webrtc"
+	"github.com/pion/webrtc/v2"
 	"github.com/schollz/croc/v5/src/crypt"
 	"github.com/schollz/croc/v5/src/utils"
 	"github.com/schollz/croc/v5/src/webrtc/pkg/session/common"
