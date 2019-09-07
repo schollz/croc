@@ -894,7 +894,7 @@ func (c *Client) setBar() {
 }
 
 func (c *Client) receiveData(i int) {
-	log.Debugf("%d receiving data")
+	log.Debugf("%d receiving data", i)
 	for {
 		data, err := c.conn[i+1].Receive()
 		if err != nil {
@@ -975,12 +975,9 @@ func (c *Client) sendData(i int) {
 	for {
 		// Read file
 		data := make([]byte, models.TCP_BUFFER_SIZE/2)
-		// if readingPos >= int64(c.fread.Len()) {
-		// 	break
-		// }
-		log.Debugf("%d trying to read", i)
+		// log.Debugf("%d trying to read", i)
 		n, errRead := c.fread.ReadAt(data, readingPos)
-		log.Debugf("%d read %d bytes", i, n)
+		// log.Debugf("%d read %d bytes", i, n)
 		readingPos += int64(n)
 
 		if math.Mod(curi, float64(len(c.Options.RelayPorts))) == float64(i) {
