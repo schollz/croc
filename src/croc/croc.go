@@ -36,6 +36,7 @@ func init() {
 	log.SetLevel("debug")
 }
 
+// Debug toggles debug mode
 func Debug(debug bool) {
 	if debug {
 		log.SetLevel("debug")
@@ -44,6 +45,7 @@ func Debug(debug bool) {
 	}
 }
 
+// Options specifies user specific options
 type Options struct {
 	IsSender     bool
 	SharedSecret string
@@ -55,6 +57,7 @@ type Options struct {
 	DisableLocal bool
 }
 
+// Client holds the state of the croc transfer
 type Client struct {
 	Options                         Options
 	Pake                            *pake.Pake
@@ -96,11 +99,14 @@ type Client struct {
 	quit        chan bool
 }
 
+// Chunk contains information about the
+// needed bytes
 type Chunk struct {
 	Bytes    []byte `json:"b,omitempty"`
 	Location int64  `json:"l,omitempty"`
 }
 
+// FileInfo registers the information about the file
 type FileInfo struct {
 	Name         string    `json:"n,omitempty"`
 	FolderRemote string    `json:"fr,omitempty"`
@@ -112,11 +118,13 @@ type FileInfo struct {
 	IsEncrypted  bool      `json:"e,omitempty"`
 }
 
+// RemoteFileRequest requests specific bytes
 type RemoteFileRequest struct {
 	CurrentFileChunkRanges    []int64
 	FilesToTransferCurrentNum int
 }
 
+// SenderInfo lists the files to be transfered
 type SenderInfo struct {
 	FilesToTransfer []FileInfo
 }

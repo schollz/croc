@@ -251,6 +251,8 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 	}
 }
 
+// ConnectToTCPServer will initiate a new connection
+// to the specified address, room with optional time limit
 func ConnectToTCPServer(address, room string, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, err error) {
 	if len(timelimit) > 0 {
 		c, err = comm.NewConnection(address, timelimit[0])

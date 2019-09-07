@@ -21,8 +21,10 @@ import (
 	"github.com/urfave/cli"
 )
 
+// Version specifies the version
 var Version string
 
+// Run will run the command line proram
 func Run() (err error) {
 	// use all of the processors
 	runtime.GOMAXPROCS(runtime.NumCPU())

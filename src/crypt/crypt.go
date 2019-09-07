@@ -9,6 +9,8 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 )
 
+// Encryption is the basic type for storing
+// the key, passphrase and salt
 type Encryption struct {
 	key        []byte
 	passphrase []byte
@@ -36,6 +38,7 @@ func New(passphrase []byte, salt []byte) (e Encryption, err error) {
 	return
 }
 
+// Salt returns the salt bytes
 func (e Encryption) Salt() []byte {
 	return e.salt
 }
