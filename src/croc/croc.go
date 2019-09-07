@@ -90,8 +90,10 @@ type Client struct {
 	spinner   *spinner.Spinner
 	firstSend bool
 
-	mutex *sync.Mutex
-	quit  chan bool
+	mutex       *sync.Mutex
+	fread       *os.File
+	numfinished int
+	quit        chan bool
 }
 
 type Chunk struct {
@@ -843,6 +845,16 @@ func (c *Client) updateState() (err error) {
 		c.setBar()
 		c.TotalSent = 0
 		log.Debug("beginning sending comms")
+		pathToFile := path.Join(
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource,
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
+		)
+
+		c.fread, err = os.Open(pathToFile)
+		c.numfinished = 0
+		if err != nil {
+			return
+		}
 		for i := 0; i < len(c.Options.RelayPorts); i++ {
 			log.Debugf("starting sending over comm %d", i)
 			go c.sendData(i)
@@ -881,6 +893,7 @@ func (c *Client) setBar() {
 }
 
 func (c *Client) receiveData(i int) {
+	log.Debugf("%d receiving data", i)
 	for {
 		data, err := c.conn[i+1].Receive()
 		if err != nil {
@@ -938,30 +951,23 @@ func (c *Client) receiveData(i int) {
 func (c *Client) sendData(i int) {
 	defer func() {
 		log.Debugf("finished with %d", i)
+		c.numfinished++
+		if c.numfinished == len(c.Options.RelayPorts) {
+			log.Debug("closing file")
+			c.fread.Close()
+		}
 	}()
-	pathToFile := path.Join(
-		c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource,
-		c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
-	)
-	log.Debugf("opening %s to read", pathToFile)
-	f, err := os.Open(pathToFile)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
 
+	var readingPos int64
 	pos := uint64(0)
 	curi := float64(0)
 	for {
 		// Read file
 		data := make([]byte, models.TCP_BUFFER_SIZE/2)
-		n, err := f.Read(data)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			panic(err)
-		}
+		// log.Debugf("%d trying to read", i)
+		n, errRead := c.fread.ReadAt(data, readingPos)
+		// log.Debugf("%d read %d bytes", i, n)
+		readingPos += int64(n)
 
 		if math.Mod(curi, float64(len(c.Options.RelayPorts))) == float64(i) {
 			// check to see if this is a chunk that the recipient wants
@@ -1003,8 +1009,13 @@ func (c *Client) sendData(i int) {
 
 		curi++
 		pos += uint64(n)
-	}
 
-	time.Sleep(10 * time.Second)
+		if errRead != nil {
+			if errRead == io.EOF {
+				break
+			}
+			panic(errRead)
+		}
+	}
 	return
 }

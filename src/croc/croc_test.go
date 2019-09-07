@@ -11,6 +11,7 @@ import (
 )
 
 func TestCroc(t *testing.T) {
+	log.SetLevel("trace")
 	defer os.Remove("README.md")
 	go tcp.Run("debug", "8081", "8082,8083,8084,8085")
 	go tcp.Run("debug", "8082")
