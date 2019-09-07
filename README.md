@@ -21,7 +21,8 @@ Status"></a>
 - enables easy **cross-platform** transfers (Windows, Linux, Mac)
 - allows **multiple file** transfers
 - allows **resuming transfers** that are interrupted
-- does *not* require a server or port-forwarding
+- local server or port-forwarding **not needed**
+- **faster** than [wormhole](https://github.com/warner/magic-wormhole), [rsync](https://linux.die.net/man/1/rsync), [scp](https://linux.die.net/man/1/scp) through compression and multiplexing (speedups 1.5x to 4x)
 
 For more information about `croc`, see [my blog post](https://schollz.com/software/croc6).
 
