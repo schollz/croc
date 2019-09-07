@@ -45,11 +45,10 @@ func TestEncryption(t *testing.T) {
 
 }
 
-
 func TestNoEncryption(t *testing.T) {
 	bob, err := New(nil, nil)
 	assert.Nil(t, err)
-	jane, err := New(nil,nil)
+	jane, err := New(nil, nil)
 	assert.Nil(t, err)
 	enc, err := bob.Encrypt([]byte("hello, world"))
 	assert.Nil(t, err)
@@ -57,5 +56,5 @@ func TestNoEncryption(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, dec, []byte("hello, world"))
 	assert.Equal(t, enc, []byte("hello, world"))
-	
+
 }
