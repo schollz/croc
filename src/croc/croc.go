@@ -30,6 +30,7 @@ import (
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v2"
 	"github.com/schollz/spinner"
+	"golang.org/x/exp/mmap"
 )
 
 func init() {
@@ -91,6 +92,7 @@ type Client struct {
 	firstSend bool
 
 	mutex *sync.Mutex
+	fread *mmap.ReaderAt
 	quit  chan bool
 }
 
@@ -843,6 +845,15 @@ func (c *Client) updateState() (err error) {
 		c.setBar()
 		c.TotalSent = 0
 		log.Debug("beginning sending comms")
+		pathToFile := path.Join(
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource,
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
+		)
+
+		c.fread, err = mmap.Open(pathToFile)
+		if err != nil {
+			return
+		}
 		for i := 0; i < len(c.Options.RelayPorts); i++ {
 			log.Debugf("starting sending over comm %d", i)
 			go c.sendData(i)
@@ -881,6 +892,7 @@ func (c *Client) setBar() {
 }
 
 func (c *Client) receiveData(i int) {
+	log.Debugf("%d receiving data")
 	for {
 		data, err := c.conn[i+1].Receive()
 		if err != nil {
@@ -939,23 +951,30 @@ func (c *Client) sendData(i int) {
 	defer func() {
 		log.Debugf("finished with %d", i)
 	}()
-	pathToFile := path.Join(
-		c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource,
-		c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
-	)
-	log.Debugf("opening %s to read", pathToFile)
-	f, err := os.Open(pathToFile)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
+	// pathToFile := path.Join(
+	// 	c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource,
+	// 	c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
+	// )
+	// log.Debugf("opening %s to read", pathToFile)
+	// f, err := mmap.Open(pathToFile)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// defer f.Close()
 
+	var readingPos int64
 	pos := uint64(0)
 	curi := float64(0)
 	for {
 		// Read file
 		data := make([]byte, models.TCP_BUFFER_SIZE/2)
-		n, err := f.Read(data)
+		if readingPos >= int64(c.fread.Len()) {
+			break
+		}
+		log.Debug("trying to read")
+		n, err := c.fread.ReadAt(data, readingPos)
+		log.Debugf("read %d bytes", n)
+		readingPos += int64(n)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -989,7 +1008,9 @@ func (c *Client) sendData(i int) {
 					panic(err)
 				}
 
+				log.Debug("sending data")
 				err = c.conn[i+1].Send(dataToSend)
+				log.Debug("sent")
 				if err != nil {
 					panic(err)
 				}
@@ -1005,6 +1026,6 @@ func (c *Client) sendData(i int) {
 		pos += uint64(n)
 	}
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 	return
 }
