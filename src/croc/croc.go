@@ -91,9 +91,10 @@ type Client struct {
 	spinner   *spinner.Spinner
 	firstSend bool
 
-	mutex *sync.Mutex
-	fread *mmap.ReaderAt
-	quit  chan bool
+	mutex       *sync.Mutex
+	fread       *mmap.ReaderAt
+	numfinished int
+	quit        chan bool
 }
 
 type Chunk struct {
@@ -851,6 +852,7 @@ func (c *Client) updateState() (err error) {
 		)
 
 		c.fread, err = mmap.Open(pathToFile)
+		c.numfinished = 0
 		if err != nil {
 			return
 		}
@@ -950,6 +952,11 @@ func (c *Client) receiveData(i int) {
 func (c *Client) sendData(i int) {
 	defer func() {
 		log.Debugf("finished with %d", i)
+		c.numfinished++
+		if c.numfinished == len(c.Options.RelayPorts) {
+			log.Debug("closing file")
+			c.fread.Close()
+		}
 	}()
 	// pathToFile := path.Join(
 	// 	c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource,
@@ -968,19 +975,13 @@ func (c *Client) sendData(i int) {
 	for {
 		// Read file
 		data := make([]byte, models.TCP_BUFFER_SIZE/2)
-		if readingPos >= int64(c.fread.Len()) {
-			break
-		}
-		log.Debug("trying to read")
-		n, err := c.fread.ReadAt(data, readingPos)
-		log.Debugf("read %d bytes", n)
+		// if readingPos >= int64(c.fread.Len()) {
+		// 	break
+		// }
+		log.Debugf("%d trying to read", i)
+		n, errRead := c.fread.ReadAt(data, readingPos)
+		log.Debugf("%d read %d bytes", i, n)
 		readingPos += int64(n)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			panic(err)
-		}
 
 		if math.Mod(curi, float64(len(c.Options.RelayPorts))) == float64(i) {
 			// check to see if this is a chunk that the recipient wants
@@ -1024,8 +1025,15 @@ func (c *Client) sendData(i int) {
 
 		curi++
 		pos += uint64(n)
+
+		if errRead != nil {
+			if errRead == io.EOF {
+				break
+			}
+			panic(errRead)
+		}
 	}
 
-	time.Sleep(100 * time.Millisecond)
+	// time.Sleep(10 * time.Second)
 	return
 }
