@@ -44,6 +44,7 @@ func HashFile(fname string) (hash256 []byte, err error) {
 	return IMOHashFile(fname)
 }
 
+// MD5HashFile returns MD5 hash
 func MD5HashFile(fname string) (hash256 []byte, err error) {
 	f, err := os.Open(fname)
 	if err != nil {
@@ -91,6 +92,7 @@ func SHA256(s string) string {
 	return fmt.Sprintf("%x", sha.Sum(nil))
 }
 
+// PublicIP returns public ip address
 func PublicIP() (ip string, err error) {
 	resp, err := http.Get("https://canhazip.com")
 	if err != nil {
@@ -108,7 +110,7 @@ func PublicIP() (ip string, err error) {
 	return
 }
 
-// Get preferred outbound ip of this machine
+// LocalIP returns local ip address
 func LocalIP() string {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
@@ -121,6 +123,7 @@ func LocalIP() string {
 	return localAddr.IP.String()
 }
 
+// GetRandomName returns mnemoicoded random name
 func GetRandomName() string {
 	result := []string{}
 	bs := make([]byte, 4)
@@ -129,6 +132,7 @@ func GetRandomName() string {
 	return strings.Join(result, "-")
 }
 
+// ByteCountDecimal converts bytes to human readable byte string
 func ByteCountDecimal(b int64) string {
 	const unit = 1000
 	if b < unit {
@@ -196,6 +200,7 @@ func MissingChunks(fname string, fsize int64, chunkSize int) (chunkRanges []int6
 	return
 }
 
+// ChunkRangesToChunks converts chunk ranges to list
 func ChunkRangesToChunks(chunkRanges []int64) (chunks []int64) {
 	if len(chunkRanges) == 0 {
 		return
@@ -210,6 +215,7 @@ func ChunkRangesToChunks(chunkRanges []int64) (chunks []int64) {
 	return
 }
 
+// GetLocalIPs returns all local ips
 func GetLocalIPs() (ips []string, err error) {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
