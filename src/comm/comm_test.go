@@ -47,7 +47,7 @@ func TestComm(t *testing.T) {
 	}()
 
 	time.Sleep(300 * time.Millisecond)
-	a, err := NewConnection("localhost:" + port)
+	a, err := NewConnection("localhost:"+port, 10*time.Minute)
 	assert.Nil(t, err)
 	data, err := a.Receive()
 	assert.Equal(t, []byte("hello, world"), data)
@@ -56,5 +56,6 @@ func TestComm(t *testing.T) {
 	assert.Nil(t, a.Send([]byte{'\x00'}))
 
 	assert.Nil(t, a.Send(token))
-
+	_ = a.Connection()
+	a.Close()
 }

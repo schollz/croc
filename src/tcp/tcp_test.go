@@ -8,14 +8,14 @@ import (
 )
 
 func TestTCP(t *testing.T) {
-	go Run("debug", "8081", "8082")
+	go Run("debug", "8281", "8282")
 	time.Sleep(100 * time.Millisecond)
-	c1, banner, _, err := ConnectToTCPServer("localhost:8081", "testRoom")
-	assert.Equal(t, banner, "8082")
+	c1, banner, _, err := ConnectToTCPServer("localhost:8281", "testRoom")
+	assert.Equal(t, banner, "8282")
 	assert.Nil(t, err)
-	c2, _, _, err := ConnectToTCPServer("localhost:8081", "testRoom")
+	c2, _, _, err := ConnectToTCPServer("localhost:8281", "testRoom")
 	assert.Nil(t, err)
-	_, _, _, err = ConnectToTCPServer("localhost:8081", "testRoom")
+	_, _, _, err = ConnectToTCPServer("localhost:8281", "testRoom")
 	assert.NotNil(t, err)
 
 	// try sending data
