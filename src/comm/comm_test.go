@@ -58,4 +58,8 @@ func TestComm(t *testing.T) {
 	assert.Nil(t, a.Send(token))
 	_ = a.Connection()
 	a.Close()
+	assert.NotNil(t, a.Send(token))
+	_, err = a.Write(token)
+	assert.NotNil(t, err)
+
 }

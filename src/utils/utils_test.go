@@ -3,8 +3,10 @@ package utils
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -112,3 +114,41 @@ func TestMissingChunks(t *testing.T) {
 // 	fmt.Println(ChunkRangesToChunks((chunkRanges)))
 // 	assert.Nil(t, nil)
 // }
+
+func TestHashFile(t *testing.T) {
+	content := []byte("temporary file's content")
+	tmpfile, err := ioutil.TempFile("", "example")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer os.Remove(tmpfile.Name()) // clean up
+
+	if _, err := tmpfile.Write(content); err != nil {
+		panic(err)
+	}
+	if err := tmpfile.Close(); err != nil {
+		panic(err)
+	}
+	hashed, err := HashFile(tmpfile.Name())
+	assert.Nil(t, err)
+	assert.Equal(t, "18c9673a4bb8325d323e7f24fda9ae1e", fmt.Sprintf("%x", hashed))
+}
+
+func TestPublicIP(t *testing.T) {
+	ip, err := PublicIP()
+	fmt.Println(ip)
+	assert.True(t, strings.Contains(ip, "."))
+	assert.Nil(t, err)
+}
+
+func TestLocalIP(t *testing.T) {
+	ip := LocalIP()
+	fmt.Println(ip)
+	assert.True(t, strings.Contains(ip, "."))
+}
+
+func TestGetRandomName(t *testing.T) {
+	name := GetRandomName()
+	assert.NotEmpty(t, name)
+}
