@@ -30,7 +30,6 @@ import (
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v2"
 	"github.com/schollz/spinner"
-	"golang.org/x/exp/mmap"
 )
 
 func init() {
@@ -92,7 +91,7 @@ type Client struct {
 	firstSend bool
 
 	mutex       *sync.Mutex
-	fread       *mmap.ReaderAt
+	fread       *os.File
 	numfinished int
 	quit        chan bool
 }
@@ -851,7 +850,7 @@ func (c *Client) updateState() (err error) {
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
 		)
 
-		c.fread, err = mmap.Open(pathToFile)
+		c.fread, err = os.Open(pathToFile)
 		c.numfinished = 0
 		if err != nil {
 			return
@@ -958,16 +957,6 @@ func (c *Client) sendData(i int) {
 			c.fread.Close()
 		}
 	}()
-	// pathToFile := path.Join(
-	// 	c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource,
-	// 	c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
-	// )
-	// log.Debugf("opening %s to read", pathToFile)
-	// f, err := mmap.Open(pathToFile)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer f.Close()
 
 	var readingPos int64
 	pos := uint64(0)
@@ -1006,9 +995,7 @@ func (c *Client) sendData(i int) {
 					panic(err)
 				}
 
-				log.Debug("sending data")
 				err = c.conn[i+1].Send(dataToSend)
-				log.Debug("sent")
 				if err != nil {
 					panic(err)
 				}
@@ -1030,7 +1017,5 @@ func (c *Client) sendData(i int) {
 			panic(errRead)
 		}
 	}
-
-	// time.Sleep(10 * time.Second)
 	return
 }
