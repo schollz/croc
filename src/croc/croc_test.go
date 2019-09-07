@@ -68,12 +68,8 @@ func TestCroc(t *testing.T) {
 
 func TestCrocLocal(t *testing.T) {
 	log.SetLevel("trace")
-	defer os.Remove("README.md")
-	// go tcp.Run("debug", "8081", "8082,8083,8084,8085")
-	// go tcp.Run("debug", "8082")
-	// go tcp.Run("debug", "8083")
-	// go tcp.Run("debug", "8084")
-	// go tcp.Run("debug", "8085")
+	defer os.Remove("LICENSE")
+	defer os.Remove("touched")
 	time.Sleep(300 * time.Millisecond)
 
 	log.Debug("setting up sender")
@@ -83,7 +79,7 @@ func TestCrocLocal(t *testing.T) {
 		Debug:        true,
 		RelayAddress: "localhost:8181",
 		RelayPorts:   []string{"8181", "8182"},
-		Stdout:       false,
+		Stdout:       true,
 		NoPrompt:     true,
 		DisableLocal: false,
 	})
@@ -98,7 +94,7 @@ func TestCrocLocal(t *testing.T) {
 		SharedSecret: "test",
 		Debug:        true,
 		RelayAddress: "localhost:8181",
-		Stdout:       false,
+		Stdout:       true,
 		NoPrompt:     true,
 		DisableLocal: false,
 	})
@@ -107,11 +103,12 @@ func TestCrocLocal(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
+	os.Create("touched")
 	wg.Add(2)
 	go func() {
 		sender.Send(TransferOptions{
-			PathToFiles:      []string{"../../README.md"},
-			KeepPathInRemote: true,
+			PathToFiles:      []string{"../../LICENSE", "touched"},
+			KeepPathInRemote: false,
 		})
 		wg.Done()
 	}()
