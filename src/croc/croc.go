@@ -124,12 +124,12 @@ type RemoteFileRequest struct {
 	FilesToTransferCurrentNum int
 }
 
-// SenderInfo lists the files to be transfered
+// SenderInfo lists the files to be transferred
 type SenderInfo struct {
 	FilesToTransfer []FileInfo
 }
 
-// New establishes a new connection for transfering files between two instances.
+// New establishes a new connection for transferring files between two instances.
 func New(ops Options) (c *Client, err error) {
 	c = new(Client)
 	c.FilesHasFinished = make(map[int]struct{})
@@ -461,7 +461,7 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 			break
 		}
 	}
-	// purge errors that come from succesful transfer
+	// purge errors that come from successful transfer
 	if c.SuccessfulTransfer {
 		if err != nil {
 			log.Debugf("purging error: %s", err)
@@ -765,7 +765,7 @@ func (c *Client) updateState() (err error) {
 		c.CurrentFile, errOpen = os.OpenFile(
 			pathToFile,
 			os.O_WRONLY, 0666)
-		truncate := false
+		var truncate bool // default false
 		c.CurrentFileChunks = []int64{}
 		c.CurrentFileChunkRanges = []int64{}
 		if errOpen == nil {
@@ -826,7 +826,7 @@ func (c *Client) updateState() (err error) {
 		if !c.firstSend {
 			fmt.Fprintf(os.Stderr, "\nSending (->%s)\n", c.ExternalIPConnected)
 			c.firstSend = true
-			// if there are empty files, show them as already have been transfered now
+			// if there are empty files, show them as already have been transferred now
 			for i := range c.FilesToTransfer {
 				if c.FilesToTransfer[i].Size == 0 {
 					// setup the progressbar and takedown the progress bar for empty files
