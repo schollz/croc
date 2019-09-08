@@ -56,6 +56,8 @@ func TestMD5HashFile(t *testing.T) {
 	b, err := MD5HashFile("bigfile.test")
 	assert.Nil(t, err)
 	assert.Equal(t, "9fed05acbacbc6a36555c998501c21f6", fmt.Sprintf("%x", b))
+	_, err = MD5HashFile("bigfile.test.nofile")
+	assert.NotNil(t, err)
 }
 
 func TestIMOHashFile(t *testing.T) {
@@ -72,6 +74,8 @@ func TestXXHashFile(t *testing.T) {
 	b, err := XXHashFile("bigfile.test")
 	assert.Nil(t, err)
 	assert.Equal(t, "f2da6ee7e75e8324", fmt.Sprintf("%x", b))
+	_, err = XXHashFile("nofile")
+	assert.NotNil(t, err)
 }
 
 func TestSHA256(t *testing.T) {
@@ -80,6 +84,8 @@ func TestSHA256(t *testing.T) {
 
 func TestByteCountDecimal(t *testing.T) {
 	assert.Equal(t, "10.0 kB", ByteCountDecimal(10000))
+	assert.Equal(t, "50 B", ByteCountDecimal(50))
+	assert.Equal(t, "12.4 MB", ByteCountDecimal(12378517))
 }
 
 func TestMissingChunks(t *testing.T) {
@@ -106,6 +112,29 @@ func TestMissingChunks(t *testing.T) {
 	assert.Equal(t, []int64{0, 40, 50, 70, 80, 90}, chunks)
 
 	os.Remove("missing.test")
+
+	content := []byte("temporary file's content")
+	tmpfile, err := ioutil.TempFile("", "example")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer os.Remove(tmpfile.Name()) // clean up
+
+	if _, err := tmpfile.Write(content); err != nil {
+		panic(err)
+	}
+	if err := tmpfile.Close(); err != nil {
+		panic(err)
+	}
+	chunkRanges = MissingChunks(tmpfile.Name(), int64(len(content)), chunkSize)
+	assert.Empty(t, chunkRanges)
+	chunkRanges = MissingChunks(tmpfile.Name(), int64(len(content)+10), chunkSize)
+	assert.Empty(t, chunkRanges)
+	chunkRanges = MissingChunks(tmpfile.Name()+"ok", int64(len(content)), chunkSize)
+	assert.Empty(t, chunkRanges)
+	chunks = ChunkRangesToChunks(chunkRanges)
+	assert.Empty(t, chunks)
 }
 
 // func Test1(t *testing.T) {
