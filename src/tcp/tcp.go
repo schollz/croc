@@ -33,6 +33,8 @@ type roomMap struct {
 	sync.Mutex
 }
 
+var timeToRoomDeletion = 10 * time.Minute
+
 // Run starts a tcp listener, run async
 func Run(debugLevel, port string, banner ...string) (err error) {
 	s := new(server)
@@ -53,7 +55,7 @@ func (s *server) start() (err error) {
 	// delete old rooms
 	go func() {
 		for {
-			time.Sleep(10 * time.Minute)
+			time.Sleep(timeToRoomDeletion)
 			roomsToDelete := []string{}
 			s.rooms.Lock()
 			for room := range s.rooms.rooms {
