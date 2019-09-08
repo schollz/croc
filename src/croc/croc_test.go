@@ -1,6 +1,7 @@
 package croc
 
 import (
+	"io/ioutil"
 	"os"
 	"sync"
 	"testing"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/schollz/croc/v6/src/tcp"
 	log "github.com/schollz/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCroc(t *testing.T) {
@@ -119,4 +121,41 @@ func TestCrocLocal(t *testing.T) {
 	}()
 
 	wg.Wait()
+}
+
+func TestCrocError(t *testing.T) {
+	content := []byte("temporary file's content")
+	tmpfile, err := ioutil.TempFile("", "example")
+	if err != nil {
+		panic(err)
+	}
+
+	defer os.Remove(tmpfile.Name()) // clean up
+
+	if _, err := tmpfile.Write(content); err != nil {
+		panic(err)
+	}
+	if err := tmpfile.Close(); err != nil {
+		panic(err)
+	}
+
+	Debug(false)
+	log.SetLevel("warn")
+	sender, _ := New(Options{
+		IsSender:     true,
+		SharedSecret: "test",
+		Debug:        true,
+		RelayAddress: "doesntexistok.com:8181",
+		RelayPorts:   []string{"8181", "8182"},
+		Stdout:       true,
+		NoPrompt:     true,
+		DisableLocal: true,
+	})
+	err = sender.Send(TransferOptions{
+		PathToFiles:      []string{tmpfile.Name()},
+		KeepPathInRemote: true,
+	})
+	log.Debug(err)
+	assert.NotNil(t, err)
+
 }

@@ -300,7 +300,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	go func() {
 		log.Debugf("establishing connection to %s", c.Options.RelayAddress)
 		var banner string
-		conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.SharedSecret)
+		conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.SharedSecret, 5*time.Second)
 		log.Debugf("banner: %s", banner)
 		if err != nil {
 			err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
