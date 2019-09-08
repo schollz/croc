@@ -143,10 +143,10 @@ func TestCrocError(t *testing.T) {
 	log.SetLevel("warn")
 	sender, _ := New(Options{
 		IsSender:     true,
-		SharedSecret: "test",
+		SharedSecret: "test33",
 		Debug:        true,
-		RelayAddress: "doesntexistok.com:8181",
-		RelayPorts:   []string{"8181", "8182"},
+		RelayAddress: "doesntexistok.com:8381",
+		RelayPorts:   []string{"8381", "8382"},
 		Stdout:       true,
 		NoPrompt:     true,
 		DisableLocal: true,
