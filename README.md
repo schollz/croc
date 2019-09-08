@@ -5,7 +5,7 @@
     width="408px" border="0" alt="croc">
 <br>
 <a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-v6.1.3-brightgreen.svg?style=flat-square" alt="Version"></a>
-<a href="https://coveralls.io/github/schollz/croc"><img src="https://img.shields.io/badge/coverage-78%25-green.svg?style=flat-square" alt="Coverage"></a>
+<a href="https://coveralls.io/github/schollz/croc"><img src="https://img.shields.io/badge/coverage-80%25-green.svg?style=flat-square" alt="Coverage"></a>
 <a href="https://travis-ci.org/schollz/croc"><img
 src="https://img.shields.io/travis/schollz/croc.svg?style=flat-square" alt="Build
 Status"></a> 
