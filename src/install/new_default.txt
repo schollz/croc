@@ -23,7 +23,7 @@
 #                  Issues: https://github.com/schollz/croc/issues
 #
 #       CREATED: 08/10/2019 16:41
-#      REVISION: 0.6.0
+#      REVISION: 0.9.0
 #===============================================================================
 set -o nounset                              # Treat unset variables as an error
 
@@ -487,7 +487,7 @@ main() {
   local install_file_rcode
 
   croc_bin_name="croc"
-  croc_version="6.1.1"
+  croc_version="6.1.3"
   croc_dl_ext="tar.gz"
   croc_base_url="https://github.com/schollz/croc/releases/download"
   prefix="${1}"
