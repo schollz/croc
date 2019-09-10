@@ -4,7 +4,8 @@
     src="https://user-images.githubusercontent.com/6550035/46709024-9b23ad00-cbf6-11e8-9fb2-ca8b20b7dbec.jpg"
     width="408px" border="0" alt="croc">
 <br>
-<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-v6.1.1-brightgreen.svg?style=flat-square" alt="Version"></a>
+<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-v6.1.3-brightgreen.svg?style=flat-square" alt="Version"></a>
+<a href="https://coveralls.io/github/schollz/croc"><img src="https://img.shields.io/badge/coverage-80%25-green.svg?style=flat-square" alt="Coverage"></a>
 <a href="https://travis-ci.org/schollz/croc"><img
 src="https://img.shields.io/travis/schollz/croc.svg?style=flat-square" alt="Build
 Status"></a> 
@@ -21,7 +22,8 @@ Status"></a>
 - enables easy **cross-platform** transfers (Windows, Linux, Mac)
 - allows **multiple file** transfers
 - allows **resuming transfers** that are interrupted
-- does *not* require a server or port-forwarding
+- local server or port-forwarding **not needed**
+- **faster** than [wormhole](https://github.com/warner/magic-wormhole), [rsync](https://linux.die.net/man/1/rsync), [scp](https://linux.die.net/man/1/scp) through compression and multiplexing (speedups 1.5x to 4x)
 
 For more information about `croc`, see [my blog post](https://schollz.com/software/croc6).
 

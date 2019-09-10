@@ -3,10 +3,10 @@ package message
 import (
 	"encoding/json"
 
-	log "github.com/schollz/logger"
 	"github.com/schollz/croc/v6/src/comm"
 	"github.com/schollz/croc/v6/src/compress"
 	"github.com/schollz/croc/v6/src/crypt"
+	log "github.com/schollz/logger"
 )
 
 // Message is the possible payload for messaging

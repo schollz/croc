@@ -70,8 +70,14 @@ func TestCompress(t *testing.T) {
 	dataRateSavings := 100 * (1.0 - float64(len(compressedB))/float64(len(fable)))
 	fmt.Printf("Level 9: %2.0f%% percent space savings\n", dataRateSavings)
 	assert.True(t, len(compressedB) < len(fable))
+	assert.Equal(t, fable, Decompress(compressedB))
 
 	compressedB = CompressWithOption(fable, -2)
+	dataRateSavings = 100 * (1.0 - float64(len(compressedB))/float64(len(fable)))
+	fmt.Printf("Level -2: %2.0f%% percent space savings\n", dataRateSavings)
+	assert.True(t, len(compressedB) < len(fable))
+
+	compressedB = Compress(fable)
 	dataRateSavings = 100 * (1.0 - float64(len(compressedB))/float64(len(fable)))
 	fmt.Printf("Level -2: %2.0f%% percent space savings\n", dataRateSavings)
 	assert.True(t, len(compressedB) < len(fable))
@@ -85,6 +91,7 @@ func TestCompress(t *testing.T) {
 	rand.Read(data)
 	compressedB = CompressWithOption(data, 9)
 	dataRateSavings = 100 * (1.0 - float64(len(compressedB))/float64(len(data)))
+
 	fmt.Printf("random, Level 9: %2.0f%% percent space savings\n", dataRateSavings)
 
 }
