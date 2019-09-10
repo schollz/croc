@@ -21,8 +21,10 @@ import (
 	"github.com/urfave/cli"
 )
 
+// Version specifies the version
 var Version string
 
+// Run will run the command line proram
 func Run() (err error) {
 	// use all of the processors
 	runtime.GOMAXPROCS(runtime.NumCPU())
@@ -30,7 +32,7 @@ func Run() (err error) {
 	app := cli.NewApp()
 	app.Name = "croc"
 	if Version == "" {
-		Version = "v6.1.1-82f2c8c"
+		Version = "v6.1.3-bc6803e"
 	}
 	app.Version = Version
 	app.Compiled = time.Now()
@@ -101,7 +103,7 @@ func getConfigDir() (homedir string, err error) {
 		return
 	}
 	homedir = path.Join(homedir, ".config", "croc")
-	if _, err := os.Stat(homedir); os.IsNotExist(err) {
+	if _, err = os.Stat(homedir); os.IsNotExist(err) {
 		log.Debugf("creating home directory %s", homedir)
 		err = os.MkdirAll(homedir, 0700)
 	}

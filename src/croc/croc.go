@@ -36,6 +36,7 @@ func init() {
 	log.SetLevel("debug")
 }
 
+// Debug toggles debug mode
 func Debug(debug bool) {
 	if debug {
 		log.SetLevel("debug")
@@ -44,6 +45,7 @@ func Debug(debug bool) {
 	}
 }
 
+// Options specifies user specific options
 type Options struct {
 	IsSender     bool
 	SharedSecret string
@@ -55,6 +57,7 @@ type Options struct {
 	DisableLocal bool
 }
 
+// Client holds the state of the croc transfer
 type Client struct {
 	Options                         Options
 	Pake                            *pake.Pake
@@ -72,6 +75,7 @@ type Client struct {
 	// send / receive information of all files
 	FilesToTransfer           []FileInfo
 	FilesToTransferCurrentNum int
+	FilesHasFinished          map[int]struct{}
 
 	// send / receive information of current file
 	CurrentFile            *os.File
@@ -89,15 +93,20 @@ type Client struct {
 	spinner   *spinner.Spinner
 	firstSend bool
 
-	mutex *sync.Mutex
-	quit  chan bool
+	mutex       *sync.Mutex
+	fread       *os.File
+	numfinished int
+	quit        chan bool
 }
 
+// Chunk contains information about the
+// needed bytes
 type Chunk struct {
 	Bytes    []byte `json:"b,omitempty"`
 	Location int64  `json:"l,omitempty"`
 }
 
+// FileInfo registers the information about the file
 type FileInfo struct {
 	Name         string    `json:"n,omitempty"`
 	FolderRemote string    `json:"fr,omitempty"`
@@ -109,18 +118,21 @@ type FileInfo struct {
 	IsEncrypted  bool      `json:"e,omitempty"`
 }
 
+// RemoteFileRequest requests specific bytes
 type RemoteFileRequest struct {
 	CurrentFileChunkRanges    []int64
 	FilesToTransferCurrentNum int
 }
 
+// SenderInfo lists the files to be transferred
 type SenderInfo struct {
 	FilesToTransfer []FileInfo
 }
 
-// New establishes a new connection for transfering files between two instances.
+// New establishes a new connection for transferring files between two instances.
 func New(ops Options) (c *Client, err error) {
 	c = new(Client)
+	c.FilesHasFinished = make(map[int]struct{})
 
 	// setup basic info
 	c.Options = ops
@@ -288,7 +300,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	go func() {
 		log.Debugf("establishing connection to %s", c.Options.RelayAddress)
 		var banner string
-		conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.SharedSecret)
+		conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.SharedSecret, 5*time.Second)
 		log.Debugf("banner: %s", banner)
 		if err != nil {
 			err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
@@ -449,7 +461,7 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 			break
 		}
 	}
-	// purge errors that come from succesful transfer
+	// purge errors that come from successful transfer
 	if c.SuccessfulTransfer {
 		if err != nil {
 			log.Debugf("purging error: %s", err)
@@ -667,6 +679,9 @@ func (c *Client) updateState() (err error) {
 		finished := true
 
 		for i, fileInfo := range c.FilesToTransfer {
+			if _, ok := c.FilesHasFinished[i]; ok {
+				continue
+			}
 			log.Debugf("checking %+v", fileInfo)
 			if i < c.FilesToTransferCurrentNum {
 				continue
@@ -733,6 +748,7 @@ func (c *Client) updateState() (err error) {
 				panic(err)
 			}
 			c.SuccessfulTransfer = true
+			c.FilesHasFinished[c.FilesToTransferCurrentNum] = struct{}{}
 		}
 
 		// start initiating the process to receive a new file
@@ -749,7 +765,7 @@ func (c *Client) updateState() (err error) {
 		c.CurrentFile, errOpen = os.OpenFile(
 			pathToFile,
 			os.O_WRONLY, 0666)
-		truncate := false
+		var truncate bool // default false
 		c.CurrentFileChunks = []int64{}
 		c.CurrentFileChunkRanges = []int64{}
 		if errOpen == nil {
@@ -810,7 +826,7 @@ func (c *Client) updateState() (err error) {
 		if !c.firstSend {
 			fmt.Fprintf(os.Stderr, "\nSending (->%s)\n", c.ExternalIPConnected)
 			c.firstSend = true
-			// if there are empty files, show them as already have been transfered now
+			// if there are empty files, show them as already have been transferred now
 			for i := range c.FilesToTransfer {
 				if c.FilesToTransfer[i].Size == 0 {
 					// setup the progressbar and takedown the progress bar for empty files
@@ -837,6 +853,16 @@ func (c *Client) updateState() (err error) {
 		c.setBar()
 		c.TotalSent = 0
 		log.Debug("beginning sending comms")
+		pathToFile := path.Join(
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource,
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
+		)
+
+		c.fread, err = os.Open(pathToFile)
+		c.numfinished = 0
+		if err != nil {
+			return
+		}
 		for i := 0; i < len(c.Options.RelayPorts); i++ {
 			log.Debugf("starting sending over comm %d", i)
 			go c.sendData(i)
@@ -875,6 +901,7 @@ func (c *Client) setBar() {
 }
 
 func (c *Client) receiveData(i int) {
+	log.Debugf("%d receiving data", i)
 	for {
 		data, err := c.conn[i+1].Receive()
 		if err != nil {
@@ -932,30 +959,23 @@ func (c *Client) receiveData(i int) {
 func (c *Client) sendData(i int) {
 	defer func() {
 		log.Debugf("finished with %d", i)
+		c.numfinished++
+		if c.numfinished == len(c.Options.RelayPorts) {
+			log.Debug("closing file")
+			c.fread.Close()
+		}
 	}()
-	pathToFile := path.Join(
-		c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource,
-		c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
-	)
-	log.Debugf("opening %s to read", pathToFile)
-	f, err := os.Open(pathToFile)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
 
+	var readingPos int64
 	pos := uint64(0)
 	curi := float64(0)
 	for {
 		// Read file
 		data := make([]byte, models.TCP_BUFFER_SIZE/2)
-		n, err := f.Read(data)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			panic(err)
-		}
+		// log.Debugf("%d trying to read", i)
+		n, errRead := c.fread.ReadAt(data, readingPos)
+		// log.Debugf("%d read %d bytes", i, n)
+		readingPos += int64(n)
 
 		if math.Mod(curi, float64(len(c.Options.RelayPorts))) == float64(i) {
 			// check to see if this is a chunk that the recipient wants
@@ -997,8 +1017,13 @@ func (c *Client) sendData(i int) {
 
 		curi++
 		pos += uint64(n)
-	}
 
-	time.Sleep(10 * time.Second)
+		if errRead != nil {
+			if errRead == io.EOF {
+				break
+			}
+			panic(errRead)
+		}
+	}
 	return
 }
