@@ -228,6 +228,62 @@ func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 	return
 }
 
+func (c *Client) setupLocalRelay() {
+	// setup the relay locally
+	for _, port := range c.Options.RelayPorts {
+		go func(portStr string) {
+			debugString := "warn"
+			if c.Options.Debug {
+				debugString = "debug"
+			}
+			err := tcp.Run(debugString, portStr, strings.Join(c.Options.RelayPorts[1:], ","))
+			if err != nil {
+				panic(err)
+			}
+		}(port)
+	}
+}
+
+func (c *Client) broadcastOnLocalNetwork() {
+	// look for peers first
+	discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
+		Limit:     -1,
+		Payload:   []byte(c.Options.RelayPorts[0]),
+		Delay:     10 * time.Millisecond,
+		TimeLimit: 30 * time.Second,
+	})
+	log.Debugf("discoveries: %+v", discoveries)
+
+	if err == nil && len(discoveries) > 0 {
+		log.Debug("using local server")
+	}
+}
+
+func (c *Client) transferOverLocalRelay(options TransferOptions, errchan chan<- error) {
+	time.Sleep(500 * time.Millisecond)
+	log.Debug("establishing connection")
+	var banner string
+	conn, banner, ipaddr, err := tcp.ConnectToTCPServer("localhost:"+c.Options.RelayPorts[0], c.Options.SharedSecret)
+	log.Debugf("banner: %s", banner)
+	if err != nil {
+		err = errors.Wrap(err, fmt.Sprintf("could not connect to localhost:%s", c.Options.RelayPorts[0]))
+		return
+	}
+	log.Debugf("connection established: %+v", conn)
+	for {
+		data, _ := conn.Receive()
+		if bytes.Equal(data, []byte("handshake")) {
+			break
+		}
+	}
+	c.conn[0] = conn
+	log.Debug("exchanged header message")
+	c.Options.RelayAddress = "localhost"
+	c.Options.RelayPorts = strings.Split(banner, ",")
+	c.ExternalIP = ipaddr
+	errchan <- c.transfer(options)
+}
+
 // Send will send the specified file
 func (c *Client) Send(options TransferOptions) (err error) {
 	err = c.sendCollectFiles(options)
@@ -249,60 +305,9 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	if !c.Options.DisableLocal {
 		// add two things to the error channel
 		errchan = make(chan error, 2)
-		// setup the relay locally
-		for _, port := range c.Options.RelayPorts {
-
-			go func(portStr string) {
-				debugString := "warn"
-				if c.Options.Debug {
-					debugString = "debug"
-				}
-				err = tcp.Run(debugString, portStr, strings.Join(c.Options.RelayPorts[1:], ","))
-				if err != nil {
-					panic(err)
-				}
-			}(port)
-		}
-
-		// look for peers first
-		go func() {
-			discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
-				Limit:     -1,
-				Payload:   []byte(c.Options.RelayPorts[0]),
-				Delay:     10 * time.Millisecond,
-				TimeLimit: 30 * time.Second,
-			})
-			log.Debugf("discoveries: %+v", discoveries)
-
-			if err == nil && len(discoveries) > 0 {
-				log.Debug("using local server")
-			}
-		}()
-
-		go func() {
-			time.Sleep(500 * time.Millisecond)
-			log.Debug("establishing connection")
-			var banner string
-			conn, banner, ipaddr, err := tcp.ConnectToTCPServer("localhost:"+c.Options.RelayPorts[0], c.Options.SharedSecret)
-			log.Debugf("banner: %s", banner)
-			if err != nil {
-				err = errors.Wrap(err, fmt.Sprintf("could not connect to localhost:%s", c.Options.RelayPorts[0]))
-				return
-			}
-			log.Debugf("connection established: %+v", conn)
-			for {
-				data, _ := conn.Receive()
-				if bytes.Equal(data, []byte("handshake")) {
-					break
-				}
-			}
-			c.conn[0] = conn
-			log.Debug("exchanged header message")
-			c.Options.RelayAddress = "localhost"
-			c.Options.RelayPorts = strings.Split(banner, ",")
-			c.ExternalIP = ipaddr
-			errchan <- c.transfer(options)
-		}()
+		c.setupLocalRelay()
+		go c.broadcastOnLocalNetwork()
+		go c.transferOverLocalRelay(options, errchan)
 	}
 
 	go func() {
