@@ -479,7 +479,7 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 	return
 }
 
-func (c *Client) processMessageFileInfo(m message.Message) (err error) {
+func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error) {
 	var senderInfo SenderInfo
 	err = json.Unmarshal(m.Bytes, &senderInfo)
 	if err != nil {
@@ -575,6 +575,34 @@ func (c *Client) procesMesssagePake(m message.Message) (err error) {
 	return
 }
 
+func (c *Client) processMessageSalt(m message.Message) (done bool, err error) {
+	log.Debug("received salt")
+	if !c.Options.IsSender {
+		log.Debug("sending salt back")
+		err = message.Send(c.conn[0], c.Key, message.Message{
+			Type:    "salt",
+			Bytes:   m.Bytes,
+			Message: c.ExternalIP,
+		})
+	}
+	log.Debugf("session key is verified, generating encryption with salt: %x", m.Bytes)
+	key, err := c.Pake.SessionKey()
+	if err != nil {
+		return true, err
+	}
+	c.Key, err = crypt.New(key, m.Bytes)
+	if err != nil {
+		return true, err
+	}
+	if c.ExternalIPConnected == "" {
+		// it can be preset by the local relay
+		c.ExternalIPConnected = m.Message
+	}
+	log.Debugf("connected as %s -> %s", c.ExternalIP, c.ExternalIPConnected)
+	c.Step1ChannelSecured = true
+	return
+}
+
 func (c *Client) processMessage(payload []byte) (done bool, err error) {
 	m, err := message.Decode(c.Key, payload)
 	if err != nil {
@@ -592,37 +620,14 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 	case "pake":
 		err = c.procesMesssagePake(m)
 	case "salt":
-		log.Debug("received salt")
-		if !c.Options.IsSender {
-			log.Debug("sending salt back")
-			err = message.Send(c.conn[0], c.Key, message.Message{
-				Type:    "salt",
-				Bytes:   m.Bytes,
-				Message: c.ExternalIP,
-			})
-		}
-		log.Debugf("session key is verified, generating encryption with salt: %x", m.Bytes)
-		key, err := c.Pake.SessionKey()
-		if err != nil {
-			return true, err
-		}
-		c.Key, err = crypt.New(key, m.Bytes)
-		if err != nil {
-			return true, err
-		}
-		if c.ExternalIPConnected == "" {
-			// it can be preset by the local relay
-			c.ExternalIPConnected = m.Message
-		}
-		log.Debugf("connected as %s -> %s", c.ExternalIP, c.ExternalIPConnected)
-		c.Step1ChannelSecured = true
+		done, err = c.processMessageSalt(m)
 	case "error":
 		// c.spinner.Stop()
 		fmt.Print("\r")
 		err = fmt.Errorf("peer error: %s", m.Message)
 		return true, err
 	case "fileinfo":
-		err = c.processMessageFileInfo(m)
+		done, err = c.processMessageFileInfo(m)
 	case "recipientready":
 		var remoteFile RemoteFileRequest
 		err = json.Unmarshal(m.Bytes, &remoteFile)
