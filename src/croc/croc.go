@@ -479,6 +479,66 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 	return
 }
 
+func (c *Client) procesMesssagePake(m message.Message) (err error) {
+	log.Debug("received pake payload")
+	// if // c.spinner.Suffix != " performing PAKE..." {
+	// 	// c.spinner.Stop()
+	// 	// c.spinner.Suffix = " performing PAKE..."
+	// 	// c.spinner.Start()
+	// }
+	notVerified := !c.Pake.IsVerified()
+	err = c.Pake.Update(m.Bytes)
+	if err != nil {
+		return
+	}
+	if (notVerified && c.Pake.IsVerified() && !c.Options.IsSender) || !c.Pake.IsVerified() {
+		err = message.Send(c.conn[0], c.Key, message.Message{
+			Type:  "pake",
+			Bytes: c.Pake.Bytes(),
+		})
+	}
+	if c.Pake.IsVerified() {
+		if c.Options.IsSender {
+			log.Debug("generating salt")
+			salt := make([]byte, 8)
+			rand.Read(salt)
+			err = message.Send(c.conn[0], c.Key, message.Message{
+				Type:    "salt",
+				Bytes:   salt,
+				Message: c.ExternalIP,
+			})
+			if err != nil {
+				return
+			}
+		}
+
+		// connects to the other ports of the server for transfer
+		var wg sync.WaitGroup
+		wg.Add(len(c.Options.RelayPorts))
+		for i := 0; i < len(c.Options.RelayPorts); i++ {
+			log.Debugf("port: [%s]", c.Options.RelayPorts[i])
+			go func(j int) {
+				defer wg.Done()
+				server := fmt.Sprintf("%s:%s", strings.Split(c.Options.RelayAddress, ":")[0], c.Options.RelayPorts[j])
+				log.Debugf("connecting to %s", server)
+				c.conn[j+1], _, _, err = tcp.ConnectToTCPServer(
+					server,
+					fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret)[:7], j),
+				)
+				if err != nil {
+					panic(err)
+				}
+				log.Debugf("connected to %s", server)
+				if !c.Options.IsSender {
+					go c.receiveData(j)
+				}
+			}(i)
+		}
+		wg.Wait()
+	}
+	return
+}
+
 func (c *Client) processMessage(payload []byte) (done bool, err error) {
 	m, err := message.Decode(c.Key, payload)
 	if err != nil {
@@ -494,62 +554,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		c.SuccessfulTransfer = true
 		return
 	case "pake":
-		log.Debug("received pake payload")
-		// if // c.spinner.Suffix != " performing PAKE..." {
-		// 	// c.spinner.Stop()
-		// 	// c.spinner.Suffix = " performing PAKE..."
-		// 	// c.spinner.Start()
-		// }
-		notVerified := !c.Pake.IsVerified()
-		err = c.Pake.Update(m.Bytes)
-		if err != nil {
-			return
-		}
-		if (notVerified && c.Pake.IsVerified() && !c.Options.IsSender) || !c.Pake.IsVerified() {
-			err = message.Send(c.conn[0], c.Key, message.Message{
-				Type:  "pake",
-				Bytes: c.Pake.Bytes(),
-			})
-		}
-		if c.Pake.IsVerified() {
-			if c.Options.IsSender {
-				log.Debug("generating salt")
-				salt := make([]byte, 8)
-				rand.Read(salt)
-				err = message.Send(c.conn[0], c.Key, message.Message{
-					Type:    "salt",
-					Bytes:   salt,
-					Message: c.ExternalIP,
-				})
-				if err != nil {
-					return
-				}
-			}
-
-			// connects to the other ports of the server for transfer
-			var wg sync.WaitGroup
-			wg.Add(len(c.Options.RelayPorts))
-			for i := 0; i < len(c.Options.RelayPorts); i++ {
-				log.Debugf("port: [%s]", c.Options.RelayPorts[i])
-				go func(j int) {
-					defer wg.Done()
-					server := fmt.Sprintf("%s:%s", strings.Split(c.Options.RelayAddress, ":")[0], c.Options.RelayPorts[j])
-					log.Debugf("connecting to %s", server)
-					c.conn[j+1], _, _, err = tcp.ConnectToTCPServer(
-						server,
-						fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret)[:7], j),
-					)
-					if err != nil {
-						panic(err)
-					}
-					log.Debugf("connected to %s", server)
-					if !c.Options.IsSender {
-						go c.receiveData(j)
-					}
-				}(i)
-			}
-			wg.Wait()
-		}
+		err = c.procesMesssagePake(m)
 	case "salt":
 		log.Debug("received salt")
 		if !c.Options.IsSender {
