@@ -267,6 +267,8 @@ func (c *Client) transferOverLocalRelay(options TransferOptions, errchan chan<- 
 	log.Debugf("banner: %s", banner)
 	if err != nil {
 		err = errors.Wrap(err, fmt.Sprintf("could not connect to localhost:%s", c.Options.RelayPorts[0]))
+		log.Debug(err)
+		// not really an error because it will try to connect over the actual realy
 		return
 	}
 	log.Debugf("connection established: %+v", conn)
