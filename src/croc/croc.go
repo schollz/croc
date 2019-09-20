@@ -653,7 +653,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 	return
 }
 
-func (c *Client) updateState() (err error) {
+func (c *Client) updateIfSenderChannelSecured() (err error) {
 	if c.Options.IsSender && c.Step1ChannelSecured && !c.Step2FileInfoTransfered {
 		var b []byte
 		b, err = json.Marshal(SenderInfo{
@@ -673,6 +673,10 @@ func (c *Client) updateState() (err error) {
 
 		c.Step2FileInfoTransfered = true
 	}
+	return
+}
+
+func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 	if !c.Options.IsSender && c.Step2FileInfoTransfered && !c.Step3RecipientRequestFile {
 		// find the next file to transfer and send that number
 		// if the files are the same size, then look for missing chunks
@@ -821,6 +825,20 @@ func (c *Client) updateState() (err error) {
 		}
 		c.Step3RecipientRequestFile = true
 	}
+	return
+}
+
+func (c *Client) updateState() (err error) {
+	err = c.updateIfSenderChannelSecured()
+	if err != nil {
+		return
+	}
+
+	err = c.updateIfRecipientHasFileInfo()
+	if err != nil {
+		return
+	}
+
 	if c.Options.IsSender && c.Step3RecipientRequestFile && !c.Step4FileTransfer {
 		log.Debug("start sending data!")
 		if !c.firstSend {
