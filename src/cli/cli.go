@@ -110,19 +110,25 @@ func getConfigDir() (homedir string, err error) {
 	return
 }
 
-func send(c *cli.Context) (err error) {
+func setDebugLevel(c *cli.Context) {
 	if c.GlobalBool("debug") {
 		log.SetLevel("debug")
 		log.Debug("debug mode on")
 	} else {
 		log.SetLevel("info")
 	}
+}
+
+func getConfigFile() string {
 	configFile, err := getConfigDir()
 	if err != nil {
 		log.Error(err)
-		return
+		return ""
 	}
-	configFile = path.Join(configFile, "send.json")
+	return path.Join(configFile, "send.json")
+}
+func send(c *cli.Context) (err error) {
+	setDebugLevel(c)
 
 	crocOptions := croc.Options{
 		SharedSecret: c.String("code"),
@@ -134,7 +140,7 @@ func send(c *cli.Context) (err error) {
 		DisableLocal: c.Bool("no-local"),
 		RelayPorts:   strings.Split(c.String("ports"), ","),
 	}
-	b, errOpen := ioutil.ReadFile(configFile)
+	b, errOpen := ioutil.ReadFile(getConfigFile())
 	if errOpen == nil && !c.GlobalBool("remember") {
 		var rememberedOptions croc.Options
 		err = json.Unmarshal(b, &rememberedOptions)
@@ -224,14 +230,26 @@ func send(c *cli.Context) (err error) {
 	}
 
 	// save the config
+	saveConfig(c, crocOptions)
+
+	err = cr.Send(croc.TransferOptions{
+		PathToFiles:      paths,
+		KeepPathInRemote: haveFolder,
+	})
+
+	return
+}
+
+func saveConfig(c *cli.Context, crocOptions croc.Options) {
 	if c.GlobalBool("remember") {
+		configFile := getConfigFile()
 		log.Debug("saving config file")
 		var bConfig []byte
 		// if the code wasn't set, don't save it
 		if c.String("code") == "" {
 			crocOptions.SharedSecret = ""
 		}
-		bConfig, err = json.MarshalIndent(crocOptions, "", "    ")
+		bConfig, err := json.MarshalIndent(crocOptions, "", "    ")
 		if err != nil {
 			log.Error(err)
 			return
@@ -243,13 +261,6 @@ func send(c *cli.Context) (err error) {
 		}
 		log.Debugf("wrote %s", configFile)
 	}
-
-	err = cr.Send(croc.TransferOptions{
-		PathToFiles:      paths,
-		KeepPathInRemote: haveFolder,
-	})
-
-	return
 }
 
 func receive(c *cli.Context) (err error) {
@@ -266,12 +277,7 @@ func receive(c *cli.Context) (err error) {
 	}
 
 	// load options here
-	if c.GlobalBool("debug") {
-		log.SetLevel("debug")
-		log.Debug("debug mode on")
-	} else {
-		log.SetLevel("info")
-	}
+	setDebugLevel(c)
 	configFile, err := getConfigDir()
 	if err != nil {
 		log.Error(err)
