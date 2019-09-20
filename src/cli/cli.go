@@ -166,19 +166,10 @@ func send(c *cli.Context) (err error) {
 	var fnames []string
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		f, err := ioutil.TempFile(".", "croc-stdin-")
+		fnames, err = getStdin()
 		if err != nil {
-			return err
+			return
 		}
-		_, err = io.Copy(f, os.Stdin)
-		if err != nil {
-			return err
-		}
-		err = f.Close()
-		if err != nil {
-			return err
-		}
-		fnames = []string{f.Name()}
 		defer func() {
 			err = os.Remove(fnames[0])
 			if err != nil {
@@ -215,6 +206,23 @@ func send(c *cli.Context) (err error) {
 		KeepPathInRemote: haveFolder,
 	})
 
+	return
+}
+
+func getStdin() (fnames []string, err error) {
+	f, err := ioutil.TempFile(".", "croc-stdin-")
+	if err != nil {
+		return
+	}
+	_, err = io.Copy(f, os.Stdin)
+	if err != nil {
+		return
+	}
+	err = f.Close()
+	if err != nil {
+		return
+	}
+	fnames = []string{f.Name()}
 	return
 }
 
