@@ -754,6 +754,50 @@ func (c *Client) recipientInitializeFile() (err error) {
 	return
 }
 
+func (c *Client) recipientGetFileReady(finished bool) (err error) {
+	if finished {
+		// TODO: do the last finishing stuff
+		log.Debug("finished")
+		err = message.Send(c.conn[0], c.Key, message.Message{
+			Type: "finished",
+		})
+		if err != nil {
+			panic(err)
+		}
+		c.SuccessfulTransfer = true
+		c.FilesHasFinished[c.FilesToTransferCurrentNum] = struct{}{}
+	}
+
+	err = c.recipientInitializeFile()
+	if err != nil {
+		return
+	}
+
+	c.TotalSent = 0
+	bRequest, _ := json.Marshal(RemoteFileRequest{
+		CurrentFileChunkRanges:    c.CurrentFileChunkRanges,
+		FilesToTransferCurrentNum: c.FilesToTransferCurrentNum,
+	})
+	log.Debug("converting to chunk range")
+	c.CurrentFileChunks = utils.ChunkRangesToChunks(c.CurrentFileChunkRanges)
+
+	if !finished {
+		// setup the progressbar
+		c.setBar()
+	}
+
+	log.Debugf("sending recipient ready with %d chunks", len(c.CurrentFileChunks))
+	err = message.Send(c.conn[0], c.Key, message.Message{
+		Type:  "recipientready",
+		Bytes: bRequest,
+	})
+	if err != nil {
+		return
+	}
+	c.Step3RecipientRequestFile = true
+	return
+}
+
 func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 	if !c.Options.IsSender && c.Step2FileInfoTransfered && !c.Step3RecipientRequestFile {
 		// find the next file to transfer and send that number
@@ -820,46 +864,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			}
 			// TODO: print out something about this file already existing
 		}
-		if finished {
-			// TODO: do the last finishing stuff
-			log.Debug("finished")
-			err = message.Send(c.conn[0], c.Key, message.Message{
-				Type: "finished",
-			})
-			if err != nil {
-				panic(err)
-			}
-			c.SuccessfulTransfer = true
-			c.FilesHasFinished[c.FilesToTransferCurrentNum] = struct{}{}
-		}
-
-		err = c.recipientInitializeFile()
-		if err != nil {
-			return
-		}
-
-		c.TotalSent = 0
-		bRequest, _ := json.Marshal(RemoteFileRequest{
-			CurrentFileChunkRanges:    c.CurrentFileChunkRanges,
-			FilesToTransferCurrentNum: c.FilesToTransferCurrentNum,
-		})
-		log.Debug("converting to chunk range")
-		c.CurrentFileChunks = utils.ChunkRangesToChunks(c.CurrentFileChunkRanges)
-
-		if !finished {
-			// setup the progressbar
-			c.setBar()
-		}
-
-		log.Debugf("sending recipient ready with %d chunks", len(c.CurrentFileChunks))
-		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:  "recipientready",
-			Bytes: bRequest,
-		})
-		if err != nil {
-			return
-		}
-		c.Step3RecipientRequestFile = true
+		err = c.recipientGetFileReady(finished)
 	}
 	return
 }
