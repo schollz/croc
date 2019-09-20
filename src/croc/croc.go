@@ -704,6 +704,56 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 	return
 }
 
+func (c *Client) recipientInitializeFile() (err error) {
+	// start initiating the process to receive a new file
+	log.Debugf("working on file %d", c.FilesToTransferCurrentNum)
+
+	// recipient sets the file
+	pathToFile := path.Join(
+		c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
+		c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
+	)
+	folderForFile, _ := filepath.Split(pathToFile)
+	os.MkdirAll(folderForFile, os.ModePerm)
+	var errOpen error
+	c.CurrentFile, errOpen = os.OpenFile(
+		pathToFile,
+		os.O_WRONLY, 0666)
+	var truncate bool // default false
+	c.CurrentFileChunks = []int64{}
+	c.CurrentFileChunkRanges = []int64{}
+	if errOpen == nil {
+		stat, _ := c.CurrentFile.Stat()
+		truncate = stat.Size() != c.FilesToTransfer[c.FilesToTransferCurrentNum].Size
+		if truncate == false {
+			// recipient requests the file and chunks (if empty, then should receive all chunks)
+			// TODO: determine the missing chunks
+			c.CurrentFileChunkRanges = utils.MissingChunks(
+				pathToFile,
+				c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
+				models.TCP_BUFFER_SIZE/2,
+			)
+		}
+	} else {
+		c.CurrentFile, errOpen = os.Create(pathToFile)
+		if errOpen != nil {
+			errOpen = errors.Wrap(errOpen, "could not create "+pathToFile)
+			log.Error(errOpen)
+			return errOpen
+		}
+		truncate = true
+	}
+	if truncate {
+		err := c.CurrentFile.Truncate(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
+		if err != nil {
+			err = errors.Wrap(err, "could not truncate "+pathToFile)
+			log.Error(err)
+			return err
+		}
+	}
+	return
+}
+
 func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 	if !c.Options.IsSender && c.Step2FileInfoTransfered && !c.Step3RecipientRequestFile {
 		// find the next file to transfer and send that number
@@ -783,51 +833,9 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			c.FilesHasFinished[c.FilesToTransferCurrentNum] = struct{}{}
 		}
 
-		// start initiating the process to receive a new file
-		log.Debugf("working on file %d", c.FilesToTransferCurrentNum)
-
-		// recipient sets the file
-		pathToFile := path.Join(
-			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
-			c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
-		)
-		folderForFile, _ := filepath.Split(pathToFile)
-		os.MkdirAll(folderForFile, os.ModePerm)
-		var errOpen error
-		c.CurrentFile, errOpen = os.OpenFile(
-			pathToFile,
-			os.O_WRONLY, 0666)
-		var truncate bool // default false
-		c.CurrentFileChunks = []int64{}
-		c.CurrentFileChunkRanges = []int64{}
-		if errOpen == nil {
-			stat, _ := c.CurrentFile.Stat()
-			truncate = stat.Size() != c.FilesToTransfer[c.FilesToTransferCurrentNum].Size
-			if truncate == false {
-				// recipient requests the file and chunks (if empty, then should receive all chunks)
-				// TODO: determine the missing chunks
-				c.CurrentFileChunkRanges = utils.MissingChunks(
-					pathToFile,
-					c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
-					models.TCP_BUFFER_SIZE/2,
-				)
-			}
-		} else {
-			c.CurrentFile, errOpen = os.Create(pathToFile)
-			if errOpen != nil {
-				errOpen = errors.Wrap(errOpen, "could not create "+pathToFile)
-				log.Error(errOpen)
-				return errOpen
-			}
-			truncate = true
-		}
-		if truncate {
-			err := c.CurrentFile.Truncate(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
-			if err != nil {
-				err = errors.Wrap(err, "could not truncate "+pathToFile)
-				log.Error(err)
-				return err
-			}
+		err = c.recipientInitializeFile()
+		if err != nil {
+			return
 		}
 
 		c.TotalSent = 0
