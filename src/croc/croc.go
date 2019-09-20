@@ -799,73 +799,75 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 }
 
 func (c *Client) updateIfRecipientHasFileInfo() (err error) {
-	if !c.Options.IsSender && c.Step2FileInfoTransfered && !c.Step3RecipientRequestFile {
-		// find the next file to transfer and send that number
-		// if the files are the same size, then look for missing chunks
-		finished := true
 
-		for i, fileInfo := range c.FilesToTransfer {
-			if _, ok := c.FilesHasFinished[i]; ok {
-				continue
-			}
-			log.Debugf("checking %+v", fileInfo)
-			if i < c.FilesToTransferCurrentNum {
-				continue
-			}
-			fileHash, errHash := utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name))
-			if fileInfo.Size == 0 {
-				log.Debugf("touching file with folder / name")
-				if !utils.Exists(fileInfo.FolderRemote) {
-					err = os.MkdirAll(fileInfo.FolderRemote, os.ModePerm)
-					if err != nil {
-						log.Error(err)
-						return
-					}
-				}
-				emptyFile, errCreate := os.Create(path.Join(fileInfo.FolderRemote, fileInfo.Name))
-				if errCreate != nil {
-					log.Error(errCreate)
-					err = errCreate
+	if !(!c.Options.IsSender && c.Step2FileInfoTransfered && !c.Step3RecipientRequestFile) {
+		return
+	}
+	// find the next file to transfer and send that number
+	// if the files are the same size, then look for missing chunks
+	finished := true
+
+	for i, fileInfo := range c.FilesToTransfer {
+		if _, ok := c.FilesHasFinished[i]; ok {
+			continue
+		}
+		log.Debugf("checking %+v", fileInfo)
+		if i < c.FilesToTransferCurrentNum {
+			continue
+		}
+		fileHash, errHash := utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name))
+		if fileInfo.Size == 0 {
+			log.Debugf("touching file with folder / name")
+			if !utils.Exists(fileInfo.FolderRemote) {
+				err = os.MkdirAll(fileInfo.FolderRemote, os.ModePerm)
+				if err != nil {
+					log.Error(err)
 					return
 				}
-				emptyFile.Close()
-				// setup the progressbar
-				description := fmt.Sprintf("%-28s", c.FilesToTransfer[i].Name)
-				if len(c.FilesToTransfer) == 1 {
-					description = c.FilesToTransfer[i].Name
-				}
-				c.bar = progressbar.NewOptions64(1,
-					progressbar.OptionOnCompletion(func() {
-						fmt.Fprintf(os.Stderr, " ✔️\n")
-					}),
-					progressbar.OptionSetWidth(20),
-					progressbar.OptionSetDescription(description),
-					progressbar.OptionSetRenderBlankState(true),
-					progressbar.OptionSetBytes64(1),
-					progressbar.OptionSetWriter(os.Stderr),
-				)
-				c.bar.Finish()
-				continue
 			}
-			log.Debugf("%s %+x %+x %+v", fileInfo.Name, fileHash, fileInfo.Hash, errHash)
-			if errHash != nil || !bytes.Equal(fileHash, fileInfo.Hash) {
-				if errHash != nil {
-					// probably can't find, its okay
-					log.Debug(errHash)
-				}
-				if !bytes.Equal(fileHash, fileInfo.Hash) {
-					log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
-				} else {
-					log.Debugf("hashes are equal %x == %x", fileHash, fileInfo.Hash)
-				}
-				finished = false
-				c.FilesToTransferCurrentNum = i
-				break
+			emptyFile, errCreate := os.Create(path.Join(fileInfo.FolderRemote, fileInfo.Name))
+			if errCreate != nil {
+				log.Error(errCreate)
+				err = errCreate
+				return
 			}
-			// TODO: print out something about this file already existing
+			emptyFile.Close()
+			// setup the progressbar
+			description := fmt.Sprintf("%-28s", c.FilesToTransfer[i].Name)
+			if len(c.FilesToTransfer) == 1 {
+				description = c.FilesToTransfer[i].Name
+			}
+			c.bar = progressbar.NewOptions64(1,
+				progressbar.OptionOnCompletion(func() {
+					fmt.Fprintf(os.Stderr, " ✔️\n")
+				}),
+				progressbar.OptionSetWidth(20),
+				progressbar.OptionSetDescription(description),
+				progressbar.OptionSetRenderBlankState(true),
+				progressbar.OptionSetBytes64(1),
+				progressbar.OptionSetWriter(os.Stderr),
+			)
+			c.bar.Finish()
+			continue
 		}
-		err = c.recipientGetFileReady(finished)
+		log.Debugf("%s %+x %+x %+v", fileInfo.Name, fileHash, fileInfo.Hash, errHash)
+		if errHash != nil || !bytes.Equal(fileHash, fileInfo.Hash) {
+			if errHash != nil {
+				// probably can't find, its okay
+				log.Debug(errHash)
+			}
+			if !bytes.Equal(fileHash, fileInfo.Hash) {
+				log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
+			} else {
+				log.Debugf("hashes are equal %x == %x", fileHash, fileInfo.Hash)
+			}
+			finished = false
+			c.FilesToTransferCurrentNum = i
+			break
+		}
+		// TODO: print out something about this file already existing
 	}
+	err = c.recipientGetFileReady(finished)
 	return
 }
 
