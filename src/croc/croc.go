@@ -479,6 +479,42 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 	return
 }
 
+func (c *Client) processMessageFileInfo(m message.Message) (err error) {
+	var senderInfo SenderInfo
+	err = json.Unmarshal(m.Bytes, &senderInfo)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	c.FilesToTransfer = senderInfo.FilesToTransfer
+	fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
+	if len(c.FilesToTransfer) == 1 {
+		fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
+	}
+	totalSize := int64(0)
+	for _, fi := range c.FilesToTransfer {
+		totalSize += fi.Size
+	}
+	// c.spinner.Stop()
+	if !c.Options.NoPrompt {
+		fmt.Fprintf(os.Stderr, "\rAccept %s (%s)? (y/n) ", fname, utils.ByteCountDecimal(totalSize))
+		if strings.ToLower(strings.TrimSpace(utils.GetInput(""))) != "y" {
+			err = message.Send(c.conn[0], c.Key, message.Message{
+				Type:    "error",
+				Message: "refusing files",
+			})
+			return true, fmt.Errorf("refused files")
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "\rReceiving %s (%s) \n", fname, utils.ByteCountDecimal(totalSize))
+	}
+	fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)\n", c.ExternalIPConnected)
+
+	log.Debug(c.FilesToTransfer)
+	c.Step2FileInfoTransfered = true
+	return
+}
+
 func (c *Client) procesMesssagePake(m message.Message) (err error) {
 	log.Debug("received pake payload")
 	// if // c.spinner.Suffix != " performing PAKE..." {
@@ -586,38 +622,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		err = fmt.Errorf("peer error: %s", m.Message)
 		return true, err
 	case "fileinfo":
-		var senderInfo SenderInfo
-		err = json.Unmarshal(m.Bytes, &senderInfo)
-		if err != nil {
-			log.Error(err)
-			return
-		}
-		c.FilesToTransfer = senderInfo.FilesToTransfer
-		fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
-		if len(c.FilesToTransfer) == 1 {
-			fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
-		}
-		totalSize := int64(0)
-		for _, fi := range c.FilesToTransfer {
-			totalSize += fi.Size
-		}
-		// c.spinner.Stop()
-		if !c.Options.NoPrompt {
-			fmt.Fprintf(os.Stderr, "\rAccept %s (%s)? (y/n) ", fname, utils.ByteCountDecimal(totalSize))
-			if strings.ToLower(strings.TrimSpace(utils.GetInput(""))) != "y" {
-				err = message.Send(c.conn[0], c.Key, message.Message{
-					Type:    "error",
-					Message: "refusing files",
-				})
-				return true, fmt.Errorf("refused files")
-			}
-		} else {
-			fmt.Fprintf(os.Stderr, "\rReceiving %s (%s) \n", fname, utils.ByteCountDecimal(totalSize))
-		}
-		fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)\n", c.ExternalIPConnected)
-
-		log.Debug(c.FilesToTransfer)
-		c.Step2FileInfoTransfered = true
+		err = c.processMessageFileInfo(m)
 	case "recipientready":
 		var remoteFile RemoteFileRequest
 		err = json.Unmarshal(m.Bytes, &remoteFile)
