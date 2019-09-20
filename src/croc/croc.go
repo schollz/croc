@@ -799,7 +799,6 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 }
 
 func (c *Client) updateIfRecipientHasFileInfo() (err error) {
-
 	if !(!c.Options.IsSender && c.Step2FileInfoTransfered && !c.Step3RecipientRequestFile) {
 		return
 	}
@@ -851,16 +850,16 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			continue
 		}
 		log.Debugf("%s %+x %+x %+v", fileInfo.Name, fileHash, fileInfo.Hash, errHash)
+		if !bytes.Equal(fileHash, fileInfo.Hash) {
+			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
+		} else {
+			log.Debugf("hashes are equal %x == %x", fileHash, fileInfo.Hash)
+		}
+		if errHash != nil {
+			// probably can't find, its okay
+			log.Debug(errHash)
+		}
 		if errHash != nil || !bytes.Equal(fileHash, fileInfo.Hash) {
-			if errHash != nil {
-				// probably can't find, its okay
-				log.Debug(errHash)
-			}
-			if !bytes.Equal(fileHash, fileInfo.Hash) {
-				log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
-			} else {
-				log.Debugf("hashes are equal %x == %x", fileHash, fileInfo.Hash)
-			}
 			finished = false
 			c.FilesToTransferCurrentNum = i
 			break
