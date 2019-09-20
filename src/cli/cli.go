@@ -127,9 +127,9 @@ func getConfigFile() string {
 	}
 	return path.Join(configFile, "send.json")
 }
+
 func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
-
 	crocOptions := croc.Options{
 		SharedSecret: c.String("code"),
 		IsSender:     true,
@@ -197,31 +197,9 @@ func send(c *cli.Context) (err error) {
 		crocOptions.SharedSecret = utils.GetRandomName()
 	}
 
-	haveFolder := false
-	paths := []string{}
-	for _, fname := range fnames {
-		stat, err := os.Stat(fname)
-		if err != nil {
-			return err
-		}
-		if stat.IsDir() {
-			haveFolder = true
-			err = filepath.Walk(fname,
-				func(pathName string, info os.FileInfo, err error) error {
-					if err != nil {
-						return err
-					}
-					if !info.IsDir() {
-						paths = append(paths, filepath.ToSlash(pathName))
-					}
-					return nil
-				})
-			if err != nil {
-				return err
-			}
-		} else {
-			paths = append(paths, filepath.ToSlash(fname))
-		}
+	paths, haveFolder, err := getPaths(fnames)
+	if err != nil {
+		return
 	}
 
 	cr, err := croc.New(crocOptions)
@@ -237,6 +215,37 @@ func send(c *cli.Context) (err error) {
 		KeepPathInRemote: haveFolder,
 	})
 
+	return
+}
+
+func getPaths(fnames []string) (paths []string, haveFolder bool, err error) {
+	haveFolder = false
+	paths = []string{}
+	for _, fname := range fnames {
+		stat, errStat := os.Stat(fname)
+		if errStat != nil {
+			err = errStat
+			return
+		}
+		if stat.IsDir() {
+			haveFolder = true
+			err = filepath.Walk(fname,
+				func(pathName string, info os.FileInfo, err error) error {
+					if err != nil {
+						return err
+					}
+					if !info.IsDir() {
+						paths = append(paths, filepath.ToSlash(pathName))
+					}
+					return nil
+				})
+			if err != nil {
+				return
+			}
+		} else {
+			paths = append(paths, filepath.ToSlash(fname))
+		}
+	}
 	return
 }
 
