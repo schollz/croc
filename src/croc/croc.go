@@ -167,8 +167,7 @@ type TransferOptions struct {
 	KeepPathInRemote bool
 }
 
-// Send will send the specified file
-func (c *Client) Send(options TransferOptions) (err error) {
+func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 	c.FilesToTransfer = make([]FileInfo, len(options.PathToFiles))
 	totalFilesSize := int64(0)
 	for i, pathToFile := range options.PathToFiles {
@@ -225,8 +224,17 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	if len(c.FilesToTransfer) == 1 {
 		fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
 	}
-
 	fmt.Fprintf(os.Stderr, "Sending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
+	return
+}
+
+// Send will send the specified file
+func (c *Client) Send(options TransferOptions) (err error) {
+	err = c.sendCollectFiles(options)
+	if err != nil {
+		return
+	}
+
 	otherRelay := ""
 	if c.Options.RelayAddress != models.DEFAULT_RELAY {
 		otherRelay = "--relay " + c.Options.RelayAddress + " "
