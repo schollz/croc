@@ -798,6 +798,41 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 	return
 }
 
+func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) {
+	log.Debugf("touching file with folder / name")
+	if !utils.Exists(fileInfo.FolderRemote) {
+		err = os.MkdirAll(fileInfo.FolderRemote, os.ModePerm)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+	}
+	emptyFile, errCreate := os.Create(path.Join(fileInfo.FolderRemote, fileInfo.Name))
+	if errCreate != nil {
+		log.Error(errCreate)
+		err = errCreate
+		return
+	}
+	emptyFile.Close()
+	// setup the progressbar
+	description := fmt.Sprintf("%-28s", c.FilesToTransfer[i].Name)
+	if len(c.FilesToTransfer) == 1 {
+		description = c.FilesToTransfer[i].Name
+	}
+	c.bar = progressbar.NewOptions64(1,
+		progressbar.OptionOnCompletion(func() {
+			fmt.Fprintf(os.Stderr, " ✔️\n")
+		}),
+		progressbar.OptionSetWidth(20),
+		progressbar.OptionSetDescription(description),
+		progressbar.OptionSetRenderBlankState(true),
+		progressbar.OptionSetBytes64(1),
+		progressbar.OptionSetWriter(os.Stderr),
+	)
+	c.bar.Finish()
+	return
+}
+
 func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 	if !(!c.Options.IsSender && c.Step2FileInfoTransfered && !c.Step3RecipientRequestFile) {
 		return
@@ -816,37 +851,10 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		}
 		fileHash, errHash := utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name))
 		if fileInfo.Size == 0 {
-			log.Debugf("touching file with folder / name")
-			if !utils.Exists(fileInfo.FolderRemote) {
-				err = os.MkdirAll(fileInfo.FolderRemote, os.ModePerm)
-				if err != nil {
-					log.Error(err)
-					return
-				}
-			}
-			emptyFile, errCreate := os.Create(path.Join(fileInfo.FolderRemote, fileInfo.Name))
-			if errCreate != nil {
-				log.Error(errCreate)
-				err = errCreate
+			err = c.createEmptyFileAndFinish(fileInfo, i)
+			if err != nil {
 				return
 			}
-			emptyFile.Close()
-			// setup the progressbar
-			description := fmt.Sprintf("%-28s", c.FilesToTransfer[i].Name)
-			if len(c.FilesToTransfer) == 1 {
-				description = c.FilesToTransfer[i].Name
-			}
-			c.bar = progressbar.NewOptions64(1,
-				progressbar.OptionOnCompletion(func() {
-					fmt.Fprintf(os.Stderr, " ✔️\n")
-				}),
-				progressbar.OptionSetWidth(20),
-				progressbar.OptionSetDescription(description),
-				progressbar.OptionSetRenderBlankState(true),
-				progressbar.OptionSetBytes64(1),
-				progressbar.OptionSetWriter(os.Stderr),
-			)
-			c.bar.Finish()
 			continue
 		}
 		log.Debugf("%s %+x %+x %+v", fileInfo.Name, fileHash, fileInfo.Hash, errHash)
