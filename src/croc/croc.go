@@ -89,9 +89,10 @@ type Client struct {
 	// tcp connections
 	conn []*comm.Comm
 
-	bar       *progressbar.ProgressBar
-	spinner   *spinner.Spinner
-	firstSend bool
+	bar             *progressbar.ProgressBar
+	spinner         *spinner.Spinner
+	longestFilename int
+	firstSend       bool
 
 	mutex       *sync.Mutex
 	fread       *os.File
@@ -185,6 +186,9 @@ func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 		if err != nil {
 			return
 		}
+		if len(fstats.Name()) > c.longestFilename {
+			c.longestFilename = len(fstats.Name())
+		}
 		c.FilesToTransfer[i] = FileInfo{
 			Name:         fstats.Name(),
 			FolderRemote: ".",
@@ -220,6 +224,7 @@ func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 		}
 		log.Debugf("file %d info: %+v", i, c.FilesToTransfer[i])
 	}
+	log.Debugf("longestFilename: %+v", c.longestFilename)
 	fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
 	if len(c.FilesToTransfer) == 1 {
 		fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
@@ -509,6 +514,9 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	totalSize := int64(0)
 	for _, fi := range c.FilesToTransfer {
 		totalSize += fi.Size
+		if len(fi.Name) > c.longestFilename {
+			c.longestFilename = len(fi.Name)
+		}
 	}
 	// c.spinner.Stop()
 	if !c.Options.NoPrompt {
@@ -817,7 +825,7 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	}
 	emptyFile.Close()
 	// setup the progressbar
-	description := fmt.Sprintf("%-28s", c.FilesToTransfer[i].Name)
+	description := fmt.Sprintf("%-*s", c.longestFilename, c.FilesToTransfer[i].Name)
 	if len(c.FilesToTransfer) == 1 {
 		description = c.FilesToTransfer[i].Name
 	}
@@ -900,7 +908,7 @@ func (c *Client) updateState() (err error) {
 			for i := range c.FilesToTransfer {
 				if c.FilesToTransfer[i].Size == 0 {
 					// setup the progressbar and takedown the progress bar for empty files
-					description := fmt.Sprintf("%-28s", c.FilesToTransfer[i].Name)
+					description := fmt.Sprintf("%-*s", c.longestFilename, c.FilesToTransfer[i].Name)
 					if len(c.FilesToTransfer) == 1 {
 						description = c.FilesToTransfer[i].Name
 					}
@@ -942,7 +950,7 @@ func (c *Client) updateState() (err error) {
 }
 
 func (c *Client) setBar() {
-	description := fmt.Sprintf("%-28s", c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
+	description := fmt.Sprintf("%-*s", c.longestFilename, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 	if len(c.FilesToTransfer) == 1 {
 		description = c.FilesToTransfer[c.FilesToTransferCurrentNum].Name
 	}
