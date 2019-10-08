@@ -134,6 +134,10 @@ func main() {
 		receiveFileButtion,
 		entry,
 		widget.NewButton("Receive", func() {
+			cnf := dialog.NewConfirm("Confirmation", "Accept file ?", confirmCallback, w)
+			cnf.SetDismissText("Nah")
+			cnf.SetConfirmText("Oh Yes!")
+			cnf.Show()
 			fmt.Println("codePhraseToReceive")
 		}),
 		layout.NewSpacer(),
