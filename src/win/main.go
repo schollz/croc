@@ -77,11 +77,35 @@ func makeFormTab() fyne.Widget {
 func main() {
 	a := app.New()
 	a.Settings().SetTheme(theme.LightTheme())
-
 	w := a.NewWindow("Hello")
 	w.Resize(fyne.Size{800, 600})
 	out := widget.NewEntry()
 	out.Text = "Hello"
+
+	entryReadOnly := widget.NewEntry()
+	entryReadOnly.SetPlaceHolder("")
+	entryReadOnly.ReadOnly = true
+	progress := widget.NewProgressBar()
+	sendScreen := widget.NewVBox(
+		widget.NewLabelWithStyle("Send a file", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		layout.NewSpacer(),
+		widget.NewLabel("Send a file"),
+		widget.NewButton("Select file", func() {
+			filename, err := nativedialog.File().Title("Select a file to send").Load()
+			if err == nil {
+				entryReadOnly.SetText(filename)
+			}
+			// codeDialog := dialog.NewInformation("Info", "Your passphrase is: x1", w)
+			// codeDialog.Show()
+		}),
+		entryReadOnly,
+		widget.NewButton("Send", func() {
+			fmt.Println("send")
+		}),
+		layout.NewSpacer(),
+		progress,
+	)
+	progress.Hide()
 
 	box1 := widget.NewVBox(
 		widget.NewLabel("Hello Fyne!"),
@@ -140,10 +164,11 @@ func main() {
 			cnf.Show()
 		}),
 	)
+	_ = box1
 
 	tabs := widget.NewTabContainer(
 		widget.NewTabItemWithIcon("Welcome", theme.HomeIcon(), welcomeScreen(a)),
-		widget.NewTabItemWithIcon("Send", theme.MailSendIcon(), box1),
+		widget.NewTabItemWithIcon("Send", theme.MailSendIcon(), sendScreen),
 	)
 	tabs.SetTabLocation(widget.TabLocationLeading)
 	w.SetContent(tabs)
