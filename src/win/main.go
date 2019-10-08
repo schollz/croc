@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"fyne.io/fyne"
@@ -74,31 +75,32 @@ func makeFormTab() fyne.Widget {
 	return form
 }
 
+func makeCell() fyne.CanvasObject {
+	rect := canvas.NewRectangle(theme.BackgroundColor())
+	rect.SetMinSize(fyne.NewSize(30, 30))
+	return rect
+}
+
 func main() {
 	a := app.New()
 	a.Settings().SetTheme(theme.LightTheme())
 	w := a.NewWindow("Hello")
-	w.Resize(fyne.Size{800, 600})
+	w.Resize(fyne.Size{200, 200})
 	out := widget.NewEntry()
 	out.Text = "Hello"
 
-	entryReadOnly := widget.NewEntry()
-	entryReadOnly.SetPlaceHolder("")
-	entryReadOnly.ReadOnly = true
 	progress := widget.NewProgressBar()
+	var sendFileButton *widget.Button
+	sendFileButton = widget.NewButton("Select file", func() {
+		filename, err := nativedialog.File().Title("Select a file to send").Load()
+		if err == nil {
+			fnames := strings.Split(filename, "\\")
+			sendFileButton.SetText(fnames[len(fnames)-1])
+		}
+	})
 	sendScreen := widget.NewVBox(
 		widget.NewLabelWithStyle("Send a file", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-		layout.NewSpacer(),
-		widget.NewLabel("Send a file"),
-		widget.NewButton("Select file", func() {
-			filename, err := nativedialog.File().Title("Select a file to send").Load()
-			if err == nil {
-				entryReadOnly.SetText(filename)
-			}
-			// codeDialog := dialog.NewInformation("Info", "Your passphrase is: x1", w)
-			// codeDialog.Show()
-		}),
-		entryReadOnly,
+		sendFileButton,
 		widget.NewButton("Send", func() {
 			fmt.Println("send")
 		}),
@@ -106,6 +108,14 @@ func main() {
 		progress,
 	)
 	progress.Hide()
+	top := makeCell()
+	bottom := makeCell()
+	left := makeCell()
+	right := makeCell()
+
+	borderLayout := layout.NewBorderLayout(top, bottom, left, right)
+	sendScreenWrap := fyne.NewContainerWithLayout(borderLayout,
+		top, bottom, left, right, sendScreen)
 
 	box1 := widget.NewVBox(
 		widget.NewLabel("Hello Fyne!"),
@@ -168,7 +178,7 @@ func main() {
 
 	tabs := widget.NewTabContainer(
 		widget.NewTabItemWithIcon("Welcome", theme.HomeIcon(), welcomeScreen(a)),
-		widget.NewTabItemWithIcon("Send", theme.MailSendIcon(), sendScreen),
+		widget.NewTabItemWithIcon("Send", theme.MailSendIcon(), sendScreenWrap),
 	)
 	tabs.SetTabLocation(widget.TabLocationLeading)
 	w.SetContent(tabs)
