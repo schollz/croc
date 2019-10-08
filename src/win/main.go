@@ -3,15 +3,47 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"fyne.io/fyne"
 	"fyne.io/fyne/app"
+	"fyne.io/fyne/canvas"
 	"fyne.io/fyne/dialog"
+	"fyne.io/fyne/layout"
 	"fyne.io/fyne/theme"
 	"fyne.io/fyne/widget"
 	nativedialog "github.com/sqweek/dialog"
 )
+
+func welcomeScreen(a fyne.App) fyne.CanvasObject {
+	logo := canvas.NewImageFromResource(theme.FyneLogo())
+	logo.SetMinSize(fyne.NewSize(128, 128))
+
+	link, err := url.Parse("https://fyne.io/")
+	if err != nil {
+		fyne.LogError("Could not parse URL", err)
+	}
+
+	return widget.NewVBox(
+		widget.NewLabelWithStyle("Welcome to the Fyne toolkit demo app", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		layout.NewSpacer(),
+		widget.NewHBox(layout.NewSpacer(), logo, layout.NewSpacer()),
+		widget.NewHyperlinkWithStyle("fyne.io", link, fyne.TextAlignCenter, fyne.TextStyle{}),
+		layout.NewSpacer(),
+
+		widget.NewGroup("Theme",
+			fyne.NewContainerWithLayout(layout.NewGridLayout(2),
+				widget.NewButton("Dark", func() {
+					a.Settings().SetTheme(theme.DarkTheme())
+				}),
+				widget.NewButton("Light", func() {
+					a.Settings().SetTheme(theme.LightTheme())
+				}),
+			),
+		),
+	)
+}
 
 func makeFormTab() fyne.Widget {
 	name := widget.NewEntry()
@@ -51,7 +83,7 @@ func main() {
 	out := widget.NewEntry()
 	out.Text = "Hello"
 
-	w.SetContent(widget.NewVBox(
+	box1 := widget.NewVBox(
 		widget.NewLabel("Hello Fyne!"),
 		makeFormTab(),
 		widget.NewButton("Send", func() {
@@ -107,7 +139,14 @@ func main() {
 			cnf.SetConfirmText("Oh Yes!")
 			cnf.Show()
 		}),
-	))
+	)
+
+	tabs := widget.NewTabContainer(
+		widget.NewTabItemWithIcon("Welcome", theme.HomeIcon(), welcomeScreen(a)),
+		widget.NewTabItemWithIcon("Send", theme.MailSendIcon(), box1),
+	)
+	tabs.SetTabLocation(widget.TabLocationLeading)
+	w.SetContent(tabs)
 
 	w.ShowAndRun()
 }
