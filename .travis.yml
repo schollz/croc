@@ -16,3 +16,8 @@ script:
   - env GO111MODULE=on go test -v -cover github.com/schollz/croc/v6/src/tcp
   - env GO111MODULE=on go test -v -cover github.com/schollz/croc/v6/src/utils
   - env GO111MODULE=on go test -v -cover github.com/schollz/croc/v6/src/comm
+  
+branches:
+  except:
+  - dev
+  - win
