@@ -98,6 +98,7 @@ func main() {
 			sendFileButton.SetText(fnames[len(fnames)-1])
 		}
 	})
+
 	sendScreen := widget.NewVBox(
 		widget.NewLabelWithStyle("Send a file", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		sendFileButton,
@@ -105,9 +106,45 @@ func main() {
 			fmt.Println("send")
 		}),
 		layout.NewSpacer(),
-		progress,
+		widget.NewHBox(
+			widget.NewLabel("Code phrase: something"),
+		),
+		widget.NewHBox(
+			widget.NewLabel("Progress:"),
+			progress,
+		),
 	)
-	progress.Hide()
+
+	var codePhraseToReceive string
+	entry := widget.NewEntry()
+	entry.OnChanged = func(text string) {
+		fmt.Println("Entered", text)
+		codePhraseToReceive = text
+	}
+	entry.SetPlaceHolder("Enter code phrase")
+	var receiveFileButtion *widget.Button
+	receiveFileButtion = widget.NewButton("Set directory to save", func() {
+		filename, err := nativedialog.Directory().Title("Now find a dir").Browse()
+		fmt.Println(filename)
+		fmt.Println(err)
+		receiveFileButtion.SetText(filename)
+	})
+	receiveScreen := widget.NewVBox(
+		widget.NewLabelWithStyle("Receive a file", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		receiveFileButtion,
+		entry,
+		widget.NewButton("Receive", func() {
+			fmt.Println("codePhraseToReceive")
+		}),
+		layout.NewSpacer(),
+		widget.NewHBox(
+			widget.NewLabel("Progress:"),
+			progress,
+		),
+	)
+
+	progress.SetValue(0)
+
 	top := makeCell()
 	bottom := makeCell()
 	left := makeCell()
@@ -116,6 +153,8 @@ func main() {
 	borderLayout := layout.NewBorderLayout(top, bottom, left, right)
 	sendScreenWrap := fyne.NewContainerWithLayout(borderLayout,
 		top, bottom, left, right, sendScreen)
+	receiveScreenWrap := fyne.NewContainerWithLayout(borderLayout,
+		top, bottom, left, right, receiveScreen)
 
 	box1 := widget.NewVBox(
 		widget.NewLabel("Hello Fyne!"),
@@ -131,7 +170,6 @@ func main() {
 			filename, err := nativedialog.Directory().Title("Now find a dir").Browse()
 			fmt.Println(filename)
 			fmt.Println(err)
-
 		}),
 
 		widget.NewButton("Receive", func() {
@@ -179,6 +217,7 @@ func main() {
 	tabs := widget.NewTabContainer(
 		widget.NewTabItemWithIcon("Welcome", theme.HomeIcon(), welcomeScreen(a)),
 		widget.NewTabItemWithIcon("Send", theme.MailSendIcon(), sendScreenWrap),
+		widget.NewTabItemWithIcon("Receive", theme.MailSendIcon(), receiveScreenWrap),
 	)
 	tabs.SetTabLocation(widget.TabLocationLeading)
 	w.SetContent(tabs)
