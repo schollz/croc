@@ -23,7 +23,7 @@
 #                  Issues: https://github.com/schollz/croc/issues
 #
 #       CREATED: 08/10/2019 16:41
-#      REVISION: 0.9.0
+#      REVISION: 0.9.1
 #===============================================================================
 set -o nounset                              # Treat unset variables as an error
 
@@ -330,7 +330,7 @@ extract_file() {
                  tar -xf "${file}" -C "${dir}"
                  rcode="${?}"
                else
-                 rcode="30"
+                 rcode="31"
                fi
                ;;
            * ) rcode="20";;
@@ -610,7 +610,10 @@ main() {
     print_message "== Failed to determine which extraction tool to use" "error"
     exit 1
   elif [[ "${extract_file_rcode}" == "30" ]]; then
-    print_message "== Failed to find extraction tool in path" "error"
+    print_message "== Failed to find 'unzip' in path" "error"
+    exit 1
+  elif [[ "${extract_file_rcode}" == "31" ]]; then
+    print_message "== Failed to find 'tar' in path" "error"
     exit 1
   else
     print_message "== Unknown error returned from extraction attempt" "error"
