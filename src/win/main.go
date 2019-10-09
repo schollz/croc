@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"fyne.io/fyne"
 	"fyne.io/fyne/app"
@@ -14,6 +15,9 @@ import (
 	"fyne.io/fyne/layout"
 	"fyne.io/fyne/theme"
 	"fyne.io/fyne/widget"
+	"github.com/schollz/croc/v6/src/croc"
+	"github.com/schollz/croc/v6/src/models"
+	"github.com/schollz/croc/v6/src/utils"
 	nativedialog "github.com/sqweek/dialog"
 )
 
@@ -54,35 +58,6 @@ peer-to-peer connection.`),
 	)
 }
 
-func makeFormTab() fyne.Widget {
-	name := widget.NewEntry()
-	name.SetPlaceHolder("John Smith")
-	email := widget.NewEntry()
-	email.SetPlaceHolder("test@example.com")
-	password := widget.NewPasswordEntry()
-	password.SetPlaceHolder("Password")
-	largeText := widget.NewMultiLineEntry()
-
-	form := &widget.Form{
-		OnCancel: func() {
-			fmt.Println("Cancelled")
-		},
-		OnSubmit: func() {
-			fmt.Println("Form submitted")
-			fmt.Println("Name:", name.Text)
-			fmt.Println("Email:", email.Text)
-			fmt.Println("Password:", password.Text)
-			fmt.Println("Message:", largeText.Text)
-		},
-	}
-	form.Append("Name", name)
-	form.Append("Email", email)
-	form.Append("Password", password)
-	form.Append("Message", largeText)
-
-	return form
-}
-
 func makeCell() fyne.CanvasObject {
 	rect := canvas.NewRectangle(theme.BackgroundColor())
 	rect.SetMinSize(fyne.NewSize(30, 30))
@@ -97,8 +72,10 @@ func main() {
 
 	progress := widget.NewProgressBar()
 	var sendFileButton *widget.Button
+	pathToFile := ""
 	sendFileButton = widget.NewButton("Select file", func() {
 		filename, err := nativedialog.File().Title("Select a file to send").Load()
+		pathToFile = filename
 		if err == nil {
 			fnames := strings.Split(filename, "\\")
 			sendFileButton.SetText(fnames[len(fnames)-1])
@@ -110,6 +87,46 @@ func main() {
 		widget.NewLabelWithStyle("Send a file", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		sendFileButton,
 		widget.NewButton("Send", func() {
+
+			codePhrase := utils.GetRandomName()
+			crocOptions := croc.Options{
+				SharedSecret: codePhrase,
+				IsSender:     true,
+				Debug:        false,
+				NoPrompt:     true,
+				RelayAddress: models.DEFAULT_RELAY,
+				Stdout:       false,
+				DisableLocal: false,
+				RelayPorts:   strings.Split("9009,9010,9011,9012,9013", ","),
+			}
+			cr, err := croc.New(crocOptions)
+			if err != nil {
+				return
+			}
+
+			currentInfo.SetText("Code phrase: " + codePhrase)
+			finished := false
+			go func() {
+				for {
+					if finished {
+						currentInfo.SetText("Finished transfer.")
+						return
+					}
+					if cr.Step1ChannelSecured {
+						currentInfo.SetText("Channel secured.")
+					}
+					if cr.Step4FileTransfer {
+						currentInfo.SetText("Transfering file.")
+					}
+					// fmt.Printf("%+v\n", cr)
+					time.Sleep(10 * time.Millisecond)
+				}
+			}()
+			err = cr.Send(croc.TransferOptions{
+				PathToFiles:      []string{pathToFile},
+				KeepPathInRemote: false,
+			})
+			finished = true
 			fmt.Println("send")
 		}),
 		layout.NewSpacer(),

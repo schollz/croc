@@ -89,7 +89,7 @@ type Client struct {
 	// tcp connections
 	conn []*comm.Comm
 
-	bar             *progressbar.ProgressBar
+	Bar             *progressbar.ProgressBar
 	spinner         *spinner.Spinner
 	longestFilename int
 	firstSend       bool
@@ -667,7 +667,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		}
 		c.Step3RecipientRequestFile = true
 	case "close-sender":
-		c.bar.Finish()
+		c.Bar.Finish()
 		log.Debug("close-sender received...")
 		c.Step4FileTransfer = false
 		c.Step3RecipientRequestFile = false
@@ -829,7 +829,7 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	if len(c.FilesToTransfer) == 1 {
 		description = c.FilesToTransfer[i].Name
 	}
-	c.bar = progressbar.NewOptions64(1,
+	c.Bar = progressbar.NewOptions64(1,
 		progressbar.OptionOnCompletion(func() {
 			fmt.Fprintf(os.Stderr, " ✔️\n")
 		}),
@@ -839,7 +839,7 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 		progressbar.OptionSetBytes64(1),
 		progressbar.OptionSetWriter(os.Stderr),
 	)
-	c.bar.Finish()
+	c.Bar.Finish()
 	return
 }
 
@@ -912,7 +912,7 @@ func (c *Client) updateState() (err error) {
 					if len(c.FilesToTransfer) == 1 {
 						description = c.FilesToTransfer[i].Name
 					}
-					c.bar = progressbar.NewOptions64(1,
+					c.Bar = progressbar.NewOptions64(1,
 						progressbar.OptionOnCompletion(func() {
 							fmt.Fprintf(os.Stderr, " ✔️\n")
 						}),
@@ -922,7 +922,7 @@ func (c *Client) updateState() (err error) {
 						progressbar.OptionSetBytes64(1),
 						progressbar.OptionSetWriter(os.Stderr),
 					)
-					c.bar.Finish()
+					c.Bar.Finish()
 				}
 			}
 		}
@@ -954,7 +954,7 @@ func (c *Client) setBar() {
 	if len(c.FilesToTransfer) == 1 {
 		description = c.FilesToTransfer[c.FilesToTransferCurrentNum].Name
 	}
-	c.bar = progressbar.NewOptions64(
+	c.Bar = progressbar.NewOptions64(
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
 		progressbar.OptionOnCompletion(func() {
 			fmt.Fprintf(os.Stderr, " ✔️\n")
@@ -973,7 +973,7 @@ func (c *Client) setBar() {
 		log.Debug(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
 		log.Debug(bytesDone)
 		if bytesDone > 0 {
-			c.bar.Add64(bytesDone)
+			c.Bar.Add64(bytesDone)
 		}
 	}
 }
@@ -1007,7 +1007,7 @@ func (c *Client) receiveData(i int) {
 		if err != nil {
 			panic(err)
 		}
-		c.bar.Add(len(data[8:]))
+		c.Bar.Add(len(data[8:]))
 		c.TotalSent += int64(len(data[8:]))
 		c.TotalChunksTransfered++
 		if c.TotalChunksTransfered == len(c.CurrentFileChunks) || c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size {
@@ -1085,7 +1085,7 @@ func (c *Client) sendData(i int) {
 				if err != nil {
 					panic(err)
 				}
-				c.bar.Add(n)
+				c.Bar.Add(n)
 				c.TotalSent += int64(n)
 				// time.Sleep(100 * time.Millisecond)
 			} else {
