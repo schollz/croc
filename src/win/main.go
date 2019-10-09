@@ -96,7 +96,7 @@ func main() {
 				NoPrompt:     true,
 				RelayAddress: models.DEFAULT_RELAY,
 				Stdout:       false,
-				DisableLocal: false,
+				DisableLocal: true,
 				RelayPorts:   strings.Split("9009,9010,9011,9012,9013", ","),
 			}
 			cr, err := croc.New(crocOptions)
@@ -108,7 +108,7 @@ func main() {
 			finished := false
 			go func() {
 				for {
-					if finished {
+					if finished || cr == nil {
 						currentInfo.SetText("Finished transfer.")
 						return
 					}
@@ -118,14 +118,20 @@ func main() {
 					if cr.Step4FileTransfer {
 						currentInfo.SetText("Transfering file.")
 					}
-					// fmt.Printf("%+v\n", cr)
-					time.Sleep(10 * time.Millisecond)
+					if cr.Bar != nil {
+						progress.SetValue(cr.Bar.State().CurrentPercent)
+					}
+					time.Sleep(100 * time.Millisecond)
 				}
 			}()
 			err = cr.Send(croc.TransferOptions{
 				PathToFiles:      []string{pathToFile},
 				KeepPathInRemote: false,
 			})
+			if err != nil {
+				// TODO: do something
+			}
+			cr = nil
 			finished = true
 			fmt.Println("send")
 		}),
