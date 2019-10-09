@@ -24,7 +24,7 @@ import (
 var logoImage image.Image
 
 func init() {
-	infile, err := os.Open("croc.png")
+	infile, err := os.Open("croc.jpg")
 	if err != nil {
 		panic(err)
 	}
