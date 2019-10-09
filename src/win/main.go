@@ -73,74 +73,92 @@ func main() {
 	progress := widget.NewProgressBar()
 	var sendFileButton *widget.Button
 	pathToFile := ""
-	sendFileButton = widget.NewButton("Select file", func() {
+	fname := ""
+	currentInfo := widget.NewLabel("")
+	sendFileButton = widget.NewButton("Choose a file to send", func() {
 		filename, err := nativedialog.File().Title("Select a file to send").Load()
 		pathToFile = filename
 		if err == nil {
 			fnames := strings.Split(filename, "\\")
-			sendFileButton.SetText(fnames[len(fnames)-1])
+			fname = fnames[len(fnames)-1]
+			sendFileButton.SetText(fmt.Sprintf("Sending '%s'", fname))
 		}
-	})
-	currentInfo := widget.NewLabel("")
+		for {
+			if len(filename) > 0 {
+				break
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
 
+		codePhrase := utils.GetRandomName()
+		codePhrase = "zack1"
+		crocOptions := croc.Options{
+			SharedSecret: codePhrase,
+			IsSender:     true,
+			Debug:        false,
+			NoPrompt:     true,
+			RelayAddress: models.DEFAULT_RELAY,
+			Stdout:       false,
+			DisableLocal: true,
+			RelayPorts:   strings.Split("9009,9010,9011,9012,9013", ","),
+		}
+		cr, err := croc.New(crocOptions)
+		if err != nil {
+			return
+		}
+
+		finfo, err := os.Stat(pathToFile)
+		if err != nil {
+			// TODO show something
+			return
+		}
+
+		currentInfo.SetText("Code phrase: " + codePhrase)
+		finished := false
+		transfering := false
+		prog := dialog.NewProgress("Progress", fmt.Sprintf("Transfering '%s' (%s)", fname, utils.ByteCountDecimal(finfo.Size())), w)
+		prog.Hide()
+		startTime := time.Now()
+		go func() {
+			for {
+				if finished || cr == nil {
+					mbPerSecond := float64(finfo.Size()) / time.Since(startTime).Seconds()
+					currentInfo.SetText(fmt.Sprintf("Finished transfer (%s/s).", utils.ByteCountDecimal(int64(mbPerSecond))))
+					prog.Hide()
+					sendFileButton.SetText("Choose a file to send")
+					return
+				}
+				if cr.Step1ChannelSecured {
+					currentInfo.SetText("Channel secured.")
+				}
+				if cr.Step4FileTransfer && !transfering {
+					transfering = true
+					currentInfo.SetText("Transfering file.")
+					prog.Show()
+					startTime = time.Now()
+				}
+				if cr.Bar != nil {
+					prog.SetValue(cr.Bar.State().CurrentPercent)
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+		}()
+		err = cr.Send(croc.TransferOptions{
+			PathToFiles:      []string{pathToFile},
+			KeepPathInRemote: false,
+		})
+		if err != nil {
+			// TODO: do something
+		}
+		cr = nil
+		finished = true
+		fmt.Println("send")
+	})
 	sendScreen := widget.NewVBox(
 		widget.NewLabelWithStyle("Send a file", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		sendFileButton,
-		widget.NewButton("Send", func() {
-
-			codePhrase := utils.GetRandomName()
-			crocOptions := croc.Options{
-				SharedSecret: codePhrase,
-				IsSender:     true,
-				Debug:        false,
-				NoPrompt:     true,
-				RelayAddress: models.DEFAULT_RELAY,
-				Stdout:       false,
-				DisableLocal: true,
-				RelayPorts:   strings.Split("9009,9010,9011,9012,9013", ","),
-			}
-			cr, err := croc.New(crocOptions)
-			if err != nil {
-				return
-			}
-
-			currentInfo.SetText("Code phrase: " + codePhrase)
-			finished := false
-			go func() {
-				for {
-					if finished || cr == nil {
-						currentInfo.SetText("Finished transfer.")
-						return
-					}
-					if cr.Step1ChannelSecured {
-						currentInfo.SetText("Channel secured.")
-					}
-					if cr.Step4FileTransfer {
-						currentInfo.SetText("Transfering file.")
-					}
-					if cr.Bar != nil {
-						progress.SetValue(cr.Bar.State().CurrentPercent)
-					}
-					time.Sleep(100 * time.Millisecond)
-				}
-			}()
-			err = cr.Send(croc.TransferOptions{
-				PathToFiles:      []string{pathToFile},
-				KeepPathInRemote: false,
-			})
-			if err != nil {
-				// TODO: do something
-			}
-			cr = nil
-			finished = true
-			fmt.Println("send")
-		}),
-		layout.NewSpacer(),
 		currentInfo,
-		widget.NewHBox(
-			widget.NewLabel("Progress:"),
-			progress,
-		),
+		layout.NewSpacer(),
 	)
 
 	var codePhraseToReceive string

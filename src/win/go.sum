@@ -58,6 +58,8 @@ github.com/schollz/croc/v6 v6.1.5 h1:+qBtJXDb5uSoGpFELvfjofkSTrGc1g4YkNjF8XgEXwY
 github.com/schollz/croc/v6 v6.1.5/go.mod h1:tri46MTpgVh2pPQ9IJJsJDQKHK63VfMW4+lvJAKqVlE=
 github.com/schollz/croc/v6 v6.1.6-0.20191009002122-3fcccecf3750 h1:LkqHUcYqFzWi1xWV1Mtz23yUTrgKKOgTpY72IuaTi/Y=
 github.com/schollz/croc/v6 v6.1.6-0.20191009002122-3fcccecf3750/go.mod h1:Wd/ZHrsZlxT21hRqbxaEWl8ww1uCHGR6xACaZQQV/wk=
+github.com/schollz/croc/v6 v6.1.6-0.20191009003006-e2198faa24d0 h1:UH27BGqcbGDIog19qzaOGp6yYOwKNRZM1FgnKGpJ3PQ=
+github.com/schollz/croc/v6 v6.1.6-0.20191009003006-e2198faa24d0/go.mod h1:Wd/ZHrsZlxT21hRqbxaEWl8ww1uCHGR6xACaZQQV/wk=
 github.com/schollz/logger v1.0.1 h1:BuBAU+euqphM0Ny9qFVScl4RSxatis4nCHIkOxO2cUU=
 github.com/schollz/logger v1.0.1/go.mod h1:P6F4/dGMGcx8wh+kG1zrNEd4vnNpEBY/mwEMd/vn6AM=
 github.com/schollz/mnemonicode v1.0.1 h1:LiH5hwADZwjwnfXsaD4xgnMyTAtaKHN+e5AyjRU6WSU=
