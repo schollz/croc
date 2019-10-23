@@ -6,6 +6,7 @@ require (
 	github.com/OneOfOne/xxhash v1.2.5 // indirect
 	github.com/cespare/xxhash v1.1.0
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
+	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/fatih/color v1.7.0 // indirect
 	github.com/kalafut/imohash v1.0.0
 	github.com/kr/pretty v0.1.0 // indirect
@@ -23,7 +24,7 @@ require (
 	github.com/urfave/cli v1.22.1
 	golang.org/x/crypto v0.0.0-20191002192127-34f69633bfdc
 	golang.org/x/net v0.0.0-20191003171128-d98b1b443823 // indirect
-	golang.org/x/sys v0.0.0-20191002091554-b397fe3ad8ed // indirect
+	golang.org/x/sys v0.0.0-20191023151326-f89234f9a2c2 // indirect
 	golang.org/x/text v0.3.2 // indirect
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 )

@@ -72,6 +72,7 @@ func Run() (err error) {
 		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
+		cli.BoolFlag{Name: "ask", Usage: "make sure sender and recipient are prompted"},
 		cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay"},
 		cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 	}
@@ -139,6 +140,7 @@ func send(c *cli.Context) (err error) {
 		Stdout:       c.GlobalBool("stdout"),
 		DisableLocal: c.Bool("no-local"),
 		RelayPorts:   strings.Split(c.String("ports"), ","),
+		Ask:          c.GlobalBool("ask"),
 	}
 	b, errOpen := ioutil.ReadFile(getConfigFile())
 	if errOpen == nil && !c.GlobalBool("remember") {
@@ -288,6 +290,7 @@ func receive(c *cli.Context) (err error) {
 		NoPrompt:     c.GlobalBool("yes"),
 		RelayAddress: c.GlobalString("relay"),
 		Stdout:       c.GlobalBool("stdout"),
+		Ask:          c.GlobalBool("ask"),
 	}
 	if c.Args().First() != "" {
 		crocOptions.SharedSecret = c.Args().First()
