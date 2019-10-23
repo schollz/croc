@@ -55,6 +55,7 @@ type Options struct {
 	Stdout       bool
 	NoPrompt     bool
 	DisableLocal bool
+	Ask          bool
 }
 
 // Client holds the state of the croc transfer
@@ -519,7 +520,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 		}
 	}
 	// c.spinner.Stop()
-	if !c.Options.NoPrompt {
+	if !c.Options.NoPrompt || c.Options.Ask {
 		fmt.Fprintf(os.Stderr, "\rAccept %s (%s)? (y/n) ", fname, utils.ByteCountDecimal(totalSize))
 		if strings.ToLower(strings.TrimSpace(utils.GetInput(""))) != "y" {
 			err = message.Send(c.conn[0], c.Key, message.Message{
@@ -900,7 +901,19 @@ func (c *Client) updateState() (err error) {
 	}
 
 	if c.Options.IsSender && c.Step3RecipientRequestFile && !c.Step4FileTransfer {
+		if c.Options.Ask {
+			fmt.Fprintf(os.Stderr, "\rSend to X? (y/n) ")
+			if strings.ToLower(strings.TrimSpace(utils.GetInput(""))) != "y" {
+				err = message.Send(c.conn[0], c.Key, message.Message{
+					Type:    "error",
+					Message: "refusing files",
+				})
+				return fmt.Errorf("refused files")
+			}
+		}
+
 		log.Debug("start sending data!")
+
 		if !c.firstSend {
 			fmt.Fprintf(os.Stderr, "\nSending (->%s)\n", c.ExternalIPConnected)
 			c.firstSend = true
