@@ -169,29 +169,75 @@ func main() {
 	}
 	entry.SetPlaceHolder("Enter code phrase")
 	var receiveFileButtion *widget.Button
+	receiveFolder := ""
 	receiveFileButtion = widget.NewButton("Set directory to save", func() {
 		filename, err := nativedialog.Directory().Title("Now find a dir").Browse()
 		fmt.Println(filename)
 		fmt.Println(err)
 		receiveFileButtion.SetText(filename)
+		receiveFolder = filename
 	})
 	receiveScreen := widget.NewVBox(
 		widget.NewLabelWithStyle("Receive a file", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		receiveFileButtion,
 		entry,
 		widget.NewButton("Receive", func() {
-			cnf := dialog.NewConfirm("Confirmation", "Accept file ?", confirmCallback, w)
-			cnf.SetDismissText("Nah")
-			cnf.SetConfirmText("Oh Yes!")
-			cnf.Show()
-			fmt.Println("codePhraseToReceive")
+			if receiveFolder != "" {
+				err := os.Chdir(receiveFolder)
+				if err != nil {
+					panic(err)
+				}
+			}
+			crocOptions := croc.Options{
+				SharedSecret: codePhraseToReceive,
+				IsSender:     false,
+				Debug:        false,
+				NoPrompt:     true,
+				RelayAddress: models.DEFAULT_RELAY,
+				Stdout:       false,
+				DisableLocal: true,
+				RelayPorts:   strings.Split("9009,9010,9011,9012,9013", ","),
+			}
+			cr, err := croc.New(crocOptions)
+			if err != nil {
+				return
+			}
+			finished := false
+			transfering := false
+			var prog *dialog.ProgressDialog
+			startTime := time.Now()
+			go func() {
+				for {
+					if finished || cr == nil {
+						// mbPerSecond := float64(finfo.Size()) / time.Since(startTime).Seconds()
+						// currentInfo.SetText(fmt.Sprintf("Finished transfer (%s/s).", utils.ByteCountDecimal(int64(mbPerSecond))))
+						prog.Hide()
+						return
+					}
+					if cr.Step1ChannelSecured {
+						currentInfo.SetText("Channel secured.")
+					}
+					if cr.Step4FileTransfer && !transfering {
+						transfering = true
+						currentInfo.SetText("Transfering file.")
+						prog = dialog.NewProgress("Progress", "Transfering", w)
+						startTime = time.Now()
+					}
+					if transfering && cr.Bar != nil {
+						prog.SetValue(cr.Bar.State().CurrentPercent)
+					}
+					time.Sleep(100 * time.Millisecond)
+				}
+			}()
+			err = cr.Receive()
+			if err != nil {
+				panic(err)
+			}
+			cr = nil
+			finished = true
 		}),
 		layout.NewSpacer(),
 		currentInfo,
-		widget.NewHBox(
-			widget.NewLabel("Progress:"),
-			progress,
-		),
 	)
 
 	progress.SetValue(0)

@@ -18,6 +18,7 @@ github.com/cpuguy83/go-md2man/v2 v2.0.0 h1:EoUDS0afbrsXAZ9YQ9jdu/mZ2sXgT1/2yyNng
 github.com/cpuguy83/go-md2man/v2 v2.0.0/go.mod h1:maD7wRr/U5Z6m/iR4s+kqSMx2CaBsrgA7czyZG/E6dU=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/fatih/color v1.7.0 h1:DkWD4oS2D8LGGgTQ6IvwJJXSL5Vp2ffcQg58nFV38Ys=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
@@ -62,6 +63,8 @@ github.com/schollz/croc/v6 v6.1.6-0.20191009003006-e2198faa24d0 h1:UH27BGqcbGDIo
 github.com/schollz/croc/v6 v6.1.6-0.20191009003006-e2198faa24d0/go.mod h1:Wd/ZHrsZlxT21hRqbxaEWl8ww1uCHGR6xACaZQQV/wk=
 github.com/schollz/croc/v6 v6.1.6-0.20191009155022-6cdf8cecfc0a h1:yVOlp4bFxCFSLMQZq4aTmAe4xJx6uXTVV5J4rBxZiwY=
 github.com/schollz/croc/v6 v6.1.6-0.20191009155022-6cdf8cecfc0a/go.mod h1:Wd/ZHrsZlxT21hRqbxaEWl8ww1uCHGR6xACaZQQV/wk=
+github.com/schollz/croc/v6 v6.1.6-0.20191009214340-6f1c49623059 h1:zjVHFer4w5VAXCNGEhvD7zSBQPWafHZj797siKoRZPM=
+github.com/schollz/croc/v6 v6.1.6-0.20191009214340-6f1c49623059/go.mod h1:Wd/ZHrsZlxT21hRqbxaEWl8ww1uCHGR6xACaZQQV/wk=
 github.com/schollz/logger v1.0.1 h1:BuBAU+euqphM0Ny9qFVScl4RSxatis4nCHIkOxO2cUU=
 github.com/schollz/logger v1.0.1/go.mod h1:P6F4/dGMGcx8wh+kG1zrNEd4vnNpEBY/mwEMd/vn6AM=
 github.com/schollz/mnemonicode v1.0.1 h1:LiH5hwADZwjwnfXsaD4xgnMyTAtaKHN+e5AyjRU6WSU=
@@ -93,6 +96,7 @@ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.3.1-0.20190311161405-34c6fa2dc709 h1:Ko2LQMrRU+Oy/+EDBwX7eZ2jp3C47eDBB8EIhKTun+I=
 github.com/stretchr/testify v1.3.1-0.20190311161405-34c6fa2dc709/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
+github.com/stretchr/testify v1.4.0 h1:2E4SXV/wtOkTonXsotYi4li6zVWxYlZuYNCXe9XRJyk=
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
 github.com/tscholl2/siec v0.0.0-20180721101609-21667da05937 h1:lhssCpSe3TjKcbvUoPzFMuv9oUyZDgI3Cmgolfw2C90=
 github.com/tscholl2/siec v0.0.0-20180721101609-21667da05937/go.mod h1:KL9+ubr1JZdaKjgAaHr+tCytEncXBa1pR6FjbTsOJnw=
@@ -127,4 +131,5 @@ golang.org/x/tools v0.0.0-20180917221912-90fa682c2a6e/go.mod h1:n7NCudcB/nEzxVGm
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/tylerb/is.v1 v1.1.2/go.mod h1:9yQB2tyIhZ5oph6Kk5Sq7cJMd9c5Jpa1p3hr9kxzPqo=
+gopkg.in/yaml.v2 v2.2.2 h1:ZCJp+EgiOT7lHqUV2J862kp8Qj64Jo6az82+3Td9dZw=
 gopkg.in/yaml.v2 v2.2.2/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
