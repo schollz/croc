@@ -132,6 +132,7 @@ type RemoteFileRequest struct {
 type SenderInfo struct {
 	FilesToTransfer []FileInfo
 	MachineID       string
+	Ask             bool
 }
 
 // New establishes a new connection for transferring files between two instances.
@@ -309,7 +310,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	fmt.Fprintf(os.Stderr, "Code is: %s\nOn the other computer run\n\ncroc %s%s\n", c.Options.SharedSecret, otherRelay, c.Options.SharedSecret)
 	if c.Options.Ask {
 		machid, _ := machineid.ID()
-		fmt.Fprintf(os.Stderr, "\nYour machine ID is '%s'\n", machid)
+		fmt.Fprintf(os.Stderr, "\rYour machine ID is '%s'\n", machid)
 	}
 	// // c.spinner.Suffix = " waiting for recipient..."
 	// c.spinner.Start()
@@ -527,8 +528,8 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 		}
 	}
 	// c.spinner.Stop()
-	if !c.Options.NoPrompt || c.Options.Ask {
-		if c.Options.Ask && senderInfo.MachineID != "" {
+	if !c.Options.NoPrompt || c.Options.Ask || senderInfo.Ask {
+		if c.Options.Ask || senderInfo.Ask {
 			machID, _ := machineid.ID()
 			fmt.Fprintf(os.Stderr, "\rYour machine id is '%s'.\nAccept %s (%s) from '%s'? (y/n) ", machID, fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
 		} else {
@@ -681,7 +682,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		c.Step3RecipientRequestFile = true
 
 		if c.Options.Ask {
-			fmt.Fprintf(os.Stderr, "\rSend to machine '%s'? (y/n) ", remoteFile.MachineID)
+			fmt.Fprintf(os.Stderr, "Send to machine '%s'? (y/n) ", remoteFile.MachineID)
 			if strings.ToLower(strings.TrimSpace(utils.GetInput(""))) != "y" {
 				err = message.Send(c.conn[0], c.Key, message.Message{
 					Type:    "error",
@@ -724,6 +725,7 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 		b, err = json.Marshal(SenderInfo{
 			FilesToTransfer: c.FilesToTransfer,
 			MachineID:       machID,
+			Ask:             c.Options.Ask,
 		})
 		if err != nil {
 			log.Error(err)
