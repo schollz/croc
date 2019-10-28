@@ -258,7 +258,7 @@ func (c *Client) broadcastOnLocalNetwork() {
 	// look for peers first
 	discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
 		Limit:     -1,
-		Payload:   []byte(c.Options.RelayPorts[0]),
+		Payload:   []byte("croc" + c.Options.RelayPorts[0]),
 		Delay:     10 * time.Millisecond,
 		TimeLimit: 30 * time.Second,
 	})
@@ -394,10 +394,18 @@ func (c *Client) Receive() (err error) {
 			TimeLimit: 100 * time.Millisecond,
 		})
 		if err == nil && len(discoveries) > 0 {
-			log.Debug("switching to local")
-			c.Options.RelayAddress = fmt.Sprintf("%s:%s", discoveries[0].Address, discoveries[0].Payload)
-			c.ExternalIPConnected = c.Options.RelayAddress
-			usingLocal = true
+			for i := 0; i < len(discoveries); i++ {
+				if !bytes.HasPrefix(discoveries[i].Payload, []byte("croc")) {
+					log.Debugf("discovery %d has wrong payload: %+v", i, discoveries[i])
+				}
+				log.Debug("switching to local")
+				c.Options.RelayAddress = fmt.Sprintf("%s:%s",
+					discoveries[0].Address,
+					bytes.TrimPrefix(discoveries[0].Payload, []byte("croc")),
+				)
+				c.ExternalIPConnected = c.Options.RelayAddress
+				usingLocal = true
+			}
 		}
 		log.Debugf("discoveries: %+v", discoveries)
 		log.Debug("establishing connection")
