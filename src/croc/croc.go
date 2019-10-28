@@ -395,8 +395,10 @@ func (c *Client) Receive() (err error) {
 		})
 		if err == nil && len(discoveries) > 0 {
 			for i := 0; i < len(discoveries); i++ {
+				log.Debugf("discovery %d has payload: %+v", i, discoveries[i])
 				if !bytes.HasPrefix(discoveries[i].Payload, []byte("croc")) {
-					log.Debugf("discovery %d has wrong payload: %+v", i, discoveries[i])
+					log.Debug("skipping discovery")
+					continue
 				}
 				log.Debug("switching to local")
 				c.Options.RelayAddress = fmt.Sprintf("%s:%s",
