@@ -119,6 +119,9 @@ func createOfferer(finished chan<- error) (pc *webrtc.PeerConnection, err error)
 	// Register the OnMessage to handle incoming messages
 	dc.OnMessage(func(dcMsg webrtc.DataChannelMessage) {
 		fmt.Printf("got message: %x\n", md5.Sum(dcMsg.Data))
+		if len(dcMsg.Data) < 100 {
+			log.Debugf("msg: %s", string(dcMsg.Data))
+		}
 	})
 
 	return pc, nil

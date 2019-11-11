@@ -1,0 +1,126 @@
+<html>
+
+<head>
+
+    <script src="https://cdn.jsdelivr.net/gh/emn178/js-md5/build/md5.min.js"></script>
+    <style>
+        #byte_content {
+            margin: 5px 0;
+            max-height: 100px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        #byte_range {
+            margin-top: 5px;
+        }
+    </style>
+
+</html>
+
+<body>
+
+    <input type="file" id="files" name="file" /> Read bytes:
+    <span class="readBytesButtons">
+        <button data-startbyte="0" data-endbyte="4">1-5</button>
+        <button data-startbyte="5" data-endbyte="14">6-15</button>
+        <button data-startbyte="6" data-endbyte="7">7-8</button>
+        <button>entire file</button>
+    </span>
+    <div id="byte_range"></div>
+    <div id="byte_content"></div>
+    Base64: <textarea id="remoteSessionDescription"></textarea> <br />
+    <button onclick="startSession()"> Send Message </button> <br />
+
+
+    <script>
+
+
+
+        function readBlob(opt_startByte, opt_stopByte) {
+
+            var files = document.getElementById('files').files;
+            if (!files.length) {
+                alert('Please select a file!');
+                return;
+            }
+
+            var file = files[0];
+            var start = parseInt(opt_startByte) || 0;
+            var stop = parseInt(opt_stopByte) || file.size - 1;
+
+            var reader = new FileReader();
+
+            // If we use onloadend, we need to check the readyState.
+            reader.onloadend = function (evt) {
+                if (evt.target.readyState == FileReader.DONE) { // DONE == 2
+                    document.getElementById('byte_content').textContent = evt.target.result;
+                    document.getElementById('byte_range').textContent =
+                        ['Read bytes: ', start + 1, ' - ', stop + 1,
+                            ' of ', file.size, ' byte file'].join('');
+                    sendMessage(evt.target.result);
+                }
+            };
+
+            var blob = file.slice(start, stop + 1);
+            reader.readAsBinaryString(blob);
+        }
+
+        document.querySelector('.readBytesButtons').addEventListener('click', function (evt) {
+            if (evt.target.tagName.toLowerCase() == 'button') {
+                var startByte = evt.target.getAttribute('data-startbyte');
+                var endByte = evt.target.getAttribute('data-endbyte');
+                readBlob(startByte, endByte);
+            }
+        }, false);
+
+
+
+
+        let pc = new RTCPeerConnection({
+            iceServers: [{
+                urls: 'stun:stun.l.google.com:19302'
+            }]
+        })
+        let log = msg => {
+            console.log(msg);
+        }
+
+        pc.onsignalingstatechange = e => log(pc.signalingState)
+        pc.oniceconnectionstatechange = e => log(pc.iceConnectionState)
+        pc.onicecandidate = event => {
+            if (event.candidate === null) {
+                log(JSON.stringify(pc.localDescription))
+            }
+        }
+
+
+
+        pc.ondatachannel = e => {
+            let dc = e.channel
+            log('New DataChannel ' + dc.label)
+            dc.onclose = () => log('dc has closed')
+            dc.onopen = () => {
+                log('dc has opened');
+            }
+            dc.onmessage = e => {
+                log(`Message from DataChannel '${dc.label}' payload '${e.data}'`)
+            }
+            window.sendMessage = e => {
+                let message = e;
+                if (message === '') {
+                    return alert('Message must not be empty')
+                }
+
+                dc.send(message)
+            }
+        }
+
+        window.startSession = () => {
+            pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(document.getElementById('remoteSessionDescription').value)))).catch(log)
+            pc.createAnswer().then(d => pc.setLocalDescription(d)).catch(log)
+        }
+    </script>
+</body>
+
+</html>
