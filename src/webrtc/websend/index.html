@@ -120,6 +120,29 @@
             pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(document.getElementById('remoteSessionDescription').value)))).catch(log)
             pc.createAnswer().then(d => pc.setLocalDescription(d)).catch(log)
         }
+
+        // websockets 
+        var socket;
+
+        const socketMessageListener = (event) => {
+            log(event);
+        };
+        const socketOpenListener = (event) => {
+            log('Connected');
+        }
+        const socketCloseListener = (event) => {
+            if (socket) {
+                log('Disconnected.');
+            }
+            // var ws_url = window.origin.replace("http", "ws") + '/ws/test1';
+            var ws_url = "ws://localhost:8000/ws/test1";
+            log(`connecting to '${ws_url}'`)
+            socket = new WebSocket(ws_url);
+            socket.addEventListener('open', socketOpenListener);
+            socket.addEventListener('message', socketMessageListener);
+            socket.addEventListener('close', socketCloseListener);
+        };
+        socketCloseListener();
     </script>
 </body>
 
