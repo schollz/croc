@@ -5,11 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
-	"flag"
 	"fmt"
-	"io/ioutil"
-	"os"
+	"strings"
 	"time"
 
 	"github.com/pion/webrtc/v2"
@@ -23,16 +20,14 @@ const (
 )
 
 func setRemoteDescription(pc *webrtc.PeerConnection, sdp []byte) (err error) {
-	log.Debug("setting remote description")
+	log.Debug("unmarshaling remote description")
 	var desc webrtc.SessionDescription
 	err = json.Unmarshal(sdp, &desc)
 	if err != nil {
 		log.Error(err)
 		return
 	}
-
-	log.Debug("applying remote description")
-	// Apply the desc as the remote description
+	log.Debug("apply the desc as the remote description")
 	err = pc.SetRemoteDescription(desc)
 	if err != nil {
 		log.Error(err)
@@ -40,7 +35,7 @@ func setRemoteDescription(pc *webrtc.PeerConnection, sdp []byte) (err error) {
 	return
 }
 
-func createOfferer(finished chan<- error) (pc *webrtc.PeerConnection, err error) {
+func createOfferer() (pc *webrtc.PeerConnection, err error) {
 	// Prepare the configuration
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{{URLs: []string{"stun:stun.l.google.com:19302"}}},
@@ -91,17 +86,15 @@ func createOfferer(finished chan<- error) (pc *webrtc.PeerConnection, err error)
 			buf := make([]byte, maxPacketSize)
 			rand.Read(buf)
 			its++
-			if its == 3000000000 {
+			if its == 30000000000 {
 				buf = []byte{1, 2, 3}
-				finished <- errors.New("done")
 			}
 			err2 := sendData(buf)
 			if err2 != nil {
-				finished <- err2
 				return
 			}
 			time.Sleep(1 * time.Second)
-			if its == 30000000 {
+			if its == 3000000000 {
 				break
 			}
 		}
@@ -124,102 +117,53 @@ func createOfferer(finished chan<- error) (pc *webrtc.PeerConnection, err error)
 	return pc, nil
 }
 
+//func main(this js.Value, inputs []js.Value) interface{} {
 func main() {
 	log.SetLevel("debug")
-	finished := make(chan error, 1)
-	var sender bool
-	flag.BoolVar(&sender, "sender", false, "set as sender")
-	flag.Parse()
-	log.SetLevel("debug")
-	if sender {
-		os.Remove("answer.json")
-		os.Remove("offer.json")
+	log.Debugf("running with input")
 
-		offerPC, err := createOfferer(finished)
-		if err != nil {
-			log.Error(err)
-		}
-		// Now, create an offer
-		offer, err := offerPC.CreateOffer(nil)
-		if err != nil {
-			log.Error(err)
-		}
-
-		err = offerPC.SetLocalDescription(offer)
-		if err != nil {
-			log.Error(err)
-		}
-
-		desc, err := json.Marshal(offer)
-		if err != nil {
-			log.Error(err)
-		}
-		fmt.Println(base64.StdEncoding.EncodeToString(desc))
-		err = ioutil.WriteFile("offer.json", desc, 0644)
-		if err != nil {
-			log.Error(err)
-		}
-
-		// wait for answer
-		for {
-			b, errFile := ioutil.ReadFile("answer.json")
-			if errFile != nil {
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			fmt.Println(string(b))
-			fmt.Println(time.Now())
-			err = setRemoteDescription(offerPC, b)
-			if err != nil {
-				log.Error(err)
-			}
-			break
-		}
-		log.Debug("sender succeeded")
-	} else {
-		answerPC, err := createOfferer(finished)
-		if err != nil {
-			log.Error(err)
-		}
-
-		b, err := ioutil.ReadFile("offer.json")
-		if err != nil {
-			log.Error(err)
-		}
-
-		err = setRemoteDescription(answerPC, b)
-		if err != nil {
-			log.Error(err)
-		}
-
-		answer, err := answerPC.CreateAnswer(nil)
-		if err != nil {
-			log.Error(err)
-		}
-
-		err = answerPC.SetLocalDescription(answer)
-		if err != nil {
-			log.Error(err)
-		}
-
-		desc2, err := json.Marshal(answer)
-		if err != nil {
-			log.Error(err)
-		}
-
-		fmt.Println(string(desc2))
-		err = ioutil.WriteFile("answer.json", desc2, 0644)
-		if err != nil {
-			log.Error(err)
-		}
-	}
-
-	// Block forever
-	log.Debug("blocking forever")
-	err := <-finished
+	log.Debug("creating offer")
+	answerPC, err := createOfferer()
 	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println("finished gracefully")
+		log.Error(err)
 	}
+
+	offerstring := `
+eyJ0eXBlIjoib2ZmZXIiLCJzZHAiOiJ2PTBcclxubz0tIDQ2NTUyNjkxMSAxNTczNDg4NzQwIElOIElQNCAwLjAuMC4wXHJcbnM9LVxyXG50PTAgMFxyXG5hPWZpbmdlcnByaW50OnNoYS0yNTYgNkU6QTI6QTc6M0M6OUE6ODI6NzY6Q0Q6REQ6OTg6RkI6NUY6RkM6Mjc6Mzk6QkY6NDg6NDk6QzY6Rjc6RTc6RjE6NTM6MDQ6NjM6ODY6MTE6REQ6NTA6Q0Q6MTg6QjJcclxuYT1ncm91cDpCVU5ETEUgMFxyXG5tPWFwcGxpY2F0aW9uIDkgRFRMUy9TQ1RQIDUwMDBcclxuYz1JTiBJUDQgMC4wLjAuMFxyXG5hPXNldHVwOmFjdHBhc3NcclxuYT1taWQ6MFxyXG5hPXNlbmRyZWN2XHJcbmE9c2N0cG1hcDo1MDAwIHdlYnJ0Yy1kYXRhY2hhbm5lbCAxMDI0XHJcbmE9aWNlLXVmcmFnOnBhVUFyandKV3dKSldWVlhcclxuYT1pY2UtcHdkOmZEQ0hOY0FHd2hxVklTUlZxWFl0WEtGYU1QSnhYZ0tYXHJcbmE9Y2FuZGlkYXRlOmZvdW5kYXRpb24gMSB1ZHAgMjEzMDcwNjQzMSAxOTIuMTY4LjEuMTYgNDA3NTggdHlwIGhvc3QgZ2VuZXJhdGlvbiAwXHJcbmE9Y2FuZGlkYXRlOmZvdW5kYXRpb24gMiB1ZHAgMjEzMDcwNjQzMSAxOTIuMTY4LjEuMTYgNDA3NTggdHlwIGhvc3QgZ2VuZXJhdGlvbiAwXHJcbmE9Y2FuZGlkYXRlOmZvdW5kYXRpb24gMSB1ZHAgMTY5NDQ5ODgxNSAyNC4xNy4yMjQuMTQxIDUyNzcyIHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDUyNzcyIGdlbmVyYXRpb24gMFxyXG5hPWNhbmRpZGF0ZTpmb3VuZGF0aW9uIDIgdWRwIDE2OTQ0OTg4MTUgMjQuMTcuMjI0LjE0MSA1Mjc3MiB0eXAgc3JmbHggcmFkZHIgMC4wLjAuMCBycG9ydCA1Mjc3MiBnZW5lcmF0aW9uIDBcclxuYT1lbmQtb2YtY2FuZGlkYXRlc1xyXG4ifQ==
+
+`
+
+	log.Debug("decoding")
+	b, err := base64.StdEncoding.DecodeString(strings.TrimSpace(offerstring))
+	if err != nil {
+		log.Error(err)
+	}
+
+	log.Debugf("setting remote description: %s", b)
+	err = setRemoteDescription(answerPC, b)
+	if err != nil {
+		log.Error(err)
+	}
+
+	log.Debug("creating answer")
+	answer, err := answerPC.CreateAnswer(nil)
+	if err != nil {
+		log.Error(err)
+	}
+
+	log.Debug("setting local description")
+	err = answerPC.SetLocalDescription(answer)
+	if err != nil {
+		log.Error(err)
+	}
+
+	log.Debug("marshaling answer")
+	desc2, err := json.Marshal(answer)
+	if err != nil {
+		log.Error(err)
+	}
+
+	fmt.Println(string(desc2))
+
+	select {}
 }
