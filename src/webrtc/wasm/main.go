@@ -128,11 +128,6 @@ func main() {
 		log.Error(err)
 	}
 
-	offerstring := `
-eyJ0eXBlIjoib2ZmZXIiLCJzZHAiOiJ2PTBcclxubz0tIDQ2NTUyNjkxMSAxNTczNDg4NzQwIElOIElQNCAwLjAuMC4wXHJcbnM9LVxyXG50PTAgMFxyXG5hPWZpbmdlcnByaW50OnNoYS0yNTYgNkU6QTI6QTc6M0M6OUE6ODI6NzY6Q0Q6REQ6OTg6RkI6NUY6RkM6Mjc6Mzk6QkY6NDg6NDk6QzY6Rjc6RTc6RjE6NTM6MDQ6NjM6ODY6MTE6REQ6NTA6Q0Q6MTg6QjJcclxuYT1ncm91cDpCVU5ETEUgMFxyXG5tPWFwcGxpY2F0aW9uIDkgRFRMUy9TQ1RQIDUwMDBcclxuYz1JTiBJUDQgMC4wLjAuMFxyXG5hPXNldHVwOmFjdHBhc3NcclxuYT1taWQ6MFxyXG5hPXNlbmRyZWN2XHJcbmE9c2N0cG1hcDo1MDAwIHdlYnJ0Yy1kYXRhY2hhbm5lbCAxMDI0XHJcbmE9aWNlLXVmcmFnOnBhVUFyandKV3dKSldWVlhcclxuYT1pY2UtcHdkOmZEQ0hOY0FHd2hxVklTUlZxWFl0WEtGYU1QSnhYZ0tYXHJcbmE9Y2FuZGlkYXRlOmZvdW5kYXRpb24gMSB1ZHAgMjEzMDcwNjQzMSAxOTIuMTY4LjEuMTYgNDA3NTggdHlwIGhvc3QgZ2VuZXJhdGlvbiAwXHJcbmE9Y2FuZGlkYXRlOmZvdW5kYXRpb24gMiB1ZHAgMjEzMDcwNjQzMSAxOTIuMTY4LjEuMTYgNDA3NTggdHlwIGhvc3QgZ2VuZXJhdGlvbiAwXHJcbmE9Y2FuZGlkYXRlOmZvdW5kYXRpb24gMSB1ZHAgMTY5NDQ5ODgxNSAyNC4xNy4yMjQuMTQxIDUyNzcyIHR5cCBzcmZseCByYWRkciAwLjAuMC4wIHJwb3J0IDUyNzcyIGdlbmVyYXRpb24gMFxyXG5hPWNhbmRpZGF0ZTpmb3VuZGF0aW9uIDIgdWRwIDE2OTQ0OTg4MTUgMjQuMTcuMjI0LjE0MSA1Mjc3MiB0eXAgc3JmbHggcmFkZHIgMC4wLjAuMCBycG9ydCA1Mjc3MiBnZW5lcmF0aW9uIDBcclxuYT1lbmQtb2YtY2FuZGlkYXRlc1xyXG4ifQ==
-
-`
-
 	log.Debug("decoding")
 	b, err := base64.StdEncoding.DecodeString(strings.TrimSpace(offerstring))
 	if err != nil {
@@ -163,7 +158,10 @@ eyJ0eXBlIjoib2ZmZXIiLCJzZHAiOiJ2PTBcclxubz0tIDQ2NTUyNjkxMSAxNTczNDg4NzQwIElOIElQ
 		log.Error(err)
 	}
 
+	log.Debug("copy and paste the following output into src/webrtc/answer.json:")
+	fmt.Println(" ")
 	fmt.Println(string(desc2))
+	fmt.Println(" ")
 
 	select {}
 }

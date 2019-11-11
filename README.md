@@ -1,7 +1,18 @@
 ```
-Work in progress.
+# in the first terminal
+git clone https://github.com/schollz/croc.git
+cd croc 
+git checkout v7
+cd src/webrtc/
+make sender
 
-This will be yet another re-write of croc (the 7th!). This time it should be 
-compatible with a browser as it will use WebRTC by default for data transfer and
-it the main relay (for PAKE and WebRTC offer exchange) will be made using websockets.
+# in second terminal
+cd src/webrtc/
+make receive
+
+# open up localhost:8003 and open console.
+# copy the last JSON output and save it into src/webrtc/answer.json
+
+# communication should ensue....
 ```
+

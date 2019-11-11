@@ -172,6 +172,8 @@ func main() {
 			err = setRemoteDescription(offerPC, b)
 			if err != nil {
 				log.Error(err)
+				time.Sleep(3 * time.Second)
+				continue
 			}
 			break
 		}
