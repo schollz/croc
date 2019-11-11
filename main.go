@@ -12,6 +12,8 @@ import (
 )
 
 func main() {
+	// "github.com/pkg/profile"
+	// defer profile.Start(profile.CPUProfile).Stop()
 	if err := cli.Run(); err != nil {
 		fmt.Println(err)
 	}
