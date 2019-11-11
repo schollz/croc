@@ -264,8 +264,8 @@ func (c *Client) broadcastOnLocalNetwork() {
 	})
 	log.Debugf("discoveries: %+v", discoveries)
 
-	if err == nil && len(discoveries) > 0 {
-		log.Debug("using local server")
+	if err != nil {
+		log.Debug(err.Error())
 	}
 }
 
@@ -339,7 +339,10 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		}
 		log.Debugf("connection established: %+v", conn)
 		for {
-			data, _ := conn.Receive()
+			data, errConn := conn.Receive()
+			if errConn != nil {
+				log.Debugf("[%+v] had error: %s", conn, errConn.Error())
+			}
 			if bytes.Equal(data, []byte("ips?")) {
 				// recipient wants to try to connect to local ips
 				var ips []string
@@ -355,9 +358,12 @@ func (c *Client) Send(options TransferOptions) (err error) {
 				}
 				bips, _ := json.Marshal(ips)
 				conn.Send(bips)
-			}
-			if bytes.Equal(data, []byte("handshake")) {
+			} else if bytes.Equal(data, []byte("handshake")) {
 				break
+			} else {
+				log.Debugf("[%+v] got weird bytes: %+v", conn, data)
+				// throttle the reading
+				time.Sleep(100 * time.Millisecond)
 			}
 		}
 
