@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/md5"
-	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -88,8 +87,9 @@ func createOfferer(finished chan<- error) (pc *webrtc.PeerConnection, err error)
 		log.Debugf("OnOpen: %s-%d. Start sending a series of 1024-byte packets as fast as it can\n", dc.Label(), dc.ID())
 		its := 0
 		for {
-			buf := make([]byte, maxPacketSize)
-			rand.Read(buf)
+			// buf := make([]byte, maxPacketSize)
+			buf := []byte(fmt.Sprintf("%d\n", its))
+			// rand.Read(buf)
 			its++
 			if its == 3000000000 {
 				buf = []byte{1, 2, 3}

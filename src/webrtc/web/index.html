@@ -1,0 +1,143 @@
+<html>
+
+<head>
+
+    <script src="https://cdn.jsdelivr.net/gh/emn178/js-md5/build/md5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/web-streams-polyfill@2.0.2/dist/ponyfill.min.js"></script>
+    <script src="https://jimmywarting.github.io/StreamSaver.js/StreamSaver.js"></script>
+</head>
+
+</html>
+
+<body>
+
+    Base64: <textarea id="remoteSessionDescription"></textarea> <br />
+    <button onclick="startSession()"> Send Message </button> <br />
+
+
+    <script>
+
+        var transferable_readable_stream = false;
+        var message_channel_stream = true;
+        var fetch_to_keep_sw_alive = true;
+        var secure_web_context = true;
+        var use_hidden_frame = true;
+        var use_popup_to_install = true;
+        var use_location_href = false;
+        var use_cross_origin_service_worker = false;
+        var enable_desktop_notifications = false;
+        var filename_to_receive = "sample2.txt"
+        var file_is_closed = false;
+
+        if ('isSecureContext' in window) {
+            use_hidden_frame = secure_web_context = isSecureContext
+            use_popup_to_install = !isSecureContext
+        } else {
+            secure_web_context.indeterminate = true
+        }
+
+        use_location_href = !use_hidden_frame
+        use_cross_origin_service_worker = new URL(streamSaver.mitm).origin !== window.origin
+
+        try {
+            const { readable } = new TransformStream()
+            const mc = new MessageChannel()
+            mc.port1.postMessage(readable, [readable])
+            mc.port1.close()
+            mc.port2.close()
+            transferable_readable_stream = true
+        } catch (e) {
+            message_channel_stream = true
+            fetch_to_keep_sw_alive = true
+        }
+
+        if (Notification.permission !== 'granted' && enable_desktop_notifications == true) {
+            Notification.requestPermission().then(console.log, console.log)
+        }
+
+        // initial streaming variables
+        var max = 30;
+        var streaming_start = Date.now();
+        var num_bytes_written = 0;
+
+        // // testing streaming
+        // window.fileStream = streamSaver.createWriteStream(filename_to_receive, { size: max })
+        // window.writer = fileStream.getWriter()
+        // window.onunload = () => {
+        //     console.log("aborting");
+        //     window.writer.abort()
+        // }
+        // window.writer.write(new TextEncoder().encode("hello, world"))
+
+
+        // --- end streaming code ---
+
+
+
+        let pc = new RTCPeerConnection({
+            iceServers: [{
+                urls: 'stun:stun.l.google.com:19302'
+            }]
+        })
+        let log = msg => {
+            console.log(msg);
+        }
+
+        pc.onsignalingstatechange = e => log(pc.signalingState)
+        pc.oniceconnectionstatechange = e => log(pc.iceConnectionState)
+        pc.onicecandidate = event => {
+            if (event.candidate === null) {
+                log(JSON.stringify(pc.localDescription))
+            }
+        }
+
+
+
+        pc.ondatachannel = e => {
+            let dc = e.channel
+            log('New DataChannel ' + dc.label)
+            dc.onclose = () => log('dc has closed')
+            dc.onopen = () => {
+                log('dc has opened');
+
+                // initiate the streaming to file 
+                streaming_start = Date.now()
+                window.fileStream = streamSaver.createWriteStream(filename_to_receive, { size: max })
+                window.writer = fileStream.getWriter()
+                window.onunload = () => writer.abort()
+            }
+            dc.onmessage = e => {
+                log(`Message from DataChannel '${dc.label}' payload '${e.data}'`)
+                log(md5(e.data));
+
+                if (!(file_is_closed)) {
+                    let bytes_to_write = new Uint8Array(e.data);
+                    log(bytes_to_write)
+                    window.writer.write(bytes_to_write)
+                    num_bytes_written = num_bytes_written + bytes_to_write.length;
+                    console.log(num_bytes_written + ' bytes written');
+                    if (num_bytes_written >= max) {
+                        console.log('Download completed')
+                        window.writer.close()
+                        file_is_closed = true;
+                    }
+                }
+            }
+            window.sendMessage = e => {
+                let message = e;
+                if (message === '') {
+                    return alert('Message must not be empty')
+                }
+
+                dc.send(message)
+            }
+        }
+
+        window.startSession = () => {
+            pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(document.getElementById('remoteSessionDescription').value)))).catch(log)
+            pc.createAnswer().then(d => pc.setLocalDescription(d)).catch(log)
+        }
+    </script>
+</body>
+
+</html>
