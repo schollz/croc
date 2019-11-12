@@ -137,7 +137,6 @@ func main() {
 	if sender {
 		os.Remove("answer.json")
 		os.Remove("offer.json")
-
 		offerPC, err := createOfferer(finished)
 		if err != nil {
 			log.Error(err)
@@ -192,11 +191,6 @@ func main() {
 			log.Error(err)
 		}
 
-		err = answerPC.SetLocalDescription(answer)
-		if err != nil {
-			log.Error(err)
-		}
-
 		err = setRemoteDescription(answerPC, b)
 		if err != nil {
 			log.Error(err)
@@ -206,7 +200,10 @@ func main() {
 		if err != nil {
 			log.Error(err)
 		}
-
+		err = answerPC.SetLocalDescription(answer)
+		if err != nil {
+			log.Error(err)
+		}
 
 		desc2, err := json.Marshal(answer)
 		if err != nil {
