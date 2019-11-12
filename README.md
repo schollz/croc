@@ -55,7 +55,7 @@ $ scoop install croc
 Or, you can [install Go](https://golang.org/dl/) and build from source (requires Go 1.12+): 
 
 ```
-$ go get -v github.com/schollz/croc
+$ GO111MODULE=on go get -v github.com/schollz/croc/v6
 ```
 
 
