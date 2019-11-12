@@ -236,7 +236,11 @@ func pakeUpdate(this js.Value, inputs []js.Value) interface{} {
 // pakePublic(pakeBytes)
 func pakePublic(this js.Value, inputs []js.Value) interface{} {
 	var P *pake.Pake
-	err := json.Unmarshal([]byte(inputs[0].String()), &P)
+	b, err := base64.StdEncoding.DecodeString(inputs[0].String())
+	if err != nil {
+		return js.Global().Get("Error").New(err.Error())
+	}
+	err = json.Unmarshal(b, &P)
 	P.SetCurve(elliptic.P521())
 	if err != nil {
 		return js.Global().Get("Error").New(err.Error())
@@ -247,7 +251,11 @@ func pakePublic(this js.Value, inputs []js.Value) interface{} {
 // pakeSessionKey(pakeBytes)
 func pakeSessionKey(this js.Value, inputs []js.Value) interface{} {
 	var P *pake.Pake
-	err := json.Unmarshal([]byte(inputs[0].String()), &P)
+	b, err := base64.StdEncoding.DecodeString(inputs[0].String())
+	if err != nil {
+		return js.Global().Get("Error").New(err.Error())
+	}
+	err = json.Unmarshal(b, &P)
 	P.SetCurve(elliptic.P521())
 	if err != nil {
 		return js.Global().Get("Error").New(err.Error())

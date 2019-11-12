@@ -63,7 +63,7 @@ type TransferOptions struct {
 
 type WebsocketMessage struct {
 	Message string
-	Payload []byte
+	Payload string
 }
 
 func (c *Client) Bundle(payload interface{}) (p []byte, err error) {
@@ -156,7 +156,7 @@ func New(ops Options) (c *Client, err error) {
 		// offerer sends the first pake
 		c.SendWebsocketMessage(WebsocketMessage{
 			Message: "pake",
-			Payload: c.Pake.Bytes(),
+			Payload: base64.StdEncoding.EncodeToString(c.Pake.Bytes()),
 		}, false)
 	} else {
 		// answerer receives the first pake
@@ -214,7 +214,10 @@ func New(ops Options) (c *Client, err error) {
 			log.Error(err)
 		}
 		err = c.SendWebsocketMessage(
-			WebsocketMessage{Message: "offer", Payload: offerJSON},
+			WebsocketMessage{
+				Message: "offer",
+				Payload: base64.StdEncoding.EncodeToString(offerJSON),
+			},
 			true,
 		)
 		if err != nil {
@@ -226,7 +229,9 @@ func New(ops Options) (c *Client, err error) {
 		var wsmsg WebsocketMessage
 		wsmsg, err = c.ReceiveWebsocketMessage(true)
 
-		err = setRemoteDescription(c.rtc, wsmsg.Payload)
+		var payload []byte
+		payload, err = base64.StdEncoding.DecodeString(wsmsg.Payload)
+		err = setRemoteDescription(c.rtc, payload)
 		if err != nil {
 			log.Error(err)
 			return
@@ -236,7 +241,9 @@ func New(ops Options) (c *Client, err error) {
 		var wsmsg WebsocketMessage
 		wsmsg, err = c.ReceiveWebsocketMessage(true)
 
-		err = setRemoteDescription(c.rtc, wsmsg.Payload)
+		var payload []byte
+		payload, err = base64.StdEncoding.DecodeString(wsmsg.Payload)
+		err = setRemoteDescription(c.rtc, payload)
 		if err != nil {
 			log.Error(err)
 			return
@@ -261,7 +268,10 @@ func New(ops Options) (c *Client, err error) {
 			log.Error(err)
 		}
 		err = c.SendWebsocketMessage(
-			WebsocketMessage{Message: "answer", Payload: answerJSON},
+			WebsocketMessage{
+				Message: "answer",
+				Payload: base64.StdEncoding.EncodeToString(answerJSON),
+			},
 			true,
 		)
 		if err != nil {
@@ -282,8 +292,13 @@ func (c *Client) getPAKE(keepSending bool) (err error) {
 		log.Error(err)
 		return
 	}
-	log.Debugf("getPake got: %+v", p)
-	err = c.Pake.Update(p.Payload)
+	payload, err := base64.StdEncoding.DecodeString(p.Payload)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	err = c.Pake.Update(payload)
 	if err != nil {
 		log.Error(err)
 		return
@@ -292,7 +307,7 @@ func (c *Client) getPAKE(keepSending bool) (err error) {
 		//  sends back PAKE bytes
 		err = c.SendWebsocketMessage(WebsocketMessage{
 			Message: "pake",
-			Payload: c.Pake.Bytes(),
+			Payload: base64.StdEncoding.EncodeToString(c.Pake.Bytes()),
 		}, false)
 	}
 	return

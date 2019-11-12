@@ -134,13 +134,22 @@
             console.log(data);
             if (data.Message == "pake") {
                 log("processing pake data");
-            } else if (data.Message == "offerer") {
-                log("offering the first pake");
-                pakeData = pakeInit("test1", 0);
-                console.log(pakeData);
+                // console.log(pakeData);
+                pakeData = pakeUpdate(pakeData, data.Payload);
+                console.log(pakeSessionKey(pakeData));
                 sendMessage({
                     "Message": "pake",
-                    "Payload": pakeData,
+                    "Payload": pakePublic(pakeData),
+                })
+            } else if (data.Message == "offerer") {
+                log("offering the first pake");
+                sendMessage({
+                    "Message": "answerer",
+                })
+                pakeData = pakeInit("test1", 0);
+                sendMessage({
+                    "Message": "pake",
+                    "Payload": pakePublic(pakeData),
                 })
             }
         };
