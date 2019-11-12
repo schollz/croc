@@ -66,7 +66,8 @@ type WebsocketMessage struct {
 	Payload string
 }
 
-func (c *Client) Bundle(payload interface{}) (p []byte, err error) {
+// Bundle will marshal message, compress it and encrypt it
+func (c *Client) Bundle(payload interface{}, encrypt bool) (p []byte, err error) {
 	p, err = json.Marshal(payload)
 	if err != nil {
 		return
