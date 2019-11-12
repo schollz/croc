@@ -1,18 +1,28 @@
 ```
-# in the first terminal
-git clone https://github.com/schollz/croc.git
-cd croc 
-git checkout v7
-cd src/webrtc/
-make sender
+    Clients connect to websockets and broadcasts "ready".
+    If client receives "ready" then it becomes the rtcOfferer and initiates (note that being an offerer does not mean it is the sender, that will be established later).
+    Establish secure passphrase using PAKE
+    Establish RTC communication
+    Communication moves to the RTC channel
 
-# in second terminal
-cd src/webrtc/
-make receive
 
-# open up localhost:8003 and open console.
-# copy the last JSON output and save it into src/webrtc/answer.json
+1: rtcOfferer
 
-# communication should ensue....
+
+    createOffer
+    setLocalDescription
+    SEND offer
+    RECIEVE answer
+    setRemoteDescription(answer)
+
+
+2: rtcAnswerer
+
+
+    setLocalDescription
+    RECEIVE offer
+    setRemoteDescription(offer)
+    createAnswer
+    SEND answer
 ```
 
