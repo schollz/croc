@@ -12,176 +12,81 @@ package main
 // jane = pakeUpdate(jane,pakePublic(bob));
 // bob = pakeUpdate(bob,pakePublic(jane));
 // jane = pakeUpdate(jane,pakePublic(bob));
-// console.log(pakeSessionKey(bob))
-// console.log(pakeSessionKey(jane))
+// keyAndSalt = JSON.parse(pakeSessionKey(bob,""))
+// console.log(pakeSessionKey(jane,keyAndSalt.Salt))
 
 import (
-	"bytes"
-	"compress/flate"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"syscall/js"
 	"time"
 
+	"github.com/schollz/croc/v7/src/box"
+	"github.com/schollz/croc/v7/src/crypt"
+	"github.com/schollz/croc/v7/src/models"
 	log "github.com/schollz/logger"
 	"github.com/schollz/pake/v2"
-	"golang.org/x/crypto/pbkdf2"
 )
 
-// CompressWithOption returns compressed data using the specified level
-func CompressWithOption(src []byte, level int) []byte {
-	compressedData := new(bytes.Buffer)
-	compress(src, compressedData, level)
-	return compressedData.Bytes()
-}
-
-// Compress returns a compressed byte slice.
-func Compress(src []byte) []byte {
-	compressedData := new(bytes.Buffer)
-	compress(src, compressedData, -2)
-	return compressedData.Bytes()
-}
-
-// Decompress returns a decompressed byte slice.
-func Decompress(src []byte) []byte {
-	compressedData := bytes.NewBuffer(src)
-	deCompressedData := new(bytes.Buffer)
-	decompress(compressedData, deCompressedData)
-	return deCompressedData.Bytes()
-}
-
-// compress uses flate to compress a byte slice to a corresponding level
-func compress(src []byte, dest io.Writer, level int) {
-	compressor, _ := flate.NewWriter(dest, level)
-	compressor.Write(src)
-	compressor.Close()
-}
-
-// compress uses flate to decompress an io.Reader
-func decompress(src io.Reader, dest io.Writer) {
-	decompressor := flate.NewReader(src)
-	io.Copy(dest, decompressor)
-	decompressor.Close()
-}
-
-// ENCRYPTION
-
-type Encryption struct {
-	key        []byte
-	passphrase []byte
-	salt       []byte
-}
-
-// New generates a new Encryption, using the supplied passphrase and
-// an optional supplied salt.
-// Passing nil passphrase will not use decryption.
-func NewEncryption(passphrase []byte, salt []byte) (e Encryption, err error) {
-	if passphrase == nil {
-		e = Encryption{nil, nil, nil}
-		return
-	}
-	e.passphrase = passphrase
-	if salt == nil {
-		e.salt = make([]byte, 8)
-		// http://www.ietf.org/rfc/rfc2898.txt
-		// Salt.
-		rand.Read(e.salt)
-	} else {
-		e.salt = salt
-	}
-	e.key = pbkdf2.Key([]byte(passphrase), e.salt, 100, 32, sha256.New)
-	return
-}
-
-func (e Encryption) Salt() []byte {
-	return e.salt
-}
-
-// Encrypt will generate an Encryption, prefixed with the IV
-func (e Encryption) Encrypt(plaintext []byte) (encrypted []byte, err error) {
-	plaintext = Compress(plaintext)
-	if e.passphrase == nil {
-		encrypted = plaintext
-		return
-	}
-	// generate a random iv each time
-	// http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
-	// Section 8.2
-	ivBytes := make([]byte, 12)
-	rand.Read(ivBytes)
-	b, err := aes.NewCipher(e.key)
-	if err != nil {
-		return
-	}
-	aesgcm, err := cipher.NewGCM(b)
-	if err != nil {
-		return
-	}
-	encrypted = aesgcm.Seal(nil, ivBytes, plaintext, nil)
-	encrypted = append(ivBytes, encrypted...)
-	return
-}
-
-// Decrypt an Encryption
-func (e Encryption) Decrypt(encrypted []byte) (plaintext []byte, err error) {
-	if e.passphrase == nil {
-		plaintext = encrypted
-		return
-	}
-	b, err := aes.NewCipher(e.key)
-	if err != nil {
-		return
-	}
-	aesgcm, err := cipher.NewGCM(b)
-	if err != nil {
-		return
-	}
-	plaintext, err = aesgcm.Open(nil, encrypted[:12], encrypted[12:], nil)
-	if err != nil {
-		return
-	}
-	plaintext = Decompress(plaintext)
-	return
-}
-
-// encrypt(message,password,salt)
-func encrypt(this js.Value, inputs []js.Value) interface{} {
+// writeWebsocketMessage(message,payload,key)
+// if key == "", then no encryption is used
+func writeWebsocketMessage(this js.Value, inputs []js.Value) interface{} {
+	// initialize sender P ("0" indicates sender)
 	if len(inputs) != 3 {
-		return js.Global().Get("Error").New("not enough inputs")
+		return js.Global().Get("Error").New("need message, payload, key")
 	}
-	e, err := NewEncryption([]byte(inputs[1].String()), []byte(inputs[2].String()))
+	var key []byte
+	key = nil
+	var err error
+	if len(inputs[2].String()) > 0 {
+		key, err = base64.StdEncoding.DecodeString(inputs[2].String())
+		if err != nil {
+			return js.Global().Get("Error").New(err.Error())
+		}
+	}
+
+	wsmsg := models.WebsocketMessage{
+		Message: inputs[0].String(),
+		Payload: inputs[1].String(),
+	}
+	bundled, err := box.Bundle(wsmsg, key)
 	if err != nil {
 		return js.Global().Get("Error").New(err.Error())
 	}
-	enc, err := e.Encrypt([]byte(inputs[0].String()))
-	if err != nil {
-		return js.Global().Get("Error").New(err.Error())
-	}
-	return base64.StdEncoding.EncodeToString(enc)
+	return bundled
 }
 
-// decrypt(message,password,salt)
-func decrypt(this js.Value, inputs []js.Value) interface{} {
-	e, err := NewEncryption([]byte(inputs[1].String()), []byte(inputs[2].String()))
+// readWebsocketMessage(bundled,key)
+// if key == "", then no decryption is used
+func readWebsocketMessage(this js.Value, inputs []js.Value) interface{} {
+	// initialize sender P ("0" indicates sender)
+	if len(inputs) != 2 {
+		return js.Global().Get("Error").New("need bundled, key")
+	}
+	var key []byte
+	key = nil
+	var err error
+	if len(inputs[1].String()) > 0 {
+		key, err = base64.StdEncoding.DecodeString(inputs[1].String())
+		if err != nil {
+			return js.Global().Get("Error").New(err.Error())
+		}
+	}
+
+	var wsmsg models.WebsocketMessage
+
+	err = box.Unbundle(inputs[0].String(), key, &wsmsg)
 	if err != nil {
 		return js.Global().Get("Error").New(err.Error())
 	}
-	decBytes, err := base64.StdEncoding.DecodeString(inputs[0].String())
+
+	b, err := json.Marshal(wsmsg)
 	if err != nil {
 		return js.Global().Get("Error").New(err.Error())
 	}
-	dec, err := e.Decrypt(decBytes)
-	if err != nil {
-		return js.Global().Get("Error").New(err.Error())
-	}
-	return string(dec)
+	return string(b)
 }
 
 // initPake(weakPassphrase, role)
@@ -254,8 +159,11 @@ func pakePublic(this js.Value, inputs []js.Value) interface{} {
 	return base64.StdEncoding.EncodeToString(P.Public().Bytes())
 }
 
-// pakeSessionKey(pakeBytes)
+// pakeSessionKey(pakeBytes,salt)
 func pakeSessionKey(this js.Value, inputs []js.Value) interface{} {
+	if len(inputs) != 2 {
+		return js.Global().Get("Error").New("need two input")
+	}
 	var P *pake.Pake
 	b, err := base64.StdEncoding.DecodeString(inputs[0].String())
 	if err != nil {
@@ -270,18 +178,40 @@ func pakeSessionKey(this js.Value, inputs []js.Value) interface{} {
 	if err != nil {
 		return js.Global().Get("Error").New(err.Error())
 	}
-	return base64.StdEncoding.EncodeToString(key)
+
+	type KeyAndSalt struct {
+		Key  string
+		Salt string
+	}
+
+	var kas KeyAndSalt
+	var salt []byte
+	salt = nil
+	if len(inputs[1].String()) > 0 {
+		b, errb := base64.StdEncoding.DecodeString(inputs[1].String())
+		if errb != nil {
+			return js.Global().Get("Error").New(errb.Error())
+		}
+		salt = b
+	}
+
+	cryptKey, cryptSalt, err := crypt.New(key, salt)
+
+	kas.Key = base64.StdEncoding.EncodeToString(cryptKey)
+	kas.Salt = base64.StdEncoding.EncodeToString(cryptSalt)
+	b, _ = json.Marshal(kas)
+	return string(b)
 }
 
 func main() {
 	c := make(chan bool)
 	// fmt.Println("starting")
-	js.Global().Set("encrypt", js.FuncOf(encrypt))
-	js.Global().Set("decrypt", js.FuncOf(decrypt))
 	js.Global().Set("pakeInit", js.FuncOf(pakeInit))
 	js.Global().Set("pakePublic", js.FuncOf(pakePublic))
 	js.Global().Set("pakeUpdate", js.FuncOf(pakeUpdate))
 	js.Global().Set("pakeSessionKey", js.FuncOf(pakeSessionKey))
+	js.Global().Set("writeWebsocketMessage", js.FuncOf(writeWebsocketMessage))
+	js.Global().Set("readWebsocketMessage", js.FuncOf(readWebsocketMessage))
 	fmt.Println("Initiated")
 	<-c
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/pion/webrtc/v2"
 	"github.com/schollz/croc/v7/src/box"
 	"github.com/schollz/croc/v7/src/crypt"
+	"github.com/schollz/croc/v7/src/models"
 	log "github.com/schollz/logger"
 	"github.com/schollz/pake/v2"
 )
@@ -61,11 +62,6 @@ type TransferOptions struct {
 	KeepPathInRemote bool
 }
 
-type WebsocketMessage struct {
-	Message string
-	Payload string
-}
-
 // New establishes a new connection for transferring files between two instances.
 func New(ops Options) (c *Client, err error) {
 	c = new(Client)
@@ -111,7 +107,7 @@ func (c *Client) connectToRelay() (err error) {
 	}
 
 	log.Debugf("connected and sending first message")
-	bundled, err := box.Bundle(WebsocketMessage{
+	bundled, err := box.Bundle(models.WebsocketMessage{
 		Message: "[1] you are offerer",
 	}, c.Key)
 	if err != nil {
@@ -130,7 +126,7 @@ func (c *Client) connectToRelay() (err error) {
 		if setKey != nil {
 			c.Key = setKey
 		}
-		var wsmsg, wsreply WebsocketMessage
+		var wsmsg, wsreply models.WebsocketMessage
 		var msg []byte
 		_, msg, err = c.ws.ReadMessage()
 		if err != nil {
@@ -366,7 +362,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 		for {
 			its++
 
-			msg, _ := box.Bundle(WebsocketMessage{
+			msg, _ := box.Bundle(models.WebsocketMessage{
 				Message: fmt.Sprintf("%d", its),
 			}, c.Key)
 			err2 := sendData([]byte(msg))
@@ -392,7 +388,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 
 	// Register the OnMessage to handle incoming messages
 	dc.OnMessage(func(dcMsg webrtc.DataChannelMessage) {
-		var wsmsg WebsocketMessage
+		var wsmsg models.WebsocketMessage
 		err = box.Unbundle(string(dcMsg.Data), c.Key, &wsmsg)
 		if err == nil {
 			log.Debugf("wsmsg: %+v", wsmsg)
