@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v2"
 	"github.com/schollz/croc/v7/src/box"
+	"github.com/schollz/croc/v7/src/crypt"
 	log "github.com/schollz/logger"
 	"github.com/schollz/pake/v2"
 )
@@ -277,7 +278,7 @@ func (c *Client) connectToRelay() (err error) {
 
 	log.Debugf("connected and sending first message")
 	bundled, err := box.Bundle(WebsocketMessage{
-		Message: "you are offerer",
+		Message: "[1] you are offerer",
 	}, c.Key)
 	if err != nil {
 		log.Error(err)
@@ -289,7 +290,12 @@ func (c *Client) connectToRelay() (err error) {
 		return
 	}
 
+	var setKey []byte
+	setKey = nil
 	for {
+		if setKey != nil {
+			c.Key = setKey
+		}
 		var wsmsg, wsreply WebsocketMessage
 		var msg []byte
 		_, msg, err = c.ws.ReadMessage()
@@ -299,35 +305,83 @@ func (c *Client) connectToRelay() (err error) {
 		}
 		err = box.Unbundle(string(msg), c.Key, &wsmsg)
 		log.Debugf("recv: %s", wsmsg.Message)
-		if wsmsg.Message == "you are offerer" {
+		if wsmsg.Message == "[1] you are offerer" {
 			c.IsOfferer = true
 			c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 0, elliptic.P521(), 1*time.Microsecond)
-			wsreply.Message = "you are answerer"
-		} else if wsmsg.Message == "you are answerer" {
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			wsreply.Message = "[2] you are answerer"
+		} else if wsmsg.Message == "[2] you are answerer" {
 			c.IsOfferer = false
 			c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 1, elliptic.P521(), 1*time.Microsecond)
-			wsreply.Message = "pake1"
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			wsreply.Message = "[3] pake1"
 			wsreply.Payload = base64.StdEncoding.EncodeToString(c.Pake.Bytes())
-		} else if wsmsg.Message == "pake2" || wsmsg.Message == "pake3" {
+		} else if wsmsg.Message == "[3] pake1" || wsmsg.Message == "[4] pake2" || wsmsg.Message == "[5] pake3" {
 			var pakeBytes []byte
-			pakeBytes, err = base64.StdEncoding.DecodeString(wsreply.Payload)
+			pakeBytes, err = base64.StdEncoding.DecodeString(wsmsg.Payload)
 			if err != nil {
 				log.Error(err)
 				return
 			}
 			err = c.Pake.Update(pakeBytes)
 			if err != nil {
+				log.Debugf("pakeBytes: %s", pakeBytes)
 				log.Error(err)
 				return
 			}
-			if wsmsg.Message == "pake2" {
-				wsreply.Message = "pake3"
+			if wsmsg.Message == "[3] pake1" {
+				wsreply.Message = "[4] pake2"
 				wsreply.Payload = base64.StdEncoding.EncodeToString(c.Pake.Bytes())
+			} else if wsmsg.Message == "[4] pake2" {
+				log.Debug(c.Pake.SessionKey())
+				wsreply.Message = "[5] pake3"
+				wsreply.Payload = base64.StdEncoding.EncodeToString(c.Pake.Bytes())
+			} else if wsmsg.Message == "[5] pake3" {
+				var sessionKey, salt []byte
+				sessionKey, err = c.Pake.SessionKey()
+				if err != nil {
+					log.Error(err)
+					return
+				}
+				// setting setKey will ensure that this transfer is not encrypted, but future ones are
+				setKey, salt, err = crypt.New(sessionKey, nil)
+				if err != nil {
+					log.Error(err)
+					return
+				}
+				log.Debugf("key: %x", setKey)
+				wsreply.Message = "[6] salt"
+				wsreply.Payload = base64.StdEncoding.EncodeToString(salt)
 			}
+		} else if wsmsg.Message == "[6] salt" {
+			var sessionKey, salt []byte
+			salt, err = base64.StdEncoding.DecodeString(wsmsg.Payload)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			sessionKey, err = c.Pake.SessionKey()
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			c.Key, _, err = crypt.New(sessionKey, salt)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			log.Debugf("key: %x", c.Key)
 		} else {
-			log.Debug("unknown")
+			log.Debug("unknown: %s", wsmsg)
 		}
-		if wsmsg.Message != "" {
+		if wsreply.Message != "" {
+			log.Debugf("sending: %s", wsreply.Message)
 			var bundled string
 			bundled, err = box.Bundle(wsreply, c.Key)
 			err = c.ws.WriteMessage(1, []byte(bundled))
