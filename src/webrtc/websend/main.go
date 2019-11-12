@@ -30,6 +30,7 @@ import (
 	"syscall/js"
 	"time"
 
+	log "github.com/schollz/logger"
 	"github.com/schollz/pake/v2"
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -211,6 +212,7 @@ func pakeUpdate(this js.Value, inputs []js.Value) interface{} {
 
 	b, err := base64.StdEncoding.DecodeString(inputs[0].String())
 	if err != nil {
+		log.Errorf("problem with %s: %s", inputs[0].String(), err)
 		return js.Global().Get("Error").New(err.Error())
 	}
 	err = json.Unmarshal(b, &P)
@@ -221,6 +223,7 @@ func pakeUpdate(this js.Value, inputs []js.Value) interface{} {
 
 	b, err = base64.StdEncoding.DecodeString(inputs[1].String())
 	if err != nil {
+		log.Errorf("problem with %s: %s", inputs[1].String(), err)
 		return js.Global().Get("Error").New(err.Error())
 	}
 	err = json.Unmarshal(b, &Q)

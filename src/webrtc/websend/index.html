@@ -30,154 +30,154 @@
     Base64: <textarea id="remoteSessionDescription"></textarea> <br />
     <button onclick="startSession()"> Send Message </button> <br />
     <script>
-        function readBlob(opt_startByte, opt_stopByte) {
+    function readBlob(opt_startByte, opt_stopByte) {
 
-            var files = document.getElementById('files').files;
-            if (!files.length) {
-                alert('Please select a file!');
-                return;
-            }
-
-            var file = files[0];
-            var start = parseInt(opt_startByte) || 0;
-            var stop = parseInt(opt_stopByte) || file.size - 1;
-
-            var reader = new FileReader();
-
-            // If we use onloadend, we need to check the readyState.
-            reader.onloadend = function (evt) {
-                if (evt.target.readyState == FileReader.DONE) { // DONE == 2
-                    document.getElementById('byte_content').textContent = evt.target.result;
-                    document.getElementById('byte_range').textContent = ['Read bytes: ', start + 1, ' - ', stop + 1,
-                        ' of ', file.size, ' byte file'
-                    ].join('');
-                    sendMessage(evt.target.result);
-                }
-            };
-
-            var blob = file.slice(start, stop + 1);
-            reader.readAsBinaryString(blob);
+        var files = document.getElementById('files').files;
+        if (!files.length) {
+            alert('Please select a file!');
+            return;
         }
 
-        document.querySelector('.readBytesButtons').addEventListener('click', function (evt) {
-            if (evt.target.tagName.toLowerCase() == 'button') {
-                var startByte = evt.target.getAttribute('data-startbyte');
-                var endByte = evt.target.getAttribute('data-endbyte');
-                readBlob(startByte, endByte);
-            }
-        }, false);
+        var file = files[0];
+        var start = parseInt(opt_startByte) || 0;
+        var stop = parseInt(opt_stopByte) || file.size - 1;
 
+        var reader = new FileReader();
 
-
-
-        let pc = new RTCPeerConnection({
-            iceServers: [{
-                urls: 'stun:stun.l.google.com:19302'
-            }]
-        })
-        let log = msg => {
-            console.log(msg);
-        }
-
-        pc.onsignalingstatechange = e => log(pc.signalingState)
-        pc.oniceconnectionstatechange = e => log(pc.iceConnectionState)
-        pc.onicecandidate = event => {
-            if (event.candidate === null) {
-                log(JSON.stringify(pc.localDescription))
-            }
-        }
-
-
-
-        pc.ondatachannel = e => {
-            let dc = e.channel
-            log('New DataChannel ' + dc.label)
-            dc.onclose = () => log('dc has closed')
-            dc.onopen = () => {
-                log('dc has opened');
-            }
-            dc.onmessage = e => {
-                log(`Message from DataChannel '${dc.label}' payload '${e.data}'`)
-            }
-            window.sendMessage = e => {
-                let message = e;
-                if (message === '') {
-                    return alert('Message must not be empty')
-                }
-
-                dc.send(message)
-            }
-        }
-
-        window.startSession = () => {
-            pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(document.getElementById('remoteSessionDescription').value)))).catch(log)
-            pc.createAnswer().then(d => pc.setLocalDescription(d)).catch(log)
-        }
-
-        // websockets 
-        var socket;
-        var pakeData;
-
-        var sendMessage = msg => {
-            log(`sending ${JSON.stringify(msg)}`)
-            socket.send(btoa(JSON.stringify(msg)));
-        }
-
-        const socketMessageListener = (event) => {
-            var data;
-            if (event.data.includes("Message")) {
-                data = JSON.parse(event.data);
-            } else {
-                data = JSON.parse(atob(event.data));
-            }
-            if (data.Message == "pake") {
-                log("processing pake data");
-                // console.log(pakeData);
-                pakeData = pakeUpdate(pakeData, data.Payload);
-                console.log(pakeSessionKey(pakeData));
-                sendMessage({
-                    "Message": "pake",
-                    "Payload": pakePublic(pakeData),
-                })
-            } else if (data.Message == "offerer") {
-                log("i am the offerer")
-                log("offering the first pake");
-                sendMessage({
-                    "Message": "answerer",
-                })
-                pakeData = pakeInit("test1", 0);
-                sendMessage({
-                    "Message": "pake",
-                    "Payload": pakePublic(pakeData),
-                })
+        // If we use onloadend, we need to check the readyState.
+        reader.onloadend = function(evt) {
+            if (evt.target.readyState == FileReader.DONE) { // DONE == 2
+                document.getElementById('byte_content').textContent = evt.target.result;
+                document.getElementById('byte_range').textContent = ['Read bytes: ', start + 1, ' - ', stop + 1,
+                    ' of ', file.size, ' byte file'
+                ].join('');
+                sendMessage(evt.target.result);
             }
         };
-        const socketOpenListener = (event) => {
-            log('connected to websockets');
+
+        var blob = file.slice(start, stop + 1);
+        reader.readAsBinaryString(blob);
+    }
+
+    document.querySelector('.readBytesButtons').addEventListener('click', function(evt) {
+        if (evt.target.tagName.toLowerCase() == 'button') {
+            var startByte = evt.target.getAttribute('data-startbyte');
+            var endByte = evt.target.getAttribute('data-endbyte');
+            readBlob(startByte, endByte);
+        }
+    }, false);
+
+
+
+
+    let pc = new RTCPeerConnection({
+        iceServers: [{
+            urls: 'stun:stun.l.google.com:19302'
+        }]
+    })
+    let log = msg => {
+        console.log(msg);
+    }
+
+    pc.onsignalingstatechange = e => log(pc.signalingState)
+    pc.oniceconnectionstatechange = e => log(pc.iceConnectionState)
+    pc.onicecandidate = event => {
+        if (event.candidate === null) {
+            log(JSON.stringify(pc.localDescription))
+        }
+    }
+
+
+
+    pc.ondatachannel = e => {
+        let dc = e.channel
+        log('New DataChannel ' + dc.label)
+        dc.onclose = () => log('dc has closed')
+        dc.onopen = () => {
+            log('dc has opened');
+        }
+        dc.onmessage = e => {
+            log(`Message from DataChannel '${dc.label}' payload '${e.data}'`)
+        }
+        window.sendMessage = e => {
+            let message = e;
+            if (message === '') {
+                return alert('Message must not be empty')
+            }
+
+            dc.send(message)
+        }
+    }
+
+    window.startSession = () => {
+        pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(document.getElementById('remoteSessionDescription').value)))).catch(log)
+        pc.createAnswer().then(d => pc.setLocalDescription(d)).catch(log)
+    }
+
+    // websockets 
+    var socket;
+    var pakeData;
+
+    var sendMessage = msg => {
+        log(`sending ${JSON.stringify(msg)}`)
+        socket.send(btoa(JSON.stringify(msg)));
+    }
+
+    const socketMessageListener = (event) => {
+        var data;
+        if (event.data.includes("Message")) {
+            data = JSON.parse(event.data);
+        } else {
+            data = JSON.parse(atob(event.data));
+        }
+        if (data.Message == "pake") {
+            log("processing pake data");
+            console.log(data);
+            pakeData = pakeUpdate(pakeData, data.Payload);
+            console.log(pakeSessionKey(pakeData));
             sendMessage({
-                "Message": "offerer",
+                "Message": "pake",
+                "Payload": pakePublic(pakeData),
+            })
+        } else if (data.Message == "offerer") {
+            log("i am the offerer")
+            log("offering the first pake");
+            sendMessage({
+                "Message": "answerer",
+            })
+            pakeData = pakeInit("test1", 0);
+            sendMessage({
+                "Message": "pake",
+                "Payload": pakePublic(pakeData),
             })
         }
-        const socketCloseListener = (event) => {
-            if (socket) {
-                log('Disconnected.');
-            }
-            // var ws_url = window.origin.replace("http", "ws") + '/ws/test1';
-            var ws_url = "ws://localhost:8005/ws/test1";
-            log(`connecting to '${ws_url}'`)
-            socket = new WebSocket(ws_url);
-            socket.addEventListener('open', socketOpenListener);
-            socket.addEventListener('message', socketMessageListener);
-            socket.addEventListener('close', socketCloseListener);
-        };
-        socketCloseListener();
+    };
+    const socketOpenListener = (event) => {
+        log('connected to websockets');
+        sendMessage({
+            "Message": "offerer",
+        })
+    }
+    const socketCloseListener = (event) => {
+        if (socket) {
+            log('Disconnected.');
+        }
+        // var ws_url = window.origin.replace("http", "ws") + '/ws/test1';
+        var ws_url = "ws://localhost:8005/ws/test1";
+        log(`connecting to '${ws_url}'`)
+        socket = new WebSocket(ws_url);
+        socket.addEventListener('open', socketOpenListener);
+        socket.addEventListener('message', socketMessageListener);
+        socket.addEventListener('close', socketCloseListener);
+    };
+    socketCloseListener();
     </script>
     <script src="wasm_exec.js"></script>
     <script>
-        const go = new Go();
-        WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
-            go.run(result.instance);
-        });
+    const go = new Go();
+    WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+        go.run(result.instance);
+    });
     </script>
 </body>
 
