@@ -116,18 +116,39 @@
 
         // websockets 
         var socket;
+        var pakeData;
+
+        var sendMessage = msg => {
+            log(`sending ${JSON.stringify(msg)}`)
+            socket.send(btoa(JSON.stringify(msg)));
+        }
 
         const socketMessageListener = (event) => {
-            log(event);
-            log(event.data);
-            var data = JSON.parse(event.data);
+            console.log(event.data);
+            var data;
+            if (event.data.includes("Message")) {
+                data = JSON.parse(event.data);
+            } else {
+                data = JSON.parse(atob(event.data));
+            }
             console.log(data);
+            if (data.Message == "pake") {
+                log("processing pake data");
+            } else if (data.Message == "offerer") {
+                log("offering the first pake");
+                pakeData = pakeInit("test1", 0);
+                console.log(pakeData);
+                sendMessage({
+                    "Message": "pake",
+                    "Payload": pakeData,
+                })
+            }
         };
         const socketOpenListener = (event) => {
             log('connected to websockets');
-            socket.send(JSON.stringify({
+            sendMessage({
                 "Message": "offerer",
-            }))
+            })
         }
         const socketCloseListener = (event) => {
             if (socket) {

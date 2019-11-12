@@ -90,7 +90,7 @@ func (s *subscription) writePump() {
 				c.write(websocket.CloseMessage, []byte{})
 				return
 			}
-			if err := c.write(websocket.BinaryMessage, message); err != nil {
+			if err := c.write(websocket.TextMessage, message); err != nil {
 				return
 			}
 		case <-ticker.C:

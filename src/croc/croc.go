@@ -135,19 +135,19 @@ func New(ops Options) (c *Client, err error) {
 		log.SetLevel("info")
 	}
 
-	// initialize pake
-	if c.Options.IsSender {
-		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 1, elliptic.P521(), 1*time.Microsecond)
-	} else {
-		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 0, elliptic.P521(), 1*time.Microsecond)
-	}
+	// connect to relay and determine
+	// whether it is receiver or offerer
+	err = c.connectToRelay()
 	if err != nil {
 		return
 	}
 
-	// connect to relay and determine
-	// whether it is receiver or offerer
-	err = c.connectToRelay()
+	// initialize pake
+	if c.IsOfferer {
+		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 0, elliptic.P521(), 1*time.Microsecond)
+	} else {
+		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 1, elliptic.P521(), 1*time.Microsecond)
+	}
 	if err != nil {
 		return
 	}
@@ -282,6 +282,7 @@ func (c *Client) getPAKE(keepSending bool) (err error) {
 		log.Error(err)
 		return
 	}
+	log.Debugf("getPake got: %+v", p)
 	err = c.Pake.Update(p.Payload)
 	if err != nil {
 		log.Error(err)
@@ -318,11 +319,10 @@ func (c *Client) connectToRelay() (err error) {
 	}
 
 	log.Debugf("connected and sending first message")
-	c.ws.WriteJSON(WebsocketMessage{
+	c.SendWebsocketMessage(WebsocketMessage{
 		Message: "offerer",
-	})
-	var wsmsg WebsocketMessage
-	err = c.ws.ReadJSON(&wsmsg)
+	}, false)
+	wsmsg, err := c.ReceiveWebsocketMessage(false)
 	if err != nil {
 		log.Debug("read:", err)
 		return
