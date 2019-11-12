@@ -3,6 +3,7 @@ package croc
 import (
 	"crypto/elliptic"
 	"crypto/md5"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -85,6 +86,43 @@ func (c *Client) Unbundle(msg []byte, payload interface{}) (err error) {
 	return
 }
 
+// SendWebsocketMessage communicates using base64
+func (c *Client) SendWebsocketMessage(wsmsg WebsocketMessage, encrypt bool) (err error) {
+	var b []byte
+	if encrypt {
+		b, err = c.Bundle(wsmsg)
+	} else {
+		b, err = json.Marshal(wsmsg)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+	}
+	bd := base64.StdEncoding.EncodeToString(b)
+	err = c.ws.WriteMessage(1, []byte(bd))
+	return
+}
+
+// ReceiveWebsocketMessage communicates using base64
+func (c *Client) ReceiveWebsocketMessage(decrypt bool) (wsmsg WebsocketMessage, err error) {
+	_, msg, err := c.ws.ReadMessage()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	b, err := base64.StdEncoding.DecodeString(string(msg))
+	if decrypt {
+		err = c.Unbundle(b, &wsmsg)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+	} else {
+		err = json.Unmarshal(b, &wsmsg)
+	}
+	return
+}
+
 // New establishes a new connection for transferring files between two instances.
 func New(ops Options) (c *Client, err error) {
 	c = new(Client)
@@ -107,6 +145,8 @@ func New(ops Options) (c *Client, err error) {
 		return
 	}
 
+	// connect to relay and determine
+	// whether it is receiver or offerer
 	err = c.connectToRelay()
 	if err != nil {
 		return
@@ -114,9 +154,10 @@ func New(ops Options) (c *Client, err error) {
 
 	if c.IsOfferer {
 		// offerer sends the first pake
-		c.ws.WriteJSON(WebsocketMessage{
+		c.SendWebsocketMessage(WebsocketMessage{
+			Message: "pake",
 			Payload: c.Pake.Bytes(),
-		})
+		}, false)
 	} else {
 		// answerer receives the first pake
 		err = c.getPAKE(true)
@@ -172,30 +213,19 @@ func New(ops Options) (c *Client, err error) {
 		if err != nil {
 			log.Error(err)
 		}
-		var msg []byte
-		msg, err = c.Bundle(WebsocketMessage{Message: "offer", Payload: offerJSON})
-		if err != nil {
-			log.Error(err)
-			return
-		}
-		err = c.ws.WriteMessage(websocket.BinaryMessage, msg)
+		err = c.SendWebsocketMessage(
+			WebsocketMessage{Message: "offer", Payload: offerJSON},
+			true,
+		)
 		if err != nil {
 			log.Error(err)
 			return
 		}
 
 		// wait for the answer
-		_, msg, err = c.ws.ReadMessage()
-		if err != nil {
-			log.Error(err)
-			return
-		}
 		var wsmsg WebsocketMessage
-		err = c.Unbundle(msg, &wsmsg)
-		if err != nil {
-			log.Error(err)
-			return
-		}
+		wsmsg, err = c.ReceiveWebsocketMessage(true)
+
 		err = setRemoteDescription(c.rtc, wsmsg.Payload)
 		if err != nil {
 			log.Error(err)
@@ -203,18 +233,8 @@ func New(ops Options) (c *Client, err error) {
 		}
 	} else {
 		// wait for the offer
-		var msg []byte
-		_, msg, err = c.ws.ReadMessage()
-		if err != nil {
-			log.Error(err)
-			return
-		}
 		var wsmsg WebsocketMessage
-		err = c.Unbundle(msg, &wsmsg)
-		if err != nil {
-			log.Error(err)
-			return
-		}
+		wsmsg, err = c.ReceiveWebsocketMessage(true)
 
 		err = setRemoteDescription(c.rtc, wsmsg.Payload)
 		if err != nil {
@@ -240,16 +260,15 @@ func New(ops Options) (c *Client, err error) {
 		if err != nil {
 			log.Error(err)
 		}
-		msg, err = c.Bundle(WebsocketMessage{Message: "answer", Payload: answerJSON})
+		err = c.SendWebsocketMessage(
+			WebsocketMessage{Message: "answer", Payload: answerJSON},
+			true,
+		)
 		if err != nil {
 			log.Error(err)
 			return
 		}
-		err = c.ws.WriteMessage(websocket.BinaryMessage, msg)
-		if err != nil {
-			log.Error(err)
-			return
-		}
+
 	}
 
 	err = <-finished
@@ -258,8 +277,7 @@ func New(ops Options) (c *Client, err error) {
 
 func (c *Client) getPAKE(keepSending bool) (err error) {
 	// answerer receives the first pake
-	var p WebsocketMessage
-	err = c.ws.ReadJSON(&p)
+	p, err := c.ReceiveWebsocketMessage(false)
 	if err != nil {
 		log.Error(err)
 		return
@@ -271,9 +289,10 @@ func (c *Client) getPAKE(keepSending bool) (err error) {
 	}
 	if keepSending {
 		//  sends back PAKE bytes
-		err = c.ws.WriteJSON(WebsocketMessage{
+		err = c.SendWebsocketMessage(WebsocketMessage{
+			Message: "pake",
 			Payload: c.Pake.Bytes(),
-		})
+		}, false)
 	}
 	return
 }
@@ -298,6 +317,7 @@ func (c *Client) connectToRelay() (err error) {
 		return
 	}
 
+	log.Debugf("connected and sending first message")
 	c.ws.WriteJSON(WebsocketMessage{
 		Message: "offerer",
 	})
