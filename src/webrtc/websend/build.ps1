@@ -1,0 +1,1 @@
+$env:GOOS="js"; $env:GOARCH="wasm"; go build -v -o main.wasm
