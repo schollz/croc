@@ -78,190 +78,17 @@ func New(ops Options) (c *Client, err error) {
 		log.SetLevel("info")
 	}
 
-	// connect to relay and determine
-	// whether it is receiver or offerer
+	// connect to relay and exchange info
 	err = c.connectToRelay()
-	if err != nil {
-		return
-	}
-
-	// // initialize pake
-	// if c.IsOfferer {
-	// 	c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 0, elliptic.P521(), 1*time.Microsecond)
-	// } else {
-	// 	c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 1, elliptic.P521(), 1*time.Microsecond)
-	// }
-	// if err != nil {
-	// 	return
-	// }
-
-	// if c.IsOfferer {
-	// 	// offerer sends the first pake
-	// 	c.SendWebsocketMessage(WebsocketMessage{
-	// 		Message: "pake",
-	// 		Payload: base64.StdEncoding.EncodeToString(c.Pake.Bytes()),
-	// 	}, false)
-	// } else {
-	// 	// answerer receives the first pake
-	// 	err = c.getPAKE(true)
-	// 	if err != nil {
-	// 		log.Error(err)
-	// 		return
-	// 	}
-	// }
-
-	// // one more exchange to finish (offerer must send)
-	// err = c.getPAKE(c.IsOfferer)
-	// if err != nil {
-	// 	log.Error(err)
-	// 	return
-	// }
-	// log.Debug(c.Pake.SessionKey())
-
-	// // generate the session key for encryption
-	// pakeSessionKey, err := c.Pake.SessionKey()
-	// if err != nil {
-	// 	log.Error(err)
-	// 	return
-	// }
-	// c.Key, err = crypt.New(pakeSessionKey, []byte(c.Options.SharedSecret))
-	// if err != nil {
-	// 	log.Error(err)
-	// 	return
-	// }
-
-	// // create webrtc connection
-	// finished := make(chan error, 1)
-	// c.rtc, err = c.CreateOfferer(finished)
-	// if err != nil {
-	// 	log.Error(err)
-	// }
-
-	// offer, err := c.rtc.CreateOffer(nil)
-	// if err != nil {
-	// 	log.Error(err)
-	// 	return
-	// }
-	// if c.IsOfferer {
-	// 	// Now, create an offer
-	// 	err = c.rtc.SetLocalDescription(offer)
-	// 	if err != nil {
-	// 		log.Error(err)
-	// 		return
-	// 	}
-
-	// 	// bundle it and send it over
-	// 	var offerJSON []byte
-	// 	offerJSON, err = json.Marshal(offer)
-	// 	if err != nil {
-	// 		log.Error(err)
-	// 	}
-	// 	err = c.SendWebsocketMessage(
-	// 		WebsocketMessage{
-	// 			Message: "offer",
-	// 			Payload: base64.StdEncoding.EncodeToString(offerJSON),
-	// 		},
-	// 		true,
-	// 	)
-	// 	if err != nil {
-	// 		log.Error(err)
-	// 		return
-	// 	}
-
-	// 	// wait for the answer
-	// 	var wsmsg WebsocketMessage
-	// 	wsmsg, err = c.ReceiveWebsocketMessage(true)
-
-	// 	var payload []byte
-	// 	payload, err = base64.StdEncoding.DecodeString(wsmsg.Payload)
-	// 	err = setRemoteDescription(c.rtc, payload)
-	// 	if err != nil {
-	// 		log.Error(err)
-	// 		return
-	// 	}
-	// } else {
-	// 	// wait for the offer
-	// 	var wsmsg WebsocketMessage
-	// 	wsmsg, err = c.ReceiveWebsocketMessage(true)
-
-	// 	var payload []byte
-	// 	payload, err = base64.StdEncoding.DecodeString(wsmsg.Payload)
-	// 	err = setRemoteDescription(c.rtc, payload)
-	// 	if err != nil {
-	// 		log.Error(err)
-	// 		return
-	// 	}
-
-	// 	var answer webrtc.SessionDescription
-	// 	answer, err = c.rtc.CreateAnswer(nil)
-	// 	if err != nil {
-	// 		log.Error(err)
-	// 		return
-	// 	}
-	// 	err = c.rtc.SetLocalDescription(answer)
-	// 	if err != nil {
-	// 		log.Error(err)
-	// 		return
-	// 	}
-
-	// 	// bundle it and send it over
-	// 	var answerJSON []byte
-	// 	answerJSON, err = json.Marshal(answer)
-	// 	if err != nil {
-	// 		log.Error(err)
-	// 	}
-	// 	err = c.SendWebsocketMessage(
-	// 		WebsocketMessage{
-	// 			Message: "answer",
-	// 			Payload: base64.StdEncoding.EncodeToString(answerJSON),
-	// 		},
-	// 		true,
-	// 	)
-	// 	if err != nil {
-	// 		log.Error(err)
-	// 		return
-	// 	}
-
-	// }
-
-	// err = <-finished
 	return
 }
-
-// func (c *Client) getPAKE(keepSending bool) (err error) {
-// 	// answerer receives the first pake
-// 	p, err := c.ReceiveWebsocketMessage(false)
-// 	if err != nil {
-// 		log.Error(err)
-// 		return
-// 	}
-// 	payload, err := base64.StdEncoding.DecodeString(p.Payload)
-// 	if err != nil {
-// 		log.Error(err)
-// 		return
-// 	}
-// 	log.Debugf("payload: %s", payload)
-// 	err = c.Pake.Update(payload)
-// 	if err != nil {
-// 		log.Error(err)
-// 		return
-// 	}
-// 	if keepSending {
-// 		//  sends back PAKE bytes
-// 		err = c.SendWebsocketMessage(WebsocketMessage{
-// 			Message: "pake",
-// 			Payload: base64.StdEncoding.EncodeToString(c.Pake.Bytes()),
-// 		}, false)
-// 	}
-// 	return
-// }
 
 // Send will send the specified file
 func (c *Client) Send(options TransferOptions) (err error) {
 	return
 }
 
-// Receiver will receive the file
+// Receive will receive the file
 func (c *Client) Receive() (err error) {
 	return
 }
@@ -274,6 +101,13 @@ func (c *Client) connectToRelay() (err error) {
 	if err != nil {
 		log.Error("dial:", err)
 		return
+	}
+
+	// // create webrtc connection
+	finished := make(chan error, 1)
+	c.rtc, err = c.CreateOfferer(finished)
+	if err != nil {
+		log.Error(err)
 	}
 
 	log.Debugf("connected and sending first message")
@@ -377,6 +211,69 @@ func (c *Client) connectToRelay() (err error) {
 				return
 			}
 			log.Debugf("key: %x", c.Key)
+
+			// create offer and send it over
+			var offer webrtc.SessionDescription
+			offer, err = c.rtc.CreateOffer(nil)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			err = c.rtc.SetLocalDescription(offer)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			var offerJSON []byte
+			offerJSON, err = json.Marshal(offer)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			wsreply.Message = "[7] offer"
+			wsreply.Payload = base64.StdEncoding.EncodeToString(offerJSON)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+		} else if wsmsg.Message == "[7] offer" {
+			// create webrtc answer and send it over
+			var payload []byte
+			payload, err = base64.StdEncoding.DecodeString(wsmsg.Payload)
+			err = setRemoteDescription(c.rtc, payload)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+
+			var answer webrtc.SessionDescription
+			answer, err = c.rtc.CreateAnswer(nil)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			err = c.rtc.SetLocalDescription(answer)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+
+			// bundle it and send it over
+			var answerJSON []byte
+			answerJSON, err = json.Marshal(answer)
+			if err != nil {
+				log.Error(err)
+			}
+			wsreply.Message = "[8] answer"
+			wsreply.Payload = base64.StdEncoding.EncodeToString(answerJSON)
+		} else if wsmsg.Message == "[8] answer" {
+			var payload []byte
+			payload, err = base64.StdEncoding.DecodeString(wsmsg.Payload)
+			err = setRemoteDescription(c.rtc, payload)
+			if err != nil {
+				log.Error(err)
+				return
+			}
 		} else {
 			log.Debug("unknown: %s", wsmsg)
 		}
@@ -391,6 +288,7 @@ func (c *Client) connectToRelay() (err error) {
 			}
 		}
 	}
+	err = <-finished
 	return
 }
 
