@@ -59,6 +59,7 @@ func writeWebsocketMessage(this js.Value, inputs []js.Value) interface{} {
 }
 
 // readWebsocketMessage(bundled,key)
+// returns stringified JSON
 // if key == "", then no decryption is used
 func readWebsocketMessage(this js.Value, inputs []js.Value) interface{} {
 	// initialize sender P ("0" indicates sender)

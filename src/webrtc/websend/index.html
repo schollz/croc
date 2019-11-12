@@ -29,6 +29,13 @@
     <div id="byte_content"></div>
     Base64: <textarea id="remoteSessionDescription"></textarea> <br />
     <button onclick="startSession()"> Send Message </button> <br />
+    <script src="wasm_exec.js"></script>
+    <script>
+    const go = new Go();
+    WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+        go.run(result.instance);
+    });
+    </script>
     <script>
     function readBlob(opt_startByte, opt_stopByte) {
 
@@ -117,46 +124,38 @@
     // websockets 
     var socket;
     var pakeData;
+    var croc = {
+        "key": "",
+    }
 
     var sendMessage = msg => {
         log(`sending ${JSON.stringify(msg)}`)
         socket.send(btoa(JSON.stringify(msg)));
     }
 
-    const socketMessageListener = (event) => {
-        var data;
-        if (event.data.includes("Message")) {
-            data = JSON.parse(event.data);
+    function waitForGolang() {
+        if (typeof writeWebsocketMessage !== "undefined") {
+            socket.send(writeWebsocketMessage("[1] you are offerer", "", ""))
         } else {
-            data = JSON.parse(atob(event.data));
+            setTimeout(waitForGolang, 250);
         }
-        if (data.Message == "pake") {
-            log("processing pake data");
-            console.log(data);
-            pakeData = pakeUpdate(pakeData, data.Payload);
-            console.log(pakeSessionKey(pakeData));
-            sendMessage({
-                "Message": "pake",
-                "Payload": pakePublic(pakeData),
-            })
-        } else if (data.Message == "offerer") {
-            log("i am the offerer")
-            log("offering the first pake");
-            sendMessage({
-                "Message": "answerer",
-            })
-            pakeData = pakeInit("test1", 0);
-            sendMessage({
-                "Message": "pake",
-                "Payload": pakePublic(pakeData),
-            })
+    }
+
+    const socketMessageListener = (event) => {
+        console.log(event.data);
+        var data = JSON.parse(readWebsocketMessage(event.data, croc.key));
+        console.log(data);
+        if (!("Message" in data)) {
+            console.log("no message")
+            return
         }
+        // if (data.Message == "[1] you are offerer") {
+
+        // }
     };
     const socketOpenListener = (event) => {
         log('connected to websockets');
-        sendMessage({
-            "Message": "offerer",
-        })
+        waitForGolang();
     }
     const socketCloseListener = (event) => {
         if (socket) {
@@ -171,13 +170,6 @@
         socket.addEventListener('close', socketCloseListener);
     };
     socketCloseListener();
-    </script>
-    <script src="wasm_exec.js"></script>
-    <script>
-    const go = new Go();
-    WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
-        go.run(result.instance);
-    });
     </script>
 </body>
 
