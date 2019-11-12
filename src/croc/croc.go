@@ -48,7 +48,7 @@ type Client struct {
 
 	// security
 	Pake *pake.Pake
-	Key  crypt.Encryption
+	Key  []byte
 
 	// steps involved in forming relationship
 	Step1ChannelSecured bool
@@ -66,26 +66,6 @@ type WebsocketMessage struct {
 	Payload string
 }
 
-// Bundle will marshal message, compress it and encrypt it
-func (c *Client) Bundle(payload interface{}, encrypt bool) (p []byte, err error) {
-	p, err = json.Marshal(payload)
-	if err != nil {
-		return
-	}
-	p = compress.Compress(p)
-	p, err = c.Key.Encrypt(p)
-	return
-}
-
-func (c *Client) Unbundle(msg []byte, payload interface{}) (err error) {
-	b, err := c.Key.Decrypt(msg)
-	if err != nil {
-		return
-	}
-	b = compress.Decompress(b)
-	err = json.Unmarshal(b, &payload)
-	return
-}
 
 // SendWebsocketMessage communicates using base64
 func (c *Client) SendWebsocketMessage(wsmsg WebsocketMessage, encrypt bool) (err error) {
