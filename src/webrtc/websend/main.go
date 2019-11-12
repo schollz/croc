@@ -228,7 +228,10 @@ func pakeUpdate(this js.Value, inputs []js.Value) interface{} {
 	if err != nil {
 		return js.Global().Get("Error").New(err.Error())
 	}
-	P.Update(Q.Bytes())
+	err = P.Update(Q.Bytes())
+	if err != nil {
+		return js.Global().Get("Error").New(err.Error())
+	}
 	bJSON, _ := json.Marshal(P)
 	return base64.StdEncoding.EncodeToString(bJSON)
 }

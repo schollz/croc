@@ -124,14 +124,12 @@
         }
 
         const socketMessageListener = (event) => {
-            console.log(event.data);
             var data;
             if (event.data.includes("Message")) {
                 data = JSON.parse(event.data);
             } else {
                 data = JSON.parse(atob(event.data));
             }
-            console.log(data);
             if (data.Message == "pake") {
                 log("processing pake data");
                 // console.log(pakeData);
@@ -142,6 +140,7 @@
                     "Payload": pakePublic(pakeData),
                 })
             } else if (data.Message == "offerer") {
+                log("i am the offerer")
                 log("offering the first pake");
                 sendMessage({
                     "Message": "answerer",

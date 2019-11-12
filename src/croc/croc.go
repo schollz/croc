@@ -297,7 +297,7 @@ func (c *Client) getPAKE(keepSending bool) (err error) {
 		log.Error(err)
 		return
 	}
-
+	log.Debugf("payload: %s", payload)
 	err = c.Pake.Update(payload)
 	if err != nil {
 		log.Error(err)
