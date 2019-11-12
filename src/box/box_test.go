@@ -1,6 +1,7 @@
 package box
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/schollz/croc/v7/src/crypt"
@@ -33,6 +34,7 @@ func TestBox(t *testing.T) {
 
 	bundled, err := Bundle(M{"hello, world"}, key)
 	assert.Nil(t, err)
+	fmt.Println(bundled, len(bundled))
 
 	var m M
 	err = Unbundle(bundled, key, &m)

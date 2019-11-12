@@ -23,7 +23,6 @@ func Bundle(payload interface{}, key []byte) (bundled string, err error) {
 			return
 		}
 	}
-	// TODO: use base-122 encoding instead? https://github.com/kevinAlbs/Base122
 	bundled = base64.StdEncoding.EncodeToString(p)
 	return
 }
@@ -34,6 +33,7 @@ func Unbundle(bundled string, key []byte, payload interface{}) (err error) {
 	if err != nil {
 		return
 	}
+
 	if key != nil {
 		b, err = crypt.Decrypt(b, key)
 		if err != nil {
