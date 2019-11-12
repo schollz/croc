@@ -23,6 +23,7 @@ import (
 	"syscall/js"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/schollz/croc/v7/src/box"
 	"github.com/schollz/croc/v7/src/crypt"
 	"github.com/schollz/croc/v7/src/models"
@@ -90,7 +91,7 @@ func readWebsocketMessage(this js.Value, inputs []js.Value) interface{} {
 	return string(b)
 }
 
-// initPake(weakPassphrase, role)
+// pakeInit(weakPassphrase, role)
 // returns: pakeBytes
 func pakeInit(this js.Value, inputs []js.Value) interface{} {
 	// initialize sender P ("0" indicates sender)
@@ -99,13 +100,20 @@ func pakeInit(this js.Value, inputs []js.Value) interface{} {
 	}
 	role := 0
 	if inputs[1].String() == "1" {
+		log.Debugf("setting role to 1")
 		role = 1
 	}
-	P, err := pake.Init([]byte(inputs[0].String()), role, elliptic.P521(), 1*time.Millisecond)
+	P, err := pake.Init([]byte(inputs[0].String()), role, elliptic.P521(), 1*time.Microsecond)
 	if err != nil {
+		log.Error(err)
 		return js.Global().Get("Error").New(err.Error())
 	}
-	bJSON, _ := json.Marshal(P)
+	log.Debugf("init P: %+v", P)
+	bJSON, err := json.Marshal(P)
+	if err != nil {
+		log.Error(err)
+		return js.Global().Get("Error").New(err.Error())
+	}
 	return base64.StdEncoding.EncodeToString(bJSON)
 }
 
@@ -114,7 +122,7 @@ func pakeUpdate(this js.Value, inputs []js.Value) interface{} {
 	if len(inputs) != 2 {
 		return js.Global().Get("Error").New("need two input")
 	}
-	var P, Q *pake.Pake
+	var P *pake.Pake
 
 	b, err := base64.StdEncoding.DecodeString(inputs[0].String())
 	if err != nil {
@@ -124,24 +132,27 @@ func pakeUpdate(this js.Value, inputs []js.Value) interface{} {
 	err = json.Unmarshal(b, &P)
 	P.SetCurve(elliptic.P521())
 	if err != nil {
+		log.Error(err)
 		return js.Global().Get("Error").New(err.Error())
 	}
 
-	b, err = base64.StdEncoding.DecodeString(inputs[1].String())
+	qbytes, err := base64.StdEncoding.DecodeString(inputs[1].String())
 	if err != nil {
 		log.Errorf("problem with %s: %s", inputs[1].String(), err)
 		return js.Global().Get("Error").New(err.Error())
 	}
-	err = json.Unmarshal(b, &Q)
-	Q.SetCurve(elliptic.P521())
+	log.Debugf("P: %+v", P)
+	log.Debugf("qbytes: %s", qbytes)
+	err = P.Update(qbytes)
 	if err != nil {
+		log.Error(err)
 		return js.Global().Get("Error").New(err.Error())
 	}
-	err = P.Update(Q.Bytes())
+	bJSON, err := json.Marshal(P)
 	if err != nil {
+		log.Error(err)
 		return js.Global().Get("Error").New(err.Error())
 	}
-	bJSON, _ := json.Marshal(P)
 	return base64.StdEncoding.EncodeToString(bJSON)
 }
 
@@ -150,14 +161,16 @@ func pakePublic(this js.Value, inputs []js.Value) interface{} {
 	var P *pake.Pake
 	b, err := base64.StdEncoding.DecodeString(inputs[0].String())
 	if err != nil {
+		log.Error(err)
 		return js.Global().Get("Error").New(err.Error())
 	}
 	err = json.Unmarshal(b, &P)
-	P.SetCurve(elliptic.P521())
 	if err != nil {
+		log.Error(err)
 		return js.Global().Get("Error").New(err.Error())
 	}
-	return base64.StdEncoding.EncodeToString(P.Public().Bytes())
+	P.SetCurve(elliptic.P521())
+	return base64.StdEncoding.EncodeToString(P.Bytes())
 }
 
 // pakeSessionKey(pakeBytes,salt)
@@ -168,6 +181,7 @@ func pakeSessionKey(this js.Value, inputs []js.Value) interface{} {
 	var P *pake.Pake
 	b, err := base64.StdEncoding.DecodeString(inputs[0].String())
 	if err != nil {
+		err = errors.Wrap(err, "could not decode pakeBytes")
 		return js.Global().Get("Error").New(err.Error())
 	}
 	err = json.Unmarshal(b, &P)
@@ -201,6 +215,9 @@ func pakeSessionKey(this js.Value, inputs []js.Value) interface{} {
 	kas.Key = base64.StdEncoding.EncodeToString(cryptKey)
 	kas.Salt = base64.StdEncoding.EncodeToString(cryptSalt)
 	b, _ = json.Marshal(kas)
+
+	log.Debugf("key: %x", cryptKey)
+	log.Debugf("salt: %x", cryptSalt)
 	return string(b)
 }
 

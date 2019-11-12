@@ -152,6 +152,7 @@ func (c *Client) connectToRelay() (err error) {
 			}
 			wsreply.Message = "[3] pake1"
 			wsreply.Payload = base64.StdEncoding.EncodeToString(c.Pake.Bytes())
+			log.Debugf("[3] pake payload: %s", wsreply.Payload)
 		} else if wsmsg.Message == "[3] pake1" || wsmsg.Message == "[4] pake2" || wsmsg.Message == "[5] pake3" {
 			var pakeBytes []byte
 			pakeBytes, err = base64.StdEncoding.DecodeString(wsmsg.Payload)
@@ -193,6 +194,7 @@ func (c *Client) connectToRelay() (err error) {
 			var sessionKey, salt []byte
 			salt, err = base64.StdEncoding.DecodeString(wsmsg.Payload)
 			if err != nil {
+				log.Debugf("payload: %s", wsmsg.Payload)
 				log.Error(err)
 				return
 			}
@@ -201,6 +203,7 @@ func (c *Client) connectToRelay() (err error) {
 				log.Error(err)
 				return
 			}
+			log.Debugf("using salt: %x", salt)
 			c.Key, _, err = crypt.New(sessionKey, salt)
 			if err != nil {
 				log.Error(err)

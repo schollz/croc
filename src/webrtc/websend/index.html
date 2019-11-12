@@ -125,7 +125,15 @@
     var socket;
     var pakeData;
     var croc = {
-        "key": "",
+        "SharedSecret": "test1",
+        "Key": "",
+        "Pake": "",
+    }
+
+    var checkErr = e => {
+        if (typeof e === 'error') {
+            throw err;
+        }
     }
 
     var sendMessage = msg => {
@@ -143,15 +151,44 @@
 
     const socketMessageListener = (event) => {
         console.log(event.data);
-        var data = JSON.parse(readWebsocketMessage(event.data, croc.key));
+        var data = JSON.parse(readWebsocketMessage(event.data, croc.Key));
         console.log(data);
         if (!("Message" in data)) {
             console.log("no message")
             return
         }
-        // if (data.Message == "[1] you are offerer") {
-
-        // }
+        var message = "";
+        var payload = "";
+        if (data.Message == "[1] you are offerer") {
+            croc.Pake = pakeInit(croc.SharedSecret, "0")
+            message = "[2] you are answerer"
+        } else if (data.Message == "[2] you are answerer") {
+            croc.Pake = pakeInit(croc.SharedSecret, "1")
+            message = "[3] pake1"
+            payload = pakePublic(croc.Pake);
+        } else if (data.Message == "[3] pake1") {
+            console.log("[3] pake1 payload: " + data.Payload)
+            croc.Pake = pakeUpdate(croc.Pake, data.Payload);
+            message = "[4] pake2"
+            payload = pakePublic(croc.Pake)
+        } else if (data.Message == "[4] pake2") {
+            croc.Pake = pakeUpdate(croc.Pake, data.Payload);
+            message = "[5] pake3"
+            payload = pakePublic(croc.Pake)
+        } else if (data.Message == "[5] pake3") {
+            croc.Pake = pakeUpdate(croc.Pake, data.Payload);
+            keyAndSalt = JSON.parse(pakeSessionKey(croc.Pake, ""));
+            message = "[6] salt";
+            payload = keyAndSalt.Salt;
+        }
+        if (message != "") {
+            console.log(`send '${message}'`);
+            socket.send(writeWebsocketMessage(message, payload, croc.Key));
+            if (message == "[6] salt") {
+                // update the key so future transfers are encrypted
+                croc.Key = keyAndSalt.Key;
+            }
+        }
     };
     const socketOpenListener = (event) => {
         log('connected to websockets');
