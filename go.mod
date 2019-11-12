@@ -7,6 +7,7 @@ require (
 	github.com/gin-contrib/cors v1.3.0
 	github.com/gin-gonic/gin v1.4.0
 	github.com/gorilla/websocket v1.4.1
+	github.com/json-iterator/go v1.1.6
 	github.com/pion/webrtc/v2 v2.1.12
 	github.com/pions/webrtc v1.2.0
 	github.com/pkg/errors v0.8.1
