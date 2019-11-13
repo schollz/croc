@@ -16,6 +16,7 @@ import (
 	"github.com/schollz/croc/v7/src/models"
 	log "github.com/schollz/logger"
 	"github.com/schollz/pake/v2"
+	"github.com/schollz/progressbar/v2"
 )
 
 // Debug toggles debug mode
@@ -385,7 +386,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 
 	var readyToBegin = false
 	var readyToEnd = false
-
+	var bar *progressbar.ProgressBar
 	dc.OnOpen(func() {
 		log.Debug("data channel is open")
 		if c.Options.IsSender {
@@ -402,6 +403,11 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 				log.Debug("transfering file")
 			}
 
+			bar = progressbar.NewOptions64(fstat.Size(),
+				progressbar.OptionSetBytes64(fstat.Size()),
+				progressbar.OptionSetPredictTime(true),
+				progressbar.OptionThrottle(100*time.Millisecond),
+			)
 			timeStart := time.Now()
 			for {
 				for {
@@ -412,6 +418,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 				}
 				data := make([]byte, maxPacketSizeHalf)
 				n, errRead := f.Read(data)
+				bar.Add(n)
 				if errRead != nil {
 					if errRead == io.EOF {
 						break
@@ -456,6 +463,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 	})
 
 	var fileSize int64
+
 	// Register the OnMessage to handle incoming messages
 	dc.OnMessage(func(dcMsg webrtc.DataChannelMessage) {
 		var fd FileData
@@ -488,6 +496,11 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 				fileSize = 0
 			} else {
 				log.Debugf("receiving file sized %d", fileSize)
+				bar = progressbar.NewOptions64(fileSize,
+					progressbar.OptionSetBytes64(fileSize),
+					progressbar.OptionSetPredictTime(true),
+					progressbar.OptionThrottle(100*time.Millisecond),
+				)
 				return
 			}
 
@@ -495,7 +508,8 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 		err = box.Unbundle(string(dcMsg.Data), c.Key, &fd)
 		if err == nil {
 			// log.Debug(fd.Position)
-			fwrite.Write(fd.Data)
+			n, _ := fwrite.Write(fd.Data)
+			bar.Add(n)
 			sendData([]byte{2, 3, 4})
 		} else {
 			log.Error(err)

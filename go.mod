@@ -10,6 +10,7 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/schollz/logger v1.0.1
 	github.com/schollz/pake/v2 v2.0.3-0.20191113001949-efbd97a5fff1
+	github.com/schollz/progressbar/v2 v2.14.0
 	github.com/stretchr/testify v1.4.0
 	github.com/tscholl2/siec v0.0.0-20191103131401-2e0c53a9e212 // indirect
 	golang.org/x/crypto v0.0.0-20191112222119-e1110fd1c708
