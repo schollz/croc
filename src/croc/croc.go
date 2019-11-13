@@ -404,6 +404,8 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 						break
 					}
 				}
+				msg, _ := box.Bundle(fstat.Size(), c.Key)
+				sendData([]byte(msg))
 				if pos == 0 {
 					log.Debug("transfering file")
 				}
@@ -452,6 +454,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 		sendMoreCh <- struct{}{}
 	})
 
+	var fileSize int64
 	// Register the OnMessage to handle incoming messages
 	dc.OnMessage(func(dcMsg webrtc.DataChannelMessage) {
 		var fd FileData
@@ -477,6 +480,14 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 			log.Debug("got ready to end")
 			readyToEnd = true
 			return
+		}
+		if fileSize == 0 {
+			err = box.Unbundle(string(dcMsg.Data), c.Key, &fileSize)
+			if err != nil {
+				fileSize = 0
+			} else {
+				log.Debugf("receiving file sized %d", fileSize)
+			}
 		}
 		err = box.Unbundle(string(dcMsg.Data), c.Key, &fd)
 		if err == nil {
