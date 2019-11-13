@@ -365,6 +365,10 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 		return
 	}
 
+	pc.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
+		log.Debugf("ICE Connection State has changed: %s", connectionState.String())
+	})
+
 	// Register channel opening handling
 	sendData := func(buf []byte) error {
 		// fmt.Printf("sent message: %x\n", md5.Sum(buf))
@@ -394,7 +398,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 			timeStart := time.Now()
 			for {
 				for {
-					time.Sleep(10 * time.Millisecond)
+					time.Sleep(1 * time.Millisecond)
 					if readyToBegin {
 						break
 					}
