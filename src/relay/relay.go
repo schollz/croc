@@ -64,7 +64,7 @@ func (s subscription) readPump() {
 			break
 		}
 		m := message{msg, s.room, c.id}
-		log.Debugf("[%s] msg from %d: '%s'", s.room, c.id, msg)
+		log.Debugf("[%s] msg from %d", s.room, c.id)
 		h.broadcast <- m
 	}
 }
