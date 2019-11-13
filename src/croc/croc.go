@@ -438,7 +438,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 		}
 		err = box.Unbundle(string(dcMsg.Data), c.Key, &fd)
 		if err == nil {
-			log.Debug(fd.Position)
+			// log.Debug(fd.Position)
 			fwrite.Write(fd.Data)
 		} else {
 			log.Error(err)
