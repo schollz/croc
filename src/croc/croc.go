@@ -396,6 +396,12 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 				panic(errOpen)
 			}
 			fstat, _ := f.Stat()
+			msgSize, _ := box.Bundle(fstat.Size(), c.Key)
+			sendData([]byte(msgSize))
+			if pos == 0 {
+				log.Debug("transfering file")
+			}
+
 			timeStart := time.Now()
 			for {
 				for {
@@ -403,11 +409,6 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 					if readyToBegin {
 						break
 					}
-				}
-				msg, _ := box.Bundle(fstat.Size(), c.Key)
-				sendData([]byte(msg))
-				if pos == 0 {
-					log.Debug("transfering file")
 				}
 				data := make([]byte, maxPacketSizeHalf)
 				n, errRead := f.Read(data)
