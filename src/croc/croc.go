@@ -387,6 +387,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 	var readyToEnd = false
 
 	dc.OnOpen(func() {
+		log.Debug("data channel is open")
 		if c.Options.IsSender {
 			log.Debug("sending file")
 			pos := uint64(0)
