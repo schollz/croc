@@ -435,7 +435,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 					return
 				}
 				pos += uint64(n)
-				readyToBegin = false
+				// readyToBegin = false
 			}
 			log.Debug(float64(fstat.Size()) / float64(time.Since(timeStart).Seconds()) / 1000000)
 
@@ -490,7 +490,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 			readyToEnd = true
 			return
 		}
-		if fileSize == 0 {
+		if fileSize == 0 && !c.Options.IsSender {
 			err = box.Unbundle(string(dcMsg.Data), c.Key, &fileSize)
 			if err != nil {
 				fileSize = 0
@@ -510,7 +510,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 			// log.Debug(fd.Position)
 			n, _ := fwrite.Write(fd.Data)
 			bar.Add(n)
-			sendData([]byte{2, 3, 4})
+			// sendData([]byte{2, 3, 4})
 		} else {
 			log.Error(err)
 		}
