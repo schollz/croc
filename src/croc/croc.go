@@ -1,11 +1,12 @@
 package croc
 
 import (
+	"bytes"
 	"crypto/elliptic"
-	"crypto/md5"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
+	"io"
+	"os"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -298,7 +299,13 @@ const (
 	bufferedAmountLowThreshold uint64 = 512 * 1024  // 512 KB
 	maxBufferedAmount          uint64 = 1024 * 1024 // 1 MB
 	maxPacketSize              uint64 = 65535
+	maxPacketSizeHalf          int64  = 32767
 )
+
+type FileData struct {
+	Position uint64
+	Data     []byte
+}
 
 func setRemoteDescription(pc *webrtc.PeerConnection, sdp []byte) (err error) {
 	log.Debug("setting remote description")
@@ -322,6 +329,11 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 	// Prepare the configuration
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{{URLs: []string{"stun:stun.l.google.com:19302"}}},
+	}
+
+	var fwrite *os.File
+	if !c.Options.IsSender {
+		fwrite, _ = os.Create("croc2")
 	}
 
 	// Create a new PeerConnection
@@ -351,7 +363,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 
 	// Register channel opening handling
 	sendData := func(buf []byte) error {
-		fmt.Printf("sent message: %x\n", md5.Sum(buf))
+		// fmt.Printf("sent message: %x\n", md5.Sum(buf))
 		err := dc.Send(buf)
 		if err != nil {
 			return err
@@ -364,24 +376,45 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 	}
 
 	dc.OnOpen(func() {
-		fmt.Println(time.Now())
-		log.Debugf("OnOpen: %s-%d. Start sending a series of 1024-byte packets as fast as it can\n", dc.Label(), dc.ID())
-		its := 0
-		for {
-			its++
-
-			msg, _ := box.Bundle(models.WebsocketMessage{
-				Message: fmt.Sprintf("%d", its),
-			}, c.Key)
-			err2 := sendData([]byte(msg))
+		if c.Options.IsSender {
+			log.Debug("sending file")
+			pos := uint64(0)
+			f, errOpen := os.Open("croc1")
+			if errOpen != nil {
+				panic(errOpen)
+			}
+			fstat, _ := f.Stat()
+			timeStart := time.Now()
+			for {
+				data := make([]byte, maxPacketSizeHalf)
+				n, errRead := f.Read(data)
+				if errRead != nil {
+					if errRead == io.EOF {
+						break
+					}
+					panic(errRead)
+				}
+				msg, _ := box.Bundle(FileData{
+					Position: pos,
+					Data:     data[:n],
+				}, c.Key)
+				err2 := sendData([]byte(msg))
+				if err2 != nil {
+					finished <- err2
+					return
+				}
+				pos += uint64(n)
+				time.Sleep(3 * time.Millisecond)
+			}
+			log.Debug(float64(fstat.Size()) / float64(time.Since(timeStart).Seconds()) / 1000000)
+			err2 := sendData([]byte{1, 2, 3})
 			if err2 != nil {
 				finished <- err2
 				return
 			}
-			time.Sleep(1 * time.Second)
-			if its == 30000000 {
-				break
-			}
+
+			finished <- nil
+
 		}
 	})
 
@@ -396,10 +429,17 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 
 	// Register the OnMessage to handle incoming messages
 	dc.OnMessage(func(dcMsg webrtc.DataChannelMessage) {
-		var wsmsg models.WebsocketMessage
-		err = box.Unbundle(string(dcMsg.Data), c.Key, &wsmsg)
+		var fd FileData
+		if bytes.Equal(dcMsg.Data, []byte{1, 2, 3}) {
+			log.Debug("received magic")
+			fwrite.Close()
+			finished <- nil
+			return
+		}
+		err = box.Unbundle(string(dcMsg.Data), c.Key, &fd)
 		if err == nil {
-			log.Debugf("wsmsg: %+v", wsmsg)
+			log.Debug(fd.Position)
+			fwrite.Write(fd.Data)
 		} else {
 			log.Error(err)
 		}
