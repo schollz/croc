@@ -52,6 +52,12 @@ $ scoop install croc
 ```
 
 
+On Arch Linux you can install the latest release with `pacman`:
+
+```
+$ pacman -S croc
+```
+
 Or, you can [install Go](https://golang.org/dl/) and build from source (requires Go 1.12+): 
 
 ```
