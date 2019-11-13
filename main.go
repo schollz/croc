@@ -21,7 +21,7 @@ func main() {
 		c, err := croc.New(croc.Options{
 			IsSender:     true,
 			SharedSecret: "test1",
-			RelayAddress: "ws://localhost:8005/ws",
+			RelayAddress: "wss://testcroc.schollz.com/ws",
 			Debug:        true,
 		})
 		if err != nil {
@@ -35,7 +35,7 @@ func main() {
 		c, err := croc.New(croc.Options{
 			IsSender:     false,
 			SharedSecret: "test1",
-			RelayAddress: "ws://localhost:8005/ws",
+			RelayAddress: "wss://testcroc.schollz.com/ws",
 			Debug:        true,
 		})
 		if err != nil {
