@@ -399,6 +399,9 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 						break
 					}
 				}
+				if pos == 0 {
+					log.Debug("transfering file")
+				}
 				data := make([]byte, maxPacketSizeHalf)
 				n, errRead := f.Read(data)
 				if errRead != nil {
@@ -472,7 +475,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 		}
 		err = box.Unbundle(string(dcMsg.Data), c.Key, &fd)
 		if err == nil {
-			log.Debug(fd.Position)
+			// log.Debug(fd.Position)
 			fwrite.Write(fd.Data)
 			sendData([]byte{2, 3, 4})
 		} else {
