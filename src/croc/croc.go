@@ -360,13 +360,10 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 	sendMoreCh := make(chan struct{})
 
 	// Create a datachannel with label 'data'
-	var dc *webrtc.DataChannel
-	if c.Options.IsSender {
-		dc, err = pc.CreateDataChannel("data", options)
-		if err != nil {
-			log.Error(err)
-			return
-		}
+	dc, err := pc.CreateDataChannel("data", options)
+	if err != nil {
+		log.Error(err)
+		return
 	}
 
 	pc.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
