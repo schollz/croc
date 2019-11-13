@@ -152,7 +152,6 @@ func (c *Client) connectToRelay() (err error) {
 			}
 			wsreply.Message = "[3] pake1"
 			wsreply.Payload = base64.StdEncoding.EncodeToString(c.Pake.Bytes())
-			log.Debugf("[3] pake payload: %s", wsreply.Payload)
 		} else if wsmsg.Message == "[3] pake1" || wsmsg.Message == "[4] pake2" || wsmsg.Message == "[5] pake3" {
 			var pakeBytes []byte
 			pakeBytes, err = base64.StdEncoding.DecodeString(wsmsg.Payload)
@@ -162,7 +161,6 @@ func (c *Client) connectToRelay() (err error) {
 			}
 			err = c.Pake.Update(pakeBytes)
 			if err != nil {
-				log.Debugf("pakeBytes: %s", pakeBytes)
 				log.Error(err)
 				return
 			}
@@ -268,6 +266,10 @@ func (c *Client) connectToRelay() (err error) {
 		} else if wsmsg.Message == "[8] answer" {
 			var payload []byte
 			payload, err = base64.StdEncoding.DecodeString(wsmsg.Payload)
+			if err != nil {
+				log.Error(err)
+				return
+			}
 			err = setRemoteDescription(c.rtc, payload)
 			if err != nil {
 				log.Error(err)

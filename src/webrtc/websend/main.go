@@ -100,7 +100,6 @@ func pakeInit(this js.Value, inputs []js.Value) interface{} {
 	}
 	role := 0
 	if inputs[1].String() == "1" {
-		log.Debugf("setting role to 1")
 		role = 1
 	}
 	P, err := pake.Init([]byte(inputs[0].String()), role, elliptic.P521(), 1*time.Microsecond)
@@ -108,7 +107,6 @@ func pakeInit(this js.Value, inputs []js.Value) interface{} {
 		log.Error(err)
 		return js.Global().Get("Error").New(err.Error())
 	}
-	log.Debugf("init P: %+v", P)
 	bJSON, err := json.Marshal(P)
 	if err != nil {
 		log.Error(err)
@@ -141,8 +139,6 @@ func pakeUpdate(this js.Value, inputs []js.Value) interface{} {
 		log.Errorf("problem with %s: %s", inputs[1].String(), err)
 		return js.Global().Get("Error").New(err.Error())
 	}
-	log.Debugf("P: %+v", P)
-	log.Debugf("qbytes: %s", qbytes)
 	err = P.Update(qbytes)
 	if err != nil {
 		log.Error(err)

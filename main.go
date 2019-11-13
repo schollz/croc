@@ -20,7 +20,7 @@ func main() {
 	} else if startSend {
 		c, err := croc.New(croc.Options{
 			IsSender:     true,
-			SharedSecret: "pass",
+			SharedSecret: "test1",
 			RelayAddress: "ws://localhost:8005/ws",
 			Debug:        true,
 		})
@@ -34,7 +34,7 @@ func main() {
 	} else if startReceive {
 		c, err := croc.New(croc.Options{
 			IsSender:     false,
-			SharedSecret: "pass",
+			SharedSecret: "test1",
 			RelayAddress: "ws://localhost:8005/ws",
 			Debug:        true,
 		})
