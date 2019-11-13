@@ -384,12 +384,6 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 
 	dc.OnOpen(func() {
 		if c.Options.IsSender {
-			for {
-				time.Sleep(10 * time.Millisecond)
-				if readyToBegin {
-					break
-				}
-			}
 			log.Debug("sending file")
 			pos := uint64(0)
 			f, errOpen := os.Open("croc1")
@@ -399,6 +393,12 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 			fstat, _ := f.Stat()
 			timeStart := time.Now()
 			for {
+				for {
+					time.Sleep(10 * time.Millisecond)
+					if readyToBegin {
+						break
+					}
+				}
 				data := make([]byte, maxPacketSizeHalf)
 				n, errRead := f.Read(data)
 				if errRead != nil {
@@ -417,7 +417,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 					return
 				}
 				pos += uint64(n)
-				time.Sleep(1 * time.Millisecond)
+				readyToBegin = false
 			}
 			log.Debug(float64(fstat.Size()) / float64(time.Since(timeStart).Seconds()) / 1000000)
 
@@ -432,11 +432,6 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 
 		} else {
 			sendData([]byte{2, 3, 4})
-			time.Sleep(100 * time.Millisecond)
-			sendData([]byte{2, 3, 4})
-			time.Sleep(100 * time.Millisecond)
-			sendData([]byte{2, 3, 4})
-			time.Sleep(100 * time.Millisecond)
 		}
 	})
 
@@ -459,7 +454,9 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 			log.Debug("received magic")
 			fwrite.Close()
 			sendData([]byte{1, 3, 4})
+			time.Sleep(100 * time.Millisecond)
 			sendData([]byte{1, 3, 4})
+			time.Sleep(100 * time.Millisecond)
 			sendData([]byte{1, 3, 4})
 			time.Sleep(100 * time.Millisecond)
 			finished <- nil
@@ -477,6 +474,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 		if err == nil {
 			log.Debug(fd.Position)
 			fwrite.Write(fd.Data)
+			sendData([]byte{2, 3, 4})
 		} else {
 			log.Error(err)
 		}
