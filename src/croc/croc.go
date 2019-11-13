@@ -237,6 +237,7 @@ func (c *Client) connectToRelay() (err error) {
 			// create webrtc answer and send it over
 			var payload []byte
 			payload, err = base64.StdEncoding.DecodeString(wsmsg.Payload)
+			log.Debugf("offer recv: %s", payload)
 			err = setRemoteDescription(c.rtc, payload)
 			if err != nil {
 				log.Error(err)
@@ -332,9 +333,11 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 
 	ordered := false
 	maxRetransmits := uint16(0)
+	var id uint16 = 5
 	options := &webrtc.DataChannelInit{
 		Ordered:        &ordered,
 		MaxRetransmits: &maxRetransmits,
+		ID:             &id,
 	}
 
 	sendMoreCh := make(chan struct{})

@@ -123,6 +123,7 @@
 
     // websockets 
     var socket;
+    var sendChannel;
     var pakeData;
     var croc = {
         "SharedSecret": "test1",
@@ -184,20 +185,25 @@
             croc.Key = croc.KeyAndSalt.Key;
 
             // create offer 
-             pc.createOffer().then(d => {
-                pc.setLocalDescription(d)
+            sendChannel = pc.createDataChannel('data')
+            pc.createOffer().then(d => {
+                console.log(`send '[7] offer'`);
+                console.log(d);
                 socket.send(writeWebsocketMessage("[7] offer", btoa(JSON.stringify(d)), croc.Key));
+                pc.setLocalDescription(d);
             }).catch(log)
         } else if (data.Message == "[7] offer") {
             console.log(atob(data.Payload));
             pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(data.Payload)))).catch(log)
             pc.createAnswer().then(d => {
-                console.log(d);
+                console.log("send '[8] answer'")
                 socket.send(writeWebsocketMessage("[8] answer", btoa(JSON.stringify(d)), croc.Key));
                 pc.setLocalDescription(d);
             }).catch(log)
         } else if (data.Message == "[8] answer") {
-             pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(data.Payload)))).catch(log);
+            var localDesc = JSON.parse(atob(data.Payload));
+            console.log("local description: " + localDesc);
+            pc.setRemoteDescription(new RTCSessionDescription(localDesc)).catch(log);
         }
         if (message != "") {
             console.log(`send '${message}'`);
