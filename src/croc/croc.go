@@ -349,7 +349,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 	}
 
 	ordered := true
-	maxRetransmits := uint16(3)
+	maxRetransmits := uint16(0)
 	var id uint16 = 5
 	options := &webrtc.DataChannelInit{
 		Ordered:        &ordered,
@@ -503,13 +503,12 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 				)
 				return
 			}
-
 		}
 		err = box.Unbundle(string(dcMsg.Data), c.Key, &fd)
 		if err == nil {
-			// log.Debug(fd.Position)
 			n, _ := fwrite.Write(fd.Data)
 			bar.Add(n)
+
 			// sendData([]byte{2, 3, 4})
 		} else {
 			log.Error(err)
