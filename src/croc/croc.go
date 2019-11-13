@@ -456,6 +456,8 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 			log.Debug("received magic")
 			fwrite.Close()
 			sendData([]byte{1, 3, 4})
+			sendData([]byte{1, 3, 4})
+			sendData([]byte{1, 3, 4})
 			time.Sleep(100 * time.Millisecond)
 			finished <- nil
 			return
@@ -470,6 +472,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 		}
 		err = box.Unbundle(string(dcMsg.Data), c.Key, &fd)
 		if err == nil {
+			log.Debug(fd.Position)
 			fwrite.Write(fd.Data)
 		} else {
 			log.Error(err)
