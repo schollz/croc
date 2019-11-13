@@ -349,7 +349,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 	}
 
 	ordered := true
-	maxRetransmits := uint16(0)
+	maxRetransmits := uint16(10000)
 	var id uint16 = 5
 	options := &webrtc.DataChannelInit{
 		Ordered:        &ordered,
