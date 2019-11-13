@@ -488,7 +488,9 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 				fileSize = 0
 			} else {
 				log.Debugf("receiving file sized %d", fileSize)
+				return
 			}
+
 		}
 		err = box.Unbundle(string(dcMsg.Data), c.Key, &fd)
 		if err == nil {
