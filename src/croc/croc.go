@@ -420,11 +420,13 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 				time.Sleep(1 * time.Millisecond)
 			}
 			log.Debug(float64(fstat.Size()) / float64(time.Since(timeStart).Seconds()) / 1000000)
-			err2 := sendData([]byte{1, 2, 3})
-			if err2 != nil {
-				finished <- err2
-				return
-			}
+
+			sendData([]byte{1, 2, 3})
+			time.Sleep(100 * time.Millisecond)
+			sendData([]byte{1, 2, 3})
+			time.Sleep(100 * time.Millisecond)
+			sendData([]byte{1, 2, 3})
+			time.Sleep(100 * time.Millisecond)
 			for {
 				time.Sleep(10 * time.Millisecond)
 				if readyToEnd {
@@ -435,8 +437,11 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 
 		} else {
 			sendData([]byte{2, 3, 4})
+			time.Sleep(100 * time.Millisecond)
 			sendData([]byte{2, 3, 4})
+			time.Sleep(100 * time.Millisecond)
 			sendData([]byte{2, 3, 4})
+			time.Sleep(100 * time.Millisecond)
 		}
 	})
 
