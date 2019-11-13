@@ -304,7 +304,7 @@ const (
 	bufferedAmountLowThreshold uint64 = 512 * 1024  // 512 KB
 	maxBufferedAmount          uint64 = 1024 * 1024 // 1 MB
 	maxPacketSize              uint64 = 65535
-	maxPacketSizeHalf          int64  = 32767
+	maxPacketSizeHalf          int64  = 45000
 )
 
 type FileData struct {
