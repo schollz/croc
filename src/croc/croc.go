@@ -277,6 +277,7 @@ func (c *Client) connectToRelay() (err error) {
 				log.Error(err)
 				return
 			}
+			break
 		} else {
 			log.Debug("unknown: %s", wsmsg)
 		}
@@ -288,6 +289,9 @@ func (c *Client) connectToRelay() (err error) {
 			if err != nil {
 				log.Error(err)
 				return
+			}
+			if wsreply.Message == "[8] answer" {
+				break
 			}
 		}
 	}
@@ -343,8 +347,8 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 		return
 	}
 
-	ordered := false
-	maxRetransmits := uint16(0)
+	ordered := true
+	maxRetransmits := uint16(3)
 	var id uint16 = 5
 	options := &webrtc.DataChannelInit{
 		Ordered:        &ordered,
@@ -375,8 +379,17 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 		return nil
 	}
 
+	var readyToBegin = false
+	var readyToEnd = false
+
 	dc.OnOpen(func() {
 		if c.Options.IsSender {
+			for {
+				time.Sleep(10 * time.Millisecond)
+				if readyToBegin {
+					break
+				}
+			}
 			log.Debug("sending file")
 			pos := uint64(0)
 			f, errOpen := os.Open("croc1")
@@ -404,7 +417,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 					return
 				}
 				pos += uint64(n)
-				time.Sleep(3 * time.Millisecond)
+				time.Sleep(1 * time.Millisecond)
 			}
 			log.Debug(float64(fstat.Size()) / float64(time.Since(timeStart).Seconds()) / 1000000)
 			err2 := sendData([]byte{1, 2, 3})
@@ -412,9 +425,18 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 				finished <- err2
 				return
 			}
-
+			for {
+				time.Sleep(10 * time.Millisecond)
+				if readyToEnd {
+					break
+				}
+			}
 			finished <- nil
 
+		} else {
+			sendData([]byte{2, 3, 4})
+			sendData([]byte{2, 3, 4})
+			sendData([]byte{2, 3, 4})
 		}
 	})
 
@@ -433,12 +455,21 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 		if bytes.Equal(dcMsg.Data, []byte{1, 2, 3}) {
 			log.Debug("received magic")
 			fwrite.Close()
+			sendData([]byte{1, 3, 4})
+			time.Sleep(100 * time.Millisecond)
 			finished <- nil
+			return
+		} else if bytes.Equal(dcMsg.Data, []byte{2, 3, 4}) {
+			log.Debug("got ready to begin")
+			readyToBegin = true
+			return
+		} else if bytes.Equal(dcMsg.Data, []byte{1, 3, 4}) {
+			log.Debug("got ready to end")
+			readyToEnd = true
 			return
 		}
 		err = box.Unbundle(string(dcMsg.Data), c.Key, &fd)
 		if err == nil {
-			// log.Debug(fd.Position)
 			fwrite.Write(fd.Data)
 		} else {
 			log.Error(err)
