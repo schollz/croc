@@ -421,14 +421,9 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 			}
 			log.Debug(float64(fstat.Size()) / float64(time.Since(timeStart).Seconds()) / 1000000)
 
-			sendData([]byte{1, 2, 3})
-			time.Sleep(100 * time.Millisecond)
-			sendData([]byte{1, 2, 3})
-			time.Sleep(100 * time.Millisecond)
-			sendData([]byte{1, 2, 3})
-			time.Sleep(100 * time.Millisecond)
 			for {
-				time.Sleep(10 * time.Millisecond)
+				sendData([]byte{1, 2, 3})
+				time.Sleep(100 * time.Millisecond)
 				if readyToEnd {
 					break
 				}
@@ -457,6 +452,9 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 	// Register the OnMessage to handle incoming messages
 	dc.OnMessage(func(dcMsg webrtc.DataChannelMessage) {
 		var fd FileData
+		if len(dcMsg.Data) >= 3 {
+			log.Debugf("%+x", dcMsg.Data[:3])
+		}
 		if bytes.Equal(dcMsg.Data, []byte{1, 2, 3}) {
 			log.Debug("received magic")
 			fwrite.Close()
