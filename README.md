@@ -51,6 +51,12 @@ $ scoop bucket add schollz-bucket https://github.com/schollz/scoop-bucket.git
 $ scoop install croc
 ```
 
+On Unix you can install the latest release with [Nix](https://nixos.org/nix):
+
+```
+$ nix-env -i croc
+```
+
 
 On Arch Linux you can install the latest release with `pacman`:
 
