@@ -8,6 +8,7 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/fatih/color v1.7.0 // indirect
+	github.com/gorilla/websocket v1.4.1
 	github.com/kalafut/imohash v1.0.0
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.4 // indirect

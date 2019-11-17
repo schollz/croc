@@ -1,0 +1,50 @@
+<html>
+
+<head>
+
+</html>
+
+<body>
+    <script src="wasm_exec.js"></script>
+    <script>
+        const go = new Go();
+        WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+            go.run(result.instance);
+        });
+    </script>
+    <script>
+        let log = msg => {
+            console.log(msg);
+        }
+
+        // websockets 
+        var socket;
+        var checkErr = e => {
+            if (typeof e === 'error') {
+                throw err;
+            }
+        }
+
+        const socketMessageListener = (event) => {
+            console.log(event);
+        };
+        const socketOpenListener = (event) => {
+            log('connected to websockets');
+            socket.send("receive");
+        }
+        const socketCloseListener = (event) => {
+            if (socket) {
+                log('Disconnected.');
+            }
+            var ws_url = window.origin.replace("http", "ws") + '/ws';
+            log(`connecting to '${ws_url}'`)
+            socket = new WebSocket(ws_url);
+            socket.addEventListener('open', socketOpenListener);
+            socket.addEventListener('message', socketMessageListener);
+            socket.addEventListener('close', socketCloseListener);
+        };
+        socketCloseListener();
+    </script>
+</body>
+
+</html>
