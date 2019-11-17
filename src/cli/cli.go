@@ -17,6 +17,7 @@ import (
 	"github.com/schollz/croc/v6/src/models"
 	"github.com/schollz/croc/v6/src/tcp"
 	"github.com/schollz/croc/v6/src/utils"
+	"github.com/schollz/croc/v6/src/webrelay"
 	log "github.com/schollz/logger"
 	"github.com/urfave/cli"
 )
@@ -51,6 +52,7 @@ func Run() (err error) {
 			Flags: []cli.Flag{
 				cli.StringFlag{Name: "code, c", Usage: "codephrase used to connect to relay"},
 				cli.BoolFlag{Name: "no-local", Usage: "disable local relay when sending"},
+				cli.BoolFlag{Name: "no-multi", Usage: "disable multiplexing"},
 				cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the local relay (optional)"},
 			},
 			HelpName: "croc send",
@@ -68,6 +70,18 @@ func Run() (err error) {
 			},
 			Flags: []cli.Flag{
 				cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay"},
+			},
+		},
+		{
+			Name:        "web",
+			Usage:       "start your own web relay (optional)",
+			Description: "start web relay",
+			HelpName:    "croc web",
+			Action: func(c *cli.Context) error {
+				return startWebRelay(c)
+			},
+			Flags: []cli.Flag{
+				cli.StringFlag{Name: "port", Value: "9014", Usage: "port of the web relay"},
 			},
 		},
 	}
@@ -136,15 +150,16 @@ func getConfigFile() string {
 func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
 	crocOptions := croc.Options{
-		SharedSecret: c.String("code"),
-		IsSender:     true,
-		Debug:        c.GlobalBool("debug"),
-		NoPrompt:     c.GlobalBool("yes"),
-		RelayAddress: c.GlobalString("relay"),
-		Stdout:       c.GlobalBool("stdout"),
-		DisableLocal: c.Bool("no-local"),
-		RelayPorts:   strings.Split(c.String("ports"), ","),
-		Ask:          c.GlobalBool("ask"),
+		SharedSecret:   c.String("code"),
+		IsSender:       true,
+		Debug:          c.GlobalBool("debug"),
+		NoPrompt:       c.GlobalBool("yes"),
+		RelayAddress:   c.GlobalString("relay"),
+		Stdout:         c.GlobalBool("stdout"),
+		DisableLocal:   c.Bool("no-local"),
+		RelayPorts:     strings.Split(c.String("ports"), ","),
+		Ask:            c.GlobalBool("ask"),
+		NoMultiplexing: c.Bool("no-multi"),
 	}
 	b, errOpen := ioutil.ReadFile(getConfigFile())
 	if errOpen == nil && !c.GlobalBool("remember") {
@@ -380,4 +395,13 @@ func relay(c *cli.Context) (err error) {
 		}(port)
 	}
 	return tcp.Run(debugString, ports[0], tcpPorts)
+}
+
+func startWebRelay(c *cli.Context) (err error) {
+	debugString := "info"
+	if c.GlobalBool("debug") {
+		debugString = "debug"
+	}
+
+	return webrelay.Run(debugString, c.String("port"))
 }

@@ -48,15 +48,16 @@ func Debug(debug bool) {
 
 // Options specifies user specific options
 type Options struct {
-	IsSender     bool
-	SharedSecret string
-	Debug        bool
-	RelayAddress string
-	RelayPorts   []string
-	Stdout       bool
-	NoPrompt     bool
-	DisableLocal bool
-	Ask          bool
+	IsSender       bool
+	SharedSecret   string
+	Debug          bool
+	RelayAddress   string
+	RelayPorts     []string
+	Stdout         bool
+	NoPrompt       bool
+	NoMultiplexing bool
+	DisableLocal   bool
+	Ask            bool
 }
 
 // Client holds the state of the croc transfer
@@ -286,6 +287,10 @@ func (c *Client) transferOverLocalRelay(options TransferOptions, errchan chan<- 
 	log.Debug("exchanged header message")
 	c.Options.RelayAddress = "localhost"
 	c.Options.RelayPorts = strings.Split(banner, ",")
+	if c.Options.NoMultiplexing {
+		log.Debug("no multiplexing")
+		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
+	}
 	c.ExternalIP = ipaddr
 	errchan <- c.transfer(options)
 }
@@ -363,6 +368,10 @@ func (c *Client) Send(options TransferOptions) (err error) {
 
 		c.conn[0] = conn
 		c.Options.RelayPorts = strings.Split(banner, ",")
+		if c.Options.NoMultiplexing {
+			log.Debug("no multiplexing")
+			c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
+		}
 		c.ExternalIP = ipaddr
 		log.Debug("exchanged header message")
 		errchan <- c.transfer(options)
@@ -464,6 +473,10 @@ func (c *Client) Receive() (err error) {
 
 	c.conn[0].Send([]byte("handshake"))
 	c.Options.RelayPorts = strings.Split(banner, ",")
+	if c.Options.NoMultiplexing {
+		log.Debug("no multiplexing")
+		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
+	}
 	log.Debug("exchanged header message")
 	fmt.Fprintf(os.Stderr, "\rsecuring channel...")
 	return c.transfer(TransferOptions{})
