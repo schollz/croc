@@ -378,8 +378,13 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	if err == nil {
 		// return if no error
 		return
+	} else {
+		log.Debugf("error from errchan: %s", err.Error())
 	}
 	if !c.Options.DisableLocal {
+		if strings.Contains(err.Error(), "refusing files") {
+			errchan <- err
+		}
 		err = <-errchan
 	}
 	return err
