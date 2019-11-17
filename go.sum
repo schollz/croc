@@ -98,6 +98,8 @@ github.com/schollz/pake/v2 v2.0.3-0.20191113001949-efbd97a5fff1 h1:1WpHD2WEsvFNa
 github.com/schollz/pake/v2 v2.0.3-0.20191113001949-efbd97a5fff1/go.mod h1:3uXB571UYJ8Eqh2EEohXe/aO32QID+Varb4GeYA//yw=
 github.com/schollz/progressbar/v2 v2.14.0 h1:vo7bdkI9E4/CIk9DnL5uVIaybLQiVtiCC2vO+u9j5IM=
 github.com/schollz/progressbar/v2 v2.14.0/go.mod h1:6YZjqdthH6SCZKv2rqGryrxPtfmRB/DWZxSMfCXPyD8=
+github.com/schollz/progressbar/v2 v2.14.2 h1:R9MhKyKNz+QaS/8gyU7C2WP9jOXagLBy7dE2XfUjW1Y=
+github.com/schollz/progressbar/v2 v2.14.2/go.mod h1:UdPq3prGkfQ7MOzZKlDRpYKcFqEMczbD7YmbPgpzKMI=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.4.0 h1:2E4SXV/wtOkTonXsotYi4li6zVWxYlZuYNCXe9XRJyk=
