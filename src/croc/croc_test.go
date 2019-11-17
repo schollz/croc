@@ -20,7 +20,7 @@ func TestCroc(t *testing.T) {
 	go tcp.Run("debug", "8083")
 	go tcp.Run("debug", "8084")
 	go tcp.Run("debug", "8085")
-	time.Sleep(1 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	log.Debug("setting up sender")
 	sender, err := New(Options{
@@ -36,6 +36,7 @@ func TestCroc(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+	time.Sleep(3 * time.Second)
 
 	log.Debug("setting up receiver")
 	receiver, err := New(Options{

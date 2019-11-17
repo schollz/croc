@@ -63,7 +63,7 @@ type Options struct {
 type Client struct {
 	Options                         Options
 	Pake                            *pake.Pake
-	Key                             crypt.Encryption
+	Key                             []byte
 	ExternalIP, ExternalIPConnected string
 
 	// steps involved in forming relationship
@@ -146,12 +146,6 @@ func New(ops Options) (c *Client, err error) {
 	log.Debugf("options: %+v", c.Options)
 
 	c.conn = make([]*comm.Comm, 16)
-
-	// use default key (no encryption, until PAKE succeeds)
-	c.Key, err = crypt.New(nil, nil)
-	if err != nil {
-		return
-	}
 
 	// initialize pake
 	if c.Options.IsSender {
@@ -648,10 +642,11 @@ func (c *Client) processMessageSalt(m message.Message) (done bool, err error) {
 	if err != nil {
 		return true, err
 	}
-	c.Key, err = crypt.New(key, m.Bytes)
+	c.Key, _, err = crypt.New(key, m.Bytes)
 	if err != nil {
 		return true, err
 	}
+	log.Debugf("key = %+x", c.Key)
 	if c.ExternalIPConnected == "" {
 		// it can be preset by the local relay
 		c.ExternalIPConnected = m.Message
@@ -1040,7 +1035,7 @@ func (c *Client) receiveData(i int) {
 			break
 		}
 
-		data, err = c.Key.Decrypt(data)
+		data, err = crypt.Decrypt(data, c.Key)
 		if err != nil {
 			panic(err)
 		}
@@ -1126,10 +1121,11 @@ func (c *Client) sendData(i int) {
 				posByte := make([]byte, 8)
 				binary.LittleEndian.PutUint64(posByte, pos)
 
-				dataToSend, err := c.Key.Encrypt(
+				dataToSend, err := crypt.Encrypt(
 					compress.Compress(
 						append(posByte, data[:n]...),
 					),
+					c.Key,
 				)
 				if err != nil {
 					panic(err)
