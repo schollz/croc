@@ -37,12 +37,15 @@ func Run() (err error) {
 	app.Version = Version
 	app.Compiled = time.Now()
 	app.Usage = "easily and securely transfer stuff from one computer to another"
-	app.UsageText = "croc allows any two computers to directly and securely transfer files"
-	// app.ArgsUsage = "[args and such]"
+	app.UsageText = `Send a file:
+      croc send file.txt
+
+   Send a file with a custom code:
+      croc send --code secret-passphrase file.txt`
 	app.Commands = []cli.Command{
 		{
 			Name:        "send",
-			Usage:       "send a file",
+			Usage:       "send a file (see options with croc send -h)",
 			Description: "send a file over the relay",
 			ArgsUsage:   "[filename]",
 			Flags: []cli.Flag{
@@ -57,6 +60,7 @@ func Run() (err error) {
 		},
 		{
 			Name:        "relay",
+			Usage:       "start your own relay (optional)",
 			Description: "start relay",
 			HelpName:    "croc relay",
 			Action: func(c *cli.Context) error {
@@ -69,7 +73,7 @@ func Run() (err error) {
 	}
 	app.Flags = []cli.Flag{
 		cli.BoolFlag{Name: "remember", Usage: "save these settings to reuse next time"},
-		cli.BoolFlag{Name: "debug", Usage: "increase verbosity (a lot)"},
+		cli.BoolFlag{Name: "debug", Usage: "toggle debug mode"},
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
 		cli.BoolFlag{Name: "ask", Usage: "make sure sender and recipient are prompted"},
