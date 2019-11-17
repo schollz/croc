@@ -15,13 +15,13 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/schollz/logger v1.0.1
 	github.com/schollz/mnemonicode v1.0.1
-	github.com/schollz/pake v1.1.1
+	github.com/schollz/pake/v2 v2.0.2
 	github.com/schollz/peerdiscovery v1.4.1
 	github.com/schollz/progressbar/v2 v2.14.2
 	github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stretchr/testify v1.4.0
-	github.com/tscholl2/siec v0.0.0-20191103131401-2e0c53a9e212 // indirect
+	github.com/tscholl2/siec v0.0.0-20191103131401-2e0c53a9e212
 	github.com/urfave/cli v1.22.1
 	golang.org/x/crypto v0.0.0-20191117063200-497ca9f6d64f
 	golang.org/x/net v0.0.0-20191116160921-f9c825593386 // indirect

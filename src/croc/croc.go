@@ -2,7 +2,6 @@ package croc
 
 import (
 	"bytes"
-	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
@@ -27,10 +26,11 @@ import (
 	"github.com/schollz/croc/v6/src/tcp"
 	"github.com/schollz/croc/v6/src/utils"
 	log "github.com/schollz/logger"
-	"github.com/schollz/pake"
+	"github.com/schollz/pake/v2"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v2"
 	"github.com/schollz/spinner"
+	"github.com/tscholl2/siec"
 )
 
 func init() {
@@ -149,9 +149,9 @@ func New(ops Options) (c *Client, err error) {
 
 	// initialize pake
 	if c.Options.IsSender {
-		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 1, elliptic.P521(), 1*time.Microsecond)
+		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 1, siec.SIEC255(), 1*time.Microsecond)
 	} else {
-		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 0, elliptic.P521(), 1*time.Microsecond)
+		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 0, siec.SIEC255(), 1*time.Microsecond)
 	}
 	if err != nil {
 		return
