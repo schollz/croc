@@ -2,6 +2,7 @@ package webrelay
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -105,9 +106,25 @@ func receive(conn *websocket.Conn) (err error) {
 					log.Error(err)
 					return
 				}
-			} else if bu.Message == "initpake" {
-				log.Debug("got init pake data")
-
+			}
+		}
+		b, errBase64 := base64.StdEncoding.DecodeString(string(message))
+		if errBase64 == nil {
+			log.Debug("parsing base64 bytes")
+			err = com.Send(b)
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			b, err = com.Receive()
+			if err != nil {
+				log.Error(err)
+				return
+			}
+			err = conn.WriteMessage(websocket.TextMessage, []byte(base64.StdEncoding.EncodeToString(b)))
+			if err != nil {
+				log.Error(err)
+				return
 			}
 
 		}

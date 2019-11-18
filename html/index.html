@@ -26,6 +26,7 @@
         }
 
         var croc = {
+            "key": "",
             "pake": "",
         };
         var sharedPassphrase = "pass123"
@@ -36,8 +37,13 @@
             if (event.data == "initiated") {
                 socket.send(JSON.stringify({ "m": "room", "ps": sharedPassphrase }))
             } else if (event.data == "initpake") {
-                croc.pake = pakeInit(sharedPassphrase, "1");
-                socket.send(JSON.stringify({ "m": "initpake", "ps": croc.pake }))
+                croc.pake = pakeInit(sharedPassphrase, "0");
+                socket.send(
+                    messageEncode(croc.key, JSON.stringify({ "t": "pake", "b": croc.pake }))
+                )
+            } else {
+                msgJSON = messageDecode(croc.key, event.data);
+                console.log(msgJSON);
             }
         };
         const socketOpenListener = (event) => {
