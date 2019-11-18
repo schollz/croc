@@ -23,7 +23,7 @@ func (m Message) String() string {
 }
 
 // Send will send out
-func Send(c *comm.Comm, key crypt.Encryption, m Message) (err error) {
+func Send(c *comm.Comm, key []byte, m Message) (err error) {
 	mSend, err := Encode(key, m)
 	if err != nil {
 		return
@@ -34,21 +34,25 @@ func Send(c *comm.Comm, key crypt.Encryption, m Message) (err error) {
 }
 
 // Encode will convert to bytes
-func Encode(key crypt.Encryption, m Message) (b []byte, err error) {
+func Encode(key []byte, m Message) (b []byte, err error) {
 	b, err = json.Marshal(m)
 	if err != nil {
 		return
 	}
 	b = compress.Compress(b)
-	b, err = key.Encrypt(b)
+	if key != nil {
+		b, err = crypt.Encrypt(b, key)
+	}
 	return
 }
 
 // Decode will convert from bytes
-func Decode(key crypt.Encryption, b []byte) (m Message, err error) {
-	b, err = key.Decrypt(b)
-	if err != nil {
-		return
+func Decode(key []byte, b []byte) (m Message, err error) {
+	if key != nil {
+		b, err = crypt.Decrypt(b, key)
+		if err != nil {
+			return
+		}
 	}
 	b = compress.Decompress(b)
 	err = json.Unmarshal(b, &m)

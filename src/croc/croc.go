@@ -2,7 +2,6 @@ package croc
 
 import (
 	"bytes"
-	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
@@ -27,10 +26,11 @@ import (
 	"github.com/schollz/croc/v6/src/tcp"
 	"github.com/schollz/croc/v6/src/utils"
 	log "github.com/schollz/logger"
-	"github.com/schollz/pake"
+	"github.com/schollz/pake/v2"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v2"
 	"github.com/schollz/spinner"
+	"github.com/tscholl2/siec"
 )
 
 func init() {
@@ -48,22 +48,23 @@ func Debug(debug bool) {
 
 // Options specifies user specific options
 type Options struct {
-	IsSender     bool
-	SharedSecret string
-	Debug        bool
-	RelayAddress string
-	RelayPorts   []string
-	Stdout       bool
-	NoPrompt     bool
-	DisableLocal bool
-	Ask          bool
+	IsSender       bool
+	SharedSecret   string
+	Debug          bool
+	RelayAddress   string
+	RelayPorts     []string
+	Stdout         bool
+	NoPrompt       bool
+	NoMultiplexing bool
+	DisableLocal   bool
+	Ask            bool
 }
 
 // Client holds the state of the croc transfer
 type Client struct {
 	Options                         Options
 	Pake                            *pake.Pake
-	Key                             crypt.Encryption
+	Key                             []byte
 	ExternalIP, ExternalIPConnected string
 
 	// steps involved in forming relationship
@@ -147,17 +148,11 @@ func New(ops Options) (c *Client, err error) {
 
 	c.conn = make([]*comm.Comm, 16)
 
-	// use default key (no encryption, until PAKE succeeds)
-	c.Key, err = crypt.New(nil, nil)
-	if err != nil {
-		return
-	}
-
 	// initialize pake
 	if c.Options.IsSender {
-		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 1, elliptic.P521(), 1*time.Microsecond)
+		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 1, siec.SIEC255(), 1*time.Microsecond)
 	} else {
-		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 0, elliptic.P521(), 1*time.Microsecond)
+		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 0, siec.SIEC255(), 1*time.Microsecond)
 	}
 	if err != nil {
 		return
@@ -292,6 +287,10 @@ func (c *Client) transferOverLocalRelay(options TransferOptions, errchan chan<- 
 	log.Debug("exchanged header message")
 	c.Options.RelayAddress = "localhost"
 	c.Options.RelayPorts = strings.Split(banner, ",")
+	if c.Options.NoMultiplexing {
+		log.Debug("no multiplexing")
+		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
+	}
 	c.ExternalIP = ipaddr
 	errchan <- c.transfer(options)
 }
@@ -369,6 +368,10 @@ func (c *Client) Send(options TransferOptions) (err error) {
 
 		c.conn[0] = conn
 		c.Options.RelayPorts = strings.Split(banner, ",")
+		if c.Options.NoMultiplexing {
+			log.Debug("no multiplexing")
+			c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
+		}
 		c.ExternalIP = ipaddr
 		log.Debug("exchanged header message")
 		errchan <- c.transfer(options)
@@ -470,6 +473,10 @@ func (c *Client) Receive() (err error) {
 
 	c.conn[0].Send([]byte("handshake"))
 	c.Options.RelayPorts = strings.Split(banner, ",")
+	if c.Options.NoMultiplexing {
+		log.Debug("no multiplexing")
+		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
+	}
 	log.Debug("exchanged header message")
 	fmt.Fprintf(os.Stderr, "\rsecuring channel...")
 	return c.transfer(TransferOptions{})
@@ -648,10 +655,11 @@ func (c *Client) processMessageSalt(m message.Message) (done bool, err error) {
 	if err != nil {
 		return true, err
 	}
-	c.Key, err = crypt.New(key, m.Bytes)
+	c.Key, _, err = crypt.New(key, m.Bytes)
 	if err != nil {
 		return true, err
 	}
+	log.Debugf("key = %+x", c.Key)
 	if c.ExternalIPConnected == "" {
 		// it can be preset by the local relay
 		c.ExternalIPConnected = m.Message
@@ -1040,7 +1048,7 @@ func (c *Client) receiveData(i int) {
 			break
 		}
 
-		data, err = c.Key.Decrypt(data)
+		data, err = crypt.Decrypt(data, c.Key)
 		if err != nil {
 			panic(err)
 		}
@@ -1126,10 +1134,11 @@ func (c *Client) sendData(i int) {
 				posByte := make([]byte, 8)
 				binary.LittleEndian.PutUint64(posByte, pos)
 
-				dataToSend, err := c.Key.Encrypt(
+				dataToSend, err := crypt.Encrypt(
 					compress.Compress(
 						append(posByte, data[:n]...),
 					),
+					c.Key,
 				)
 				if err != nil {
 					panic(err)
