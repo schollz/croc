@@ -395,7 +395,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		log.Debugf("error from errchan: %s", err.Error())
 	}
 	if !c.Options.DisableLocal {
-		if strings.Contains(err.Error(), "refusing files") || strings.Contains(err.Error(), "EOF") {
+		if strings.Contains(err.Error(), "refusing files") || strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "bad password") {
 			errchan <- err
 		}
 		err = <-errchan
