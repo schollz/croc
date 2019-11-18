@@ -5,56 +5,37 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
+	"fmt"
 
 	"golang.org/x/crypto/pbkdf2"
 )
 
-// Encryption is the basic type for storing
-// the key, passphrase and salt
-type Encryption struct {
-	key        []byte
-	passphrase []byte
-	salt       []byte
-}
-
-// New generates a new Encryption, using the supplied passphrase and
-// an optional supplied salt.
-// Passing nil passphrase will not use decryption.
-func New(passphrase []byte, salt []byte) (e Encryption, err error) {
-	if passphrase == nil {
-		e = Encryption{nil, nil, nil}
+// New generates a new key based on a passphrase and salt
+func New(passphrase []byte, usersalt []byte) (key []byte, salt []byte, err error) {
+	if len(passphrase) < 1 {
+		err = fmt.Errorf("need more than that for passphrase")
 		return
 	}
-	e.passphrase = passphrase
-	if salt == nil {
-		e.salt = make([]byte, 8)
+	if usersalt == nil {
+		salt = make([]byte, 8)
 		// http://www.ietf.org/rfc/rfc2898.txt
 		// Salt.
-		rand.Read(e.salt)
+		rand.Read(salt)
 	} else {
-		e.salt = salt
+		salt = usersalt
 	}
-	e.key = pbkdf2.Key([]byte(passphrase), e.salt, 100, 32, sha256.New)
+	key = pbkdf2.Key([]byte(passphrase), salt, 100, 32, sha256.New)
 	return
 }
 
-// Salt returns the salt bytes
-func (e Encryption) Salt() []byte {
-	return e.salt
-}
-
-// Encrypt will generate an Encryption, prefixed with the IV
-func (e Encryption) Encrypt(plaintext []byte) (encrypted []byte, err error) {
-	if e.passphrase == nil {
-		encrypted = plaintext
-		return
-	}
+// Encrypt will encrypt using the pre-generated key
+func Encrypt(plaintext []byte, key []byte) (encrypted []byte, err error) {
 	// generate a random iv each time
 	// http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 	// Section 8.2
 	ivBytes := make([]byte, 12)
 	rand.Read(ivBytes)
-	b, err := aes.NewCipher(e.key)
+	b, err := aes.NewCipher(key)
 	if err != nil {
 		return
 	}
@@ -67,13 +48,9 @@ func (e Encryption) Encrypt(plaintext []byte) (encrypted []byte, err error) {
 	return
 }
 
-// Decrypt an Encryption
-func (e Encryption) Decrypt(encrypted []byte) (plaintext []byte, err error) {
-	if e.passphrase == nil {
-		plaintext = encrypted
-		return
-	}
-	b, err := aes.NewCipher(e.key)
+// Decrypt using the pre-generated key
+func Decrypt(encrypted []byte, key []byte) (plaintext []byte, err error) {
+	b, err := aes.NewCipher(key)
 	if err != nil {
 		return
 	}
