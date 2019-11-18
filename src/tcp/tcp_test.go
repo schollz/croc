@@ -30,6 +30,7 @@ func TestTCP(t *testing.T) {
 		if bytes.Equal(data, []byte{1}) {
 			continue
 		}
+		break
 	}
 	assert.Nil(t, err)
 	assert.Equal(t, []byte("hello, c2"), data)
@@ -40,6 +41,7 @@ func TestTCP(t *testing.T) {
 		if bytes.Equal(data, []byte{1}) {
 			continue
 		}
+		break
 	}
 	assert.Nil(t, err)
 	assert.Equal(t, []byte("hello, c1"), data)
