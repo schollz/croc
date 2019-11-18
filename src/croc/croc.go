@@ -282,6 +282,8 @@ func (c *Client) transferOverLocalRelay(options TransferOptions, errchan chan<- 
 		data, _ := conn.Receive()
 		if bytes.Equal(data, []byte("handshake")) {
 			break
+		} else if bytes.Equal(data, []byte{1}) {
+			log.Debug("got ping")
 		} else {
 			log.Debugf("instead of handshake got: %s", data)
 		}
@@ -393,7 +395,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		log.Debugf("error from errchan: %s", err.Error())
 	}
 	if !c.Options.DisableLocal {
-		if strings.Contains(err.Error(), "refusing files") {
+		if strings.Contains(err.Error(), "refusing files") || strings.Contains(err.Error(), "EOF") {
 			errchan <- err
 		}
 		err = <-errchan
