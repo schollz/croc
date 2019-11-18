@@ -18,6 +18,7 @@ type server struct {
 	port       string
 	debugLevel string
 	banner     string
+	password   string
 	rooms      roomMap
 }
 
@@ -36,9 +37,10 @@ type roomMap struct {
 var timeToRoomDeletion = 10 * time.Minute
 
 // Run starts a tcp listener, run async
-func Run(debugLevel, port string, banner ...string) (err error) {
+func Run(debugLevel, port, password string, banner ...string) (err error) {
 	s := new(server)
 	s.port = port
+	s.password = password
 	s.debugLevel = debugLevel
 	if len(banner) > 0 {
 		s.banner = banner[0]
@@ -48,6 +50,7 @@ func Run(debugLevel, port string, banner ...string) (err error) {
 
 func (s *server) start() (err error) {
 	log.SetLevel(s.debugLevel)
+	log.Debugf("starting with password '%s'", s.password)
 	s.rooms.Lock()
 	s.rooms.rooms = make(map[string]roomInfo)
 	s.rooms.Unlock()
@@ -102,6 +105,17 @@ func (s *server) run() (err error) {
 }
 
 func (s *server) clientCommuncation(port string, c *comm.Comm) (err error) {
+	log.Debugf("waiting for password")
+	passwordBytes, err := c.Receive()
+	if err != nil {
+		return
+	}
+	if strings.TrimSpace(string(passwordBytes)) != s.password {
+		err = fmt.Errorf("bad password")
+		c.Send([]byte(err.Error()))
+		return
+	}
+
 	// send ok to tell client they are connected
 	banner := s.banner
 	if len(banner) == 0 {
@@ -255,7 +269,7 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 
 // ConnectToTCPServer will initiate a new connection
 // to the specified address, room with optional time limit
-func ConnectToTCPServer(address, room string, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, err error) {
+func ConnectToTCPServer(address, password, room string, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, err error) {
 	if len(timelimit) > 0 {
 		c, err = comm.NewConnection(address, timelimit[0])
 	} else {
@@ -264,9 +278,18 @@ func ConnectToTCPServer(address, room string, timelimit ...time.Duration) (c *co
 	if err != nil {
 		return
 	}
+	log.Debug("sending password")
+	err = c.Send([]byte(password))
+	if err != nil {
+		return
+	}
 	log.Debug("waiting for first ok")
 	data, err := c.Receive()
 	if err != nil {
+		return
+	}
+	if !strings.Contains(string(data), "|||") {
+		err = fmt.Errorf("bad response: %s", string(data))
 		return
 	}
 	banner = strings.Split(string(data), "|||")[0]
