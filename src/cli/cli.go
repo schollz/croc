@@ -51,6 +51,7 @@ func Run() (err error) {
 			Flags: []cli.Flag{
 				cli.StringFlag{Name: "code, c", Usage: "codephrase used to connect to relay"},
 				cli.BoolFlag{Name: "no-local", Usage: "disable local relay when sending"},
+				cli.BoolFlag{Name: "no-multi", Usage: "disable multiplexing"},
 				cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the local relay (optional)"},
 			},
 			HelpName: "croc send",
@@ -136,15 +137,16 @@ func getConfigFile() string {
 func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
 	crocOptions := croc.Options{
-		SharedSecret: c.String("code"),
-		IsSender:     true,
-		Debug:        c.GlobalBool("debug"),
-		NoPrompt:     c.GlobalBool("yes"),
-		RelayAddress: c.GlobalString("relay"),
-		Stdout:       c.GlobalBool("stdout"),
-		DisableLocal: c.Bool("no-local"),
-		RelayPorts:   strings.Split(c.String("ports"), ","),
-		Ask:          c.GlobalBool("ask"),
+		SharedSecret:   c.String("code"),
+		IsSender:       true,
+		Debug:          c.GlobalBool("debug"),
+		NoPrompt:       c.GlobalBool("yes"),
+		RelayAddress:   c.GlobalString("relay"),
+		Stdout:         c.GlobalBool("stdout"),
+		DisableLocal:   c.Bool("no-local"),
+		RelayPorts:     strings.Split(c.String("ports"), ","),
+		Ask:            c.GlobalBool("ask"),
+		NoMultiplexing: c.Bool("no-multi"),
 	}
 	b, errOpen := ioutil.ReadFile(getConfigFile())
 	if errOpen == nil && !c.GlobalBool("remember") {
