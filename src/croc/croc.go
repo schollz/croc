@@ -277,11 +277,13 @@ func (c *Client) transferOverLocalRelay(options TransferOptions, errchan chan<- 
 		// not really an error because it will try to connect over the actual relay
 		return
 	}
-	log.Debugf("connection established: %+v", conn)
+	log.Debugf("local connection established: %+v", conn)
 	for {
 		data, _ := conn.Receive()
 		if bytes.Equal(data, []byte("handshake")) {
 			break
+		} else {
+			log.Debugf("instead of handshake got: %s", data)
 		}
 	}
 	c.conn[0] = conn
@@ -339,6 +341,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		}
 		log.Debugf("connection established: %+v", conn)
 		for {
+			log.Debug("waiting for bytes")
 			data, errConn := conn.Receive()
 			if errConn != nil {
 				log.Debugf("[%+v] had error: %s", conn, errConn.Error())
@@ -360,10 +363,14 @@ func (c *Client) Send(options TransferOptions) (err error) {
 				conn.Send(bips)
 			} else if bytes.Equal(data, []byte("handshake")) {
 				break
+			} else if bytes.Equal(data, []byte{1}) {
+				log.Debug("got ping")
+				continue
 			} else {
 				log.Debugf("[%+v] got weird bytes: %+v", conn, data)
 				// throttle the reading
 				time.Sleep(100 * time.Millisecond)
+				break
 			}
 		}
 
@@ -434,11 +441,12 @@ func (c *Client) Receive() (err error) {
 		err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
 		return
 	}
-	log.Debugf("connection established: %+v", c.conn[0])
+	log.Debugf("receiver connection established: %+v", c.conn[0])
 
 	if !usingLocal && !c.Options.DisableLocal {
 		// ask the sender for their local ips and port
 		// and try to connect to them
+		log.Debug("sending ips?")
 		var data []byte
 		c.conn[0].Send([]byte("ips?"))
 		data, err = c.conn[0].Receive()
@@ -1048,6 +1056,10 @@ func (c *Client) receiveData(i int) {
 		data, err := c.conn[i+1].Receive()
 		if err != nil {
 			break
+		}
+		if bytes.Equal(data, []byte{1}) {
+			log.Debug("got ping")
+			continue
 		}
 
 		data, err = crypt.Decrypt(data, c.Key)
