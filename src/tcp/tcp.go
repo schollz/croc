@@ -96,15 +96,47 @@ func (s *server) run() (err error) {
 		}
 		log.Debugf("client %s connected", connection.RemoteAddr().String())
 		go func(port string, connection net.Conn) {
-			errCommunication := s.clientCommuncation(port, comm.New(connection))
+			c := comm.New(connection)
+			room, errCommunication := s.clientCommuncation(port, c)
 			if errCommunication != nil {
 				log.Warnf("relay-%s: %s", connection.RemoteAddr().String(), errCommunication.Error())
+			}
+			for {
+				// check connection
+				log.Debugf("checking connection of room %s for %+v", room, c)
+				deleteIt := false
+				s.rooms.Lock()
+				if _, ok := s.rooms.rooms[room]; !ok {
+					log.Debug("room is gone")
+					s.rooms.Unlock()
+					return
+				}
+				log.Debugf("room: %+v", s.rooms.rooms[room])
+				if s.rooms.rooms[room].first != nil && s.rooms.rooms[room].second != nil {
+					log.Debug("rooms ready")
+					s.rooms.Unlock()
+					break
+				} else {
+					if s.rooms.rooms[room].first != nil {
+						errSend := s.rooms.rooms[room].first.Send([]byte{1})
+						if errSend != nil {
+							log.Debug(errSend)
+							deleteIt = true
+						}
+					}
+				}
+				s.rooms.Unlock()
+				if deleteIt {
+					s.deleteRoom(room)
+					break
+				}
+				time.Sleep(1 * time.Second)
 			}
 		}(s.port, connection)
 	}
 }
 
-func (s *server) clientCommuncation(port string, c *comm.Comm) (err error) {
+func (s *server) clientCommuncation(port string, c *comm.Comm) (room string, err error) {
 	log.Debugf("waiting for password")
 	passwordBytes, err := c.Receive()
 	if err != nil {
@@ -133,7 +165,7 @@ func (s *server) clientCommuncation(port string, c *comm.Comm) (err error) {
 	if err != nil {
 		return
 	}
-	room := string(roomBytes)
+	room = string(roomBytes)
 
 	s.rooms.Lock()
 	// create the room if it is new
@@ -151,7 +183,7 @@ func (s *server) clientCommuncation(port string, c *comm.Comm) (err error) {
 			return
 		}
 		log.Debugf("room %s has 1", room)
-		return nil
+		return
 	}
 	if s.rooms.rooms[room].full {
 		s.rooms.Unlock()
@@ -161,7 +193,7 @@ func (s *server) clientCommuncation(port string, c *comm.Comm) (err error) {
 			s.deleteRoom(room)
 			return
 		}
-		return nil
+		return
 	}
 	log.Debugf("room %s has 2", room)
 	s.rooms.rooms[room] = roomInfo{
@@ -195,7 +227,7 @@ func (s *server) clientCommuncation(port string, c *comm.Comm) (err error) {
 
 	// delete room
 	s.deleteRoom(room)
-	return nil
+	return
 }
 
 func (s *server) deleteRoom(room string) {
