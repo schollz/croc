@@ -15,9 +15,9 @@ import (
 
 func TestMessage(t *testing.T) {
 	m := Message{Type: "message", Message: "hello, world"}
-	e, err := crypt.New(nil, nil)
+	e, salt, err := crypt.New([]byte("pass"), nil)
 	assert.Nil(t, err)
-	fmt.Println(e.Salt())
+	fmt.Println(salt)
 	b, err := Encode(e, m)
 	assert.Nil(t, err)
 	fmt.Printf("%x\n", b)
@@ -68,7 +68,8 @@ func TestSend(t *testing.T) {
 	a, err := comm.NewConnection("localhost:"+port, 10*time.Minute)
 	assert.Nil(t, err)
 	m := Message{Type: "message", Message: "hello, world"}
-	e, err := crypt.New(nil, nil)
+	e, salt, err := crypt.New([]byte("pass"), nil)
+	log.Debug(salt)
 	assert.Nil(t, err)
 
 	assert.Nil(t, Send(a, e, m))

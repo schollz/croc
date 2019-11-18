@@ -1,6 +1,7 @@
 package tcp
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -23,12 +24,23 @@ func TestTCP(t *testing.T) {
 
 	// try sending data
 	assert.Nil(t, c1.Send([]byte("hello, c2")))
-	data, err := c2.Receive()
+	var data []byte
+	for {
+		data, err = c2.Receive()
+		if bytes.Equal(data, []byte{1}) {
+			continue
+		}
+	}
 	assert.Nil(t, err)
 	assert.Equal(t, []byte("hello, c2"), data)
 
 	assert.Nil(t, c2.Send([]byte("hello, c1")))
-	data, err = c1.Receive()
+	for {
+		data, err = c1.Receive()
+		if bytes.Equal(data, []byte{1}) {
+			continue
+		}
+	}
 	assert.Nil(t, err)
 	assert.Equal(t, []byte("hello, c1"), data)
 
