@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/denisbrodbeck/machineid"
 	"github.com/pkg/errors"
 	"github.com/schollz/croc/v6/src/comm"
 	"github.com/schollz/croc/v6/src/compress"
@@ -308,7 +307,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	}
 	fmt.Fprintf(os.Stderr, "Code is: %s\nOn the other computer run\n\ncroc %s%s\n", c.Options.SharedSecret, otherRelay, c.Options.SharedSecret)
 	if c.Options.Ask {
-		machid, _ := machineid.ID()
+		machid := "machineid.ID()"
 		fmt.Fprintf(os.Stderr, "\rYour machine ID is '%s'\n", machid)
 	}
 	// // c.spinner.Suffix = " waiting for recipient..."
@@ -558,7 +557,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	// c.spinner.Stop()
 	if !c.Options.NoPrompt || c.Options.Ask || senderInfo.Ask {
 		if c.Options.Ask || senderInfo.Ask {
-			machID, _ := machineid.ID()
+			machID := "machineid.ID()"
 			fmt.Fprintf(os.Stderr, "\rYour machine id is '%s'.\nAccept %s (%s) from '%s'? (y/n) ", machID, fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
 		} else {
 			fmt.Fprintf(os.Stderr, "\rAccept %s (%s)? (y/n) ", fname, utils.ByteCountDecimal(totalSize))
@@ -750,7 +749,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 func (c *Client) updateIfSenderChannelSecured() (err error) {
 	if c.Options.IsSender && c.Step1ChannelSecured && !c.Step2FileInfoTransfered {
 		var b []byte
-		machID, _ := machineid.ID()
+		machID := "machineid.ID()"
 		b, err = json.Marshal(SenderInfo{
 			FilesToTransfer: c.FilesToTransfer,
 			MachineID:       machID,
@@ -843,7 +842,7 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 	}
 
 	c.TotalSent = 0
-	machID, _ := machineid.ID()
+	machID := "machineid.ID()"
 	bRequest, _ := json.Marshal(RemoteFileRequest{
 		CurrentFileChunkRanges:    c.CurrentFileChunkRanges,
 		FilesToTransferCurrentNum: c.FilesToTransferCurrentNum,

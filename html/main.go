@@ -25,11 +25,36 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/schollz/croc/v6/src/compress"
+	"github.com/schollz/croc/v6/src/croc"
 	"github.com/schollz/croc/v6/src/crypt"
 	"github.com/schollz/croc/v6/src/message"
 	log "github.com/schollz/logger"
 	"github.com/schollz/pake/v2"
 )
+
+func marshal(a interface{}) string {
+	b, err := json.Marshal(a)
+	if err != nil {
+		log.Errorf("could not marshal: %+v, because '%s'", a, err.Error())
+	}
+	return base64.StdEncoding.EncodeToString(b)
+}
+
+// crocInit(weakPassphrase,issender)
+func crocInit(this js.Value, inputs []js.Value) interface{} {
+	if len(inputs) != 2 {
+		return js.Global().Get("Error").New("need weakPassphrase,issender")
+	}
+	c := new(croc.Client)
+	c.FilesHasFinished = make(map[int]struct{})
+	c.Options = croc.Options{
+		IsSender:     inputs[1].String() == "1",
+		SharedSecret: inputs[0].String(),
+		RelayAddress: "localhost:9009",
+		Debug:        true,
+	}
+	return marshal(c)
+}
 
 // messageEncode(key, Message)
 // returns base64 encoded, encrypts if key != nil
@@ -233,12 +258,13 @@ func pakeSessionKey(this js.Value, inputs []js.Value) interface{} {
 func main() {
 	c := make(chan bool)
 	// fmt.Println("starting")
-	js.Global().Set("pakeInit", js.FuncOf(pakeInit))
-	js.Global().Set("pakePublic", js.FuncOf(pakePublic))
-	js.Global().Set("pakeUpdate", js.FuncOf(pakeUpdate))
-	js.Global().Set("pakeSessionKey", js.FuncOf(pakeSessionKey))
-	js.Global().Set("messageEncode", js.FuncOf(messageEncode))
-	js.Global().Set("messageDecode", js.FuncOf(messageDecode))
+	js.Global().Set("crocInit", js.FuncOf(crocInit))
+	// js.Global().Set("pakeInit", js.FuncOf(pakeInit))
+	// js.Global().Set("pakePublic", js.FuncOf(pakePublic))
+	// js.Global().Set("pakeUpdate", js.FuncOf(pakeUpdate))
+	// js.Global().Set("pakeSessionKey", js.FuncOf(pakeSessionKey))
+	// js.Global().Set("messageEncode", js.FuncOf(messageEncode))
+	// js.Global().Set("messageDecode", js.FuncOf(messageDecode))
 	fmt.Println("Initiated")
 	<-c
 }

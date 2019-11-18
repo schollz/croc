@@ -72,7 +72,9 @@ func receive(conn *websocket.Conn) (err error) {
 		errBundle := json.Unmarshal(message, &bu)
 		if errBundle == nil {
 			if bu.Message == "room" {
-				com, banner, externalIP, err = tcp.ConnectToTCPServer(models.DEFAULT_RELAY, bu.PayloadString)
+				relayAddress := models.DEFAULT_RELAY
+				relayAddress = "localhost:9009"
+				com, banner, externalIP, err = tcp.ConnectToTCPServer(relayAddress, bu.PayloadString)
 				if err != nil {
 					log.Error(err)
 					return
