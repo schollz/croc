@@ -88,3 +88,14 @@ scoop:
   homepage: "https://schollz.com/software/croc/"
   description: "croc is a tool that allows any two computers to simply and securely transfer files and folders."
   license: MIT
+
+snapcrafts:
+  -
+    id: croc
+    public: true
+    summary: "croc is a tool that allows any two computers to simply and securely transfer files and folders."
+    grade: stable
+    confinement: classic
+    license: MIT
+    base: core18
+
