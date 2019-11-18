@@ -92,7 +92,7 @@ scoop:
 snapcrafts:
   -
     id: croc
-    public: true
+    publish: true
     summary: "croc is a tool that allows any two computers to simply and securely transfer files and folders."
     grade: stable
     confinement: classic
