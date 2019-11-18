@@ -80,6 +80,7 @@ func Run() (err error) {
 		cli.BoolFlag{Name: "ask", Usage: "make sure sender and recipient are prompted"},
 		cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay"},
 		cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
+		cli.StringFlag{Name: "pass", Value: "pass123", Usage: "password for the relay"},
 	}
 	app.EnableBashCompletion = true
 	app.HideHelp = false
@@ -147,6 +148,7 @@ func send(c *cli.Context) (err error) {
 		RelayPorts:     strings.Split(c.String("ports"), ","),
 		Ask:            c.GlobalBool("ask"),
 		NoMultiplexing: c.Bool("no-multi"),
+		RelayPassword:  c.GlobalString("pass"),
 	}
 	b, errOpen := ioutil.ReadFile(getConfigFile())
 	if errOpen == nil && !c.GlobalBool("remember") {
@@ -290,13 +292,14 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 
 func receive(c *cli.Context) (err error) {
 	crocOptions := croc.Options{
-		SharedSecret: c.String("code"),
-		IsSender:     false,
-		Debug:        c.GlobalBool("debug"),
-		NoPrompt:     c.GlobalBool("yes"),
-		RelayAddress: c.GlobalString("relay"),
-		Stdout:       c.GlobalBool("stdout"),
-		Ask:          c.GlobalBool("ask"),
+		SharedSecret:  c.String("code"),
+		IsSender:      false,
+		Debug:         c.GlobalBool("debug"),
+		NoPrompt:      c.GlobalBool("yes"),
+		RelayAddress:  c.GlobalString("relay"),
+		Stdout:        c.GlobalBool("stdout"),
+		Ask:           c.GlobalBool("ask"),
+		RelayPassword: c.GlobalString("pass"),
 	}
 	if c.Args().First() != "" {
 		crocOptions.SharedSecret = c.Args().First()
@@ -375,11 +378,11 @@ func relay(c *cli.Context) (err error) {
 			continue
 		}
 		go func(portStr string) {
-			err = tcp.Run(debugString, portStr)
+			err = tcp.Run(debugString, portStr, c.GlobalString("pass"))
 			if err != nil {
 				panic(err)
 			}
 		}(port)
 	}
-	return tcp.Run(debugString, ports[0], tcpPorts)
+	return tcp.Run(debugString, ports[0], c.GlobalString("pass"), tcpPorts)
 }
