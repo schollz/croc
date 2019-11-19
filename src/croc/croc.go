@@ -333,6 +333,10 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	go func() {
 		log.Debugf("establishing connection to %s", c.Options.RelayAddress)
 		var banner string
+		if !strings.Contains(c.Options.RelayAddress, ":") {
+			// try the default port, 9009
+			c.Options.RelayAddress += ":9009"
+		}
 		conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.RelayPassword, c.Options.SharedSecret, 5*time.Second)
 		log.Debugf("banner: %s", banner)
 		if err != nil {
