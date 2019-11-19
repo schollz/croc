@@ -334,6 +334,9 @@ func receive(c *cli.Context) (err error) {
 		if crocOptions.SharedSecret == "" {
 			crocOptions.SharedSecret = rememberedOptions.SharedSecret
 		}
+		if !c.IsSet("pass") {
+			crocOptions.RelayPassword = rememberedOptions.RelayPassword
+		}
 	}
 
 	if crocOptions.SharedSecret == "" {
