@@ -89,3 +89,13 @@ scoop:
   description: "croc is a tool that allows any two computers to simply and securely transfer files and folders."
   license: MIT
 
+snapcrafts:
+  -
+    id: croc
+    publish: true
+    summary: "croc is a tool that allows any two computers to simply and securely transfer files and folders."
+    description: "Use croc to send and receive files from the command line."
+    grade: stable
+    confinement: classic
+    license: MIT
+    base: core18
