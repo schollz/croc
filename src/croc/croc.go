@@ -384,6 +384,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 		return nil
 	}
 
+	var lastSignal = time.Now()
 	var readyToBegin = false
 	var readyToEnd = false
 	var bar *progressbar.ProgressBar
@@ -411,8 +412,8 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 			timeStart := time.Now()
 			for {
 				for {
-					time.Sleep(10 * time.Millisecond)
-					if readyToBegin {
+					time.Sleep(1 * time.Millisecond)
+					if readyToBegin && time.Since(lastSignal).Seconds() < 2 {
 						break
 					}
 				}
@@ -483,6 +484,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 			return
 		} else if bytes.Equal(dcMsg.Data, []byte{2, 3, 4}) {
 			// log.Debug("got ready to begin")
+			lastSignal = time.Now()
 			readyToBegin = true
 			return
 		} else if bytes.Equal(dcMsg.Data, []byte{1, 3, 4}) {
@@ -509,7 +511,10 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 			n, _ := fwrite.Write(fd.Data)
 			bar.Add(n)
 
-			// sendData([]byte{2, 3, 4})
+			if time.Since(lastSignal).Seconds() > 1 {
+				sendData([]byte{2, 3, 4})
+				lastSignal = time.Now()
+			}
 		} else {
 			log.Error(err)
 		}
