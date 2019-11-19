@@ -411,7 +411,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 			timeStart := time.Now()
 			for {
 				for {
-					time.Sleep(1 * time.Millisecond)
+					time.Sleep(10 * time.Millisecond)
 					if readyToBegin {
 						break
 					}

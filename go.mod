@@ -8,7 +8,7 @@ require (
 	github.com/gorilla/websocket v1.4.1
 	github.com/json-iterator/go v1.1.6
 	github.com/lucas-clemente/quic-go v0.13.1 // indirect
-	github.com/pion/webrtc/v2 v2.1.13-0.20191113185836-d8d2295368ec
+	github.com/pion/webrtc/v2 v2.1.13-0.20191114185105-721b342e2e27
 	github.com/pkg/errors v0.8.1
 	github.com/schollz/logger v1.0.1
 	github.com/schollz/pake/v2 v2.0.3-0.20191113001949-efbd97a5fff1
