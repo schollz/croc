@@ -44,7 +44,6 @@ $ brew install schollz/tap/croc
 On Windows you can install the latest release with [Scoop](https://scoop.sh/): 
 
 ```
-$ scoop bucket add schollz-bucket https://github.com/schollz/scoop-bucket.git
 $ scoop install croc
 ```
 
