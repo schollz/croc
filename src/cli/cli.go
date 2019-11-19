@@ -171,6 +171,9 @@ func send(c *cli.Context) (err error) {
 		if !c.IsSet("code") {
 			crocOptions.SharedSecret = rememberedOptions.SharedSecret
 		}
+		if !c.IsSet("pass") {
+			crocOptions.RelayPassword = rememberedOptions.RelayPassword
+		}
 	}
 
 	var fnames []string
