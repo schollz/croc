@@ -3,6 +3,7 @@ package croc
 import (
 	"bytes"
 	"crypto/elliptic"
+	"crypto/md5"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -373,7 +374,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 
 	// Register channel opening handling
 	sendData := func(buf []byte) error {
-		// fmt.Printf("sent message: %x\n", md5.Sum(buf))
+		log.Debugf("sending message: %x", md5.Sum(buf))
 		err := dc.Send(buf)
 		if err != nil {
 			return err
@@ -469,9 +470,9 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 	// Register the OnMessage to handle incoming messages
 	dc.OnMessage(func(dcMsg webrtc.DataChannelMessage) {
 		var fd FileData
-		// if len(dcMsg.Data) >= 3 {
-		// 	log.Debugf("%+x", dcMsg.Data[:3])
-		// }
+		if len(dcMsg.Data) >= 3 {
+			log.Debugf("%+x", dcMsg.Data[:3])
+		}
 		if bytes.Equal(dcMsg.Data, []byte{1, 2, 3}) {
 			log.Debug("received magic")
 			fwrite.Close()
