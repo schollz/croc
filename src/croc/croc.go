@@ -351,18 +351,19 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 
 	// ordered := true
 	// maxRetransmits := uint16(0)
-	var id uint16 = 5
+	var id uint16 = 1
+	var negotiated = true
 	options := &webrtc.DataChannelInit{
 		// Ordered:        &ordered,
 		// MaxRetransmits: &maxRetransmits,
-		ID: &id,
+		Negotiated: &negotiated,
+		ID:         &id,
 	}
-	_ = options
 
 	sendMoreCh := make(chan struct{})
 
 	// Create a datachannel with label 'data'
-	dc, err := pc.CreateDataChannel("data1098", nil)
+	dc, err := pc.CreateDataChannel("data", options)
 	if err != nil {
 		log.Error(err)
 		return
