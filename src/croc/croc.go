@@ -331,12 +331,12 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	}
 
 	go func() {
-		log.Debugf("establishing connection to %s", c.Options.RelayAddress)
-		var banner string
 		if !strings.Contains(c.Options.RelayAddress, ":") {
 			// try the default port, 9009
 			c.Options.RelayAddress += ":9009"
 		}
+		log.Debugf("establishing connection to %s", c.Options.RelayAddress)
+		var banner string
 		conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.RelayPassword, c.Options.SharedSecret, 5*time.Second)
 		log.Debugf("banner: %s", banner)
 		if err != nil {
@@ -435,11 +435,17 @@ func (c *Client) Receive() (err error) {
 				)
 				c.ExternalIPConnected = c.Options.RelayAddress
 				usingLocal = true
+				break
 			}
 		}
 		log.Debugf("discoveries: %+v", discoveries)
 		log.Debug("establishing connection")
 	}
+	if !strings.Contains(c.Options.RelayAddress, ":") {
+		// try the default port, 9009
+		c.Options.RelayAddress += ":9009"
+	}
+	log.Debugf("establishing receiver connection to %s", c.Options.RelayAddress)
 	var banner string
 	c.conn[0], banner, c.ExternalIP, err = tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.RelayPassword, c.Options.SharedSecret)
 	log.Debugf("banner: %s", banner)
