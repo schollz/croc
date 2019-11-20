@@ -362,7 +362,7 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 	sendMoreCh := make(chan struct{})
 
 	// Create a datachannel with label 'data'
-	dc, err := pc.CreateDataChannel("data", nil)
+	dc, err := pc.CreateDataChannel("data1098", nil)
 	if err != nil {
 		log.Error(err)
 		return
