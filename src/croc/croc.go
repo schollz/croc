@@ -356,11 +356,12 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 		// MaxRetransmits: &maxRetransmits,
 		ID: &id,
 	}
+	_ = options
 
 	sendMoreCh := make(chan struct{})
 
 	// Create a datachannel with label 'data'
-	dc, err := pc.CreateDataChannel("data", options)
+	dc, err := pc.CreateDataChannel("data", nil)
 	if err != nil {
 		log.Error(err)
 		return
