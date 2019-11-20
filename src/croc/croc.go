@@ -510,17 +510,12 @@ func (c *Client) CreateOfferer(finished chan<- error) (pc *webrtc.PeerConnection
 		}
 		err = box.Unbundle(string(dcMsg.Data), c.Key, &fd)
 		if err == nil {
-			lastSignal = time.Now()
 			n, _ := fwrite.Write(fd.Data)
 			bar.Add(n)
 
 			if time.Since(lastSignal).Seconds() > 1 {
 				sendData([]byte{2, 3, 4})
-				time.Sleep(1 * time.Second)
-				sendData([]byte{2, 3, 4})
-				time.Sleep(1 * time.Second)
-				sendData([]byte{2, 3, 4})
-				time.Sleep(1 * time.Second)
+				lastSignal = time.Now()
 			}
 		} else {
 			log.Error(err)
