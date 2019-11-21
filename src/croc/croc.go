@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
@@ -472,6 +473,22 @@ func (c *Client) Receive() (err error) {
 			port := ips[0]
 			ips = ips[1:]
 			for _, ip := range ips {
+				ipv4Addr, ipv4Net, errNet := net.ParseCIDR(fmt.Sprintf("%s/24", ip))
+				log.Debugf("ipv4Add4: %+v, ipv4Net: %+v, err: %+v", ipv4Addr, ipv4Net, errNet)
+				localIps, _ := utils.GetLocalIPs()
+				haveLocalIP := false
+				for _, localIP := range localIps {
+					localIPparsed := net.ParseIP(localIP)
+					if ipv4Net.Contains(localIPparsed) {
+						haveLocalIP = true
+						break
+					}
+				}
+				if !haveLocalIP {
+					log.Debugf("%s is not a local IP, skipping", ip)
+					continue
+				}
+
 				serverTry := fmt.Sprintf("%s:%s", ip, port)
 				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.SharedSecret, 50*time.Millisecond)
 				if errConn != nil {
