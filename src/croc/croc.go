@@ -376,8 +376,8 @@ func (c *Client) Send(options TransferOptions) (err error) {
 			} else {
 				log.Debugf("[%+v] got weird bytes: %+v", conn, data)
 				// throttle the reading
-				time.Sleep(100 * time.Millisecond)
-				break
+				errchan <- fmt.Errorf("gracefully refusing using the public relay")
+				return
 			}
 		}
 
