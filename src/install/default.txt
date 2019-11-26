@@ -341,20 +341,36 @@ extract_file() {
 
 #---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  create_prefix
-#   DESCRIPTION:  Creates the install prefix (and any parent directories)
+#   DESCRIPTION:  Creates the install prefix (and any parent directories). If
+#                 EUID not 0, then attempt to use sudo.
 #    PARAMETERS:  $1 = prefix
 #       RETURNS:  Return code of the tool used to make the directory
 #                 0 = Created the directory
 #                 >0 = Failed to create directory  
+#                 20 = Could not find mkdir command
+#                 21 = Could not find sudo command
 #-------------------------------------------------------------------------------
 create_prefix() {
   local prefix
   local rcode
 
   prefix="${1}"
-  
-  mkdir -p "${prefix}"
-  rcode="${?}"
+
+  if command -v mkdir >/dev/null 2>&1; then
+    if [[ "${EUID}" == "0" ]]; then
+      mkdir -p "${prefix}"
+      rcode="${?}"
+    else
+      if command -v sudo >/dev/null 2>&1; then
+        sudo mkdir -p "${prefix}"
+        rcode="${?}"
+      else
+        rcode="21"
+      fi
+    fi
+  else
+    rcode="20"
+  fi
 
   return "${rcode}"
 }
@@ -643,11 +659,17 @@ main() {
   if [[ ! -d "${prefix}" ]]; then
     create_prefix "${prefix}"
     create_prefix_rcode="${?}"
-    if [[ "${create_prefix_rcode}" -gt 0 ]]; then
-      print_message "== Failed to create the install prefix: ${prefix}" "error"
+    if [[ "${create_prefix_rcode}" == "0" ]]; then
+      print_message "== Created install prefix at ${prefix}" "info"
+    elif [[ "${create_prefix_rcode}" == "20" ]]; then
+      print_message "== Failed to find mkdir in path" "error"
+      exit 1
+    elif [[ "${create_prefix_rcode}" == "21" ]]; then
+      print_message "== Failed to find sudo in path" "error"
       exit 1
     else
-      print_message "== Created install prefix at ${prefix}" "info"
+      print_message "== Failed to create the install prefix: ${prefix}" "error"
+      exit 1
     fi
   else
     print_message "== Install prefix already exists. No need to create it." "info"
