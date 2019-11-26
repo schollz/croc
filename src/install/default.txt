@@ -340,6 +340,23 @@ extract_file() {
 }
 
 #---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  create_prefix
+#   DESCRIPTION:  Creates the install prefix (and any parent directories)
+#    PARAMETERS:  $1 = prefix
+#       RETURNS:  Return code of the tool used to make the directory
+#                 0 = Created the directory
+#                 >0 = Failed to create directory  
+#-------------------------------------------------------------------------------
+create_prefix() {
+  local prefix
+  local rcode
+
+  prefix="${1}"
+  
+  mkdir -p "${prefix}"
+}
+
+#---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  install_file_freebsd
 #   DESCRIPTION:  Installs a file into a location using 'install'.  If EUID not
 #                 0, then attempt to use sudo.
@@ -376,7 +393,6 @@ install_file_freebsd() {
 
   return "${rcode}"
 }
-
 
 #---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  install_file_linux
@@ -485,6 +501,7 @@ main() {
   local checksum_check_rcode
   local extract_file_rcode
   local install_file_rcode
+  local create_prefix_rcode
 
   croc_bin_name="croc"
   croc_version="6.4.6"
@@ -619,6 +636,20 @@ main() {
     print_message "== Unknown error returned from extraction attempt" "error"
     exit 1
   fi
+
+  if [[ ! -d "${prefix}" ]]; then
+    create_prefix "${prefix}"
+    create_prefix_rcode="${?}"
+    if [[ "${create_prefix_rcode}" -gt 0 ]]; then
+      print_message "== Failed to create the install prefix: ${prefix}" "error"
+      exit 1
+    else
+      print_message "== Created install prefix at ${prefix}" "info"
+    fi
+  else
+    print_message "== Install prefix already exists. No need to create it." "info"
+  fi
+
 
   case "${croc_os}" in
     "Linux" ) install_file_linux "${tmpdir}/${croc_bin_name}" "${prefix}/";
