@@ -354,6 +354,9 @@ create_prefix() {
   prefix="${1}"
   
   mkdir -p "${prefix}"
+  rcode="${?}"
+
+  return "${rcode}"
 }
 
 #---  FUNCTION  ----------------------------------------------------------------
