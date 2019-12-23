@@ -60,6 +60,12 @@ On Arch Linux you can install the latest release with `pacman`:
 $ pacman -S croc
 ```
 
+On Ubuntu you can install with `snap`:
+
+```
+$ snap install croc
+```
+
 Or, you can [install Go](https://golang.org/dl/) and build from source (requires Go 1.12+): 
 
 ```
