@@ -128,11 +128,19 @@ You can send files using your relay by entering `--relay` to change the relay th
 $ croc --relay "myrelay.example.com:9009" send [filename]
 ```
 
+#### Self-host relay (docker)
+
 If it's easier you can also run a relay with Docker:
 
 
 ```
 $ docker run -d -p 9009:9009 -p 9010:9010 -p 9011:9011 -p 9012:9012 -p 9013:9013 -e CROC_PASS='YOURPASSWORD' schollz/croc
+```
+
+Be sure to include the password for the relay otherwise any requests will be rejected. 
+
+```
+$ croc --pass YOURPASSWORD --relay "myreal.example.com:9009" send [filename]
 ```
 
 ## License
