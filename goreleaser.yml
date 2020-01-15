@@ -101,4 +101,4 @@ snapcrafts:
     base: core18
     apps:
             croc:
-                    plugs: ["home", "network", "removable-media"]
+                    plugs: ["home", "network", "removable-media","network-bind"]
