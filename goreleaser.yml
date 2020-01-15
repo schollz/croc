@@ -99,3 +99,6 @@ snapcrafts:
     confinement: strict
     license: MIT
     base: core18
+    apps:
+            croc:
+                    plugs: ["home", "network", "removable-media"]
