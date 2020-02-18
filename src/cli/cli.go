@@ -304,8 +304,15 @@ func receive(c *cli.Context) (err error) {
 		Ask:           c.GlobalBool("ask"),
 		RelayPassword: c.GlobalString("pass"),
 	}
-	if c.Args().First() != "" {
+
+	switch len(c.Args()) {
+	case 1:
 		crocOptions.SharedSecret = c.Args().First()
+	case 3:
+		var phrase []string
+		phrase = append(phrase, c.Args().First())
+		phrase = append(phrase, c.Args().Tail()...)
+		crocOptions.SharedSecret = strings.Join(phrase, "-")
 	}
 
 	// load options here
