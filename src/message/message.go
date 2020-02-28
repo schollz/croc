@@ -24,7 +24,6 @@ func (m Message) String() string {
 
 // Send will send out
 func Send(c *comm.Comm, key []byte, m Message) (err error) {
-	log.Debugf("writing %s message", m.Type)
 	mSend, err := Encode(key, m)
 	if err != nil {
 		return
@@ -41,7 +40,10 @@ func Encode(key []byte, m Message) (b []byte, err error) {
 	}
 	b = compress.Compress(b)
 	if key != nil {
+		log.Debugf("writing %s message (encrypted)", m.Type)
 		b, err = crypt.Encrypt(b, key)
+	} else {
+		log.Debugf("writing %s message", m.Type)
 	}
 	return
 }
