@@ -24,11 +24,11 @@ func (m Message) String() string {
 
 // Send will send out
 func Send(c *comm.Comm, key []byte, m Message) (err error) {
+	log.Debugf("writing %s message", m.Type)
 	mSend, err := Encode(key, m)
 	if err != nil {
 		return
 	}
-	log.Debugf("writing %s message (%d bytes)", m.Type, len(mSend))
 	_, err = c.Write(mSend)
 	return
 }

@@ -642,9 +642,8 @@ func (c *Client) procesMesssagePake(m message.Message) (err error) {
 			salt := make([]byte, 8)
 			rand.Read(salt)
 			err = message.Send(c.conn[0], c.Key, message.Message{
-				Type:    "salt",
-				Bytes:   salt,
-				Message: c.ExternalIP,
+				Type:  "salt",
+				Bytes: salt,
 			})
 			if err != nil {
 				return
@@ -684,9 +683,8 @@ func (c *Client) processMessageSalt(m message.Message) (done bool, err error) {
 	if !c.Options.IsSender {
 		log.Debug("sending salt back")
 		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:    "salt",
-			Bytes:   m.Bytes,
-			Message: c.ExternalIP,
+			Type:  "salt",
+			Bytes: m.Bytes,
 		})
 	}
 	log.Debugf("session key is verified, generating encryption with salt: %x", m.Bytes)
@@ -699,6 +697,27 @@ func (c *Client) processMessageSalt(m message.Message) (done bool, err error) {
 		return true, err
 	}
 	log.Debugf("key = %+x", c.Key)
+	if c.Options.IsSender {
+		log.Debug("sending external IP")
+		err = message.Send(c.conn[0], c.Key, message.Message{
+			Type:  "externalip",
+			Bytes: m.Bytes,
+		})
+	}
+	return
+}
+
+func (c *Client) processExternalIP(m message.Message) (done bool, err error) {
+	log.Debug("received external IP")
+	if !c.Options.IsSender {
+		err = message.Send(c.conn[0], c.Key, message.Message{
+			Type:    "externalip",
+			Message: c.ExternalIP,
+		})
+		if err != nil {
+			return true, err
+		}
+	}
 	if c.ExternalIPConnected == "" {
 		// it can be preset by the local relay
 		c.ExternalIPConnected = m.Message
@@ -711,6 +730,7 @@ func (c *Client) processMessageSalt(m message.Message) (done bool, err error) {
 func (c *Client) processMessage(payload []byte) (done bool, err error) {
 	m, err := message.Decode(c.Key, payload)
 	if err != nil {
+		err = fmt.Errorf("problem with decoding: %s", err.Error())
 		return
 	}
 
@@ -726,6 +746,8 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		err = c.procesMesssagePake(m)
 	case "salt":
 		done, err = c.processMessageSalt(m)
+	case "externalip":
+		done, err = c.processExternalIP(m)
 	case "error":
 		// c.spinner.Stop()
 		fmt.Print("\r")
