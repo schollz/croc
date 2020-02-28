@@ -19,7 +19,7 @@ func init() {
 	go tcp.Run("debug", "8083", "pass123")
 	go tcp.Run("debug", "8084", "pass123")
 	go tcp.Run("debug", "8085", "pass123")
-	time.Sleep(5 * time.Second)
+	time.Sleep(1 * time.Second)
 }
 
 func TestCrocReadme(t *testing.T) {
