@@ -12,15 +12,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCroc(t *testing.T) {
+func init() {
 	log.SetLevel("trace")
-	defer os.Remove("README.md")
 	go tcp.Run("debug", "8081", "pass123", "8082,8083,8084,8085")
 	go tcp.Run("debug", "8082", "pass123")
 	go tcp.Run("debug", "8083", "pass123")
 	go tcp.Run("debug", "8084", "pass123")
 	go tcp.Run("debug", "8085", "pass123")
-	time.Sleep(1 * time.Second)
+	time.Sleep(5 * time.Second)
+}
+
+func TestCrocReadme(t *testing.T) {
+	defer os.Remove("README.md")
 
 	log.Debug("setting up sender")
 	sender, err := New(Options{
