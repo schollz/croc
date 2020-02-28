@@ -10,8 +10,10 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/schollz/croc/v6/src/comm"
+	"github.com/schollz/croc/v6/src/crypt"
 	"github.com/schollz/croc/v6/src/models"
 	log "github.com/schollz/logger"
+	"github.com/schollz/pake/v2"
 )
 
 type server struct {
@@ -136,15 +138,57 @@ func (s *server) run() (err error) {
 	}
 }
 
+var weakKey = []byte{1, 2, 3}
+
 func (s *server) clientCommuncation(port string, c *comm.Comm) (room string, err error) {
+	// establish secure password with PAKE for communication with relay
+	B, err := pake.InitCurve(weakKey, 1, "siec", 1*time.Millisecond)
+	if err != nil {
+		return
+	}
+	Abytes, err := c.Receive()
+	if err != nil {
+		return
+	}
+	err = B.Update(Abytes)
+	if err != nil {
+		return
+	}
+	err = c.Send(B.Bytes())
+	Abytes, err = c.Receive()
+	if err != nil {
+		return
+	}
+	err = B.Update(Abytes)
+	if err != nil {
+		return
+	}
+	strongKey, err := B.SessionKey()
+	if err != nil {
+		return
+	}
+	log.Debugf("strongkey: %x", strongKey)
+
+	// receive salt
+	salt, err := c.Receive()
+	strongKeyForEncryption, _, err := crypt.New(strongKey, salt)
+	if err != nil {
+		return
+	}
+
 	log.Debugf("waiting for password")
-	passwordBytes, err := c.Receive()
+	passwordBytesEnc, err := c.Receive()
+	if err != nil {
+		return
+	}
+	passwordBytes, err := crypt.Decrypt(passwordBytesEnc, strongKeyForEncryption)
 	if err != nil {
 		return
 	}
 	if strings.TrimSpace(string(passwordBytes)) != s.password {
 		err = fmt.Errorf("bad password")
-		c.Send([]byte(err.Error()))
+		enc, _ := crypt.Decrypt([]byte(err.Error()), strongKeyForEncryption)
+		c.Send(enc)
 		return
 	}
 
@@ -154,14 +198,22 @@ func (s *server) clientCommuncation(port string, c *comm.Comm) (room string, err
 		banner = "ok"
 	}
 	log.Debugf("sending '%s'", banner)
-	err = c.Send([]byte(banner + "|||" + c.Connection().RemoteAddr().String()))
+	bSend, err := crypt.Encrypt([]byte(banner+"|||"+c.Connection().RemoteAddr().String()), strongKeyForEncryption)
+	if err != nil {
+		return
+	}
+	err = c.Send(bSend)
 	if err != nil {
 		return
 	}
 
 	// wait for client to tell me which room they want
 	log.Debug("waiting for answer")
-	roomBytes, err := c.Receive()
+	enc, err := c.Receive()
+	if err != nil {
+		return
+	}
+	roomBytes, err := crypt.Decrypt(enc, strongKeyForEncryption)
 	if err != nil {
 		return
 	}
@@ -176,7 +228,12 @@ func (s *server) clientCommuncation(port string, c *comm.Comm) (room string, err
 		}
 		s.rooms.Unlock()
 		// tell the client that they got the room
-		err = c.Send([]byte("ok"))
+
+		bSend, err = crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
+		if err != nil {
+			return
+		}
+		err = c.Send(bSend)
 		if err != nil {
 			log.Error(err)
 			s.deleteRoom(room)
@@ -187,7 +244,11 @@ func (s *server) clientCommuncation(port string, c *comm.Comm) (room string, err
 	}
 	if s.rooms.rooms[room].full {
 		s.rooms.Unlock()
-		err = c.Send([]byte("room full"))
+		bSend, err = crypt.Encrypt([]byte("room full"), strongKeyForEncryption)
+		if err != nil {
+			return
+		}
+		err = c.Send(bSend)
 		if err != nil {
 			log.Error(err)
 			s.deleteRoom(room)
@@ -218,7 +279,11 @@ func (s *server) clientCommuncation(port string, c *comm.Comm) (room string, err
 	}(otherConnection, c, &wg)
 
 	// tell the sender everything is ready
-	err = c.Send([]byte("ok"))
+	bSend, err = crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
+	if err != nil {
+		return
+	}
+	err = c.Send(bSend)
 	if err != nil {
 		s.deleteRoom(room)
 		return
@@ -310,13 +375,56 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	if err != nil {
 		return
 	}
+
+	// get PAKE connection with server to establish strong key to transfer info
+	A, err := pake.InitCurve(weakKey, 0, "siec", 1*time.Millisecond)
+	if err != nil {
+		return
+	}
+	err = c.Send(A.Bytes())
+	if err != nil {
+		return
+	}
+	Bbytes, err := c.Receive()
+	if err != nil {
+		return
+	}
+	err = A.Update(Bbytes)
+	if err != nil {
+		return
+	}
+	err = c.Send(A.Bytes())
+	if err != nil {
+		return
+	}
+	strongKey, err := A.SessionKey()
+	if err != nil {
+		return
+	}
+	log.Debugf("strong key: %x", strongKey)
+
+	strongKeyForEncryption, salt, err := crypt.New(strongKey, nil)
+	// send salt
+	err = c.Send(salt)
+	if err != nil {
+		return
+	}
+
 	log.Debug("sending password")
-	err = c.Send([]byte(password))
+	bSend, err := crypt.Encrypt([]byte(password), strongKeyForEncryption)
+	if err != nil {
+		return
+	}
+	err = c.Send(bSend)
 	if err != nil {
 		return
 	}
 	log.Debug("waiting for first ok")
-	data, err := c.Receive()
+	enc, err := c.Receive()
+	if err != nil {
+		return
+	}
+	data, err := crypt.Decrypt(enc, strongKeyForEncryption)
 	if err != nil {
 		return
 	}
@@ -327,12 +435,20 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	banner = strings.Split(string(data), "|||")[0]
 	ipaddr = strings.Split(string(data), "|||")[1]
 	log.Debug("sending room")
-	err = c.Send([]byte(room))
+	bSend, err = crypt.Encrypt([]byte(room), strongKeyForEncryption)
+	if err != nil {
+		return
+	}
+	err = c.Send(bSend)
 	if err != nil {
 		return
 	}
 	log.Debug("waiting for room confirmation")
-	data, err = c.Receive()
+	enc, err = c.Receive()
+	if err != nil {
+		return
+	}
+	data, err = crypt.Decrypt(enc, strongKeyForEncryption)
 	if err != nil {
 		return
 	}
