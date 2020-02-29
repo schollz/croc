@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/schollz/croc/v6/src/comm"
-	"github.com/schollz/croc/v6/src/crypt"
-	"github.com/schollz/croc/v6/src/models"
+	"github.com/schollz/croc/v8/src/comm"
+	"github.com/schollz/croc/v8/src/crypt"
+	"github.com/schollz/croc/v8/src/models"
 	log "github.com/schollz/logger"
 	"github.com/schollz/pake/v2"
 )
