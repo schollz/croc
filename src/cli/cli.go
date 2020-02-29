@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/schollz/croc/v6/src/croc"
-	"github.com/schollz/croc/v6/src/models"
-	"github.com/schollz/croc/v6/src/tcp"
-	"github.com/schollz/croc/v6/src/utils"
+	"github.com/schollz/croc/v8/src/croc"
+	"github.com/schollz/croc/v8/src/models"
+	"github.com/schollz/croc/v8/src/tcp"
+	"github.com/schollz/croc/v8/src/utils"
 	log "github.com/schollz/logger"
 	"github.com/urfave/cli"
 )
@@ -32,7 +32,7 @@ func Run() (err error) {
 	app := cli.NewApp()
 	app.Name = "croc"
 	if Version == "" {
-		Version = "v6.4.11-bc0841d"
+		Version = "v8.0.0-788a63c"
 	}
 	app.Version = Version
 	app.Compiled = time.Now()
