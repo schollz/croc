@@ -14,6 +14,7 @@ import (
 )
 
 func TestMessage(t *testing.T) {
+	log.SetLevel("debug")
 	m := Message{Type: "message", Message: "hello, world"}
 	e, salt, err := crypt.New([]byte("pass"), nil)
 	assert.Nil(t, err)
@@ -23,6 +24,23 @@ func TestMessage(t *testing.T) {
 	fmt.Printf("%x\n", b)
 
 	m2, err := Decode(e, b)
+	assert.Nil(t, err)
+	assert.Equal(t, m, m2)
+	assert.Equal(t, `{"t":"message","m":"hello, world"}`, m.String())
+	_, err = Decode([]byte("not pass"), b)
+	assert.NotNil(t, err)
+	_, err = Encode([]byte("0"), m)
+	assert.NotNil(t, err)
+}
+
+func TestMessageNoPass(t *testing.T) {
+	log.SetLevel("debug")
+	m := Message{Type: "message", Message: "hello, world"}
+	b, err := Encode(nil, m)
+	assert.Nil(t, err)
+	fmt.Printf("%x\n", b)
+
+	m2, err := Decode(nil, b)
 	assert.Nil(t, err)
 	assert.Equal(t, m, m2)
 	assert.Equal(t, `{"t":"message","m":"hello, world"}`, m.String())
