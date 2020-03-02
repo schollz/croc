@@ -50,6 +50,10 @@ func Encrypt(plaintext []byte, key []byte) (encrypted []byte, err error) {
 
 // Decrypt using the pre-generated key
 func Decrypt(encrypted []byte, key []byte) (plaintext []byte, err error) {
+	if len(encrypted) < 13 {
+		err = fmt.Errorf("incorrect passphrase")
+		return
+	}
 	b, err := aes.NewCipher(key)
 	if err != nil {
 		return
