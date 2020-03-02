@@ -44,4 +44,12 @@ func TestEncryption(t *testing.T) {
 	dec, err = Decrypt(enc, key2)
 	assert.NotNil(t, err)
 	assert.NotEqual(t, msg, dec)
+
+	// error with no password
+	dec, err = Decrypt([]byte(""), key)
+	assert.NotNil(t, err)
+
+	// error with small password
+	_, _, err = New([]byte(""), nil)
+	assert.NotNil(t, err)
 }
