@@ -3,9 +3,9 @@ package message
 import (
 	"encoding/json"
 
-	"github.com/schollz/croc/v6/src/comm"
-	"github.com/schollz/croc/v6/src/compress"
-	"github.com/schollz/croc/v6/src/crypt"
+	"github.com/schollz/croc/v8/src/comm"
+	"github.com/schollz/croc/v8/src/compress"
+	"github.com/schollz/croc/v8/src/crypt"
 	log "github.com/schollz/logger"
 )
 
@@ -28,7 +28,6 @@ func Send(c *comm.Comm, key []byte, m Message) (err error) {
 	if err != nil {
 		return
 	}
-	log.Debugf("writing %s message (%d bytes)", m.Type, len(mSend))
 	_, err = c.Write(mSend)
 	return
 }
@@ -41,7 +40,10 @@ func Encode(key []byte, m Message) (b []byte, err error) {
 	}
 	b = compress.Compress(b)
 	if key != nil {
+		log.Debugf("writing %s message (encrypted)", m.Type)
 		b, err = crypt.Encrypt(b, key)
+	} else {
+		log.Debugf("writing %s message", m.Type)
 	}
 	return
 }

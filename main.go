@@ -8,7 +8,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/schollz/croc/v6/src/cli"
+	"github.com/schollz/croc/v8/src/cli"
 )
 
 func main() {
