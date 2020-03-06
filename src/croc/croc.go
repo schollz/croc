@@ -549,6 +549,9 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 		data, err = c.conn[0].Receive()
 		if err != nil {
 			log.Debugf("got error receiving: %s", err.Error())
+			if !c.Step1ChannelSecured {
+				err = fmt.Errorf("could not secure channel")
+			}
 			break
 		}
 		done, err = c.processMessage(data)
@@ -748,6 +751,9 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		return
 	case "pake":
 		err = c.procesMesssagePake(m)
+		if err != nil {
+			err = errors.Wrap(err, "pake not successful")
+		}
 	case "salt":
 		done, err = c.processMessageSalt(m)
 	case "externalip":
