@@ -775,10 +775,12 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		c.CurrentFileChunkRanges = remoteFile.CurrentFileChunkRanges
 		c.CurrentFileChunks = utils.ChunkRangesToChunks(c.CurrentFileChunkRanges)
 		log.Debugf("current file chunks: %+v", c.CurrentFileChunks)
+		c.mutex.Lock()
 		c.chunkMap = make(map[uint64]struct{})
 		for _, chunk := range c.CurrentFileChunks {
 			c.chunkMap[uint64(chunk)] = struct{}{}
 		}
+		c.mutex.Unlock()
 		c.Step3RecipientRequestFile = true
 
 		if c.Options.Ask {
