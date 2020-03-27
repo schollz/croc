@@ -11,7 +11,7 @@ import (
 )
 
 func TestComm(t *testing.T) {
-	token := make([]byte, 40000000)
+	token := make([]byte, MAXBYTES)
 	rand.Read(token)
 
 	port := "8001"
