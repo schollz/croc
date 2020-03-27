@@ -13,7 +13,21 @@ import (
 
 func main() {
 	// "github.com/pkg/profile"
-	// defer profile.Start(profile.CPUProfile).Stop()
+	// go func() {
+	// 	for {
+	// 		f, err := os.Create("croc.pprof")
+	// 		if err != nil {
+	// 			panic(err)
+	// 		}
+	// 		runtime.GC() // get up-to-date statistics
+	// 		if err := pprof.WriteHeapProfile(f); err != nil {
+	// 			panic(err)
+	// 		}
+	// 		f.Close()
+	// 		time.Sleep(3 * time.Second)
+	// 		fmt.Println("wrote profile")
+	// 	}
+	// }()
 	if err := cli.Run(); err != nil {
 		fmt.Println(err)
 	}
