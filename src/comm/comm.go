@@ -8,7 +8,10 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/schollz/logger"
 )
+
+const MAXBYTES = 1000000
 
 // Comm is some basic TCP communication
 type Comm struct {
@@ -89,12 +92,18 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	rbuf := bytes.NewReader(header)
 	err = binary.Read(rbuf, binary.LittleEndian, &numBytesUint32)
 	if err != nil {
-		fmt.Println("binary.Read failed:", err)
+		err = fmt.Errorf("binary.Read failed: %s", err.Error())
+		return
 	}
 	numBytes = int(numBytesUint32)
+	if numBytes > MAXBYTES {
+		err = fmt.Errorf("too many bytes: %d", numBytes)
+		logger.Error(err)
+		return
+	}
 	buf = make([]byte, 0)
 	for {
-		// log.Debugf("bytes: %d/%d",len(buf),numBytes)
+		// log.Debugf("bytes: %d/%d", len(buf), numBytes)
 		tmp := make([]byte, numBytes-len(buf))
 		n, errRead := c.connection.Read(tmp)
 		if errRead != nil {
