@@ -46,6 +46,8 @@ github.com/schollz/peerdiscovery v1.5.0 h1:olfRgADOF4iVHfA6QSf5fNTCXWf9bQ0CcAHu+
 github.com/schollz/peerdiscovery v1.5.0/go.mod h1:rtU51ZXRfyF8ugujcsOTxM8Jerx19+62Wq2zx2QGYsg=
 github.com/schollz/progressbar/v2 v2.15.0 h1:dVzHQ8fHRmtPjD3K10jT3Qgn/+H+92jhPrhmxIJfDz8=
 github.com/schollz/progressbar/v2 v2.15.0/go.mod h1:UdPq3prGkfQ7MOzZKlDRpYKcFqEMczbD7YmbPgpzKMI=
+github.com/schollz/progressbar/v3 v3.0.0 h1:N4MqUpgTO75vC0VmVtDNcnBNQinQjbPpKah6F+d34QY=
+github.com/schollz/progressbar/v3 v3.0.0/go.mod h1:d+PD64vPuv+GL2EhUpvV579FR91WWhRHEnImqGsIBU4=
 github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9 h1:y08o5oQ/slxXE/F0uh5dd8mdVvb+w4NLcNSDSq4c2F0=
 github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9/go.mod h1:kCMoQsqzx4MzGJWaALr6tKyCnlrY0kILGLkA1FOiLF4=
 github.com/shurcooL/sanitized_anchor_name v1.0.0 h1:PdmoCO6wvbs+7yrJyMORt4/BmY5IYyJwS/kOiWx8mHo=

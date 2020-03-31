@@ -16,7 +16,7 @@ require (
 	github.com/schollz/mnemonicode v1.0.1
 	github.com/schollz/pake/v2 v2.0.2
 	github.com/schollz/peerdiscovery v1.5.0
-	github.com/schollz/progressbar/v2 v2.15.0
+	github.com/schollz/progressbar/v3 v3.0.0
 	github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stretchr/testify v1.4.0
