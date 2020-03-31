@@ -716,7 +716,7 @@ func (c *Client) processMessageSalt(m message.Message) (done bool, err error) {
 }
 
 func (c *Client) processExternalIP(m message.Message) (done bool, err error) {
-	log.Debug("received external IP: %+v", m)
+	log.Debugf("received external IP: %+v", m)
 	if !c.Options.IsSender {
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:    "externalip",
