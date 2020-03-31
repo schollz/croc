@@ -29,7 +29,7 @@ import (
 	log "github.com/schollz/logger"
 	"github.com/schollz/pake/v2"
 	"github.com/schollz/peerdiscovery"
-	"github.com/schollz/progressbar/v2"
+	"github.com/schollz/progressbar/v3"
 	"github.com/schollz/spinner"
 	"github.com/tscholl2/siec"
 )
@@ -707,15 +707,16 @@ func (c *Client) processMessageSalt(m message.Message) (done bool, err error) {
 	if c.Options.IsSender {
 		log.Debug("sending external IP")
 		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:  "externalip",
-			Bytes: m.Bytes,
+			Type:    "externalip",
+			Message: c.ExternalIP,
+			Bytes:   m.Bytes,
 		})
 	}
 	return
 }
 
 func (c *Client) processExternalIP(m message.Message) (done bool, err error) {
-	log.Debug("received external IP")
+	log.Debug("received external IP: %+v", m)
 	if !c.Options.IsSender {
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:    "externalip",
@@ -970,7 +971,7 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 		progressbar.OptionSetWidth(20),
 		progressbar.OptionSetDescription(description),
 		progressbar.OptionSetRenderBlankState(true),
-		progressbar.OptionSetBytes64(1),
+		progressbar.OptionShowBytes(true),
 		progressbar.OptionSetWriter(os.Stderr),
 	)
 	c.bar.Finish()
@@ -1054,7 +1055,7 @@ func (c *Client) updateState() (err error) {
 						progressbar.OptionSetWidth(20),
 						progressbar.OptionSetDescription(description),
 						progressbar.OptionSetRenderBlankState(true),
-						progressbar.OptionSetBytes64(1),
+						progressbar.OptionShowBytes(true),
 						progressbar.OptionSetWriter(os.Stderr),
 					)
 					c.bar.Finish()
@@ -1097,7 +1098,7 @@ func (c *Client) setBar() {
 		progressbar.OptionSetWidth(20),
 		progressbar.OptionSetDescription(description),
 		progressbar.OptionSetRenderBlankState(true),
-		progressbar.OptionSetBytes64(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size),
+		progressbar.OptionShowBytes(true),
 		progressbar.OptionSetWriter(os.Stderr),
 		progressbar.OptionThrottle(100*time.Millisecond),
 	)
