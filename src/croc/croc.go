@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"math"
 	"net"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -618,10 +619,26 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	} else {
 		fmt.Fprintf(os.Stderr, "\rReceiving %s (%s) \n", fname, utils.ByteCountDecimal(totalSize))
 	}
-	fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)\n", c.ExternalIPConnected)
+	place := getPlace(c.ExternalIPConnected)
+	if place != "" {
+		fmt.Fprintf(os.Stderr, "\nReceiving (<-%s/%s)\n", place, c.ExternalIPConnected)
+	} else {
+		fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)\n", c.ExternalIPConnected)
+	}
 
 	log.Debug(c.FilesToTransfer)
 	c.Step2FileInfoTransfered = true
+	return
+}
+
+func getPlace(ip string) (place string) {
+	resp, err := http.Get("https://geoip.schollz.com/" + strings.Split(ip, ":")[0])
+	if err != nil {
+		// handle err
+	}
+	defer resp.Body.Close()
+	placeB, _ := ioutil.ReadAll(resp.Body)
+	place = string(placeB)
 	return
 }
 
