@@ -523,7 +523,7 @@ main() {
   local create_prefix_rcode
 
   croc_bin_name="croc"
-  croc_version="8.0.6"
+  croc_version="8.0.7"
   croc_dl_ext="tar.gz"
   croc_base_url="https://github.com/schollz/croc/releases/download"
   prefix="${1}"
