@@ -101,7 +101,7 @@ func (s *server) run() (err error) {
 			c := comm.New(connection)
 			room, errCommunication := s.clientCommuncation(port, c)
 			if errCommunication != nil {
-				log.Warnf("relay-%s: %s", connection.RemoteAddr().String(), errCommunication.Error())
+				log.Debugf("relay-%s: %s", connection.RemoteAddr().String(), errCommunication.Error())
 			}
 			for {
 				// check connection
