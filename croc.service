@@ -1,0 +1,12 @@
+[Unit]
+Description=croc relay
+After=network.target
+
+[Service]
+Type=simple
+User=nobody
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+ExecStart=/usr/bin/croc relay
+
+[Install]
+WantedBy=multi-user.target
