@@ -101,7 +101,7 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	numBytes = int(numBytesUint32)
 	if numBytes > MAXBYTES {
 		err = fmt.Errorf("too many bytes: %d", numBytes)
-		logger.Error(err)
+		logger.Debug(err)
 		return
 	}
 	buf = make([]byte, 0)
