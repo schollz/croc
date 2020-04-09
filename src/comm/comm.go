@@ -72,6 +72,9 @@ func (c *Comm) Write(b []byte) (int, error) {
 }
 
 func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
+	// long read deadline in case waiting for file
+	c.connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
+
 	// read until we get 4 bytes for the header
 	var header []byte
 	numBytes = 4
@@ -102,6 +105,9 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 		return
 	}
 	buf = make([]byte, 0)
+
+	// shorten the reading deadline in case getting weird data
+	c.connection.SetReadDeadline(time.Now().Add(10 * time.Second))
 	for {
 		// log.Debugf("bytes: %d/%d", len(buf), numBytes)
 		tmp := make([]byte, numBytes-len(buf))
