@@ -380,6 +380,7 @@ func receive(c *cli.Context) (err error) {
 }
 
 func relay(c *cli.Context) (err error) {
+	log.Infof("starting croc relay version %v", Version)
 	debugString := "info"
 	if c.GlobalBool("debug") {
 		debugString = "debug"
