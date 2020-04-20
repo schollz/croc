@@ -317,10 +317,10 @@ func (s *server) deleteRoom(room string) {
 //  Read()s from the socket to the channel.
 func chanFromConn(conn net.Conn) chan []byte {
 	c := make(chan []byte, 1)
+	conn.SetReadDeadline(time.Now().Add(3 * time.Hour))
 
 	go func() {
 		b := make([]byte, models.TCP_BUFFER_SIZE)
-
 		for {
 			n, err := conn.Read(b)
 			if n > 0 {
