@@ -83,6 +83,7 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 		n, errRead := c.connection.Read(tmp)
 		if errRead != nil {
 			err = errRead
+			logger.Debug("initial read error: %s", err.Error())
 			return
 		}
 		header = append(header, tmp[:n]...)
@@ -96,6 +97,7 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	err = binary.Read(rbuf, binary.LittleEndian, &numBytesUint32)
 	if err != nil {
 		err = fmt.Errorf("binary.Read failed: %s", err.Error())
+		logger.Debug(err.Error())
 		return
 	}
 	numBytes = int(numBytesUint32)
@@ -114,6 +116,7 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 		n, errRead := c.connection.Read(tmp)
 		if errRead != nil {
 			err = errRead
+			logger.Debug("consecutive read error: %s", err.Error())
 			return
 		}
 		buf = append(buf, tmp[:n]...)
