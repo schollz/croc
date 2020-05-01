@@ -972,6 +972,7 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 		progressbar.OptionSetDescription(description),
 		progressbar.OptionSetRenderBlankState(true),
 		progressbar.OptionShowBytes(true),
+		progressbar.OptionShowCount(),
 		progressbar.OptionSetWriter(os.Stderr),
 	)
 	c.bar.Finish()
@@ -1056,6 +1057,7 @@ func (c *Client) updateState() (err error) {
 						progressbar.OptionSetDescription(description),
 						progressbar.OptionSetRenderBlankState(true),
 						progressbar.OptionShowBytes(true),
+						progressbar.OptionShowCount(),
 						progressbar.OptionSetWriter(os.Stderr),
 					)
 					c.bar.Finish()
@@ -1099,6 +1101,7 @@ func (c *Client) setBar() {
 		progressbar.OptionSetDescription(description),
 		progressbar.OptionSetRenderBlankState(true),
 		progressbar.OptionShowBytes(true),
+		progressbar.OptionShowCount(),
 		progressbar.OptionSetWriter(os.Stderr),
 		progressbar.OptionThrottle(100*time.Millisecond),
 	)
