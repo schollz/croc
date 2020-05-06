@@ -42,6 +42,8 @@ github.com/schollz/mnemonicode v1.0.1 h1:LiH5hwADZwjwnfXsaD4xgnMyTAtaKHN+e5AyjRU
 github.com/schollz/mnemonicode v1.0.1/go.mod h1:cl4UAOhUV0mkdjMj/QYaUZbZZdF8BnOqoz8rHMzwboY=
 github.com/schollz/pake/v2 v2.0.2 h1:p9y4Gocc5PWueyhhR7OH+Gwpu2xkP5BM9Pepl9krVfo=
 github.com/schollz/pake/v2 v2.0.2/go.mod h1:3uXB571UYJ8Eqh2EEohXe/aO32QID+Varb4GeYA//yw=
+github.com/schollz/pake/v2 v2.0.3 h1:KhYi15ozXkgZJTskBpbyoHuSmXcZKyLCIdagUkAeAZk=
+github.com/schollz/pake/v2 v2.0.3/go.mod h1:J52Jt6Wa7nIybWdR7vjTVyz9Ewn3D8TUvURJKvyZ57c=
 github.com/schollz/peerdiscovery v1.5.0 h1:olfRgADOF4iVHfA6QSf5fNTCXWf9bQ0CcAHu+qKEoO0=
 github.com/schollz/peerdiscovery v1.5.0/go.mod h1:rtU51ZXRfyF8ugujcsOTxM8Jerx19+62Wq2zx2QGYsg=
 github.com/schollz/progressbar/v2 v2.15.0 h1:dVzHQ8fHRmtPjD3K10jT3Qgn/+H+92jhPrhmxIJfDz8=
@@ -66,6 +68,7 @@ github.com/urfave/cli v1.22.4 h1:u7tSpNPPswAFymm8IehJhy4uJMlUuU/GmqSkvJ1InXA=
 github.com/urfave/cli v1.22.4/go.mod h1:Gos4lmkARVdJ6EkW0WaNv/tZAAMe9V7XWyB60NtXRu0=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20190907121410-71b5226ff739/go.mod h1:yigFU9vqHzYiE8UmvKecakEJjdnWj3jj499lnFckfCI=
+golang.org/x/crypto v0.0.0-20200302210943-78000ba7a073/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
 golang.org/x/crypto v0.0.0-20200429183012-4b2356b1ed79 h1:IaQbIIB2X/Mp/DKctl6ROxz1KyMlKp4uyvL6+kQ7C88=
 golang.org/x/crypto v0.0.0-20200429183012-4b2356b1ed79/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
 golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3/go.mod h1:t9HGtf8HONx5eT2rtn7q6eTqICYqUVnKs3thJo3Qplg=
