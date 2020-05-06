@@ -14,7 +14,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/mnemonicode v1.0.1
-	github.com/schollz/pake/v2 v2.0.2
+	github.com/schollz/pake/v2 v2.0.3
 	github.com/schollz/peerdiscovery v1.5.0
 	github.com/schollz/progressbar/v3 v3.2.3
 	github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9

@@ -142,7 +142,7 @@ var weakKey = []byte{1, 2, 3}
 
 func (s *server) clientCommuncation(port string, c *comm.Comm) (room string, err error) {
 	// establish secure password with PAKE for communication with relay
-	B, err := pake.InitCurve(weakKey, 1, "siec", 1*time.Millisecond)
+	B, err := pake.InitCurve(weakKey, 1, "siec", 1*time.Microsecond)
 	if err != nil {
 		return
 	}
@@ -377,7 +377,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	}
 
 	// get PAKE connection with server to establish strong key to transfer info
-	A, err := pake.InitCurve(weakKey, 0, "siec", 1*time.Millisecond)
+	A, err := pake.InitCurve(weakKey, 0, "siec", 1*time.Microsecond)
 	if err != nil {
 		return
 	}
