@@ -2,13 +2,27 @@ package tcp
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 	"time"
 
+	log "github.com/schollz/logger"
 	"github.com/stretchr/testify/assert"
 )
 
+func BenchmarkConnection(b *testing.B) {
+	log.SetLevel("trace")
+	go Run("debug", "8283", "pass123", "8284")
+	time.Sleep(100 * time.Millisecond)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		c, _, _, _ := ConnectToTCPServer("localhost:8283", "pass123", fmt.Sprintf("testroom%d", i), 1*time.Minute)
+		c.Close()
+	}
+}
+
 func TestTCP(t *testing.T) {
+	log.SetLevel("error")
 	timeToRoomDeletion = 100 * time.Millisecond
 	go Run("debug", "8281", "pass123", "8282")
 	time.Sleep(100 * time.Millisecond)
