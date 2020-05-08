@@ -23,6 +23,7 @@ Status"></a>
 
 For more information about `croc`, see [my blog post](https://schollz.com/software/croc6).
 
+![Example](src/install/customization.gif)
 
 ## Install
 
