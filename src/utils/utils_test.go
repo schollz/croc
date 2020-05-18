@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -13,10 +14,7 @@ import (
 )
 
 func bigFile() {
-	rand.Seed(0)
-	bigBuff := make([]byte, 75000000)
-	rand.Read(bigBuff)
-	ioutil.WriteFile("bigfile.test", bigBuff, 0666)
+	ioutil.WriteFile("bigfile.test", bytes.Repeat([]byte("z"), 75000000), 0666)
 }
 
 func BenchmarkMD5(b *testing.B) {
@@ -55,7 +53,7 @@ func TestMD5HashFile(t *testing.T) {
 	defer os.Remove("bigfile.test")
 	b, err := MD5HashFile("bigfile.test")
 	assert.Nil(t, err)
-	assert.Equal(t, "9fed05acbacbc6a36555c998501c21f6", fmt.Sprintf("%x", b))
+	assert.Equal(t, "8304ff018e02baad0e3555bade29a405", fmt.Sprintf("%x", b))
 	_, err = MD5HashFile("bigfile.test.nofile")
 	assert.NotNil(t, err)
 }
@@ -65,7 +63,7 @@ func TestIMOHashFile(t *testing.T) {
 	defer os.Remove("bigfile.test")
 	b, err := IMOHashFile("bigfile.test")
 	assert.Nil(t, err)
-	assert.Equal(t, "c0d1e123a96a598ea801cc503d3db8c0", fmt.Sprintf("%x", b))
+	assert.Equal(t, "c0d1e123ca94148ffea146137684ebb9", fmt.Sprintf("%x", b))
 }
 
 func TestXXHashFile(t *testing.T) {
@@ -73,7 +71,7 @@ func TestXXHashFile(t *testing.T) {
 	defer os.Remove("bigfile.test")
 	b, err := XXHashFile("bigfile.test")
 	assert.Nil(t, err)
-	assert.Equal(t, "f2da6ee7e75e8324", fmt.Sprintf("%x", b))
+	assert.Equal(t, "4918740eb5ccb6f7", fmt.Sprintf("%x", b))
 	_, err = XXHashFile("nofile")
 	assert.NotNil(t, err)
 }
