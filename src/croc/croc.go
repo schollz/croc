@@ -434,9 +434,13 @@ func (c *Client) Receive() (err error) {
 					continue
 				}
 				log.Debug("switching to local")
+				portToUse := string(bytes.TrimPrefix(discoveries[0].Payload, []byte("croc")))
+				if portToUse == "" {
+					portToUse = "9009"
+				}
 				c.Options.RelayAddress = fmt.Sprintf("%s:%s",
 					discoveries[0].Address,
-					bytes.TrimPrefix(discoveries[0].Payload, []byte("croc")),
+					portToUse,
 				)
 				c.ExternalIPConnected = c.Options.RelayAddress
 				usingLocal = true
