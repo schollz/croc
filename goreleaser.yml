@@ -18,6 +18,9 @@ build:
     - 386
     - arm
     - arm64
+  ignore:
+    - goos: drawin
+      goarch: 386
   goarm:
     - 7
   hooks:
