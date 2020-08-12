@@ -19,7 +19,7 @@ build:
     - arm
     - arm64
   ignore:
-    - goos: drawin
+    - goos: darwin
       goarch: 386
   goarm:
     - 7
