@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"compress/flate"
 	"io"
+
+	log "github.com/schollz/logger"
 )
 
 // CompressWithOption returns compressed data using the specified level
@@ -31,13 +33,17 @@ func Decompress(src []byte) []byte {
 // compress uses flate to compress a byte slice to a corresponding level
 func compress(src []byte, dest io.Writer, level int) {
 	compressor, _ := flate.NewWriter(dest, level)
-	compressor.Write(src)
+	if _, err := compressor.Write(src); err != nil {
+		log.Errorf("error writing data: %v", err)
+	}
 	compressor.Close()
 }
 
 // compress uses flate to decompress an io.Reader
 func decompress(src io.Reader, dest io.Writer) {
 	decompressor := flate.NewReader(src)
-	io.Copy(dest, decompressor)
+	if _, err := io.Copy(dest, decompressor); err != nil {
+		log.Errorf("error copying data: %v", err)
+	}
 	decompressor.Close()
 }

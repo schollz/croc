@@ -165,14 +165,14 @@ func TestHashFile(t *testing.T) {
 func TestPublicIP(t *testing.T) {
 	ip, err := PublicIP()
 	fmt.Println(ip)
-	assert.True(t, strings.Contains(ip, "."))
+	assert.True(t, strings.Contains(ip, ".") || strings.Contains(ip, ":"))
 	assert.Nil(t, err)
 }
 
 func TestLocalIP(t *testing.T) {
 	ip := LocalIP()
 	fmt.Println(ip)
-	assert.True(t, strings.Contains(ip, "."))
+	assert.True(t, strings.Contains(ip, ".") || strings.Contains(ip, ":"))
 }
 
 func TestGetRandomName(t *testing.T) {

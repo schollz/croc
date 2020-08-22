@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
+	"log"
 
 	"golang.org/x/crypto/pbkdf2"
 )
@@ -20,11 +21,13 @@ func New(passphrase []byte, usersalt []byte) (key []byte, salt []byte, err error
 		salt = make([]byte, 8)
 		// http://www.ietf.org/rfc/rfc2898.txt
 		// Salt.
-		rand.Read(salt)
+		if _, err := rand.Read(salt); err != nil {
+			log.Fatalf("can't get random salt: %v", err)
+		}
 	} else {
 		salt = usersalt
 	}
-	key = pbkdf2.Key([]byte(passphrase), salt, 100, 32, sha256.New)
+	key = pbkdf2.Key(passphrase, salt, 100, 32, sha256.New)
 	return
 }
 
@@ -34,7 +37,9 @@ func Encrypt(plaintext []byte, key []byte) (encrypted []byte, err error) {
 	// http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 	// Section 8.2
 	ivBytes := make([]byte, 12)
-	rand.Read(ivBytes)
+	if _, err := rand.Read(ivBytes); err != nil {
+		log.Fatalf("can't initialize crypto: %v", err)
+	}
 	b, err := aes.NewCipher(key)
 	if err != nil {
 		return

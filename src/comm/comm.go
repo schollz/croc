@@ -7,8 +7,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/pkg/errors"
-	"github.com/schollz/logger"
+	log "github.com/schollz/logger"
 )
 
 const MAXBYTES = 1000000
@@ -34,9 +33,15 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 
 // New returns a new comm
 func New(c net.Conn) *Comm {
-	c.SetReadDeadline(time.Now().Add(3 * time.Hour))
-	c.SetDeadline(time.Now().Add(3 * time.Hour))
-	c.SetWriteDeadline(time.Now().Add(3 * time.Hour))
+	if err := c.SetReadDeadline(time.Now().Add(3 * time.Hour)); err != nil {
+		log.Warnf("error setting read deadline: %v", err)
+	}
+	if err := c.SetDeadline(time.Now().Add(3 * time.Hour)); err != nil {
+		log.Warnf("error setting overall deadline: %v", err)
+	}
+	if err := c.SetWriteDeadline(time.Now().Add(3 * time.Hour)); err != nil {
+		log.Errorf("error setting write deadline: %v", err)
+	}
 	comm := new(Comm)
 	comm.connection = c
 	return comm
@@ -49,7 +54,9 @@ func (c *Comm) Connection() net.Conn {
 
 // Close closes the connection
 func (c *Comm) Close() {
-	c.connection.Close()
+	if err := c.connection.Close(); err != nil {
+		log.Warnf("error closing connection: %v", err)
+	}
 }
 
 func (c *Comm) Write(b []byte) (int, error) {
@@ -62,7 +69,7 @@ func (c *Comm) Write(b []byte) (int, error) {
 	n, err := c.connection.Write(tmpCopy)
 	if n != len(tmpCopy) {
 		if err != nil {
-			err = errors.Wrap(err, fmt.Sprintf("wanted to write %d but wrote %d", len(b), n))
+			err = fmt.Errorf("wanted to write %d but wrote %d: %w", len(b), n, err)
 		} else {
 			err = fmt.Errorf("wanted to write %d but wrote %d", len(b), n)
 		}
@@ -73,7 +80,9 @@ func (c *Comm) Write(b []byte) (int, error) {
 
 func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	// long read deadline in case waiting for file
-	c.connection.SetReadDeadline(time.Now().Add(3 * time.Hour))
+	if err := c.connection.SetReadDeadline(time.Now().Add(3 * time.Hour)); err != nil {
+		log.Warnf("error setting read deadline: %v", err)
+	}
 
 	// read until we get 4 bytes for the header
 	var header []byte
@@ -83,7 +92,7 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 		n, errRead := c.connection.Read(tmp)
 		if errRead != nil {
 			err = errRead
-			logger.Debugf("initial read error: %s", err.Error())
+			log.Debugf("initial read error: %v", err)
 			return
 		}
 		header = append(header, tmp[:n]...)
@@ -96,27 +105,29 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	rbuf := bytes.NewReader(header)
 	err = binary.Read(rbuf, binary.LittleEndian, &numBytesUint32)
 	if err != nil {
-		err = fmt.Errorf("binary.Read failed: %s", err.Error())
-		logger.Debug(err.Error())
+		err = fmt.Errorf("binary.Read failed: %w", err)
+		log.Debug(err.Error())
 		return
 	}
 	numBytes = int(numBytesUint32)
 	if numBytes > MAXBYTES {
 		err = fmt.Errorf("too many bytes: %d", numBytes)
-		logger.Debug(err)
+		log.Debug(err)
 		return
 	}
 	buf = make([]byte, 0)
 
 	// shorten the reading deadline in case getting weird data
-	c.connection.SetReadDeadline(time.Now().Add(10 * time.Second))
+	if err := c.connection.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		log.Warnf("error setting read deadline: %v", err)
+	}
 	for {
 		// log.Debugf("bytes: %d/%d", len(buf), numBytes)
 		tmp := make([]byte, numBytes-len(buf))
 		n, errRead := c.connection.Read(tmp)
 		if errRead != nil {
 			err = errRead
-			logger.Debugf("consecutive read error: %s", err.Error())
+			log.Debugf("consecutive read error: %v", err)
 			return
 		}
 		buf = append(buf, tmp[:n]...)
