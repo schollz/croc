@@ -51,7 +51,9 @@ func BenchmarkCompressLevelNine(b *testing.B) {
 
 func BenchmarkCompressLevelMinusTwoBinary(b *testing.B) {
 	data := make([]byte, 1000000)
-	rand.Read(data)
+	if _, err := rand.Read(data); err != nil {
+		b.Fatal(err)
+	}
 	for i := 0; i < b.N; i++ {
 		CompressWithOption(data, -2)
 	}
@@ -59,7 +61,9 @@ func BenchmarkCompressLevelMinusTwoBinary(b *testing.B) {
 
 func BenchmarkCompressLevelNineBinary(b *testing.B) {
 	data := make([]byte, 1000000)
-	rand.Read(data)
+	if _, err := rand.Read(data); err != nil {
+		b.Fatal(err)
+	}
 	for i := 0; i < b.N; i++ {
 		CompressWithOption(data, 9)
 	}
@@ -83,12 +87,16 @@ func TestCompress(t *testing.T) {
 	assert.True(t, len(compressedB) < len(fable))
 
 	data := make([]byte, 4096)
-	rand.Read(data)
+	if _, err := rand.Read(data); err != nil {
+		t.Fatal(err)
+	}
 	compressedB = CompressWithOption(data, -2)
 	dataRateSavings = 100 * (1.0 - float64(len(compressedB))/float64(len(data)))
 	fmt.Printf("random, Level -2: %2.0f%% percent space savings\n", dataRateSavings)
 
-	rand.Read(data)
+	if _, err := rand.Read(data); err != nil {
+		t.Fatal(err)
+	}
 	compressedB = CompressWithOption(data, 9)
 	dataRateSavings = 100 * (1.0 - float64(len(compressedB))/float64(len(data)))
 

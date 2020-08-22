@@ -18,7 +18,13 @@ import (
 	"time"
 
 	"github.com/denisbrodbeck/machineid"
-	"github.com/pkg/errors"
+	log "github.com/schollz/logger"
+	"github.com/schollz/pake/v2"
+	"github.com/schollz/peerdiscovery"
+	"github.com/schollz/progressbar/v3"
+	"github.com/schollz/spinner"
+	"github.com/tscholl2/siec"
+
 	"github.com/schollz/croc/v8/src/comm"
 	"github.com/schollz/croc/v8/src/compress"
 	"github.com/schollz/croc/v8/src/crypt"
@@ -26,12 +32,6 @@ import (
 	"github.com/schollz/croc/v8/src/models"
 	"github.com/schollz/croc/v8/src/tcp"
 	"github.com/schollz/croc/v8/src/utils"
-	log "github.com/schollz/logger"
-	"github.com/schollz/pake/v2"
-	"github.com/schollz/peerdiscovery"
-	"github.com/schollz/progressbar/v3"
-	"github.com/schollz/spinner"
-	"github.com/tscholl2/siec"
 )
 
 func init() {
@@ -267,7 +267,7 @@ func (c *Client) broadcastOnLocalNetwork() {
 	log.Debugf("discoveries: %+v", discoveries)
 
 	if err != nil {
-		log.Debug(err.Error())
+		log.Debug(err)
 	}
 }
 
@@ -278,7 +278,7 @@ func (c *Client) transferOverLocalRelay(options TransferOptions, errchan chan<- 
 	conn, banner, ipaddr, err := tcp.ConnectToTCPServer("localhost:"+c.Options.RelayPorts[0], c.Options.RelayPassword, c.Options.SharedSecret[:3])
 	log.Debugf("banner: %s", banner)
 	if err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("could not connect to localhost:%s", c.Options.RelayPorts[0]))
+		err = fmt.Errorf("could not connect to localhost:%s: %w", c.Options.RelayPorts[0], err)
 		log.Debug(err)
 		// not really an error because it will try to connect over the actual relay
 		return
@@ -351,7 +351,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.RelayPassword, c.Options.SharedSecret[:3], 5*time.Second)
 		log.Debugf("banner: %s", banner)
 		if err != nil {
-			err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
+			err = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, err)
 			log.Debug(err)
 			errchan <- err
 			return
@@ -371,13 +371,15 @@ func (c *Client) Send(options TransferOptions) (err error) {
 					// get list of local ips
 					ips, err = utils.GetLocalIPs()
 					if err != nil {
-						log.Debugf("error getting local ips: %s", err.Error())
+						log.Debugf("error getting local ips: %v", err)
 					}
 					// prepend the port that is being listened to
 					ips = append([]string{c.Options.RelayPorts[0]}, ips...)
 				}
 				bips, _ := json.Marshal(ips)
-				conn.Send(bips)
+				if err := conn.Send(bips); err != nil {
+					log.Errorf("error sending: %v", err)
+				}
 			} else if bytes.Equal(data, []byte("handshake")) {
 				break
 			} else if bytes.Equal(data, []byte{1}) {
@@ -407,7 +409,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		// return if no error
 		return
 	} else {
-		log.Debugf("error from errchan: %s", err.Error())
+		log.Debugf("error from errchan: %v", err)
 	}
 	if !c.Options.DisableLocal {
 		if strings.Contains(err.Error(), "refusing files") || strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "bad password") {
@@ -471,7 +473,8 @@ func (c *Client) Receive() (err error) {
 	c.conn[0], banner, c.ExternalIP, err = tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.RelayPassword, c.Options.SharedSecret[:3])
 	log.Debugf("banner: %s", banner)
 	if err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("could not connect to %s", c.Options.RelayAddress))
+		err = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, err)
+		log.Debug(err)
 		return
 	}
 	log.Debugf("receiver connection established: %+v", c.conn[0])
@@ -481,14 +484,18 @@ func (c *Client) Receive() (err error) {
 		// and try to connect to them
 		log.Debug("sending ips?")
 		var data []byte
-		c.conn[0].Send([]byte("ips?"))
+		if err := c.conn[0].Send([]byte("ips?")); err != nil {
+			log.Errorf("ips send error: %v", err)
+		}
 		data, err = c.conn[0].Receive()
 		if err != nil {
 			return
 		}
 		log.Debugf("ips data: %s", data)
 		var ips []string
-		json.Unmarshal(data, &ips)
+		if err := json.Unmarshal(data, &ips); err != nil {
+			log.Errorf("ips unmarshal error: %v", err)
+		}
 		if len(ips) > 1 {
 			port := ips[0]
 			ips = ips[1:]
@@ -529,7 +536,9 @@ func (c *Client) Receive() (err error) {
 		}
 	}
 
-	c.conn[0].Send([]byte("handshake"))
+	if err := c.conn[0].Send([]byte("handshake")); err != nil {
+		log.Errorf("handshake send error: %v", err)
+	}
 	c.Options.RelayPorts = strings.Split(banner, ",")
 	if c.Options.NoMultiplexing {
 		log.Debug("no multiplexing")
@@ -564,7 +573,7 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 		var done bool
 		data, err = c.conn[0].Receive()
 		if err != nil {
-			log.Debugf("got error receiving: %s", err.Error())
+			log.Debugf("got error receiving: %v", err)
 			if !c.Step1ChannelSecured {
 				err = fmt.Errorf("could not secure channel")
 			}
@@ -572,7 +581,7 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 		}
 		done, err = c.processMessage(data)
 		if err != nil {
-			log.Debugf("got error processing: %s", err.Error())
+			log.Debugf("got error processing: %v", err)
 			break
 		}
 		if done {
@@ -592,7 +601,9 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
 		)
-		os.Remove(pathToFile)
+		if err := os.Remove(pathToFile); err != nil {
+			log.Warnf("error removing %s: %v", pathToFile, err)
+		}
 	}
 	return
 }
@@ -641,7 +652,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	return
 }
 
-func (c *Client) procesMesssagePake(m message.Message) (err error) {
+func (c *Client) procesMessagePake(m message.Message) (err error) {
 	log.Debug("received pake payload")
 	// if // c.spinner.Suffix != " performing PAKE..." {
 	// 	// c.spinner.Stop()
@@ -663,7 +674,10 @@ func (c *Client) procesMesssagePake(m message.Message) (err error) {
 		if c.Options.IsSender {
 			log.Debug("generating salt")
 			salt := make([]byte, 8)
-			rand.Read(salt)
+			if _, rerr := rand.Read(salt); err != nil {
+				log.Errorf("can't generate random numbers: %v", rerr)
+				return
+			}
 			err = message.Send(c.conn[0], c.Key, message.Message{
 				Type:  "salt",
 				Bytes: salt,
@@ -759,7 +773,8 @@ func (c *Client) processExternalIP(m message.Message) (done bool, err error) {
 func (c *Client) processMessage(payload []byte) (done bool, err error) {
 	m, err := message.Decode(c.Key, payload)
 	if err != nil {
-		err = fmt.Errorf("problem with decoding: %s", err.Error())
+		err = fmt.Errorf("problem with decoding: %w", err)
+		log.Debug(err)
 		return
 	}
 
@@ -772,9 +787,10 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		c.SuccessfulTransfer = true
 		return
 	case "pake":
-		err = c.procesMesssagePake(m)
+		err = c.procesMessagePake(m)
 		if err != nil {
-			err = errors.Wrap(err, "pake not successful")
+			err = fmt.Errorf("pake not successful: %w", err)
+			log.Debug(err)
 		}
 	case "salt":
 		done, err = c.processMessageSalt(m)
@@ -831,12 +847,12 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		c.Step3RecipientRequestFile = false
 	}
 	if err != nil {
-		log.Debugf("got error from processing message: %s", err.Error())
+		log.Debugf("got error from processing message: %v", err)
 		return
 	}
 	err = c.updateState()
 	if err != nil {
-		log.Debugf("got error from updating state: %s", err.Error())
+		log.Debugf("got error from updating state: %v", err)
 		return
 	}
 	return
@@ -878,7 +894,9 @@ func (c *Client) recipientInitializeFile() (err error) {
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
 	)
 	folderForFile, _ := filepath.Split(pathToFile)
-	os.MkdirAll(folderForFile, os.ModePerm)
+	if err := os.MkdirAll(folderForFile, os.ModePerm); err != nil {
+		log.Errorf("can't create %s: %v", folderForFile, err)
+	}
 	var errOpen error
 	c.CurrentFile, errOpen = os.OpenFile(
 		pathToFile,
@@ -901,7 +919,7 @@ func (c *Client) recipientInitializeFile() (err error) {
 	} else {
 		c.CurrentFile, errOpen = os.Create(pathToFile)
 		if errOpen != nil {
-			errOpen = errors.Wrap(errOpen, "could not create "+pathToFile)
+			errOpen = fmt.Errorf("could not create %s: %w", pathToFile, errOpen)
 			log.Error(errOpen)
 			return errOpen
 		}
@@ -910,7 +928,7 @@ func (c *Client) recipientInitializeFile() (err error) {
 	if truncate {
 		err := c.CurrentFile.Truncate(c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
 		if err != nil {
-			err = errors.Wrap(err, "could not truncate "+pathToFile)
+			err = fmt.Errorf("could not truncate %s: %w", pathToFile, err)
 			log.Error(err)
 			return err
 		}
@@ -1176,7 +1194,9 @@ func (c *Client) receiveData(i int) {
 		c.TotalChunksTransfered++
 		if c.TotalChunksTransfered == len(c.CurrentFileChunks) || c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size {
 			log.Debug("finished receiving!")
-			c.CurrentFile.Close()
+			if err := c.CurrentFile.Close(); err != nil {
+				log.Errorf("error closing %s: %v", c.CurrentFile.Name(), err)
+			}
 			if c.Options.Stdout || strings.HasPrefix(c.FilesToTransfer[c.FilesToTransferCurrentNum].Name, "croc-stdin") {
 				pathToFile := path.Join(
 					c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
@@ -1204,7 +1224,9 @@ func (c *Client) sendData(i int) {
 		c.numfinished++
 		if c.numfinished == len(c.Options.RelayPorts) {
 			log.Debug("closing file")
-			c.fread.Close()
+			if err := c.fread.Close(); err != nil {
+				log.Errorf("error closing file: %v", err)
+			}
 		}
 	}()
 
