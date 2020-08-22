@@ -336,10 +336,16 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	}
 
 	go func() {
-		if !strings.Contains(c.Options.RelayAddress, ":") {
-			// try the default port, 9009
-			c.Options.RelayAddress += ":9009"
+		host, port, err := net.SplitHostPort(c.Options.RelayAddress)
+		if err != nil {
+			log.Errorf("bad relay address %s", c.Options.RelayAddress)
+			return
 		}
+		// Default port to :9009
+		if port == "" {
+			port = "9009"
+		}
+		c.Options.RelayAddress = net.JoinHostPort(host, port)
 		log.Debugf("establishing connection to %s", c.Options.RelayAddress)
 		var banner string
 		conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.RelayPassword, c.Options.SharedSecret[:3], 5*time.Second)
@@ -450,10 +456,16 @@ func (c *Client) Receive() (err error) {
 		log.Debugf("discoveries: %+v", discoveries)
 		log.Debug("establishing connection")
 	}
-	if !strings.Contains(c.Options.RelayAddress, ":") {
-		// try the default port, 9009
-		c.Options.RelayAddress += ":9009"
+	host, port, err := net.SplitHostPort(c.Options.RelayAddress)
+	if err != nil {
+		log.Errorf("bad relay address %s", c.Options.RelayAddress)
+		return
 	}
+	// Default port to :9009
+	if port == "" {
+		port = "9009"
+	}
+	c.Options.RelayAddress = net.JoinHostPort(host, port)
 	log.Debugf("establishing receiver connection to %s", c.Options.RelayAddress)
 	var banner string
 	c.conn[0], banner, c.ExternalIP, err = tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.RelayPassword, c.Options.SharedSecret[:3])
@@ -668,7 +680,12 @@ func (c *Client) procesMesssagePake(m message.Message) (err error) {
 			log.Debugf("port: [%s]", c.Options.RelayPorts[i])
 			go func(j int) {
 				defer wg.Done()
-				server := fmt.Sprintf("%s:%s", strings.Split(c.Options.RelayAddress, ":")[0], c.Options.RelayPorts[j])
+				host, _, err := net.SplitHostPort(c.Options.RelayAddress)
+				if err != nil {
+					log.Errorf("bad relay address %s", c.Options.RelayAddress)
+					return
+				}
+				server := net.JoinHostPort(host, c.Options.RelayPorts[j])
 				log.Debugf("connecting to %s", server)
 				c.conn[j+1], _, _, err = tcp.ConnectToTCPServer(
 					server,
