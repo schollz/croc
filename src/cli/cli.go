@@ -350,7 +350,9 @@ func receive(c *cli.Context) (err error) {
 		crocOptions.SharedSecret = utils.GetInput("Enter receive code: ")
 	}
 	if c.GlobalString("out") != "" {
-		os.Chdir(c.GlobalString("out"))
+		if err = os.Chdir(c.GlobalString("out")); err != nil {
+			return err
+		}
 	}
 
 	cr, err := croc.New(crocOptions)

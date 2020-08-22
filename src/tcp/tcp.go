@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
+	log "github.com/schollz/logger"
+	"github.com/schollz/pake/v2"
+
 	"github.com/schollz/croc/v8/src/comm"
 	"github.com/schollz/croc/v8/src/crypt"
 	"github.com/schollz/croc/v8/src/models"
-	log "github.com/schollz/logger"
-	"github.com/schollz/pake/v2"
 )
 
 type server struct {
@@ -61,7 +61,7 @@ func (s *server) start() (err error) {
 	go func() {
 		for {
 			time.Sleep(timeToRoomDeletion)
-			roomsToDelete := []string{}
+			var roomsToDelete []string
 			s.rooms.Lock()
 			for room := range s.rooms.rooms {
 				if time.Since(s.rooms.rooms[room].opened) > 3*time.Hour {
@@ -87,19 +87,19 @@ func (s *server) run() (err error) {
 	log.Infof("starting TCP server on " + s.port)
 	server, err := net.Listen("tcp", ":"+s.port)
 	if err != nil {
-		return errors.Wrap(err, "Error listening on :"+s.port)
+		return fmt.Errorf("error listening on %s: %w", s.port, err)
 	}
 	defer server.Close()
 	// spawn a new goroutine whenever a client connects
 	for {
 		connection, err := server.Accept()
 		if err != nil {
-			return errors.Wrap(err, "problem accepting connection")
+			return fmt.Errorf( "problem accepting connection: %w", err)
 		}
 		log.Debugf("client %s connected", connection.RemoteAddr().String())
 		go func(port string, connection net.Conn) {
 			c := comm.New(connection)
-			room, errCommunication := s.clientCommuncation(port, c)
+			room, errCommunication := s.clientCommunication(port, c)
 			if errCommunication != nil {
 				log.Debugf("relay-%s: %s", connection.RemoteAddr().String(), errCommunication.Error())
 			}
@@ -140,7 +140,7 @@ func (s *server) run() (err error) {
 
 var weakKey = []byte{1, 2, 3}
 
-func (s *server) clientCommuncation(port string, c *comm.Comm) (room string, err error) {
+func (s *server) clientCommunication(port string, c *comm.Comm) (room string, err error) {
 	// establish secure password with PAKE for communication with relay
 	B, err := pake.InitCurve(weakKey, 1, "siec", 1*time.Microsecond)
 	if err != nil {
@@ -188,7 +188,9 @@ func (s *server) clientCommuncation(port string, c *comm.Comm) (room string, err
 	if strings.TrimSpace(string(passwordBytes)) != s.password {
 		err = fmt.Errorf("bad password")
 		enc, _ := crypt.Decrypt([]byte(err.Error()), strongKeyForEncryption)
-		c.Send(enc)
+		if err := c.Send(enc); err != nil {
+			return "", fmt.Errorf("send error: %w", err)
+		}
 		return
 	}
 
@@ -317,7 +319,9 @@ func (s *server) deleteRoom(room string) {
 //  Read()s from the socket to the channel.
 func chanFromConn(conn net.Conn) chan []byte {
 	c := make(chan []byte, 1)
-	conn.SetReadDeadline(time.Now().Add(3 * time.Hour))
+	if err := conn.SetReadDeadline(time.Now().Add(3 * time.Hour)); err != nil {
+		log.Warnf("can't set read deadline: %v", err)
+	}
 
 	go func() {
 		b := make([]byte, models.TCP_BUFFER_SIZE)
@@ -353,13 +357,17 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 			if b1 == nil {
 				return
 			}
-			conn2.Write(b1)
+			if _, err := conn2.Write(b1); err != nil {
+				log.Errorf("write error on channel 1: %v", err)
+			}
 
 		case b2 := <-chan2:
 			if b2 == nil {
 				return
 			}
-			conn1.Write(b2)
+			if _, err := conn1.Write(b2); err != nil {
+				log.Errorf("write error on channel 2: %v", err)
+			}
 		}
 	}
 }
