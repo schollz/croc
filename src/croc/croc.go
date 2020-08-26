@@ -894,8 +894,11 @@ func (c *Client) recipientInitializeFile() (err error) {
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
 	)
 	folderForFile, _ := filepath.Split(pathToFile)
-	if err := os.MkdirAll(folderForFile, os.ModePerm); err != nil {
-		log.Errorf("can't create %s: %v", folderForFile, err)
+	folderForFileBase := filepath.Base(folderForFile)
+	if folderForFileBase != "." && folderForFileBase != "" {
+		if err := os.MkdirAll(folderForFile, os.ModePerm); err != nil {
+			log.Errorf("can't create %s: %v", folderForFile, err)
+		}
 	}
 	var errOpen error
 	c.CurrentFile, errOpen = os.OpenFile(
