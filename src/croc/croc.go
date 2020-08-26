@@ -444,7 +444,7 @@ func (c *Client) Receive() (err error) {
 				Limit:     1,
 				Payload:   []byte("ok"),
 				Delay:     10 * time.Millisecond,
-				TimeLimit: 100 * time.Millisecond,
+				TimeLimit: 200 * time.Millisecond,
 			})
 			if err1 == nil && len(ipv4discoveries) > 0 {
 				dmux.Lock()
@@ -459,7 +459,7 @@ func (c *Client) Receive() (err error) {
 				Limit:     1,
 				Payload:   []byte("ok"),
 				Delay:     10 * time.Millisecond,
-				TimeLimit: 100 * time.Millisecond,
+				TimeLimit: 200 * time.Millisecond,
 				IPVersion: peerdiscovery.IPv6,
 			})
 			if err1 == nil && len(ipv6discoveries) > 0 {
@@ -483,10 +483,7 @@ func (c *Client) Receive() (err error) {
 				if portToUse == "" {
 					portToUse = "9009"
 				}
-				c.Options.RelayAddress = fmt.Sprintf("%s:%s",
-					discoveries[0].Address,
-					portToUse,
-				)
+				c.Options.RelayAddress = net.JoinHostPort(discoveries[0].Address, portToUse)
 				c.ExternalIPConnected = c.Options.RelayAddress
 				usingLocal = true
 				break
