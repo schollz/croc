@@ -12,8 +12,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
 func init() {
 	log.SetLevel("trace")
+
 	go tcp.Run("debug", "8081", "pass123", "8082,8083,8084,8085")
 	go tcp.Run("debug", "8082", "pass123")
 	go tcp.Run("debug", "8083", "pass123")
@@ -59,14 +66,20 @@ func TestCrocReadme(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
-		sender.Send(TransferOptions{
+		err := sender.Send(TransferOptions{
 			PathToFiles: []string{"../../README.md"},
 		})
+		if err != nil {
+			t.Errorf("send failed: %v", err)
+		}
 		wg.Done()
 	}()
 	time.Sleep(100 * time.Millisecond)
 	go func() {
-		receiver.Receive()
+		err := receiver.Receive()
+		if err != nil {
+			t.Errorf("receive failed: %v", err)
+		}
 		wg.Done()
 	}()
 
@@ -115,15 +128,21 @@ func TestCrocLocal(t *testing.T) {
 	os.Create("touched")
 	wg.Add(2)
 	go func() {
-		sender.Send(TransferOptions{
+		err := sender.Send(TransferOptions{
 			PathToFiles:      []string{"../../LICENSE", "touched"},
 			KeepPathInRemote: false,
 		})
+		if err != nil {
+			t.Errorf("send failed: %v", err)
+		}
 		wg.Done()
 	}()
 	time.Sleep(100 * time.Millisecond)
 	go func() {
-		receiver.Receive()
+		err := receiver.Receive()
+		if err != nil {
+			t.Errorf("send failed: %v", err)
+		}
 		wg.Done()
 	}()
 

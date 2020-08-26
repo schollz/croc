@@ -125,7 +125,7 @@ func LocalIP() string {
 
 // GetRandomName returns mnemoicoded random name
 func GetRandomName() string {
-	result := []string{}
+	var result []string
 	bs := make([]byte, 4)
 	rand.Read(bs)
 	result = mnemonicode.EncodeWordList(result, bs)
@@ -157,7 +157,7 @@ func MissingChunks(fname string, fsize int64, chunkSize int) (chunkRanges []int6
 	defer f.Close()
 
 	fstat, err := os.Stat(fname)
-	if fstat.Size() != fsize || err != nil {
+	if err != nil || fstat.Size() != fsize {
 		return
 	}
 
