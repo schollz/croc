@@ -12,7 +12,9 @@ import (
 
 func TestComm(t *testing.T) {
 	token := make([]byte, MAXBYTES)
-	rand.Read(token)
+	if _, err := rand.Read(token); err != nil {
+		t.Error(err)
+	}
 
 	port := "8001"
 	go func() {
