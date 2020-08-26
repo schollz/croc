@@ -256,14 +256,19 @@ func (c *Client) setupLocalRelay() {
 	}
 }
 
-func (c *Client) broadcastOnLocalNetwork() {
+func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 	// look for peers first
-	discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
+	settings := peerdiscovery.Settings{
 		Limit:     -1,
 		Payload:   []byte("croc" + c.Options.RelayPorts[0]),
 		Delay:     10 * time.Millisecond,
 		TimeLimit: 30 * time.Second,
-	})
+	}
+	if useipv6 {
+		settings.IPVersion = peerdiscovery.IPv6
+	}
+
+	discoveries, err := peerdiscovery.Discover(settings)
 	log.Debugf("discoveries: %+v", discoveries)
 
 	if err != nil {
@@ -331,7 +336,8 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		// add two things to the error channel
 		errchan = make(chan error, 2)
 		c.setupLocalRelay()
-		go c.broadcastOnLocalNetwork()
+		go c.broadcastOnLocalNetwork(true)
+		go c.broadcastOnLocalNetwork(false)
 		go c.transferOverLocalRelay(options, errchan)
 	}
 
@@ -428,12 +434,43 @@ func (c *Client) Receive() (err error) {
 	usingLocal := false
 	if !c.Options.DisableLocal {
 		log.Debug("attempt to discover peers")
-		discoveries, err := peerdiscovery.Discover(peerdiscovery.Settings{
-			Limit:     1,
-			Payload:   []byte("ok"),
-			Delay:     10 * time.Millisecond,
-			TimeLimit: 100 * time.Millisecond,
-		})
+		var discoveries []peerdiscovery.Discovered
+		var wgDiscovery sync.WaitGroup
+		var dmux sync.Mutex
+		wgDiscovery.Add(2)
+		go func() {
+			defer wgDiscovery.Done()
+			ipv4discoveries, err1 := peerdiscovery.Discover(peerdiscovery.Settings{
+				Limit:     1,
+				Payload:   []byte("ok"),
+				Delay:     10 * time.Millisecond,
+				TimeLimit: 100 * time.Millisecond,
+			})
+			if err1 == nil && len(ipv4discoveries) > 0 {
+				dmux.Lock()
+				err = err1
+				discoveries = ipv4discoveries
+				dmux.Unlock()
+			}
+		}()
+		go func() {
+			defer wgDiscovery.Done()
+			ipv6discoveries, err1 := peerdiscovery.Discover(peerdiscovery.Settings{
+				Limit:     1,
+				Payload:   []byte("ok"),
+				Delay:     10 * time.Millisecond,
+				TimeLimit: 100 * time.Millisecond,
+				IPVersion: peerdiscovery.IPv6,
+			})
+			if err1 == nil && len(ipv6discoveries) > 0 {
+				dmux.Lock()
+				err = err1
+				discoveries = ipv6discoveries
+				dmux.Unlock()
+			}
+		}()
+		wgDiscovery.Wait()
+
 		if err == nil && len(discoveries) > 0 {
 			for i := 0; i < len(discoveries); i++ {
 				log.Debugf("discovery %d has payload: %+v", i, discoveries[i])
