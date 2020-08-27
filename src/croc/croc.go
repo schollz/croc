@@ -369,6 +369,9 @@ func (c *Client) Send(options TransferOptions) (err error) {
 			}
 			log.Debugf("could not establish '%s'", address)
 		}
+		if conn == nil && err == nil {
+			err = fmt.Errorf("could not connect")
+		}
 		if err != nil {
 			err = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, err)
 			log.Debug(err)
