@@ -728,10 +728,15 @@ func (c *Client) procesMessagePake(m message.Message) (err error) {
 			log.Debugf("port: [%s]", c.Options.RelayPorts[i])
 			go func(j int) {
 				defer wg.Done()
-				host, _, err := net.SplitHostPort(c.Options.RelayAddress)
-				if err != nil {
-					log.Errorf("bad relay address %s", c.Options.RelayAddress)
-					return
+				var host string
+				if c.Options.RelayAddress == "localhost" {
+					host = c.Options.RelayAddress
+				} else {
+					host, _, err = net.SplitHostPort(c.Options.RelayAddress)
+					if err != nil {
+						log.Errorf("bad relay address %s", c.Options.RelayAddress)
+						return
+					}
 				}
 				server := net.JoinHostPort(host, c.Options.RelayPorts[j])
 				log.Debugf("connecting to %s", server)
