@@ -79,6 +79,7 @@ func Run() (err error) {
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
 		cli.BoolFlag{Name: "ask", Usage: "make sure sender and recipient are prompted"},
 		cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay"},
+		cli.StringFlag{Name: "relay6", Value: models.DEFAULT_RELAY6, Usage: "ipv6 address of the relay"},
 		cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 		cli.StringFlag{Name: "pass", Value: "pass123", Usage: "password for the relay"},
 	}
@@ -143,12 +144,18 @@ func send(c *cli.Context) (err error) {
 		Debug:          c.GlobalBool("debug"),
 		NoPrompt:       c.GlobalBool("yes"),
 		RelayAddress:   c.GlobalString("relay"),
+		RelayAddress6:  c.GlobalString("relay6"),
 		Stdout:         c.GlobalBool("stdout"),
 		DisableLocal:   c.Bool("no-local"),
 		RelayPorts:     strings.Split(c.String("ports"), ","),
 		Ask:            c.GlobalBool("ask"),
 		NoMultiplexing: c.Bool("no-multi"),
 		RelayPassword:  c.GlobalString("pass"),
+	}
+	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
+		crocOptions.RelayAddress6 = ""
+	} else if crocOptions.RelayAddress6 != models.DEFAULT_RELAY6 {
+		crocOptions.RelayAddress = ""
 	}
 	b, errOpen := ioutil.ReadFile(getConfigFile())
 	if errOpen == nil && !c.GlobalBool("remember") {
@@ -300,9 +307,15 @@ func receive(c *cli.Context) (err error) {
 		Debug:         c.GlobalBool("debug"),
 		NoPrompt:      c.GlobalBool("yes"),
 		RelayAddress:  c.GlobalString("relay"),
+		RelayAddress6: c.GlobalString("relay6"),
 		Stdout:        c.GlobalBool("stdout"),
 		Ask:           c.GlobalBool("ask"),
 		RelayPassword: c.GlobalString("pass"),
+	}
+	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
+		crocOptions.RelayAddress6 = ""
+	} else if crocOptions.RelayAddress6 != models.DEFAULT_RELAY6 {
+		crocOptions.RelayAddress = ""
 	}
 
 	switch len(c.Args()) {

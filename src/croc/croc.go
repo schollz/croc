@@ -53,6 +53,7 @@ type Options struct {
 	SharedSecret   string
 	Debug          bool
 	RelayAddress   string
+	RelayAddress6  string
 	RelayPorts     []string
 	RelayPassword  string
 	Stdout         bool
@@ -342,20 +343,32 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	}
 
 	go func() {
-		host, port, err := net.SplitHostPort(c.Options.RelayAddress)
-		if err != nil {
-			log.Errorf("bad relay address %s", c.Options.RelayAddress)
-			return
+		var ipaddr, banner string
+		var conn *comm.Comm
+		durations := []time.Duration{100 * time.Millisecond, 5 * time.Second}
+		for i, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
+			if address == "" {
+				continue
+			}
+			host, port, err := net.SplitHostPort(address)
+			if err != nil {
+				log.Errorf("bad relay address %s", address)
+				continue
+			}
+			// Default port to :9009
+			if port == "" {
+				port = "9009"
+			}
+			log.Debugf("got host '%v' and port '%v'", host, port)
+			address = net.JoinHostPort(host, port)
+			log.Debugf("trying connection to %s", address)
+			conn, banner, ipaddr, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.SharedSecret[:3], durations[i])
+			if err == nil {
+				c.Options.RelayAddress = address
+				break
+			}
+			log.Debugf("could not establish '%s'", address)
 		}
-		// Default port to :9009
-		if port == "" {
-			port = "9009"
-		}
-		log.Debugf("got host '%v' and port '%v'", host, port)
-		c.Options.RelayAddress = net.JoinHostPort(host, port)
-		log.Debugf("establishing connection to %s", c.Options.RelayAddress)
-		var banner string
-		conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.RelayPassword, c.Options.SharedSecret[:3], 5*time.Second)
 		if err != nil {
 			err = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, err)
 			log.Debug(err)
@@ -486,26 +499,41 @@ func (c *Client) Receive() (err error) {
 				}
 				c.Options.RelayAddress = net.JoinHostPort(discoveries[0].Address, portToUse)
 				c.ExternalIPConnected = c.Options.RelayAddress
+				c.Options.RelayAddress6 = ""
 				usingLocal = true
+
 				break
 			}
 		}
 		log.Debugf("discoveries: %+v", discoveries)
 		log.Debug("establishing connection")
 	}
-	host, port, err := net.SplitHostPort(c.Options.RelayAddress)
-	if err != nil {
-		log.Errorf("bad relay address %s", c.Options.RelayAddress)
-		return
-	}
-	// Default port to :9009
-	if port == "" {
-		port = "9009"
-	}
-	c.Options.RelayAddress = net.JoinHostPort(host, port)
-	log.Debugf("establishing receiver connection to %s", c.Options.RelayAddress)
 	var banner string
-	c.conn[0], banner, c.ExternalIP, err = tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.RelayPassword, c.Options.SharedSecret[:3])
+	durations := []time.Duration{100 * time.Millisecond, 5 * time.Second}
+	for i, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
+		if address == "" {
+			continue
+		}
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			log.Errorf("bad relay address %s", address)
+			continue
+		}
+		// Default port to :9009
+		if port == "" {
+			port = "9009"
+		}
+		log.Debugf("got host '%v' and port '%v'", host, port)
+		address = net.JoinHostPort(host, port)
+		log.Debugf("trying connection to %s", address)
+		c.conn[0], banner, c.ExternalIP, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.SharedSecret[:3], durations[i])
+		if err == nil {
+			c.Options.RelayAddress = address
+			break
+		}
+		log.Debugf("could not establish '%s'", address)
+	}
+
 	log.Debugf("banner: %s", banner)
 	if err != nil {
 		err = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, err)
