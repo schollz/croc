@@ -3,5 +3,6 @@
 release:
 	cd ../../ && go generate
 	cd ../../ && goreleaser release
-	./prepare-sources-tarball.sh
-	./upload-src-tarball.sh
+	cd ../../ && ./src/install/prepare-sources-tarball.sh
+	cd ../../ && ./src/install/upload-src-tarball.sh
+	git push
