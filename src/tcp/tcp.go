@@ -94,7 +94,7 @@ func (s *server) run() (err error) {
 	for {
 		connection, err := server.Accept()
 		if err != nil {
-			return fmt.Errorf( "problem accepting connection: %w", err)
+			return fmt.Errorf("problem accepting connection: %w", err)
 		}
 		log.Debugf("client %s connected", connection.RemoteAddr().String())
 		go func(port string, connection net.Conn) {
