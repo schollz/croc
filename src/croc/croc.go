@@ -351,17 +351,18 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		if port == "" {
 			port = "9009"
 		}
+		log.Debugf("got host '%v' and port '%v'", host, port)
 		c.Options.RelayAddress = net.JoinHostPort(host, port)
 		log.Debugf("establishing connection to %s", c.Options.RelayAddress)
 		var banner string
 		conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.Options.RelayAddress, c.Options.RelayPassword, c.Options.SharedSecret[:3], 5*time.Second)
-		log.Debugf("banner: %s", banner)
 		if err != nil {
 			err = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, err)
 			log.Debug(err)
 			errchan <- err
 			return
 		}
+		log.Debugf("banner: %s", banner)
 		log.Debugf("connection established: %+v", conn)
 		for {
 			log.Debug("waiting for bytes")

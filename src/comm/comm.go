@@ -25,9 +25,11 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 	}
 	connection, err := net.DialTimeout("tcp", address, tlimit)
 	if err != nil {
+		err = fmt.Errorf("comm.NewConnection failed: %w", err)
 		return
 	}
 	c = New(connection)
+	log.Debugf("connected to '%s'", address)
 	return
 }
 
