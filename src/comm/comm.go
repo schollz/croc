@@ -10,7 +10,7 @@ import (
 	log "github.com/schollz/logger"
 )
 
-const MAXBYTES = 1000000
+const MAXBYTES = 4000000
 
 // Comm is some basic TCP communication
 type Comm struct {
