@@ -517,7 +517,8 @@ func (c *Client) Receive() (err error) {
 		if address == "" {
 			continue
 		}
-		host, port, err := net.SplitHostPort(address)
+		var host, port string
+		host, port, err = net.SplitHostPort(address)
 		if err != nil {
 			log.Errorf("bad relay address %s", address)
 			continue
@@ -536,14 +537,13 @@ func (c *Client) Receive() (err error) {
 		}
 		log.Debugf("could not establish '%s'", address)
 	}
-
-	log.Debugf("banner: %s", banner)
 	if err != nil {
 		err = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, err)
 		log.Debug(err)
 		return
 	}
 	log.Debugf("receiver connection established: %+v", c.conn[0])
+	log.Debugf("banner: %s", banner)
 
 	if !usingLocal && !c.Options.DisableLocal {
 		// ask the sender for their local ips and port
