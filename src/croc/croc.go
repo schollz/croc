@@ -124,6 +124,7 @@ type FileInfo struct {
 	ModTime      time.Time `json:"m,omitempty"`
 	IsCompressed bool      `json:"c,omitempty"`
 	IsEncrypted  bool      `json:"e,omitempty"`
+	Symlink      string    `json:"sy,omitempty"`
 }
 
 // RemoteFileRequest requests specific bytes
@@ -192,7 +193,7 @@ func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 		var folderName string
 		folderName, _ = filepath.Split(fullPath)
 
-		fstats, err = os.Stat(fullPath)
+		fstats, err = os.Lstat(fullPath)
 		if err != nil {
 			return
 		}
@@ -206,6 +207,15 @@ func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 			Size:         fstats.Size(),
 			ModTime:      fstats.ModTime(),
 		}
+		if fstats.Mode()&os.ModeSymlink != 0 {
+			log.Debugf("%s is symlink", fstats.Name())
+			c.FilesToTransfer[i].Symlink, err = os.Readlink(pathToFile)
+			if err != nil {
+				log.Debugf("error getting symlink: %s", err.Error())
+			}
+			log.Debugf("%+v", c.FilesToTransfer[i])
+		}
+
 		c.FilesToTransfer[i].Hash, err = utils.HashFile(fullPath)
 		totalFilesSize += fstats.Size()
 		if err != nil {
