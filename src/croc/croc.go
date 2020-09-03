@@ -352,13 +352,11 @@ func (c *Client) Send(options TransferOptions) (err error) {
 			if address == "" {
 				continue
 			}
-			host, port, err := net.SplitHostPort(address)
-			if err != nil {
-				log.Errorf("bad relay address %s", address)
-				continue
-			}
+			host, port, _ := net.SplitHostPort(address)
+			log.Debugf("host: '%s', port: '%s'", host, port)
 			// Default port to :9009
 			if port == "" {
+				host = address
 				port = "9009"
 			}
 			log.Debugf("got host '%v' and port '%v'", host, port)
@@ -520,13 +518,10 @@ func (c *Client) Receive() (err error) {
 			continue
 		}
 		var host, port string
-		host, port, err = net.SplitHostPort(address)
-		if err != nil {
-			log.Errorf("bad relay address %s", address)
-			continue
-		}
+		host, port, _ = net.SplitHostPort(address)
 		// Default port to :9009
 		if port == "" {
+			host = address
 			port = "9009"
 		}
 		log.Debugf("got host '%v' and port '%v'", host, port)
