@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -15,11 +16,7 @@ func main() {
 }
 
 func run() (err error) {
-	version, err := exec.Command("git", "describe", "--abbrev=0").Output()
-	if err != nil {
-		return
-	}
-	versionNew := strings.TrimSpace(string(version))
+	versionNew := os.Getenv("VERSION")
 	versionHash, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
 	if err != nil {
 		return
