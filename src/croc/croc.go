@@ -675,6 +675,7 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 		if err := os.Remove(pathToFile); err != nil {
 			log.Warnf("error removing %s: %v", pathToFile, err)
 		}
+		fmt.Print("\n")
 	}
 	return
 }
