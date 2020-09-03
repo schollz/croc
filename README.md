@@ -119,6 +119,17 @@ $ croc --yes [code-phrase] > out
 
 All of the other text printed to the console is going to `stderr` so it will not interfere with the message going to `stdout`.
 
+
+### Send text 
+
+Sometimes you want to send URLs or short text. In addition to piping, you can easily send text with `croc`:
+
+```
+$ croc send --text "hello world"
+```
+
+This will automatically tell the receiver to use `stdout` when they receive the text so it will be displayed.
+
 ### Self-host relay
 
 The relay is needed to staple the parallel incoming and outgoing connections. By default, `croc` uses a public relay but you can also run your own relay:
