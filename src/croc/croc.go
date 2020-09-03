@@ -433,6 +433,9 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		return
 	} else {
 		log.Debugf("error from errchan: %v", err)
+		if strings.Contains(err.Error(), "could not secure channel") {
+			return err
+		}
 	}
 	if !c.Options.DisableLocal {
 		if strings.Contains(err.Error(), "refusing files") || strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "bad password") {
@@ -671,6 +674,10 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 			log.Warnf("error removing %s: %v", pathToFile, err)
 		}
 		fmt.Print("\n")
+	}
+	if err != nil && strings.Contains(err.Error(), "pake not successful") {
+		log.Debugf("pake error: %s", err.Error())
+		err = fmt.Errorf("password mismatch")
 	}
 	return
 }
