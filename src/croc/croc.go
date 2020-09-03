@@ -1097,6 +1097,7 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 		progressbar.OptionShowBytes(true),
 		progressbar.OptionShowCount(),
 		progressbar.OptionSetWriter(os.Stderr),
+		progressbar.OptionSetVisibility(!c.Options.SendingText),
 	)
 	c.bar.Finish()
 	return
@@ -1182,6 +1183,7 @@ func (c *Client) updateState() (err error) {
 						progressbar.OptionShowBytes(true),
 						progressbar.OptionShowCount(),
 						progressbar.OptionSetWriter(os.Stderr),
+						progressbar.OptionSetVisibility(!c.Options.SendingText),
 					)
 					c.bar.Finish()
 				}
@@ -1227,6 +1229,7 @@ func (c *Client) setBar() {
 		progressbar.OptionShowCount(),
 		progressbar.OptionSetWriter(os.Stderr),
 		progressbar.OptionThrottle(100*time.Millisecond),
+		progressbar.OptionSetVisibility(!c.Options.SendingText),
 	)
 	byteToDo := int64(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
 	if byteToDo > 0 {
