@@ -1088,13 +1088,22 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 			return
 		}
 	}
-	emptyFile, errCreate := os.Create(path.Join(fileInfo.FolderRemote, fileInfo.Name))
-	if errCreate != nil {
-		log.Error(errCreate)
-		err = errCreate
-		return
+	pathToFile := path.Join(fileInfo.FolderRemote, fileInfo.Name)
+	if fileInfo.Symlink != "" {
+		log.Debug("creating symlink")
+		err = os.Symlink(fileInfo.Symlink, pathToFile)
+		if err != nil {
+			return
+		}
+	} else {
+		emptyFile, errCreate := os.Create(pathToFile)
+		if errCreate != nil {
+			log.Error(errCreate)
+			err = errCreate
+			return
+		}
+		emptyFile.Close()
 	}
-	emptyFile.Close()
 	// setup the progressbar
 	description := fmt.Sprintf("%-*s", c.longestFilename, c.FilesToTransfer[i].Name)
 	if len(c.FilesToTransfer) == 1 {
@@ -1133,7 +1142,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			continue
 		}
 		fileHash, errHash := utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name))
-		if fileInfo.Size == 0 {
+		if fileInfo.Size == 0 || fileInfo.Symlink != "" {
 			err = c.createEmptyFileAndFinish(fileInfo, i)
 			if err != nil {
 				return
