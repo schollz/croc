@@ -50,6 +50,7 @@ func Run() (err error) {
 			ArgsUsage:   "[filename]",
 			Flags: []cli.Flag{
 				cli.StringFlag{Name: "code, c", Usage: "codephrase used to connect to relay"},
+				cli.StringFlag{Name: "text, t", Usage: "send some text"},
 				cli.BoolFlag{Name: "no-local", Usage: "disable local relay when sending"},
 				cli.BoolFlag{Name: "no-multi", Usage: "disable multiplexing"},
 				cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the local relay (optional)"},
@@ -151,6 +152,7 @@ func send(c *cli.Context) (err error) {
 		Ask:            c.GlobalBool("ask"),
 		NoMultiplexing: c.Bool("no-multi"),
 		RelayPassword:  c.GlobalString("pass"),
+		SendingText:    c.String("text") != "",
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -196,6 +198,18 @@ func send(c *cli.Context) (err error) {
 				log.Error(err)
 			}
 		}()
+	} else if c.String("text") != "" {
+		fnames, err = makeTempFileWithString(c.String("text"))
+		if err != nil {
+			return
+		}
+		defer func() {
+			err = os.Remove(fnames[0])
+			if err != nil {
+				log.Error(err)
+			}
+		}()
+
 	} else {
 		fnames = append([]string{c.Args().First()}, c.Args().Tail()...)
 	}
@@ -244,6 +258,26 @@ func getStdin() (fnames []string, err error) {
 	}
 	fnames = []string{f.Name()}
 	return
+}
+
+func makeTempFileWithString(s string) (fnames []string, err error) {
+	f, err := ioutil.TempFile(".", "croc-stdin-")
+	if err != nil {
+		return
+	}
+
+	_, err = f.WriteString(s)
+	if err != nil {
+		return
+	}
+
+	err = f.Close()
+	if err != nil {
+		return
+	}
+	fnames = []string{f.Name()}
+	return
+
 }
 
 func getPaths(fnames []string) (paths []string, haveFolder bool, err error) {
