@@ -163,6 +163,8 @@ Be sure to include the password for the relay otherwise any requests will be rej
 $ croc --pass YOURPASSWORD --relay "myreal.example.com:9009" send [filename]
 ```
 
+Note: when including `--pass YOURPASSWORD` you can instead pass a file with the password, e.g. `--pass FILEWITHPASSWORD`.
+
 ## License
 
 MIT

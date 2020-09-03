@@ -137,6 +137,15 @@ func getConfigFile() string {
 	return path.Join(configFile, "send.json")
 }
 
+func determinePass(c *cli.Context) (pass string) {
+	pass = c.GlobalString("pass")
+	b, err := ioutil.ReadFile(pass)
+	if err == nil {
+		pass = strings.TrimSpace(string(b))
+	}
+	return
+}
+
 func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
 	crocOptions := croc.Options{
@@ -151,7 +160,7 @@ func send(c *cli.Context) (err error) {
 		RelayPorts:     strings.Split(c.String("ports"), ","),
 		Ask:            c.GlobalBool("ask"),
 		NoMultiplexing: c.Bool("no-multi"),
-		RelayPassword:  c.GlobalString("pass"),
+		RelayPassword:  determinePass(c),
 		SendingText:    c.String("text") != "",
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
@@ -344,7 +353,7 @@ func receive(c *cli.Context) (err error) {
 		RelayAddress6: c.GlobalString("relay6"),
 		Stdout:        c.GlobalBool("stdout"),
 		Ask:           c.GlobalBool("ask"),
-		RelayPassword: c.GlobalString("pass"),
+		RelayPassword: determinePass(c),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -441,11 +450,11 @@ func relay(c *cli.Context) (err error) {
 			continue
 		}
 		go func(portStr string) {
-			err = tcp.Run(debugString, portStr, c.GlobalString("pass"))
+			err = tcp.Run(debugString, portStr, determinePass(c))
 			if err != nil {
 				panic(err)
 			}
 		}(port)
 	}
-	return tcp.Run(debugString, ports[0], c.GlobalString("pass"), tcpPorts)
+	return tcp.Run(debugString, ports[0], determinePass(c), tcpPorts)
 }
