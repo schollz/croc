@@ -16,7 +16,7 @@ func main() {
 }
 
 func run() (err error) {
-	versionNew := os.Getenv("VERSION")
+	versionNew := "v" + os.Getenv("VERSION")
 	versionHash, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
 	if err != nil {
 		return
