@@ -61,6 +61,7 @@ type Options struct {
 	NoMultiplexing bool
 	DisableLocal   bool
 	Ask            bool
+	SendingText    bool
 }
 
 // Client holds the state of the croc transfer
@@ -137,6 +138,7 @@ type SenderInfo struct {
 	FilesToTransfer []FileInfo
 	MachineID       string
 	Ask             bool
+	SendingText     bool
 }
 
 // New establishes a new connection for transferring files between two instances.
@@ -667,6 +669,9 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
 		)
+		log.Debugf("pathToFile: %s", pathToFile)
+		// close if not closed already
+		c.CurrentFile.Close()
 		if err := os.Remove(pathToFile); err != nil {
 			log.Warnf("error removing %s: %v", pathToFile, err)
 		}
@@ -680,6 +685,10 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	if err != nil {
 		log.Error(err)
 		return
+	}
+	c.Options.SendingText = senderInfo.SendingText
+	if c.Options.SendingText {
+		c.Options.Stdout = true
 	}
 	c.FilesToTransfer = senderInfo.FilesToTransfer
 	fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
@@ -937,6 +946,7 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 			FilesToTransfer: c.FilesToTransfer,
 			MachineID:       machID,
 			Ask:             c.Options.Ask,
+			SendingText:     c.Options.SendingText,
 		})
 		if err != nil {
 			log.Error(err)
