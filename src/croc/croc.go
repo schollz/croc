@@ -62,6 +62,7 @@ type Options struct {
 	DisableLocal   bool
 	Ask            bool
 	SendingText    bool
+	NoCompress     bool
 }
 
 // Client holds the state of the croc transfer
@@ -140,6 +141,7 @@ type SenderInfo struct {
 	MachineID       string
 	Ask             bool
 	SendingText     bool
+	NoCompress      bool
 }
 
 // New establishes a new connection for transferring files between two instances.
@@ -700,6 +702,10 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 		return
 	}
 	c.Options.SendingText = senderInfo.SendingText
+	c.Options.NoCompress = senderInfo.NoCompress
+	if c.Options.NoCompress {
+		log.Debug("disabling compression")
+	}
 	if c.Options.SendingText {
 		c.Options.Stdout = true
 	}
@@ -960,6 +966,7 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 			MachineID:       machID,
 			Ask:             c.Options.Ask,
 			SendingText:     c.Options.SendingText,
+			NoCompress:      c.Options.NoCompress,
 		})
 		if err != nil {
 			log.Error(err)
@@ -1281,7 +1288,9 @@ func (c *Client) receiveData(i int) {
 		if err != nil {
 			panic(err)
 		}
-		data = compress.Decompress(data)
+		if !c.Options.NoCompress {
+			data = compress.Decompress(data)
+		}
 
 		// get position
 		var position uint64
@@ -1366,13 +1375,22 @@ func (c *Client) sendData(i int) {
 				// log.Debugf("sending chunk %d", pos)
 				posByte := make([]byte, 8)
 				binary.LittleEndian.PutUint64(posByte, pos)
-
-				dataToSend, err := crypt.Encrypt(
-					compress.Compress(
+				var err error
+				var dataToSend []byte
+				if c.Options.NoCompress {
+					dataToSend, err = crypt.Encrypt(
 						append(posByte, data[:n]...),
-					),
-					c.Key,
-				)
+						c.Key,
+					)
+				} else {
+
+					dataToSend, err = crypt.Encrypt(
+						compress.Compress(
+							append(posByte, data[:n]...),
+						),
+						c.Key,
+					)
+				}
 				if err != nil {
 					panic(err)
 				}

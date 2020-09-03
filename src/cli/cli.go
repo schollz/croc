@@ -78,6 +78,7 @@ func Run() (err error) {
 		cli.BoolFlag{Name: "debug", Usage: "toggle debug mode"},
 		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
 		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
+		cli.BoolFlag{Name: "no-compress", Usage: "disable compression"},
 		cli.BoolFlag{Name: "ask", Usage: "make sure sender and recipient are prompted"},
 		cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay"},
 		cli.StringFlag{Name: "relay6", Value: models.DEFAULT_RELAY6, Usage: "ipv6 address of the relay"},
@@ -162,6 +163,7 @@ func send(c *cli.Context) (err error) {
 		NoMultiplexing: c.Bool("no-multi"),
 		RelayPassword:  determinePass(c),
 		SendingText:    c.String("text") != "",
+		NoCompress:     c.GlobalBool("no-compress"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
