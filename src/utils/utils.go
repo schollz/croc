@@ -232,3 +232,12 @@ func GetLocalIPs() (ips []string, err error) {
 	}
 	return
 }
+
+func RandomFileName() (fname string, err error) {
+	f, err := ioutil.TempFile(".", "croc-stdin-")
+	if err != nil {
+		return
+	}
+	fname = f.Name()
+	return
+}

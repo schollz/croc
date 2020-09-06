@@ -251,6 +251,13 @@ func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 	if len(c.FilesToTransfer) == 1 {
 		fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
 	}
+	if strings.HasPrefix(fname, "'croc-stdin-") {
+		fname = "'stdin'"
+		if c.Options.SendingText {
+			fname = "'text'"
+		}
+	}
+
 	fmt.Fprintf(os.Stderr, "Sending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
 	return
 }
@@ -715,13 +722,25 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 		fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
 	}
 	totalSize := int64(0)
-	for _, fi := range c.FilesToTransfer {
+	for i, fi := range c.FilesToTransfer {
 		totalSize += fi.Size
 		if len(fi.Name) > c.longestFilename {
 			c.longestFilename = len(fi.Name)
 		}
+		if strings.HasPrefix(fi.Name, "croc-stdin-") {
+			c.FilesToTransfer[i].Name, err = utils.RandomFileName()
+			if err != nil {
+				return
+			}
+		}
 	}
 	// c.spinner.Stop()
+	if strings.HasPrefix(fname, "'croc-stdin") {
+		fname = "'stdin'"
+		if c.Options.SendingText {
+			fname = "'text'"
+		}
+	}
 	if !c.Options.NoPrompt || c.Options.Ask || senderInfo.Ask {
 		if c.Options.Ask || senderInfo.Ask {
 			machID, _ := machineid.ID()
@@ -1315,7 +1334,7 @@ func (c *Client) receiveData(i int) {
 			if err := c.CurrentFile.Close(); err != nil {
 				log.Errorf("error closing %s: %v", c.CurrentFile.Name(), err)
 			}
-			if c.Options.Stdout || strings.HasPrefix(c.FilesToTransfer[c.FilesToTransferCurrentNum].Name, "croc-stdin") {
+			if c.Options.Stdout || c.Options.SendingText {
 				pathToFile := path.Join(
 					c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
 					c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
