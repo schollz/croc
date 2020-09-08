@@ -41,6 +41,12 @@ On macOS you can install the latest release with [Homebrew](https://brew.sh/):
 $ brew install schollz/tap/croc
 ```
 
+On macOS you can also install the latest release with [MacPorts](https://macports.org/): 
+
+```
+$ sudo port selfupdate
+$ sudo port install croc
+```
 
 On Windows you can install the latest release with [Scoop](https://scoop.sh/): 
 
