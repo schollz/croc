@@ -18,7 +18,7 @@ import (
 	"github.com/schollz/croc/v8/src/tcp"
 	"github.com/schollz/croc/v8/src/utils"
 	log "github.com/schollz/logger"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 // Version specifies the version
@@ -42,18 +42,18 @@ func Run() (err error) {
 
    Send a file with a custom code:
       croc send --code secret-passphrase file.txt`
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		{
 			Name:        "send",
 			Usage:       "send a file (see options with croc send -h)",
 			Description: "send a file over the relay",
 			ArgsUsage:   "[filename]",
 			Flags: []cli.Flag{
-				cli.StringFlag{Name: "code, c", Usage: "codephrase used to connect to relay"},
-				cli.StringFlag{Name: "text, t", Usage: "send some text"},
-				cli.BoolFlag{Name: "no-local", Usage: "disable local relay when sending"},
-				cli.BoolFlag{Name: "no-multi", Usage: "disable multiplexing"},
-				cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the local relay (optional)"},
+				&cli.StringFlag{Name: "code", Aliases: []string{"c"}, Usage: "codephrase used to connect to relay"},
+				&cli.StringFlag{Name: "text", Aliases: []string{"t"}, Usage: "send some text"},
+				&cli.BoolFlag{Name: "no-local", Usage: "disable local relay when sending"},
+				&cli.BoolFlag{Name: "no-multi", Usage: "disable multiplexing"},
+				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the local relay (optional)"},
 			},
 			HelpName: "croc send",
 			Action: func(c *cli.Context) error {
@@ -69,21 +69,21 @@ func Run() (err error) {
 				return relay(c)
 			},
 			Flags: []cli.Flag{
-				cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay"},
+				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay"},
 			},
 		},
 	}
 	app.Flags = []cli.Flag{
-		cli.BoolFlag{Name: "remember", Usage: "save these settings to reuse next time"},
-		cli.BoolFlag{Name: "debug", Usage: "toggle debug mode"},
-		cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
-		cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
-		cli.BoolFlag{Name: "no-compress", Usage: "disable compression"},
-		cli.BoolFlag{Name: "ask", Usage: "make sure sender and recipient are prompted"},
-		cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay"},
-		cli.StringFlag{Name: "relay6", Value: models.DEFAULT_RELAY6, Usage: "ipv6 address of the relay"},
-		cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
-		cli.StringFlag{Name: "pass", Value: "pass123", Usage: "password for the relay"},
+		&cli.BoolFlag{Name: "remember", Usage: "save these settings to reuse next time"},
+		&cli.BoolFlag{Name: "debug", Usage: "toggle debug mode"},
+		&cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
+		&cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
+		&cli.BoolFlag{Name: "no-compress", Usage: "disable compression"},
+		&cli.BoolFlag{Name: "ask", Usage: "make sure sender and recipient are prompted"},
+		&cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay"},
+		&cli.StringFlag{Name: "relay6", Value: models.DEFAULT_RELAY6, Usage: "ipv6 address of the relay"},
+		&cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
+		&cli.StringFlag{Name: "pass", Value: "pass123", Usage: "password for the relay"},
 	}
 	app.EnableBashCompletion = true
 	app.HideHelp = false
@@ -121,7 +121,7 @@ func getConfigDir() (homedir string, err error) {
 }
 
 func setDebugLevel(c *cli.Context) {
-	if c.GlobalBool("debug") {
+	if c.Bool("debug") {
 		log.SetLevel("debug")
 		log.Debug("debug mode on")
 	} else {
@@ -139,7 +139,7 @@ func getConfigFile() string {
 }
 
 func determinePass(c *cli.Context) (pass string) {
-	pass = c.GlobalString("pass")
+	pass = c.String("pass")
 	b, err := ioutil.ReadFile(pass)
 	if err == nil {
 		pass = strings.TrimSpace(string(b))
@@ -152,18 +152,18 @@ func send(c *cli.Context) (err error) {
 	crocOptions := croc.Options{
 		SharedSecret:   c.String("code"),
 		IsSender:       true,
-		Debug:          c.GlobalBool("debug"),
-		NoPrompt:       c.GlobalBool("yes"),
-		RelayAddress:   c.GlobalString("relay"),
-		RelayAddress6:  c.GlobalString("relay6"),
-		Stdout:         c.GlobalBool("stdout"),
+		Debug:          c.Bool("debug"),
+		NoPrompt:       c.Bool("yes"),
+		RelayAddress:   c.String("relay"),
+		RelayAddress6:  c.String("relay6"),
+		Stdout:         c.Bool("stdout"),
 		DisableLocal:   c.Bool("no-local"),
 		RelayPorts:     strings.Split(c.String("ports"), ","),
-		Ask:            c.GlobalBool("ask"),
+		Ask:            c.Bool("ask"),
 		NoMultiplexing: c.Bool("no-multi"),
 		RelayPassword:  determinePass(c),
 		SendingText:    c.String("text") != "",
-		NoCompress:     c.GlobalBool("no-compress"),
+		NoCompress:     c.Bool("no-compress"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -171,7 +171,7 @@ func send(c *cli.Context) (err error) {
 		crocOptions.RelayAddress = ""
 	}
 	b, errOpen := ioutil.ReadFile(getConfigFile())
-	if errOpen == nil && !c.GlobalBool("remember") {
+	if errOpen == nil && !c.Bool("remember") {
 		var rememberedOptions croc.Options
 		err = json.Unmarshal(b, &rememberedOptions)
 		if err != nil {
@@ -179,7 +179,7 @@ func send(c *cli.Context) (err error) {
 			return
 		}
 		// update anything that isn't explicitly set
-		if !c.GlobalIsSet("relay") {
+		if !c.IsSet("relay") {
 			crocOptions.RelayAddress = rememberedOptions.RelayAddress
 		}
 		if !c.IsSet("no-local") {
@@ -191,7 +191,7 @@ func send(c *cli.Context) (err error) {
 		if !c.IsSet("code") {
 			crocOptions.SharedSecret = rememberedOptions.SharedSecret
 		}
-		if !c.GlobalIsSet("pass") {
+		if !c.IsSet("pass") {
 			crocOptions.RelayPassword = rememberedOptions.RelayPassword
 		}
 	}
@@ -323,7 +323,7 @@ func getPaths(fnames []string) (paths []string, haveFolder bool, err error) {
 }
 
 func saveConfig(c *cli.Context, crocOptions croc.Options) {
-	if c.GlobalBool("remember") {
+	if c.Bool("remember") {
 		configFile := getConfigFile()
 		log.Debug("saving config file")
 		var bConfig []byte
@@ -349,12 +349,12 @@ func receive(c *cli.Context) (err error) {
 	crocOptions := croc.Options{
 		SharedSecret:  c.String("code"),
 		IsSender:      false,
-		Debug:         c.GlobalBool("debug"),
-		NoPrompt:      c.GlobalBool("yes"),
-		RelayAddress:  c.GlobalString("relay"),
-		RelayAddress6: c.GlobalString("relay6"),
-		Stdout:        c.GlobalBool("stdout"),
-		Ask:           c.GlobalBool("ask"),
+		Debug:         c.Bool("debug"),
+		NoPrompt:      c.Bool("yes"),
+		RelayAddress:  c.String("relay"),
+		RelayAddress6: c.String("relay6"),
+		Stdout:        c.Bool("stdout"),
+		Ask:           c.Bool("ask"),
 		RelayPassword: determinePass(c),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
@@ -363,7 +363,7 @@ func receive(c *cli.Context) (err error) {
 		crocOptions.RelayAddress = ""
 	}
 
-	switch len(c.Args()) {
+	switch c.Args().Len() {
 	case 1:
 		crocOptions.SharedSecret = c.Args().First()
 	case 3:
@@ -382,24 +382,24 @@ func receive(c *cli.Context) (err error) {
 	}
 	configFile = path.Join(configFile, "receive.json")
 	b, errOpen := ioutil.ReadFile(configFile)
-	if errOpen == nil && !c.GlobalBool("remember") {
+	if errOpen == nil && !c.Bool("remember") {
 		var rememberedOptions croc.Options
 		err = json.Unmarshal(b, &rememberedOptions)
 		if err != nil {
 			log.Error(err)
 			return
 		}
-		// update anything that isn't explicitly set
-		if !c.GlobalIsSet("relay") {
+		// update anything that isn't expliciGlobalIsSettly set
+		if !c.IsSet("relay") {
 			crocOptions.RelayAddress = rememberedOptions.RelayAddress
 		}
-		if !c.GlobalIsSet("yes") {
+		if !c.IsSet("yes") {
 			crocOptions.NoPrompt = rememberedOptions.NoPrompt
 		}
 		if crocOptions.SharedSecret == "" {
 			crocOptions.SharedSecret = rememberedOptions.SharedSecret
 		}
-		if !c.GlobalIsSet("pass") {
+		if !c.IsSet("pass") {
 			crocOptions.RelayPassword = rememberedOptions.RelayPassword
 		}
 	}
@@ -407,8 +407,8 @@ func receive(c *cli.Context) (err error) {
 	if crocOptions.SharedSecret == "" {
 		crocOptions.SharedSecret = utils.GetInput("Enter receive code: ")
 	}
-	if c.GlobalString("out") != "" {
-		if err = os.Chdir(c.GlobalString("out")); err != nil {
+	if c.String("out") != "" {
+		if err = os.Chdir(c.String("out")); err != nil {
 			return err
 		}
 	}
@@ -419,7 +419,7 @@ func receive(c *cli.Context) (err error) {
 	}
 
 	// save the config
-	if c.GlobalBool("remember") {
+	if c.Bool("remember") {
 		log.Debug("saving config file")
 		var bConfig []byte
 		bConfig, err = json.MarshalIndent(crocOptions, "", "    ")
@@ -442,7 +442,7 @@ func receive(c *cli.Context) (err error) {
 func relay(c *cli.Context) (err error) {
 	log.Infof("starting croc relay version %v", Version)
 	debugString := "info"
-	if c.GlobalBool("debug") {
+	if c.Bool("debug") {
 		debugString = "debug"
 	}
 	ports := strings.Split(c.String("ports"), ",")
