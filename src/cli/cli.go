@@ -88,9 +88,6 @@ func Run() (err error) {
 	app.EnableBashCompletion = true
 	app.HideHelp = false
 	app.HideVersion = false
-	app.BashComplete = func(c *cli.Context) {
-		fmt.Fprintf(c.App.Writer, "send\nreceive\relay")
-	}
 	app.Action = func(c *cli.Context) error {
 		// if trying to send but forgot send, let the user know
 		if c.Args().First() != "" && utils.Exists(c.Args().First()) {
