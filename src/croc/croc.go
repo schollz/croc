@@ -579,7 +579,7 @@ func (c *Client) Receive() (err error) {
 		log.Debugf("ips data: %s", data)
 		var ips []string
 		if err := json.Unmarshal(data, &ips); err != nil {
-			log.Errorf("ips unmarshal error: %v", err)
+			log.Debugf("ips unmarshal error: %v", err)
 		}
 		if len(ips) > 1 {
 			port := ips[0]
@@ -698,6 +698,10 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 		log.Debugf("pake error: %s", err.Error())
 		err = fmt.Errorf("password mismatch")
 	}
+	if err != nil && strings.Contains(err.Error(), "unexpected end of JSON input") {
+		log.Debugf("error: %s", err.Error())
+		err = fmt.Errorf("room not ready")
+	}
 	return
 }
 
@@ -705,7 +709,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	var senderInfo SenderInfo
 	err = json.Unmarshal(m.Bytes, &senderInfo)
 	if err != nil {
-		log.Error(err)
+		log.Debug(err)
 		return
 	}
 	c.Options.SendingText = senderInfo.SendingText

@@ -34,7 +34,7 @@ func Decompress(src []byte) []byte {
 func compress(src []byte, dest io.Writer, level int) {
 	compressor, _ := flate.NewWriter(dest, level)
 	if _, err := compressor.Write(src); err != nil {
-		log.Errorf("error writing data: %v", err)
+		log.Debugf("error writing data: %v", err)
 	}
 	compressor.Close()
 }
@@ -43,7 +43,7 @@ func compress(src []byte, dest io.Writer, level int) {
 func decompress(src io.Reader, dest io.Writer) {
 	decompressor := flate.NewReader(src)
 	if _, err := io.Copy(dest, decompressor); err != nil {
-		log.Errorf("error copying data: %v", err)
+		log.Debugf("error copying data: %v", err)
 	}
 	decompressor.Close()
 }
