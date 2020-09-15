@@ -67,8 +67,8 @@ archives:
     files:
       - README.md
       - LICENSE
-      - src/install/zsh_autocomplete
-      - src/install/bash_autocomplete
+      - zsh_autocomplete
+      - bash_autocomplete
 
 brews:
   -
