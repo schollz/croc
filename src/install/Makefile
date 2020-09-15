@@ -3,6 +3,8 @@
 release:
 	cd ../../ && go generate
 	cd ../../ && go generate
+	cp zsh_autocomplete ../../
+	cp bash_autocomplete ../../
 	cd ../../ && goreleaser release
 	git push
 	cd ../../ && ./src/install/prepare-sources-tarball.sh
