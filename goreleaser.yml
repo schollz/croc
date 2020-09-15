@@ -23,8 +23,6 @@ build:
       goarch: 386
   goarm:
     - 7
-  hooks:
-    post: sh ./src/install/prepare-sources-tarball.sh
 nfpms:
   -
     formats:
