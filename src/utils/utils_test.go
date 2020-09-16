@@ -40,6 +40,13 @@ func BenchmarkImoHash(b *testing.B) {
 	}
 }
 
+func BenchmarkSha256(b *testing.B) {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		SHA256("hello,world")
+	}
+}
+
 func TestExists(t *testing.T) {
 	bigFile()
 	defer os.Remove("bigfile.test")

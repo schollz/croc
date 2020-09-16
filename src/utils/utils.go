@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -89,7 +90,7 @@ func XXHashFile(fname string) (hash256 []byte, err error) {
 func SHA256(s string) string {
 	sha := sha256.New()
 	sha.Write([]byte(s))
-	return fmt.Sprintf("%x", sha.Sum(nil))
+	return hex.EncodeToString(sha.Sum(nil))
 }
 
 // PublicIP returns public ip address
