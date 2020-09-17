@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/schollz/cli/v2"
 	"github.com/schollz/croc/v8/src/croc"
 	"github.com/schollz/croc/v8/src/models"
 	"github.com/schollz/croc/v8/src/tcp"
 	"github.com/schollz/croc/v8/src/utils"
 	log "github.com/schollz/logger"
-	"github.com/urfave/cli/v2"
 )
 
 // Version specifies the version
