@@ -11,7 +11,7 @@ src="https://img.shields.io/travis/schollz/croc.svg?style=flat-square" alt="Buil
 Status"></a> 
 </p>
 
-`croc` is a tool that allows any two computers to simply and securely transfer files and folders. AFAIK, *croc* is the only CLI file-transfer tool does **all** of the following:
+`croc` is a tool that allows any two computers to simply and securely transfer files and folders. AFAIK, *croc* is the only CLI file-transfer tool that does **all** of the following:
 
 - allows **any two computers** to transfer data (using a relay)
 - provides **end-to-end encryption** (using PAKE)
