@@ -19,7 +19,6 @@ Status"></a>
 - allows **multiple file** transfers
 - allows **resuming transfers** that are interrupted
 - local server or port-forwarding **not needed**
-- **faster** than [wormhole](https://github.com/warner/magic-wormhole), [rsync](https://linux.die.net/man/1/rsync), [scp](https://linux.die.net/man/1/scp) through compression and multiplexing (speedups 1.5x to 4x)
 - **ipv6-first** with ipv4 fallback
 
 For more information about `croc`, see [my blog post](https://schollz.com/software/croc6).
