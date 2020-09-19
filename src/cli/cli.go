@@ -89,10 +89,23 @@ func Run() (err error) {
 	app.HideHelp = false
 	app.HideVersion = false
 	app.Action = func(c *cli.Context) error {
+		allStringsAreFiles := func(strs []string) bool {
+			for _, str := range strs {
+				if !utils.Exists(str) {
+					return false;
+				}
+			}
+			return true;
+		}
+
 		// if trying to send but forgot send, let the user know
-		if c.Args().First() != "" && utils.Exists(c.Args().First()) {
-			_, fname := filepath.Split(c.Args().First())
-			yn := utils.GetInput(fmt.Sprintf("Did you mean to send '%s'? (y/n) ", fname))
+		if c.Args().Present() && allStringsAreFiles(c.Args().Slice()) {
+			fnames := []string{}
+			for _, fpath := range c.Args().Slice() {
+				_, basename := filepath.Split(fpath)
+				fnames = append(fnames, "'" + basename + "'")
+			}
+			yn := utils.GetInput(fmt.Sprintf("Did you mean to send %s? (y/n) ", strings.Join(fnames, ", ")))
 			if strings.ToLower(yn) == "y" {
 				return send(c)
 			}
