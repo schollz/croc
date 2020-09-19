@@ -37,7 +37,7 @@ $ curl https://getcroc.schollz.com | bash
 On macOS you can install the latest release with [Homebrew](https://brew.sh/): 
 
 ```
-$ brew install /croc
+$ brew install croc
 ```
 
 On macOS you can also install the latest release with [MacPorts](https://macports.org/): 
