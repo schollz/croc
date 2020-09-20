@@ -232,7 +232,7 @@ func send(c *cli.Context) (err error) {
 		}()
 
 	} else {
-		fnames = append([]string{c.Args().First()}, c.Args().Tail()...)
+		fnames = c.Args().Slice()
 	}
 	if len(fnames) == 0 {
 		return errors.New("must specify file: croc send [filename]")
