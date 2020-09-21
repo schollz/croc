@@ -186,3 +186,8 @@ func TestGetRandomName(t *testing.T) {
 	name := GetRandomName()
 	assert.NotEmpty(t, name)
 }
+
+func TestFindOpenPorts(t *testing.T) {
+	openPorts := FindOpenPorts("localhost", 9009, 4)
+	assert.Equal(t, []int{9009, 9010, 9011, 9012}, openPorts)
+}
