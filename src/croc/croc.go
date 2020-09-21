@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -264,6 +265,14 @@ func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 
 func (c *Client) setupLocalRelay() {
 	// setup the relay locally
+	firstPort, _ := strconv.Atoi(c.Options.RelayPorts[0])
+	openPorts := utils.FindOpenPorts("localhost", firstPort, len(c.Options.RelayPorts))
+	if len(openPorts) < len(c.Options.RelayPorts) {
+		panic("not enough open ports to run local relay")
+	}
+	for i, port := range openPorts {
+		c.Options.RelayPorts[i] = fmt.Sprint(port)
+	}
 	for _, port := range c.Options.RelayPorts {
 		go func(portStr string) {
 			debugString := "warn"
