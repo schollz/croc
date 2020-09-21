@@ -76,6 +76,11 @@ On Ubuntu you can install with `snap`:
 $ snap install croc
 ```
 
+On Gentoo you can install with `portage`:
+```
+$ emerge net-misc/croc
+```
+
 On Termux you can install with `pkg`:
 
 ```
