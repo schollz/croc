@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/cespare/xxhash"
 	"github.com/kalafut/imohash"
@@ -240,5 +241,22 @@ func RandomFileName() (fname string, err error) {
 		return
 	}
 	fname = f.Name()
+	return
+}
+
+func FindOpenPorts(host string, portNumStart, numPorts int) (openPorts []int) {
+	openPorts = []int{}
+	for port := portNumStart; port-portNumStart < 200; port++ {
+		timeout := 100 * time.Millisecond
+		conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, fmt.Sprint(port)), timeout)
+		if conn != nil {
+			conn.Close()
+		} else if err != nil {
+			openPorts = append(openPorts, port)
+		}
+		if len(openPorts) >= numPorts {
+			return
+		}
+	}
 	return
 }
