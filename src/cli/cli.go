@@ -24,7 +24,7 @@ import (
 // Version specifies the version
 var Version string
 
-// Run will run the command line proram
+// Run will run the command line program
 func Run() (err error) {
 	// use all of the processors
 	runtime.GOMAXPROCS(runtime.NumCPU())
