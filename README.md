@@ -87,6 +87,12 @@ On Termux you can install with `pkg`:
 $ pkg install croc
 ```
 
+On FreeBSD you can install with `pkg`:
+
+```
+$ pkg install croc
+```
+
 Or, you can [install Go](https://golang.org/dl/) and build from source (requires Go 1.12+): 
 
 ```
