@@ -35,6 +35,7 @@ func compress(src []byte, dest io.Writer, level int) {
 	compressor, err := flate.NewWriter(dest, level)
 	if err != nil {
 		log.Debugf("error level data: %v", err)
+		return
 	}
 	if _, err := compressor.Write(src); err != nil {
 		log.Debugf("error writing data: %v", err)
