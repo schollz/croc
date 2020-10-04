@@ -241,6 +241,7 @@ func RandomFileName() (fname string, err error) {
 		return
 	}
 	fname = f.Name()
+	_ = f.Close()
 	return
 }
 
