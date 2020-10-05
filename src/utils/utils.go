@@ -278,7 +278,10 @@ var PrivateIPNetworks = []net.IPNet{
 }
 
 func IsLocalIP(ipaddress string) bool {
-	if strings.Contains("localhost") {
+	if strings.Contains(ipaddress, "localhost") {
+		return true
+	}
+	if strings.Contains(ipaddress, "fe80") {
 		return true
 	}
 	host, _, _ := net.SplitHostPort(ipaddress)
