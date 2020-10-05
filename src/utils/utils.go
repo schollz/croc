@@ -262,32 +262,38 @@ func FindOpenPorts(host string, portNumStart, numPorts int) (openPorts []int) {
 	return
 }
 
-var PrivateIPNetworks = []net.IPNet{
-	net.IPNet{
-		IP:   net.ParseIP("10.0.0.0"),
-		Mask: net.CIDRMask(8, 32),
-	},
-	net.IPNet{
-		IP:   net.ParseIP("172.16.0.0"),
-		Mask: net.CIDRMask(12, 32),
-	},
-	net.IPNet{
-		IP:   net.ParseIP("192.168.0.0"),
-		Mask: net.CIDRMask(16, 32),
-	},
+var privateIPBlocks []*net.IPNet
+
+func init() {
+	for _, cidr := range []string{
+		"127.0.0.0/8",    // IPv4 loopback
+		"10.0.0.0/8",     // RFC1918
+		"172.16.0.0/12",  // RFC1918
+		"192.168.0.0/16", // RFC1918
+		"169.254.0.0/16", // RFC3927 link-local
+		"::1/128",        // IPv6 loopback
+		"fe80::/10",      // IPv6 link-local
+		"fc00::/7",       // IPv6 unique local addr
+	} {
+		_, block, err := net.ParseCIDR(cidr)
+		if err != nil {
+			panic(fmt.Errorf("parse error on %q: %v", cidr, err))
+		}
+		privateIPBlocks = append(privateIPBlocks, block)
+	}
 }
 
 func IsLocalIP(ipaddress string) bool {
 	if strings.Contains(ipaddress, "localhost") {
 		return true
 	}
-	if strings.Contains(ipaddress, "fe80") {
-		return true
-	}
 	host, _, _ := net.SplitHostPort(ipaddress)
 	ip := net.ParseIP(host)
-	for _, ipNet := range PrivateIPNetworks {
-		if ipNet.Contains(ip) {
+	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+	for _, block := range privateIPBlocks {
+		if block.Contains(ip) {
 			return true
 		}
 	}
