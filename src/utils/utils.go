@@ -262,6 +262,8 @@ func FindOpenPorts(host string, portNumStart, numPorts int) (openPorts []int) {
 	return
 }
 
+// local ip determination
+// https://stackoverflow.com/questions/41240761/check-if-ip-address-is-in-private-network-space
 var privateIPBlocks []*net.IPNet
 
 func init() {
