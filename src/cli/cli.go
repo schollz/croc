@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/schollz/cli/v2"
+	"github.com/schollz/croc/v8/src/comm"
 	"github.com/schollz/croc/v8/src/croc"
 	"github.com/schollz/croc/v8/src/models"
 	"github.com/schollz/croc/v8/src/tcp"
@@ -84,6 +85,7 @@ func Run() (err error) {
 		&cli.StringFlag{Name: "relay6", Value: models.DEFAULT_RELAY6, Usage: "ipv6 address of the relay", EnvVars: []string{"CROC_RELAY6"}},
 		&cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 		&cli.StringFlag{Name: "pass", Value: "pass123", Usage: "password for the relay", EnvVars: []string{"CROC_PASS"}},
+		&cli.StringFlag{Name: "socks5", Value: "", Usage: "add a socks5 proxy", EnvVars: []string{"http_proxy"}},
 	}
 	app.EnableBashCompletion = true
 	app.HideHelp = false
@@ -92,10 +94,10 @@ func Run() (err error) {
 		allStringsAreFiles := func(strs []string) bool {
 			for _, str := range strs {
 				if !utils.Exists(str) {
-					return false;
+					return false
 				}
 			}
-			return true;
+			return true
 		}
 
 		// if trying to send but forgot send, let the user know
@@ -103,7 +105,7 @@ func Run() (err error) {
 			fnames := []string{}
 			for _, fpath := range c.Args().Slice() {
 				_, basename := filepath.Split(fpath)
-				fnames = append(fnames, "'" + basename + "'")
+				fnames = append(fnames, "'"+basename+"'")
 			}
 			yn := utils.GetInput(fmt.Sprintf("Did you mean to send %s? (y/n) ", strings.Join(fnames, ", ")))
 			if strings.ToLower(yn) == "y" {
@@ -159,6 +161,7 @@ func determinePass(c *cli.Context) (pass string) {
 
 func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
+	comm.Socks5Proxy = c.String("socks5")
 	crocOptions := croc.Options{
 		SharedSecret:   c.String("code"),
 		IsSender:       true,
@@ -356,6 +359,7 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 }
 
 func receive(c *cli.Context) (err error) {
+	comm.Socks5Proxy = c.String("socks5")
 	crocOptions := croc.Options{
 		SharedSecret:  c.String("code"),
 		IsSender:      false,
