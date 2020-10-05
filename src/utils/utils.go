@@ -261,3 +261,28 @@ func FindOpenPorts(host string, portNumStart, numPorts int) (openPorts []int) {
 	}
 	return
 }
+
+var PrivateIPNetworks = []net.IPNet{
+	net.IPNet{
+		IP:   net.ParseIP("10.0.0.0"),
+		Mask: net.CIDRMask(8, 32),
+	},
+	net.IPNet{
+		IP:   net.ParseIP("172.16.0.0"),
+		Mask: net.CIDRMask(12, 32),
+	},
+	net.IPNet{
+		IP:   net.ParseIP("192.168.0.0"),
+		Mask: net.CIDRMask(16, 32),
+	},
+}
+
+func IsLocalIP(ipaddress string) bool {
+	ip := net.ParseIP(ipaddress)
+	for _, ipNet := range PrivateIPNetworks {
+		if ipNet.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}

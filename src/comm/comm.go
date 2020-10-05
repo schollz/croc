@@ -8,6 +8,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/schollz/croc/v8/src/utils"
 	log "github.com/schollz/logger"
 	"golang.org/x/net/proxy"
 )
@@ -28,7 +29,7 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 		tlimit = timelimit[0]
 	}
 	var connection net.Conn
-	if Socks5Proxy != "" {
+	if Socks5Proxy != "" && !utils.IsLocalIP(address) {
 		var dialer proxy.Dialer
 		dialer, err = proxy.SOCKS5("tcp", Socks5Proxy, nil, proxy.Direct)
 		if err != nil {
