@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/schollz/cli/v2"
+	"github.com/schollz/croc/v8/src/comm"
 	"github.com/schollz/croc/v8/src/croc"
 	"github.com/schollz/croc/v8/src/models"
 	"github.com/schollz/croc/v8/src/tcp"
@@ -160,6 +161,7 @@ func determinePass(c *cli.Context) (pass string) {
 
 func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
+	comm.Socks5Proxy = c.String("socks5")
 	crocOptions := croc.Options{
 		SharedSecret:   c.String("code"),
 		IsSender:       true,
@@ -357,6 +359,7 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 }
 
 func receive(c *cli.Context) (err error) {
+	comm.Socks5Proxy = c.String("socks5")
 	crocOptions := croc.Options{
 		SharedSecret:  c.String("code"),
 		IsSender:      false,
