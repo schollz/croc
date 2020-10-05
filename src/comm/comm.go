@@ -9,7 +9,10 @@ import (
 	"time"
 
 	log "github.com/schollz/logger"
+	"golang.org/x/net/proxy"
 )
+
+var Socks5Proxy = ""
 
 const MAXBYTES = 4000000
 
@@ -24,7 +27,18 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 	if len(timelimit) > 0 {
 		tlimit = timelimit[0]
 	}
-	connection, err := net.DialTimeout("tcp", address, tlimit)
+	var connection net.Conn
+	if Socks5Proxy != "" {
+		var dialer proxy.Dialer
+		dialer, err = proxy.SOCKS5("tcp", Socks5Proxy, nil, proxy.Direct)
+		if err != nil {
+			err = fmt.Errorf("proxy failed: %w", err)
+			return
+		}
+		connection, err = dialer.Dial("tcp", address)
+	} else {
+		connection, err = net.DialTimeout("tcp", address, tlimit)
+	}
 	if err != nil {
 		err = fmt.Errorf("comm.NewConnection failed: %w", err)
 		return
