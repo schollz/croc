@@ -14,6 +14,7 @@ import (
 )
 
 var Socks5Proxy = ""
+var HTTPProxy = ""
 
 const MAXBYTES = 4000000
 
@@ -37,6 +38,9 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 			return
 		}
 		connection, err = dialer.Dial("tcp", address)
+	} else if HTTPProxy != "" && !utils.IsLocalIP(address) {
+		var dialer proxy.Dialer
+		dialer, err = proxy.FromURL(nil, proxy.Direct)
 	} else {
 		connection, err = net.DialTimeout("tcp", address, tlimit)
 	}
