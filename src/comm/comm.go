@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"time"
 
 	"github.com/schollz/croc/v8/src/utils"
@@ -34,13 +35,26 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 		var dialer proxy.Dialer
 		dialer, err = proxy.SOCKS5("tcp", Socks5Proxy, nil, proxy.Direct)
 		if err != nil {
-			err = fmt.Errorf("proxy failed: %w", err)
+			err = fmt.Errorf("socks5 proxy failed: %w", err)
 			return
 		}
 		connection, err = dialer.Dial("tcp", address)
 	} else if HTTPProxy != "" && !utils.IsLocalIP(address) {
+		var u *url.URL
+		u, err = url.Parse(address)
+		if err != nil {
+			u, err = url.Parse("http://" + address)
+			if err != nil {
+				return
+			}
+		}
 		var dialer proxy.Dialer
-		dialer, err = proxy.FromURL(nil, proxy.Direct)
+		dialer, err = proxy.FromURL(u, proxy.Direct)
+		if err != nil {
+			err = fmt.Errorf("http proxy failed: %w", err)
+			return
+		}
+		connection, err = dialer.Dial("tcp", address)
 	} else {
 		connection, err = net.DialTimeout("tcp", address, tlimit)
 	}
