@@ -49,6 +49,9 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 			}
 		}
 		var dialer proxy.Dialer
+		proxy.RegisterDialerType("http", func(u *url.URL, d proxy.Dialer) (proxy.Dialer, error) {
+			return proxy.FromURL(u, proxy.Direct)
+		})
 		dialer, err = proxy.FromURL(u, proxy.Direct)
 		if err != nil {
 			err = fmt.Errorf("http proxy failed: %w", err)
