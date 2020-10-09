@@ -725,16 +725,12 @@ main() {
     print_message "== Installed autocompletions for $(basename "${SHELL}")" "ok"
   elif [[ "${autocomplete_install_rcode}" == "1" ]]; then
     print_message "== Failed to install ${bash_autocomplete_file}" "error"
-    exit 1
   elif [[ "${autocomplete_install_rcode}" == "20" ]]; then
     print_message "== Failed to locate 'install' command" "error"
-    exit 1
   elif [[ "${autocomplete_install_rcode}" == "21" ]]; then
     print_message "== Failed to locate 'sudo' command" "error"
-    exit 1
   else
     print_message "== Install attempt returned an unexpected value of ${autocomplete_install_rcode}" "error"
-    exit 1
   fi
 
   print_message "== Installation complete" "ok"
