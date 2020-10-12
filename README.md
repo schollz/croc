@@ -20,6 +20,7 @@ Status"></a>
 - allows **resuming transfers** that are interrupted
 - local server or port-forwarding **not needed**
 - **ipv6-first** with ipv4 fallback
+- can **use proxy**, like tor
 
 For more information about `croc`, see [my blog post](https://schollz.com/software/croc6).
 
@@ -155,6 +156,15 @@ $ croc send --text "hello world"
 ```
 
 This will automatically tell the receiver to use `stdout` when they receive the text so it will be displayed.
+
+
+### Use a proxy
+
+You can use a proxy as your connection to the relay by adding a proxy address with `--socks5`. For example, you can send via a tor relay:
+
+```
+$ croc --socks5 "127.0.0.1:9050" send SOMEFILE
+```
 
 ### Self-host relay
 
