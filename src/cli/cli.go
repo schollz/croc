@@ -42,7 +42,10 @@ func Run() (err error) {
       croc send file.txt
 
    Send a file with a custom code:
-      croc send --code secret-passphrase file.txt`
+      croc send --code secret-code file.txt
+
+   Receive a file using code:
+      croc secret-code`
 	app.Commands = []*cli.Command{
 		{
 			Name:        "send",
