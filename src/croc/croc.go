@@ -292,7 +292,7 @@ func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 	settings := peerdiscovery.Settings{
 		Limit:     -1,
 		Payload:   []byte("croc" + c.Options.RelayPorts[0]),
-		Delay:     10 * time.Millisecond,
+		Delay:     20 * time.Millisecond,
 		TimeLimit: 30 * time.Second,
 	}
 	if useipv6 {
@@ -491,7 +491,7 @@ func (c *Client) Receive() (err error) {
 			ipv4discoveries, err1 := peerdiscovery.Discover(peerdiscovery.Settings{
 				Limit:     1,
 				Payload:   []byte("ok"),
-				Delay:     10 * time.Millisecond,
+				Delay:     20 * time.Millisecond,
 				TimeLimit: 200 * time.Millisecond,
 			})
 			if err1 == nil && len(ipv4discoveries) > 0 {
@@ -506,7 +506,7 @@ func (c *Client) Receive() (err error) {
 			ipv6discoveries, err1 := peerdiscovery.Discover(peerdiscovery.Settings{
 				Limit:     1,
 				Payload:   []byte("ok"),
-				Delay:     10 * time.Millisecond,
+				Delay:     20 * time.Millisecond,
 				TimeLimit: 200 * time.Millisecond,
 				IPVersion: peerdiscovery.IPv6,
 			})
