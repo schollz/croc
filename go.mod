@@ -16,14 +16,14 @@ require (
 	github.com/schollz/mnemonicode v1.0.1
 	github.com/schollz/pake/v2 v2.0.4
 	github.com/schollz/peerdiscovery v1.6.0
-	github.com/schollz/progressbar/v3 v3.6.0
+	github.com/schollz/progressbar/v3 v3.6.1
 	github.com/schollz/spinner v0.0.0-20180925172146-6bbc5f7804f9
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stretchr/testify v1.4.0
 	github.com/tscholl2/siec v0.0.0-20191122224205-8da93652b094
-	golang.org/x/crypto v0.0.0-20201012173705-84dcc777aaee
-	golang.org/x/net v0.0.0-20201010224723-4f7140c49acb
-	golang.org/x/sys v0.0.0-20201013132646-2da7054afaeb // indirect
+	golang.org/x/crypto v0.0.0-20201016220609-9e8e0b390897
+	golang.org/x/net v0.0.0-20201016165138-7b1cca2348c0
+	golang.org/x/sys v0.0.0-20201018230417-eeed37f84f13 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/yaml.v2 v2.2.7 // indirect
 )
