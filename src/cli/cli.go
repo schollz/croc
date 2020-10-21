@@ -84,6 +84,7 @@ func Run() (err error) {
 		&cli.BoolFlag{Name: "stdout", Usage: "redirect file to stdout"},
 		&cli.BoolFlag{Name: "no-compress", Usage: "disable compression"},
 		&cli.BoolFlag{Name: "ask", Usage: "make sure sender and recipient are prompted"},
+		&cli.BoolFlag{Name: "local", Usage: "force to use only local connections"},
 		&cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay", EnvVars: []string{"CROC_RELAY"}},
 		&cli.StringFlag{Name: "relay6", Value: models.DEFAULT_RELAY6, Usage: "ipv6 address of the relay", EnvVars: []string{"CROC_RELAY6"}},
 		&cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
@@ -174,6 +175,7 @@ func send(c *cli.Context) (err error) {
 		RelayAddress6:  c.String("relay6"),
 		Stdout:         c.Bool("stdout"),
 		DisableLocal:   c.Bool("no-local"),
+		OnlyLocal:      c.Bool("local"),
 		RelayPorts:     strings.Split(c.String("ports"), ","),
 		Ask:            c.Bool("ask"),
 		NoMultiplexing: c.Bool("no-multi"),
@@ -373,6 +375,7 @@ func receive(c *cli.Context) (err error) {
 		Stdout:        c.Bool("stdout"),
 		Ask:           c.Bool("ask"),
 		RelayPassword: determinePass(c),
+		OnlyLocal:     c.Bool("local"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
