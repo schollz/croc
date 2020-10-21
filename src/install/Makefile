@@ -1,8 +1,9 @@
 # VERSION=8.X.Y make release
 
 release:
-	cd ../../ && go generate
-	cd ../../ && go generate
+	cd ../../ && go run src/install/updateversion.go
+	git commit -am "bump ${VERSION}"
+	git tag -af v${VERSION} -m "v${VERSION}"	
 	cp zsh_autocomplete ../../
 	cp bash_autocomplete ../../
 	cd ../../ && goreleaser release
