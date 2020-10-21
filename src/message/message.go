@@ -28,7 +28,7 @@ func Send(c *comm.Comm, key []byte, m Message) (err error) {
 	if err != nil {
 		return
 	}
-	_, err = c.Write(mSend)
+	err = c.Send(mSend)
 	return
 }
 
