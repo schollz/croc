@@ -23,7 +23,6 @@ import (
 	"github.com/schollz/pake/v2"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v3"
-	"github.com/schollz/spinner"
 	"github.com/tscholl2/siec"
 
 	"github.com/schollz/croc/v8/src/comm"
@@ -99,7 +98,6 @@ type Client struct {
 	conn []*comm.Comm
 
 	bar             *progressbar.ProgressBar
-	spinner         *spinner.Spinner
 	longestFilename int
 	firstSend       bool
 
@@ -1366,8 +1364,6 @@ func (c *Client) receiveData(i int) {
 			}
 		}
 	}
-
-	return
 }
 
 func (c *Client) sendData(i int) {
@@ -1436,8 +1432,6 @@ func (c *Client) sendData(i int) {
 				c.bar.Add(n)
 				c.TotalSent += int64(n)
 				// time.Sleep(100 * time.Millisecond)
-			} else {
-				// log.Debugf("skipping chunk %d", pos)
 			}
 		}
 
@@ -1451,5 +1445,4 @@ func (c *Client) sendData(i int) {
 			panic(errRead)
 		}
 	}
-	return
 }

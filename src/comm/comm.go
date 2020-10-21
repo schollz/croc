@@ -77,23 +77,23 @@ func (c *Comm) Close() {
 	}
 }
 
-func (c *Comm) Write(b []byte) (int, error) {
+func (c *Comm) Write(b []byte) (n int, err error) {
 	header := new(bytes.Buffer)
-	err := binary.Write(header, binary.LittleEndian, uint32(len(b)))
+	err = binary.Write(header, binary.LittleEndian, uint32(len(b)))
 	if err != nil {
 		fmt.Println("binary.Write failed:", err)
 	}
 	tmpCopy := append(header.Bytes(), b...)
-	n, err := c.connection.Write(tmpCopy)
-	if n != len(tmpCopy) {
-		if err != nil {
-			err = fmt.Errorf("wanted to write %d but wrote %d: %w", len(b), n, err)
-		} else {
-			err = fmt.Errorf("wanted to write %d but wrote %d", len(b), n)
-		}
+	n, err = c.connection.Write(tmpCopy)
+	if err != nil {
+		err = fmt.Errorf("connection.Write failed: %w", err)
+		return
 	}
-	// log.Printf("wanted to write %d but wrote %d", n, len(b))
-	return n, err
+	if n != len(tmpCopy) {
+		err = fmt.Errorf("wanted to write %d but wrote %d", len(b), n)
+		return
+	}
+	return
 }
 
 func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {

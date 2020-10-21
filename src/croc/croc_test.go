@@ -12,12 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func must(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
 func init() {
 	log.SetLevel("trace")
 
