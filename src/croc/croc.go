@@ -365,10 +365,10 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		// add two things to the error channel
 		errchan = make(chan error, 2)
 		c.setupLocalRelay()
-		// broadcast on ipv6
-		//go c.broadcastOnLocalNetwork(true)
 		// broadcast on ipv4
 		go c.broadcastOnLocalNetwork(false)
+		// broadcast on ipv6
+		go c.broadcastOnLocalNetwork(true)
 		go c.transferOverLocalRelay(options, errchan)
 	}
 
