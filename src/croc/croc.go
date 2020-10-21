@@ -60,6 +60,7 @@ type Options struct {
 	NoPrompt       bool
 	NoMultiplexing bool
 	DisableLocal   bool
+	OnlyLocal      bool
 	Ask            bool
 	SendingText    bool
 	NoCompress     bool
@@ -372,88 +373,90 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		go c.transferOverLocalRelay(options, errchan)
 	}
 
-	go func() {
-		var ipaddr, banner string
-		var conn *comm.Comm
-		durations := []time.Duration{100 * time.Millisecond, 5 * time.Second}
-		for i, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
-			if address == "" {
-				continue
-			}
-			host, port, _ := net.SplitHostPort(address)
-			log.Debugf("host: '%s', port: '%s'", host, port)
-			// Default port to :9009
-			if port == "" {
-				host = address
-				port = "9009"
-			}
-			log.Debugf("got host '%v' and port '%v'", host, port)
-			address = net.JoinHostPort(host, port)
-			log.Debugf("trying connection to %s", address)
-			conn, banner, ipaddr, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.SharedSecret[:3], durations[i])
-			if err == nil {
-				c.Options.RelayAddress = address
-				break
-			}
-			log.Debugf("could not establish '%s'", address)
-		}
-		if conn == nil && err == nil {
-			err = fmt.Errorf("could not connect")
-		}
-		if err != nil {
-			err = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, err)
-			log.Debug(err)
-			errchan <- err
-			return
-		}
-		log.Debugf("banner: %s", banner)
-		log.Debugf("connection established: %+v", conn)
-		for {
-			log.Debug("waiting for bytes")
-			data, errConn := conn.Receive()
-			if errConn != nil {
-				log.Debugf("[%+v] had error: %s", conn, errConn.Error())
-			}
-			if bytes.Equal(data, []byte("ips?")) {
-				// recipient wants to try to connect to local ips
-				var ips []string
-				// only get local ips if the local is enabled
-				if !c.Options.DisableLocal {
-					// get list of local ips
-					ips, err = utils.GetLocalIPs()
-					if err != nil {
-						log.Debugf("error getting local ips: %v", err)
-					}
-					// prepend the port that is being listened to
-					ips = append([]string{c.Options.RelayPorts[0]}, ips...)
+	if !c.Options.OnlyLocal {
+		go func() {
+			var ipaddr, banner string
+			var conn *comm.Comm
+			durations := []time.Duration{100 * time.Millisecond, 5 * time.Second}
+			for i, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
+				if address == "" {
+					continue
 				}
-				bips, _ := json.Marshal(ips)
-				if err := conn.Send(bips); err != nil {
-					log.Errorf("error sending: %v", err)
+				host, port, _ := net.SplitHostPort(address)
+				log.Debugf("host: '%s', port: '%s'", host, port)
+				// Default port to :9009
+				if port == "" {
+					host = address
+					port = "9009"
 				}
-			} else if bytes.Equal(data, []byte("handshake")) {
-				break
-			} else if bytes.Equal(data, []byte{1}) {
-				log.Debug("got ping")
-				continue
-			} else {
-				log.Debugf("[%+v] got weird bytes: %+v", conn, data)
-				// throttle the reading
-				errchan <- fmt.Errorf("gracefully refusing using the public relay")
+				log.Debugf("got host '%v' and port '%v'", host, port)
+				address = net.JoinHostPort(host, port)
+				log.Debugf("trying connection to %s", address)
+				conn, banner, ipaddr, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.SharedSecret[:3], durations[i])
+				if err == nil {
+					c.Options.RelayAddress = address
+					break
+				}
+				log.Debugf("could not establish '%s'", address)
+			}
+			if conn == nil && err == nil {
+				err = fmt.Errorf("could not connect")
+			}
+			if err != nil {
+				err = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, err)
+				log.Debug(err)
+				errchan <- err
 				return
 			}
-		}
+			log.Debugf("banner: %s", banner)
+			log.Debugf("connection established: %+v", conn)
+			for {
+				log.Debug("waiting for bytes")
+				data, errConn := conn.Receive()
+				if errConn != nil {
+					log.Debugf("[%+v] had error: %s", conn, errConn.Error())
+				}
+				if bytes.Equal(data, []byte("ips?")) {
+					// recipient wants to try to connect to local ips
+					var ips []string
+					// only get local ips if the local is enabled
+					if !c.Options.DisableLocal {
+						// get list of local ips
+						ips, err = utils.GetLocalIPs()
+						if err != nil {
+							log.Debugf("error getting local ips: %v", err)
+						}
+						// prepend the port that is being listened to
+						ips = append([]string{c.Options.RelayPorts[0]}, ips...)
+					}
+					bips, _ := json.Marshal(ips)
+					if err := conn.Send(bips); err != nil {
+						log.Errorf("error sending: %v", err)
+					}
+				} else if bytes.Equal(data, []byte("handshake")) {
+					break
+				} else if bytes.Equal(data, []byte{1}) {
+					log.Debug("got ping")
+					continue
+				} else {
+					log.Debugf("[%+v] got weird bytes: %+v", conn, data)
+					// throttle the reading
+					errchan <- fmt.Errorf("gracefully refusing using the public relay")
+					return
+				}
+			}
 
-		c.conn[0] = conn
-		c.Options.RelayPorts = strings.Split(banner, ",")
-		if c.Options.NoMultiplexing {
-			log.Debug("no multiplexing")
-			c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
-		}
-		c.ExternalIP = ipaddr
-		log.Debug("exchanged header message")
-		errchan <- c.transfer(options)
-	}()
+			c.conn[0] = conn
+			c.Options.RelayPorts = strings.Split(banner, ",")
+			if c.Options.NoMultiplexing {
+				log.Debug("no multiplexing")
+				c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
+			}
+			c.ExternalIP = ipaddr
+			log.Debug("exchanged header message")
+			errchan <- c.transfer(options)
+		}()
+	}
 
 	err = <-errchan
 	if err == nil {
@@ -480,6 +483,10 @@ func (c *Client) Receive() (err error) {
 	// recipient will look for peers first
 	// and continue if it doesn't find any within 100 ms
 	usingLocal := false
+	if c.Options.OnlyLocal {
+		c.Options.RelayAddress = ""
+		c.Options.RelayAddress6 = ""
+	}
 	if !c.Options.DisableLocal {
 		log.Debug("attempt to discover peers")
 		var discoveries []peerdiscovery.Discovered
@@ -544,6 +551,7 @@ func (c *Client) Receive() (err error) {
 	}
 	var banner string
 	durations := []time.Duration{100 * time.Millisecond, 5 * time.Second}
+	err = fmt.Errorf("found no addresses to connect")
 	for i, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
 		if address == "" {
 			continue
