@@ -542,12 +542,15 @@ func (c *Client) Receive() (err error) {
 				if portToUse == "" {
 					portToUse = "9009"
 				}
-				c.Options.RelayAddress = net.JoinHostPort(discoveries[0].Address, portToUse)
-				c.ExternalIPConnected = c.Options.RelayAddress
-				c.Options.RelayAddress6 = ""
-				usingLocal = true
-
-				break
+				address := net.JoinHostPort(discoveries[0].Address, portToUse)
+				if tcp.PingServer(address) == nil {
+					log.Debugf("succesfully pinged '%s'", address)
+					c.Options.RelayAddress = address
+					c.ExternalIPConnected = c.Options.RelayAddress
+					c.Options.RelayAddress6 = ""
+					usingLocal = true
+					break
+				}
 			}
 		}
 		log.Debugf("discoveries: %+v", discoveries)
