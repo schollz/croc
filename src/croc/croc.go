@@ -544,6 +544,7 @@ func (c *Client) Receive() (err error) {
 				}
 				address := net.JoinHostPort(discoveries[0].Address, portToUse)
 				if tcp.PingServer(address) == nil {
+					log.Debugf("succesfully pinged '%s'", address)
 					c.Options.RelayAddress = address
 					c.ExternalIPConnected = c.Options.RelayAddress
 					c.Options.RelayAddress6 = ""
