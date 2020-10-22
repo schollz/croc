@@ -347,17 +347,14 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	if err != nil {
 		return
 	}
-	var (
-		otherRelay      string
-		otherPassphrase string
-	)
+	flags := &strings.Builder{}
 	if c.Options.RelayAddress != models.DEFAULT_RELAY {
-		otherRelay = "--relay " + c.Options.RelayAddress + " "
+		flags.WriteString("--relay " + c.Options.RelayAddress + " ")
 	}
 	if c.Options.RelayPassword != models.DEFAULT_PASSPHRASE {
-		otherPassphrase = "--pass " + c.Options.RelayPassword + " "
+		flags.WriteString("--pass " + c.Options.RelayPassword + " ")
 	}
-	fmt.Fprintf(os.Stderr, "Code is: %s\nOn the other computer run\n\ncroc %s%s%s\n", c.Options.SharedSecret, otherPassphrase, otherRelay, c.Options.SharedSecret)
+	fmt.Fprintf(os.Stderr, "Code is: %[1]s\nOn the other computer run\n\ncroc %[2]s%[1]s\n", c.Options.SharedSecret, flags.String())
 	if c.Options.Ask {
 		machid, _ := machineid.ID()
 		fmt.Fprintf(os.Stderr, "\rYour machine ID is '%s'\n", machid)
