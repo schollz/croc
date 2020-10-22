@@ -37,6 +37,7 @@ type roomMap struct {
 }
 
 var timeToRoomDeletion = 10 * time.Minute
+var pingRoom = "pinglkasjdlfjsaldjf"
 
 // Run starts a tcp listener, run async
 func Run(debugLevel, port, password string, banner ...string) (err error) {
@@ -100,8 +101,16 @@ func (s *server) run() (err error) {
 		go func(port string, connection net.Conn) {
 			c := comm.New(connection)
 			room, errCommunication := s.clientCommunication(port, c)
+			log.Debugf("room: %+v", room)
+			log.Debugf("err: %+v", errCommunication)
 			if errCommunication != nil {
 				log.Debugf("relay-%s: %s", connection.RemoteAddr().String(), errCommunication.Error())
+				connection.Close()
+				return
+			}
+			if room == pingRoom {
+				log.Debugf("got ping")
+				connection.Close()
 				return
 			}
 			for {
@@ -149,6 +158,11 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	}
 	Abytes, err := c.Receive()
 	if err != nil {
+		return
+	}
+	if bytes.Equal(Abytes, []byte("ping")) {
+		room = pingRoom
+		c.Send([]byte("pong"))
 		return
 	}
 	err = B.Update(Abytes)
@@ -371,6 +385,25 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 			}
 		}
 	}
+}
+
+func PingServer(address string) (err error) {
+	c, err := comm.NewConnection(address, 200*time.Millisecond)
+	if err != nil {
+		return
+	}
+	err = c.Send([]byte("ping"))
+	if err != nil {
+		return
+	}
+	b, err := c.Receive()
+	if err != nil {
+		return
+	}
+	if bytes.Equal(b, []byte("pong")) {
+		return nil
+	}
+	return fmt.Errorf("no pong")
 }
 
 // ConnectToTCPServer will initiate a new connection
