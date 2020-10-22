@@ -507,7 +507,7 @@ func (c *Client) Receive() (err error) {
 			if err1 == nil && len(ipv4discoveries) > 0 {
 				dmux.Lock()
 				err = err1
-				discoveries = ipv4discoveries
+				discoveries = append(discoveries, ipv4discoveries...)
 				dmux.Unlock()
 			}
 		}()
@@ -523,13 +523,14 @@ func (c *Client) Receive() (err error) {
 			if err1 == nil && len(ipv6discoveries) > 0 {
 				dmux.Lock()
 				err = err1
-				discoveries = ipv6discoveries
+				discoveries = append(discoveries, ipv6discoveries...)
 				dmux.Unlock()
 			}
 		}()
 		wgDiscovery.Wait()
 
 		if err == nil && len(discoveries) > 0 {
+			log.Debugf("all discoveries: %+v", discoveries)
 			for i := 0; i < len(discoveries); i++ {
 				log.Debugf("discovery %d has payload: %+v", i, discoveries[i])
 				if !bytes.HasPrefix(discoveries[i].Payload, []byte("croc")) {
