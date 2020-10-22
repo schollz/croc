@@ -6,9 +6,12 @@ import "net"
 const TCP_BUFFER_SIZE = 1024 * 64
 
 // DEFAULT_RELAY is the default relay used (can be set using --relay)
-var DEFAULT_RELAY = "croc.schollz.com"
-var DEFAULT_RELAY6 = "croc6.schollz.com"
-var DEFAULT_PORT = "9009"
+var (
+	DEFAULT_RELAY      = "croc.schollz.com"
+	DEFAULT_RELAY6     = "croc6.schollz.com"
+	DEFAULT_PORT       = "9009"
+	DEFAULT_PASSPHRASE = "pass123"
+)
 
 func init() {
 	iprecords, _ := net.LookupIP(DEFAULT_RELAY)
