@@ -106,6 +106,7 @@ type Client struct {
 	fread       *os.File
 	numfinished int
 	quit        chan bool
+	finishedNum int
 }
 
 // Chunk contains information about the
@@ -1165,7 +1166,7 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	}
 	c.bar = progressbar.NewOptions64(1,
 		progressbar.OptionOnCompletion(func() {
-			fmt.Fprintf(os.Stderr, " ✔️\n")
+			c.fmtPrintUpdate()
 		}),
 		progressbar.OptionSetWidth(20),
 		progressbar.OptionSetDescription(description),
@@ -1224,6 +1225,13 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 	return
 }
 
+func (c *Client) fmtPrintUpdate() {
+	c.finishedNum++
+	if len(c.FilesToTransfer) > 1 {
+		fmt.Fprintf(os.Stderr, " %d/%d\n", c.finishedNum, len(c.FilesToTransfer))
+	}
+}
+
 func (c *Client) updateState() (err error) {
 	err = c.updateIfSenderChannelSecured()
 	if err != nil {
@@ -1251,7 +1259,7 @@ func (c *Client) updateState() (err error) {
 					}
 					c.bar = progressbar.NewOptions64(1,
 						progressbar.OptionOnCompletion(func() {
-							fmt.Fprintf(os.Stderr, " ✔️\n")
+							c.fmtPrintUpdate()
 						}),
 						progressbar.OptionSetWidth(20),
 						progressbar.OptionSetDescription(description),
@@ -1296,7 +1304,7 @@ func (c *Client) setBar() {
 	c.bar = progressbar.NewOptions64(
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
 		progressbar.OptionOnCompletion(func() {
-			fmt.Fprintf(os.Stderr, " ✔️\n")
+			c.fmtPrintUpdate()
 		}),
 		progressbar.OptionSetWidth(20),
 		progressbar.OptionSetDescription(description),
