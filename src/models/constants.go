@@ -40,10 +40,11 @@ func lookupIP(address string) (ipaddress string, err error) {
 			d := net.Dialer{
 				Timeout: time.Millisecond * time.Duration(10000),
 			}
-			return d.DialContext(ctx, "udp", "8.8.8.8:53")
+			return d.DialContext(ctx, "udp", "1.1.1.1")
 		},
 	}
 	ip, err := r.LookupHost(context.Background(), address)
+	fmt.Println(ip)
 	if err != nil {
 		fmt.Println(err)
 		return
