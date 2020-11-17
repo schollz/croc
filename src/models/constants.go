@@ -2,7 +2,6 @@ package models
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"time"
 )
@@ -19,18 +18,19 @@ var (
 )
 
 func init() {
-	DEFAULT_RELAY, _ = lookupIP(DEFAULT_RELAY)
-	DEFAULT_RELAY += ":" + DEFAULT_PORT
-	DEFAULT_RELAY6, _ = lookupIP(DEFAULT_RELAY6)
-	DEFAULT_RELAY6 += "[" + DEFAULT_RELAY6 + "]:" + DEFAULT_PORT
-	// iprecords, _ := lookupIP(DEFAULT_RELAY)
-	// for _, ip := range iprecords {
-	// 	DEFAULT_RELAY = ip.String() + ":" + DEFAULT_PORT
-	// }
-	// iprecords, _ = lookupIP(DEFAULT_RELAY6)
-	// for _, ip := range iprecords {
-	// 	DEFAULT_RELAY6 = "[" + ip.String() + "]:" + DEFAULT_PORT
-	// }
+	var err error
+	DEFAULT_RELAY, err = lookupIP(DEFAULT_RELAY)
+	if err == nil {
+		DEFAULT_RELAY += ":" + DEFAULT_PORT
+	} else {
+		DEFAULT_RELAY = ""
+	}
+	DEFAULT_RELAY6, err = lookupIP(DEFAULT_RELAY6)
+	if err == nil {
+		DEFAULT_RELAY6 = "[" + DEFAULT_RELAY6 + "]:" + DEFAULT_PORT
+	} else {
+		DEFAULT_RELAY6 = ""
+	}
 }
 
 func lookupIP(address string) (ipaddress string, err error) {
@@ -40,13 +40,11 @@ func lookupIP(address string) (ipaddress string, err error) {
 			d := net.Dialer{
 				Timeout: time.Millisecond * time.Duration(10000),
 			}
-			return d.DialContext(ctx, "udp", "1.1.1.1")
+			return d.DialContext(ctx, "udp", "1.1.1.1:53")
 		},
 	}
 	ip, err := r.LookupHost(context.Background(), address)
-	fmt.Println(ip)
 	if err != nil {
-		fmt.Println(err)
 		return
 	}
 	ipaddress = ip[0]
