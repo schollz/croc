@@ -1,6 +1,11 @@
 package models
 
-import "net"
+import (
+	"context"
+	"fmt"
+	"net"
+	"time"
+)
 
 // TCP_BUFFER_SIZE is the maximum packet size
 const TCP_BUFFER_SIZE = 1024 * 64
@@ -14,12 +19,35 @@ var (
 )
 
 func init() {
-	iprecords, _ := net.LookupIP(DEFAULT_RELAY)
-	for _, ip := range iprecords {
-		DEFAULT_RELAY = ip.String() + ":" + DEFAULT_PORT
+	DEFAULT_RELAY, _ = lookupIP(DEFAULT_RELAY)
+	DEFAULT_RELAY += ":" + DEFAULT_PORT
+	DEFAULT_RELAY6, _ = lookupIP(DEFAULT_RELAY6)
+	DEFAULT_RELAY6 += "[" + DEFAULT_RELAY6 + "]:" + DEFAULT_PORT
+	// iprecords, _ := lookupIP(DEFAULT_RELAY)
+	// for _, ip := range iprecords {
+	// 	DEFAULT_RELAY = ip.String() + ":" + DEFAULT_PORT
+	// }
+	// iprecords, _ = lookupIP(DEFAULT_RELAY6)
+	// for _, ip := range iprecords {
+	// 	DEFAULT_RELAY6 = "[" + ip.String() + "]:" + DEFAULT_PORT
+	// }
+}
+
+func lookupIP(address string) (ipaddress string, err error) {
+	r := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{
+				Timeout: time.Millisecond * time.Duration(10000),
+			}
+			return d.DialContext(ctx, "udp", "8.8.8.8:53")
+		},
 	}
-	iprecords, _ = net.LookupIP(DEFAULT_RELAY6)
-	for _, ip := range iprecords {
-		DEFAULT_RELAY6 = "[" + ip.String() + "]:" + DEFAULT_PORT
+	ip, err := r.LookupHost(context.Background(), address)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
+	ipaddress = ip[0]
+	return
 }
