@@ -353,7 +353,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		flags.WriteString("--relay " + c.Options.RelayAddress + " ")
 	}
 	if c.Options.RelayPassword != models.DEFAULT_PASSPHRASE {
-		flags.WriteString("--pass " + c.Options.RelayPassword + " ")
+		flags.WriteString("--pass '" + c.Options.RelayPassword + "' ")
 	}
 	fmt.Fprintf(os.Stderr, "Code is: %[1]s\nOn the other computer run\n\ncroc %[2]s%[1]s\n", c.Options.SharedSecret, flags.String())
 	if c.Options.Ask {
