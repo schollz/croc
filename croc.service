@@ -1,12 +1,49 @@
 [Unit]
-Description=croc relay
+Description=croc relay service
 After=network.target
 
 [Service]
+Environment="CROC_PASS=pass123"
+ExecStart=/usr/local/bin/croc relay
+Restart=always
+RestartSec=60
 Type=simple
-User=nobody
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-ExecStart=/usr/bin/croc relay
+User=croc-relay
+Group=nogroup
+
+InaccessiblePaths=/bin /boot /etc /home /lib /lost+found /media /mnt /opt /root /sbin /srv /var
+
+TemporaryFileSystem=/usr:ro
+BindReadOnlyPaths=/usr/local/bin/croc
+
+# A null CapabilityBoundingSet sets the service to have no capabilities.
+CapabilityBoundingSet=
+KeyringMode=private
+LockPersonality=true
+MemoryDenyWriteExecute=true
+NoNewPrivileges=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+PrivateDevices=true
+PrivateTmp=true
+RemoveIPC=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+# SECBIT_KEEP_CAPS defaults to "off", which is preferred for security.
+# Hence for this bit, we only lock it, without also setting it. 
+# Other bits are both set and locked.
+SecureBits=keepcaps-locked,noroot,noroot-locked,no-suid-fixup,no-suid-fixup-locked
+SystemCallArchitectures=native
+# List of permitted syscalls; any others will result in termination via SIGSYS.
+SystemCallFilter=@network-io @system-service
 
 [Install]
 WantedBy=multi-user.target
