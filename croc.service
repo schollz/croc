@@ -11,8 +11,7 @@ Type=simple
 User=croc-relay
 Group=nogroup
 
-InaccessiblePaths=/bin /boot /etc /home /lib /lost+found /media /mnt /opt /root /sbin /srv /var
-
+# Hardening
 TemporaryFileSystem=/usr:ro
 BindReadOnlyPaths=/usr/local/bin/croc
 
@@ -22,16 +21,17 @@ KeyringMode=private
 LockPersonality=true
 MemoryDenyWriteExecute=true
 NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+PrivateUsers=true
 ProtectClock=true
 ProtectControlGroups=true
 ProtectHome=true
 ProtectHostname=true
-ProtectKernelModules=true
 ProtectKernelLogs=true
+ProtectKernelModules=true
 ProtectKernelTunables=true
 ProtectSystem=strict
-PrivateDevices=true
-PrivateTmp=true
 RemoveIPC=true
 RestrictAddressFamilies=AF_INET AF_INET6
 RestrictNamespaces=true
@@ -42,8 +42,14 @@ RestrictSUIDSGID=true
 # Other bits are both set and locked.
 SecureBits=keepcaps-locked,noroot,noroot-locked,no-suid-fixup,no-suid-fixup-locked
 SystemCallArchitectures=native
-# List of permitted syscalls; any others will result in termination via SIGSYS.
+# List of permitted syscalls
 SystemCallFilter=@network-io @system-service
+# List of denied syscalls (inherited from @system-service)
+SystemCallFilter=~@privileged ~@resources
+
+# At time of writing, no available systems to test these directives.
+#ProtectProc=noaccess
+#ProcSubset=all
 
 [Install]
 WantedBy=multi-user.target
