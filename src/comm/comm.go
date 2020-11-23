@@ -84,6 +84,7 @@ func (c *Comm) Write(b []byte) (n int, err error) {
 		fmt.Println("binary.Write failed:", err)
 	}
 	tmpCopy := append(header.Bytes(), b...)
+	tmpCopy = append([]byte("croc"), tmpCopy...)
 	n, err = c.connection.Write(tmpCopy)
 	if err != nil {
 		err = fmt.Errorf("connection.Write failed: %w", err)
@@ -106,6 +107,19 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 
 	// read until we get 4 bytes for the header
 	header := make([]byte, 4)
+	_, err = io.ReadFull(c.connection, header)
+	if err != nil {
+		log.Debugf("initial read error: %v", err)
+		return
+	}
+	if !bytes.Equal(header, []byte("croc")) {
+		err = fmt.Errorf("bad packet")
+		log.Debugf("no croc header: %+v", err)
+		return
+	}
+
+	// read until we get 4 bytes for the header
+	header = make([]byte, 4)
 	_, err = io.ReadFull(c.connection, header)
 	if err != nil {
 		log.Debugf("initial read error: %v", err)
