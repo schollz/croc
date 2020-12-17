@@ -85,6 +85,7 @@ func Run() (err error) {
 		&cli.BoolFlag{Name: "no-compress", Usage: "disable compression"},
 		&cli.BoolFlag{Name: "ask", Usage: "make sure sender and recipient are prompted"},
 		&cli.BoolFlag{Name: "local", Usage: "force to use only local connections"},
+		&cli.StringFlag{Name: "ip", Value: "", Usage: "set sender ip if known e.g. 10.0.0.1:9009, [::1]:9009"},
 		&cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay", EnvVars: []string{"CROC_RELAY"}},
 		&cli.StringFlag{Name: "relay6", Value: models.DEFAULT_RELAY6, Usage: "ipv6 address of the relay", EnvVars: []string{"CROC_RELAY6"}},
 		&cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
@@ -376,6 +377,7 @@ func receive(c *cli.Context) (err error) {
 		Ask:           c.Bool("ask"),
 		RelayPassword: determinePass(c),
 		OnlyLocal:     c.Bool("local"),
+		IP:            c.String("ip"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
