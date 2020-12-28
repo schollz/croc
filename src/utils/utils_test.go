@@ -88,9 +88,9 @@ func TestSHA256(t *testing.T) {
 }
 
 func TestByteCountDecimal(t *testing.T) {
-	assert.Equal(t, "10.0 kB", ByteCountDecimal(10000))
+	assert.Equal(t, "10.0 kB", ByteCountDecimal(10240))
 	assert.Equal(t, "50 B", ByteCountDecimal(50))
-	assert.Equal(t, "12.4 MB", ByteCountDecimal(12378517))
+	assert.Equal(t, "12.4 MB", ByteCountDecimal(13002343))
 }
 
 func TestMissingChunks(t *testing.T) {
