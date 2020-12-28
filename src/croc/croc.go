@@ -64,6 +64,7 @@ type Options struct {
 	Ask            bool
 	SendingText    bool
 	NoCompress     bool
+	IP             string
 }
 
 // Client holds the state of the croc transfer
@@ -487,11 +488,27 @@ func (c *Client) Receive() (err error) {
 	// recipient will look for peers first
 	// and continue if it doesn't find any within 100 ms
 	usingLocal := false
-	if c.Options.OnlyLocal {
+	isIPset := false
+
+	if c.Options.OnlyLocal || c.Options.IP != "" {
 		c.Options.RelayAddress = ""
 		c.Options.RelayAddress6 = ""
 	}
-	if !c.Options.DisableLocal {
+
+	if c.Options.IP != "" {
+		// check ip version
+		if strings.Count(c.Options.IP, ":") >= 2 {
+			log.Debug("assume ipv6")
+			c.Options.RelayAddress6 = c.Options.IP
+		}
+		if strings.Contains(c.Options.IP, ".") {
+			log.Debug("assume ipv4")
+			c.Options.RelayAddress = c.Options.IP
+		}
+		isIPset = true
+	}
+
+	if !c.Options.DisableLocal && !isIPset {
 		log.Debug("attempt to discover peers")
 		var discoveries []peerdiscovery.Discovered
 		var wgDiscovery sync.WaitGroup
@@ -589,7 +606,7 @@ func (c *Client) Receive() (err error) {
 	log.Debugf("receiver connection established: %+v", c.conn[0])
 	log.Debugf("banner: %s", banner)
 
-	if !usingLocal && !c.Options.DisableLocal {
+	if !usingLocal && !c.Options.DisableLocal && !isIPset {
 		// ask the sender for their local ips and port
 		// and try to connect to them
 		log.Debug("sending ips?")
