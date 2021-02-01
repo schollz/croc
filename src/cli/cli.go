@@ -85,7 +85,7 @@ func Run() (err error) {
 		&cli.BoolFlag{Name: "no-compress", Usage: "disable compression"},
 		&cli.BoolFlag{Name: "ask", Usage: "make sure sender and recipient are prompted"},
 		&cli.BoolFlag{Name: "local", Usage: "force to use only local connections"},
-		&cli.BoolFlag{Name: "ignoreStdin", Usage: "ignore piped stdin"},
+		&cli.BoolFlag{Name: "ignore-stdin", Usage: "ignore piped stdin"},
 		&cli.StringFlag{Name: "ip", Value: "", Usage: "set sender ip if known e.g. 10.0.0.1:9009, [::1]:9009"},
 		&cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay", EnvVars: []string{"CROC_RELAY"}},
 		&cli.StringFlag{Name: "relay6", Value: models.DEFAULT_RELAY6, Usage: "ipv6 address of the relay", EnvVars: []string{"CROC_RELAY6"}},
@@ -178,7 +178,7 @@ func send(c *cli.Context) (err error) {
 		Stdout:         c.Bool("stdout"),
 		DisableLocal:   c.Bool("no-local"),
 		OnlyLocal:      c.Bool("local"),
-		IgnoreStdin:	c.Bool("ignoreStdin"),
+		IgnoreStdin:    c.Bool("ignore-stdin"),
 		RelayPorts:     strings.Split(c.String("ports"), ","),
 		Ask:            c.Bool("ask"),
 		NoMultiplexing: c.Bool("no-multi"),
@@ -219,7 +219,7 @@ func send(c *cli.Context) (err error) {
 
 	var fnames []string
 	stat, _ := os.Stdin.Stat()
-	if ((stat.Mode() & os.ModeCharDevice) == 0) && !c.Bool("ignoreStdin") {
+	if ((stat.Mode() & os.ModeCharDevice) == 0) && !c.Bool("ignore-stdin") {
 		fnames, err = getStdin()
 		if err != nil {
 			return
