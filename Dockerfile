@@ -2,7 +2,7 @@ FROM golang:1.15-alpine as builder
 RUN apk add --no-cache git
 WORKDIR /go/croc
 COPY . .
-RUN go build -v
+RUN go build -v -ldflags="-s -w"
 
 FROM alpine:latest 
 EXPOSE 9009
