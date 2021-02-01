@@ -5,7 +5,7 @@ package main
 //go:generate git tag -af v$VERSION -m "v$VERSION"
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/schollz/croc/v8/src/cli"
 )
@@ -28,6 +28,6 @@ func main() {
 	// 	}
 	// }()
 	if err := cli.Run(); err != nil {
-		fmt.Println(err)
+		log.Fatalln(err)
 	}
 }
