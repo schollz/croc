@@ -77,12 +77,6 @@ On Arch Linux you can install the latest release with `pacman`:
 $ pacman -S croc
 ```
 
-On Ubuntu you can install with `snap`:
-
-```
-$ snap install croc
-```
-
 On Gentoo you can install with `portage`:
 ```
 $ emerge net-misc/croc
