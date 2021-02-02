@@ -225,9 +225,9 @@ func send(c *cli.Context) (err error) {
 			return
 		}
 		defer func() {
-			err = os.Remove(fnames[0])
-			if err != nil {
-				log.Error(err)
+			e := os.Remove(fnames[0])
+			if e != nil {
+				log.Error(e)
 			}
 		}()
 	} else if c.String("text") != "" {
@@ -236,9 +236,9 @@ func send(c *cli.Context) (err error) {
 			return
 		}
 		defer func() {
-			err = os.Remove(fnames[0])
-			if err != nil {
-				log.Error(err)
+			e := os.Remove(fnames[0])
+			if e != nil {
+				log.Error(e)
 			}
 		}()
 
