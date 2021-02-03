@@ -61,6 +61,7 @@ type Options struct {
 	NoMultiplexing bool
 	DisableLocal   bool
 	OnlyLocal      bool
+	IgnoreStdin    bool
 	Ask            bool
 	SendingText    bool
 	NoCompress     bool
