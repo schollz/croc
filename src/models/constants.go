@@ -56,7 +56,7 @@ func lookupIP(address, dns string) (ipaddress string, err error) {
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{
-				Timeout: time.Millisecond * time.Duration(10000),
+				Timeout: time.Millisecond * time.Duration(1000),
 			}
 			return d.DialContext(ctx, "udp", dns+":53")
 		},
