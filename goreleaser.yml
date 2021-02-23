@@ -72,7 +72,7 @@ archives:
 
 brews:
   -
-    github:
+    tap:
       owner: schollz
       name: homebrew-tap
     folder: Formula
