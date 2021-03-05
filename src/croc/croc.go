@@ -1164,6 +1164,10 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	pathToFile := path.Join(fileInfo.FolderRemote, fileInfo.Name)
 	if fileInfo.Symlink != "" {
 		log.Debug("creating symlink")
+		// remove symlink if it exists
+		if _, errExists := os.Lstat(pathToFile); errExists == nil {
+			os.Remove(pathToFile)
+		}
 		err = os.Symlink(fileInfo.Symlink, pathToFile)
 		if err != nil {
 			return
