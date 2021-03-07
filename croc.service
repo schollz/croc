@@ -43,7 +43,7 @@ RestrictSUIDSGID=true
 SecureBits=keepcaps-locked,noroot,noroot-locked,no-suid-fixup,no-suid-fixup-locked
 SystemCallArchitectures=native
 # List of permitted syscalls
-SystemCallFilter=@network-io @system-service
+SystemCallFilter=@system-service
 # List of denied syscalls (inherited from @system-service)
 SystemCallFilter=~@privileged ~@resources
 
