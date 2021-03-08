@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/schollz/croc/v8/src/utils"
@@ -31,7 +33,16 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 	var connection net.Conn
 	if Socks5Proxy != "" && !utils.IsLocalIP(address) {
 		var dialer proxy.Dialer
-		dialer, err = proxy.SOCKS5("tcp", Socks5Proxy, nil, proxy.Direct)
+		// prepend schema if no schema is given
+		if !strings.Contains(Socks5Proxy, `://`) {
+			Socks5Proxy = `socks5://` + Socks5Proxy
+		}
+		socks5ProxyURL, urlParseError := url.Parse(Socks5Proxy)
+		if urlParseError != nil {
+			err = fmt.Errorf("Unable to parse socks proxy url: %s", urlParseError)
+			return
+		}
+		dialer, err = proxy.FromURL(socks5ProxyURL, proxy.Direct)
 		if err != nil {
 			err = fmt.Errorf("proxy failed: %w", err)
 			return
