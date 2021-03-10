@@ -800,6 +800,9 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 				Type:    "error",
 				Message: "refusing files",
 			})
+			if err != nil {
+				return false, err
+			}
 			return true, fmt.Errorf("refused files")
 		}
 	} else {
@@ -893,6 +896,9 @@ func (c *Client) processMessageSalt(m message.Message) (done bool, err error) {
 			Type:  "salt",
 			Bytes: m.Bytes,
 		})
+		if err != nil {
+			return true, err
+		}
 	}
 	log.Debugf("session key is verified, generating encryption with salt: %x", m.Bytes)
 	key, err := c.Pake.SessionKey()
@@ -994,7 +1000,6 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 					Message: "refusing files",
 				})
 				done = true
-				err = fmt.Errorf("refused files")
 				return
 			}
 		}
