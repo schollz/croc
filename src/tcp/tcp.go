@@ -170,6 +170,9 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		return
 	}
 	err = c.Send(B.Bytes())
+	if err != nil {
+		return
+	}
 	Abytes, err = c.Receive()
 	if err != nil {
 		return
@@ -186,6 +189,9 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 
 	// receive salt
 	salt, err := c.Receive()
+	if err != nil {
+		return
+	}
 	strongKeyForEncryption, _, err := crypt.New(strongKey, salt)
 	if err != nil {
 		return
@@ -446,6 +452,9 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	log.Debugf("strong key: %x", strongKey)
 
 	strongKeyForEncryption, salt, err := crypt.New(strongKey, nil)
+	if err != nil {
+		return
+	}
 	// send salt
 	err = c.Send(salt)
 	if err != nil {
