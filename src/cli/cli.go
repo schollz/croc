@@ -80,6 +80,7 @@ func Run() (err error) {
 			Flags: []cli.Flag{
 				&cli.StringFlag{Name: "host", Usage: "host of the relay"},
 				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay"},
+				&cli.IntFlag{Name: "maxbytes", Value: comm.MaxBytes, Usage: "maximum bytes which can be relayed"},
 			},
 		},
 	}
@@ -463,6 +464,8 @@ func relay(c *cli.Context) (err error) {
 		debugString = "debug"
 	}
 	host := c.String("host")
+	comm.MaxBytes = c.Int("maxbytes")
+	log.Debugf("setting the maxbytes allowed for relay as %d", comm.MaxBytes)
 	ports := strings.Split(c.String("ports"), ",")
 	tcpPorts := strings.Join(ports[1:], ",")
 	for i, port := range ports {
