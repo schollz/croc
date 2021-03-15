@@ -1189,7 +1189,8 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	// setup the progressbar
 	description := fmt.Sprintf("%-*s", c.longestFilename, c.FilesToTransfer[i].Name)
 	if len(c.FilesToTransfer) == 1 {
-		description = c.FilesToTransfer[i].Name
+		// description = c.FilesToTransfer[i].Name
+		description = ""
 	}
 	c.bar = progressbar.NewOptions64(1,
 		progressbar.OptionOnCompletion(func() {
@@ -1256,6 +1257,8 @@ func (c *Client) fmtPrintUpdate() {
 	c.finishedNum++
 	if len(c.FilesToTransfer) > 1 {
 		fmt.Fprintf(os.Stderr, " %d/%d\n", c.finishedNum, len(c.FilesToTransfer))
+	} else {
+		fmt.Fprintf(os.Stderr, "\n")
 	}
 }
 
@@ -1282,7 +1285,8 @@ func (c *Client) updateState() (err error) {
 					// setup the progressbar and takedown the progress bar for empty files
 					description := fmt.Sprintf("%-*s", c.longestFilename, c.FilesToTransfer[i].Name)
 					if len(c.FilesToTransfer) == 1 {
-						description = c.FilesToTransfer[i].Name
+						// description = c.FilesToTransfer[i].Name
+						description = ""
 					}
 					c.bar = progressbar.NewOptions64(1,
 						progressbar.OptionOnCompletion(func() {
@@ -1326,7 +1330,8 @@ func (c *Client) updateState() (err error) {
 func (c *Client) setBar() {
 	description := fmt.Sprintf("%-*s", c.longestFilename, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 	if len(c.FilesToTransfer) == 1 {
-		description = c.FilesToTransfer[c.FilesToTransferCurrentNum].Name
+		// description = c.FilesToTransfer[c.FilesToTransferCurrentNum].Name
+		description = ""
 	}
 	c.bar = progressbar.NewOptions64(
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
