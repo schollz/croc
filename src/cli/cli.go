@@ -130,10 +130,15 @@ func getConfigDir() (homedir string, err error) {
 		log.Error(err)
 		return
 	}
-	homedir = path.Join(homedir, ".config", "croc")
-	if xdgConfigHome, isSet := os.LookupEnv("XDG_CONFIG_HOME"); isSet {
+	
+	if envHomedir, isSet := os.LookupEnv("CROC_CONFIG_DIR"); isSet {
+		homedir = envHomedir
+	} else if xdgConfigHome, isSet := os.LookupEnv("XDG_CONFIG_HOME"); isSet {
 		homedir = path.Join(xdgConfigHome, "croc")
+	} else {
+		homedir = path.Join(homedir, ".config", "croc")
 	}
+	
 	if _, err = os.Stat(homedir); os.IsNotExist(err) {
 		log.Debugf("creating home directory %s", homedir)
 		err = os.MkdirAll(homedir, 0700)
