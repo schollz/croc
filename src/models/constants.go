@@ -35,7 +35,14 @@ func init() {
 
 func lookupIPs(address string) (ipaddress string, err error) {
 	var publicDns = []string{"1.1.1.1", "8.8.8.8", "8.8.4.4", "1.0.0.1", "8.26.56.26", "208.67.222.222", "208.67.220.220"}
-	result := make(chan string, len(publicDns))
+	result := make(chan string, len(publicDns)+1)
+	go func() {
+		ips, _ := net.LookupIP(address)
+		for _, ip := range ips {
+			result <- ip.String()
+		}
+		result <- ""
+	}()
 	for _, dns := range publicDns {
 		go func(dns string) {
 			s, _ := lookupIP(address, dns)
