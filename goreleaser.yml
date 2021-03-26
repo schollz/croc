@@ -21,6 +21,8 @@ build:
   ignore:
     - goos: darwin
       goarch: 386
+    - goos: freebsd
+      goarch: arm
   goarm:
     - 7
 nfpms:
