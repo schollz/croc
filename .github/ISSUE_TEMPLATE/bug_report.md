@@ -2,28 +2,40 @@
 name: Bug report
 about: Create a report to help us improve
 title: ''
-labels: ''
+labels: bug
 assignees: ''
 
 ---
+<!-- The comments between these brackets won't show up in the submitted issue (as you can see in the Preview). -->
 
-**Please try to [download the latest version](https://github.com/schollz/croc/releases/latest) of croc before reporting a bug!**
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+<!-- Please try to download latest, https://github.com/schollz/croc/releases/latest of croc before reporting a bug! -->
 
-**To Reproduce**
+## Describe the bug
+<-- A clear and concise description of what the bug is. -->
+
+
+## To Reproduce
 Steps to reproduce the behavior:
-1. Go to '...'
+<-- 1. Go to '...'
 2. Click on '....'
 3. Scroll down to '....'
-4. See error
+4. See error -->
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+1.
+2.
+3.
+4. 
 
-**Version**
-Check `croc -version` and report it.
+## Expected behaviour
+<-- A clear and concise description of what you expected to happen. -->
 
-**Additional context**
-Add any other context about the problem here.
+
+## Version
+<-- Check "croc -v" and report it -->
+
+
+## Additional context
+<-- Add any other context about the problem here. -->
+
+
