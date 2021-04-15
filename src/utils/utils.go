@@ -41,8 +41,23 @@ func GetInput(prompt string) string {
 	return strings.TrimSpace(text)
 }
 
+// HashFile returns the hash of a file or, in case of a symlink, the
+// SHA256 hash of its target
 // HashFile returns the hash of a file
 func HashFile(fname string) (hash256 []byte, err error) {
+	var fstats os.FileInfo
+	fstats, err = os.Lstat(fname)
+	if err != nil {
+		return nil, err
+	}
+	if fstats.Mode()&os.ModeSymlink != 0 {
+		var target string
+		target, err = os.Readlink(fname)
+		return []byte(SHA256(target)), nil
+	}
+	if err != nil {
+		return nil, err
+	}
 	return IMOHashFile(fname)
 }
 

@@ -324,7 +324,7 @@ func getPaths(fnames []string) (paths []string, haveFolder bool, err error) {
 	haveFolder = false
 	paths = []string{}
 	for _, fname := range fnames {
-		stat, errStat := os.Stat(fname)
+		stat, errStat := os.Lstat(fname)
 		if errStat != nil {
 			err = errStat
 			return
