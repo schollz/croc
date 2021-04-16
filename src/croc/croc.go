@@ -20,10 +20,9 @@ import (
 
 	"github.com/denisbrodbeck/machineid"
 	log "github.com/schollz/logger"
-	"github.com/schollz/pake/v2"
+	pake "github.com/schollz/pake3"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v3"
-	"github.com/tscholl2/siec"
 
 	"github.com/schollz/croc/v8/src/comm"
 	"github.com/schollz/croc/v8/src/compress"
@@ -166,9 +165,9 @@ func New(ops Options) (c *Client, err error) {
 
 	// initialize pake
 	if c.Options.IsSender {
-		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret[5:]), 1, siec.SIEC255(), 1*time.Microsecond)
+		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, "siec", 1*time.Microsecond)
 	} else {
-		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret[5:]), 0, siec.SIEC255(), 1*time.Microsecond)
+		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, "siec", 1*time.Microsecond)
 	}
 	if err != nil {
 		return
