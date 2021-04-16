@@ -16,7 +16,7 @@ require (
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/mnemonicode v1.0.1
 	github.com/schollz/pake/v2 v2.0.7
-	github.com/schollz/pake3 v0.0.0-00010101000000-000000000000 // indirect
+	github.com/schollz/pake3 v0.0.0-00010101000000-000000000000
 	github.com/schollz/peerdiscovery v1.6.3
 	github.com/schollz/progressbar/v3 v3.7.6
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
