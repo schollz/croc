@@ -266,6 +266,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		return
 	}
 	if s.rooms.rooms[room].full {
+		defer s.deleteRoom(room)
 		s.rooms.Unlock()
 		bSend, err = crypt.Encrypt([]byte("room full"), strongKeyForEncryption)
 		if err != nil {
@@ -274,7 +275,6 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		err = c.Send(bSend)
 		if err != nil {
 			log.Error(err)
-			s.deleteRoom(room)
 			return
 		}
 		return
