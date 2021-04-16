@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
@@ -140,13 +141,27 @@ func LocalIP() string {
 	return localAddr.IP.String()
 }
 
+func GenerateRandomPin() string {
+	s := ""
+	max := new(big.Int)
+	max.SetInt64(9)
+	for i := 0; i < 4; i++ {
+		v, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			panic(err)
+		}
+		s += fmt.Sprintf("%d", v)
+	}
+	return s
+}
+
 // GetRandomName returns mnemoicoded random name
 func GetRandomName() string {
 	var result []string
 	bs := make([]byte, 4)
 	rand.Read(bs)
 	result = mnemonicode.EncodeWordList(result, bs)
-	return strings.Join(result, "-")
+	return GenerateRandomPin() + "-" + strings.Join(result, "-")
 }
 
 // ByteCountDecimal converts bytes to human readable byte string

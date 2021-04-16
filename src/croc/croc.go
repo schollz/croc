@@ -157,7 +157,7 @@ func New(ops Options) (c *Client, err error) {
 	Debug(c.Options.Debug)
 	log.Debugf("options: %+v", c.Options)
 
-	if len(c.Options.SharedSecret) < 4 {
+	if len(c.Options.SharedSecret) < 6 {
 		err = fmt.Errorf("code is too short")
 		return
 	}
@@ -166,9 +166,9 @@ func New(ops Options) (c *Client, err error) {
 
 	// initialize pake
 	if c.Options.IsSender {
-		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 1, siec.SIEC255(), 1*time.Microsecond)
+		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret[5:]), 1, siec.SIEC255(), 1*time.Microsecond)
 	} else {
-		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 0, siec.SIEC255(), 1*time.Microsecond)
+		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret[5:]), 0, siec.SIEC255(), 1*time.Microsecond)
 	}
 	if err != nil {
 		return
@@ -872,7 +872,7 @@ func (c *Client) procesMessagePake(m message.Message) (err error) {
 				c.conn[j+1], _, _, err = tcp.ConnectToTCPServer(
 					server,
 					c.Options.RelayPassword,
-					fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret)[:7], j),
+					fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret[:5])[:6], j),
 				)
 				if err != nil {
 					panic(err)
