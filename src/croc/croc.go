@@ -814,33 +814,40 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	return
 }
 
-func (c *Client) procesMessagePake(m message.Message) (err error) {
+func (c *Client) processMessagePake(m message.Message) (err error) {
 	log.Debug("received pake payload")
 
 	err = c.Pake.Update(m.Bytes)
 	if err != nil {
 		return
 	}
+	var salt []byte
 	if c.Options.IsSender {
-		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:  "pake",
-			Bytes: c.Pake.Bytes(),
-		})
-	} else {
 		log.Debug("generating salt")
-		salt := make([]byte, 8)
+		salt = make([]byte, 8)
 		if _, rerr := rand.Read(salt); err != nil {
 			log.Errorf("can't generate random numbers: %v", rerr)
 			return
 		}
+		log.Debug("sender sending pake+salt")
 		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:  "salt",
-			Bytes: salt,
+			Type:   "pake",
+			Bytes:  c.Pake.Bytes(),
+			Bytes2: salt,
 		})
-		if err != nil {
-			return
-		}
+	} else {
+		salt = m.Bytes2
 	}
+	// generate key
+	key, err := c.Pake.SessionKey()
+	if err != nil {
+		return err
+	}
+	c.Key, _, err = crypt.New(key, salt)
+	if err != nil {
+		return err
+	}
+	log.Debugf("generated key = %+x with salt %x", c.Key, salt)
 
 	// connects to the other ports of the server for transfer
 	var wg sync.WaitGroup
@@ -876,32 +883,8 @@ func (c *Client) procesMessagePake(m message.Message) (err error) {
 		}(i)
 	}
 	wg.Wait()
-	return
-}
 
-func (c *Client) processMessageSalt(m message.Message) (done bool, err error) {
-	log.Debug("received salt")
-	if c.Options.IsSender {
-		log.Debug("sending salt back")
-		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:  "salt",
-			Bytes: m.Bytes,
-		})
-		if err != nil {
-			return true, err
-		}
-	}
-	log.Debugf("generating encryption with salt: %x", m.Bytes)
-	key, err := c.Pake.SessionKey()
-	if err != nil {
-		return true, err
-	}
-	c.Key, _, err = crypt.New(key, m.Bytes)
-	if err != nil {
-		return true, err
-	}
-	log.Debugf("key = %+x", c.Key)
-	if c.Options.IsSender {
+	if !c.Options.IsSender {
 		log.Debug("sending external IP")
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:    "externalip",
@@ -949,13 +932,11 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		c.SuccessfulTransfer = true
 		return
 	case "pake":
-		err = c.procesMessagePake(m)
+		err = c.processMessagePake(m)
 		if err != nil {
 			err = fmt.Errorf("pake not successful: %w", err)
 			log.Debug(err)
 		}
-	case "salt":
-		done, err = c.processMessageSalt(m)
 	case "externalip":
 		done, err = c.processExternalIP(m)
 	case "error":

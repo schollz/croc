@@ -14,6 +14,7 @@ type Message struct {
 	Type    string `json:"t,omitempty"`
 	Message string `json:"m,omitempty"`
 	Bytes   []byte `json:"b,omitempty"`
+	Bytes2  []byte `json:"b2,omitempty"`
 	Num     int    `json:"n,omitempty"`
 }
 
