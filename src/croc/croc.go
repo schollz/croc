@@ -165,9 +165,9 @@ func New(ops Options) (c *Client, err error) {
 
 	// initialize pake
 	if c.Options.IsSender {
-		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, "siec", 1*time.Microsecond)
+		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, "siec")
 	} else {
-		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, "siec", 1*time.Microsecond)
+		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, "siec")
 	}
 	if err != nil {
 		return
@@ -816,80 +816,72 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 
 func (c *Client) procesMessagePake(m message.Message) (err error) {
 	log.Debug("received pake payload")
-	// if // c.spinner.Suffix != " performing PAKE..." {
-	// 	// c.spinner.Stop()
-	// 	// c.spinner.Suffix = " performing PAKE..."
-	// 	// c.spinner.Start()
-	// }
-	notVerified := !c.Pake.IsVerified()
+
 	err = c.Pake.Update(m.Bytes)
 	if err != nil {
 		return
 	}
-	if (notVerified && c.Pake.IsVerified() && !c.Options.IsSender) || !c.Pake.IsVerified() {
+	if c.Options.IsSender {
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:  "pake",
 			Bytes: c.Pake.Bytes(),
 		})
-	}
-	if c.Pake.IsVerified() {
-		if c.Options.IsSender {
-			log.Debug("generating salt")
-			salt := make([]byte, 8)
-			if _, rerr := rand.Read(salt); err != nil {
-				log.Errorf("can't generate random numbers: %v", rerr)
-				return
-			}
-			err = message.Send(c.conn[0], c.Key, message.Message{
-				Type:  "salt",
-				Bytes: salt,
-			})
-			if err != nil {
-				return
-			}
+	} else {
+		log.Debug("generating salt")
+		salt := make([]byte, 8)
+		if _, rerr := rand.Read(salt); err != nil {
+			log.Errorf("can't generate random numbers: %v", rerr)
+			return
 		}
+		err = message.Send(c.conn[0], c.Key, message.Message{
+			Type:  "salt",
+			Bytes: salt,
+		})
+		if err != nil {
+			return
+		}
+	}
 
-		// connects to the other ports of the server for transfer
-		var wg sync.WaitGroup
-		wg.Add(len(c.Options.RelayPorts))
-		for i := 0; i < len(c.Options.RelayPorts); i++ {
-			log.Debugf("port: [%s]", c.Options.RelayPorts[i])
-			go func(j int) {
-				defer wg.Done()
-				var host string
-				if c.Options.RelayAddress == "localhost" {
-					host = c.Options.RelayAddress
-				} else {
-					host, _, err = net.SplitHostPort(c.Options.RelayAddress)
-					if err != nil {
-						log.Errorf("bad relay address %s", c.Options.RelayAddress)
-						return
-					}
-				}
-				server := net.JoinHostPort(host, c.Options.RelayPorts[j])
-				log.Debugf("connecting to %s", server)
-				c.conn[j+1], _, _, err = tcp.ConnectToTCPServer(
-					server,
-					c.Options.RelayPassword,
-					fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret[:5])[:6], j),
-				)
+	// connects to the other ports of the server for transfer
+	var wg sync.WaitGroup
+	wg.Add(len(c.Options.RelayPorts))
+	for i := 0; i < len(c.Options.RelayPorts); i++ {
+		log.Debugf("port: [%s]", c.Options.RelayPorts[i])
+		go func(j int) {
+			defer wg.Done()
+			var host string
+			if c.Options.RelayAddress == "localhost" {
+				host = c.Options.RelayAddress
+			} else {
+				host, _, err = net.SplitHostPort(c.Options.RelayAddress)
 				if err != nil {
-					panic(err)
+					log.Errorf("bad relay address %s", c.Options.RelayAddress)
+					return
 				}
-				log.Debugf("connected to %s", server)
-				if !c.Options.IsSender {
-					go c.receiveData(j)
-				}
-			}(i)
-		}
-		wg.Wait()
+			}
+			server := net.JoinHostPort(host, c.Options.RelayPorts[j])
+			log.Debugf("connecting to %s", server)
+			c.conn[j+1], _, _, err = tcp.ConnectToTCPServer(
+				server,
+				c.Options.RelayPassword,
+				fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret[:5])[:6], j),
+			)
+			if err != nil {
+				panic(err)
+			}
+			log.Debugf("connected to %s", server)
+			if !c.Options.IsSender {
+				go c.receiveData(j)
+			}
+		}(i)
 	}
+	wg.Wait()
 	return
 }
 
 func (c *Client) processMessageSalt(m message.Message) (done bool, err error) {
 	log.Debug("received salt")
-	if !c.Options.IsSender {
+	if c.Options.IsSender {
 		log.Debug("sending salt back")
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:  "salt",
@@ -899,7 +891,7 @@ func (c *Client) processMessageSalt(m message.Message) (done bool, err error) {
 			return true, err
 		}
 	}
-	log.Debugf("session key is verified, generating encryption with salt: %x", m.Bytes)
+	log.Debugf("generating encryption with salt: %x", m.Bytes)
 	key, err := c.Pake.SessionKey()
 	if err != nil {
 		return true, err
