@@ -108,6 +108,7 @@ type Client struct {
 	numfinished int
 	quit        chan bool
 	finishedNum int
+	numberOfTransferedFiles int
 }
 
 // Chunk contains information about the
@@ -673,7 +674,13 @@ func (c *Client) Receive() (err error) {
 	}
 	log.Debug("exchanged header message")
 	fmt.Fprintf(os.Stderr, "\rsecuring channel...")
-	return c.transfer(TransferOptions{})
+	err = c.transfer(TransferOptions{})
+	if err == nil {
+		if c.numberOfTransferedFiles == 0 {
+			fmt.Fprintf(os.Stderr,"\rNo files need transfering.")
+		}
+	}
+	return
 }
 
 func (c *Client) transfer(options TransferOptions) (err error) {
@@ -897,7 +904,7 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 
 func (c *Client) processExternalIP(m message.Message) (done bool, err error) {
 	log.Debugf("received external IP: %+v", m)
-	if !c.Options.IsSender {
+	if c.Options.IsSender {
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:    "externalip",
 			Message: c.ExternalIP,
@@ -1201,12 +1208,21 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			err = c.createEmptyFileAndFinish(fileInfo, i)
 			if err != nil {
 				return
+			} else{
+				c.numberOfTransferedFiles++
 			}
 			continue
 		}
 		log.Debugf("%s %+x %+x %+v", fileInfo.Name, fileHash, fileInfo.Hash, errHash)
 		if !bytes.Equal(fileHash, fileInfo.Hash) {
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
+			if errHash== nil {
+				ans := utils.GetInput(fmt.Sprintf("\rOverwrite '%s'? (y/n) ",path.Join(fileInfo.FolderRemote, fileInfo.Name)))
+				if strings.TrimSpace(strings.ToLower(ans)) != "y" {
+					fmt.Fprintf(os.Stderr,"skipping '%s'",path.Join(fileInfo.FolderRemote, fileInfo.Name))
+					continue
+				} 				
+			}
 		} else {
 			log.Debugf("hashes are equal %x == %x", fileHash, fileInfo.Hash)
 		}
@@ -1217,6 +1233,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		if errHash != nil || !bytes.Equal(fileHash, fileInfo.Hash) {
 			finished = false
 			c.FilesToTransferCurrentNum = i
+			c.numberOfTransferedFiles++
 			break
 		}
 		// TODO: print out something about this file already existing
