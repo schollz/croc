@@ -65,6 +65,7 @@ type Options struct {
 	SendingText    bool
 	NoCompress     bool
 	IP             string
+	Overwrite      bool
 }
 
 // Client holds the state of the croc transfer
@@ -1216,7 +1217,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		log.Debugf("%s %+x %+x %+v", fileInfo.Name, fileHash, fileInfo.Hash, errHash)
 		if !bytes.Equal(fileHash, fileInfo.Hash) {
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
-			if errHash== nil {
+			if errHash== nil && !c.Options.Overwrite {
 				ans := utils.GetInput(fmt.Sprintf("\rOverwrite '%s'? (y/n) ",path.Join(fileInfo.FolderRemote, fileInfo.Name)))
 				if strings.TrimSpace(strings.ToLower(ans)) != "y" {
 					fmt.Fprintf(os.Stderr,"skipping '%s'",path.Join(fileInfo.FolderRemote, fileInfo.Name))
