@@ -9,7 +9,7 @@ import (
 	"time"
 
 	log "github.com/schollz/logger"
-	"github.com/schollz/pake/v2"
+	pake "github.com/schollz/pake3"
 
 	"github.com/schollz/croc/v8/src/comm"
 	"github.com/schollz/croc/v8/src/crypt"
