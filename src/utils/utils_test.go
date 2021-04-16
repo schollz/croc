@@ -184,6 +184,7 @@ func TestLocalIP(t *testing.T) {
 
 func TestGetRandomName(t *testing.T) {
 	name := GetRandomName()
+	fmt.Println(name)
 	assert.NotEmpty(t, name)
 }
 
