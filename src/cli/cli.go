@@ -14,11 +14,11 @@ import (
 	"time"
 
 	"github.com/schollz/cli/v2"
-	"github.com/schollz/croc/v8/src/comm"
-	"github.com/schollz/croc/v8/src/croc"
-	"github.com/schollz/croc/v8/src/models"
-	"github.com/schollz/croc/v8/src/tcp"
-	"github.com/schollz/croc/v8/src/utils"
+	"github.com/schollz/croc/v9/src/comm"
+	"github.com/schollz/croc/v9/src/croc"
+	"github.com/schollz/croc/v9/src/models"
+	"github.com/schollz/croc/v9/src/tcp"
+	"github.com/schollz/croc/v9/src/utils"
 	log "github.com/schollz/logger"
 	"github.com/schollz/pake/v3"
 )

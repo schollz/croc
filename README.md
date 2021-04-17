@@ -104,7 +104,7 @@ pkg install croc
 Or, you can [install Go](https://golang.org/dl/) and build from source (requires Go 1.12+): 
 
 ```
-GO111MODULE=on go get -v github.com/schollz/croc/v8
+GO111MODULE=on go get -v github.com/schollz/croc/v9
 ```
 
 

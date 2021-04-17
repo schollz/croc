@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/schollz/croc/v8/src/models"
+	"github.com/schollz/croc/v9/src/models"
 	"github.com/stretchr/testify/assert"
 )
 

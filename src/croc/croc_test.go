@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/schollz/croc/v8/src/tcp"
+	"github.com/schollz/croc/v9/src/tcp"
 	log "github.com/schollz/logger"
 	"github.com/stretchr/testify/assert"
 )
