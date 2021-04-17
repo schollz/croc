@@ -66,6 +66,7 @@ type Options struct {
 	NoCompress     bool
 	IP             string
 	Overwrite      bool
+	Curve          string
 }
 
 // Client holds the state of the croc transfer
@@ -165,11 +166,9 @@ func New(ops Options) (c *Client, err error) {
 
 	c.conn = make([]*comm.Comm, 16)
 
-	// initialize pake
-	if c.Options.IsSender {
-		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, "siec")
-	} else {
-		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, "siec")
+	// initialize pake for recipient
+	if !c.Options.IsSender {
+		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, c.Options.Curve)
 	}
 	if err != nil {
 		return
@@ -694,8 +693,9 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 	log.Debug("ready")
 	if !c.Options.IsSender && !c.Step1ChannelSecured {
 		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:  "pake",
-			Bytes: c.Pake.Bytes(),
+			Type:   "pake",
+			Bytes:  c.Pake.Bytes(),
+			Bytes2: []byte(c.Options.Curve),
 		})
 		if err != nil {
 			return
@@ -825,12 +825,23 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 func (c *Client) processMessagePake(m message.Message) (err error) {
 	log.Debug("received pake payload")
 
-	err = c.Pake.Update(m.Bytes)
-	if err != nil {
-		return
-	}
 	var salt []byte
 	if c.Options.IsSender {
+		// initialize curve based on the recipient's choice
+		log.Debugf("using curve %s", string(m.Bytes2))
+		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, string(m.Bytes2))
+		if err != nil {
+			log.Error(err)
+			return
+		}
+
+		// update the pake
+		err = c.Pake.Update(m.Bytes)
+		if err != nil {
+			return
+		}
+
+		// generate salt and send it back to recipient
 		log.Debug("generating salt")
 		salt = make([]byte, 8)
 		if _, rerr := rand.Read(salt); err != nil {
@@ -844,6 +855,10 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 			Bytes2: salt,
 		})
 	} else {
+		err = c.Pake.Update(m.Bytes)
+		if err != nil {
+			return
+		}
 		salt = m.Bytes2
 	}
 	// generate key

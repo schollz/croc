@@ -137,6 +137,15 @@ You can send with your own code phrase (must be more than 4 characters).
 croc send --code [code-phrase] [file(s)-or-folder]
 ```
 
+### Allow overwriting without prompt
+
+By default, croc will prompt whether to overwrite a file. You can automatically overwrite files by using the `--overwrite` flag (recipient only). For example, receive a file to automatically overwrite:
+
+```
+croc --yes --overwrite <code>
+```
+
+
 ### Use pipes - stdin and stdout
 
 You can pipe to `croc`:
@@ -171,6 +180,14 @@ You can use a proxy as your connection to the relay by adding a proxy address wi
 
 ```
 croc --socks5 "127.0.0.1:9050" send SOMEFILE
+```
+
+### Change encryption curve
+
+You can choose from several different elliptic curves to use for encryption by using the `--curve` flag. Only the recipient can choose the curve. For example, receive a file using the P-521 curve:
+
+```
+croc --curve p521 <codephrase>
 ```
 
 ### Self-host relay
