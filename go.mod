@@ -1,4 +1,4 @@
-module github.com/schollz/croc/v8
+module github.com/schollz/croc/v9
 
 go 1.13
 
