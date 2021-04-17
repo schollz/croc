@@ -20,6 +20,7 @@ import (
 	"github.com/schollz/croc/v8/src/tcp"
 	"github.com/schollz/croc/v8/src/utils"
 	log "github.com/schollz/logger"
+	pake "github.com/schollz/pake3"
 )
 
 // Version specifies the version
@@ -87,6 +88,7 @@ func Run() (err error) {
 		&cli.BoolFlag{Name: "local", Usage: "force to use only local connections"},
 		&cli.BoolFlag{Name: "ignore-stdin", Usage: "ignore piped stdin"},
 		&cli.BoolFlag{Name: "overwrite", Usage: "do not prompt to overwrite"},
+		&cli.StringFlag{Name: "curve", Value: "siec", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
 		&cli.StringFlag{Name: "ip", Value: "", Usage: "set sender ip if known e.g. 10.0.0.1:9009, [::1]:9009"},
 		&cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay", EnvVars: []string{"CROC_RELAY"}},
 		&cli.StringFlag{Name: "relay6", Value: models.DEFAULT_RELAY6, Usage: "ipv6 address of the relay", EnvVars: []string{"CROC_RELAY6"}},
@@ -195,6 +197,7 @@ func send(c *cli.Context) (err error) {
 		SendingText:    c.String("text") != "",
 		NoCompress:     c.Bool("no-compress"),
 		Overwrite:      c.Bool("overwrite"),
+		Curve:          c.String("curve"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -391,6 +394,7 @@ func receive(c *cli.Context) (err error) {
 		OnlyLocal:     c.Bool("local"),
 		IP:            c.String("ip"),
 		Overwrite:     c.Bool("overwrite"),
+		Curve:         c.String("curve"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
