@@ -11,7 +11,7 @@ import (
 )
 
 func TestComm(t *testing.T) {
-	token := make([]byte, MAXBYTES)
+	token := make([]byte, 3000)
 	if _, err := rand.Read(token); err != nil {
 		t.Error(err)
 	}

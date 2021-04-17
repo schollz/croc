@@ -13,12 +13,11 @@ require (
 	github.com/schollz/cli/v2 v2.2.1
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/mnemonicode v1.0.1
-	github.com/schollz/pake/v2 v2.0.7
+	github.com/schollz/pake/v3 v3.0.0-20210417162517-73e32835a3d0
 	github.com/schollz/peerdiscovery v1.6.3
 	github.com/schollz/progressbar/v3 v3.7.6
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stretchr/testify v1.6.1
-	github.com/tscholl2/siec v0.0.0-20191122224205-8da93652b094
 	golang.org/x/crypto v0.0.0-20210322153248-0c34fe9e7dc2
 	golang.org/x/net v0.0.0-20210326220855-61e056675ecf
 	golang.org/x/sys v0.0.0-20210326220804-49726bf1d181 // indirect

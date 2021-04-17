@@ -9,7 +9,7 @@ import (
 	"time"
 
 	log "github.com/schollz/logger"
-	"github.com/schollz/pake/v2"
+	"github.com/schollz/pake/v3"
 
 	"github.com/schollz/croc/v8/src/comm"
 	"github.com/schollz/croc/v8/src/crypt"
@@ -152,7 +152,7 @@ var weakKey = []byte{1, 2, 3}
 
 func (s *server) clientCommunication(port string, c *comm.Comm) (room string, err error) {
 	// establish secure password with PAKE for communication with relay
-	B, err := pake.InitCurve(weakKey, 1, "siec", 1*time.Microsecond)
+	B, err := pake.InitCurve(weakKey, 1, "siec")
 	if err != nil {
 		return
 	}
@@ -170,14 +170,6 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		return
 	}
 	err = c.Send(B.Bytes())
-	if err != nil {
-		return
-	}
-	Abytes, err = c.Receive()
-	if err != nil {
-		return
-	}
-	err = B.Update(Abytes)
 	if err != nil {
 		return
 	}
@@ -266,6 +258,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		return
 	}
 	if s.rooms.rooms[room].full {
+		defer s.deleteRoom(room)
 		s.rooms.Unlock()
 		bSend, err = crypt.Encrypt([]byte("room full"), strongKeyForEncryption)
 		if err != nil {
@@ -274,7 +267,6 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		err = c.Send(bSend)
 		if err != nil {
 			log.Error(err)
-			s.deleteRoom(room)
 			return
 		}
 		return
@@ -425,7 +417,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	}
 
 	// get PAKE connection with server to establish strong key to transfer info
-	A, err := pake.InitCurve(weakKey, 0, "siec", 1*time.Microsecond)
+	A, err := pake.InitCurve(weakKey, 0, "siec")
 	if err != nil {
 		return
 	}
@@ -438,10 +430,6 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		return
 	}
 	err = A.Update(Bbytes)
-	if err != nil {
-		return
-	}
-	err = c.Send(A.Bytes())
 	if err != nil {
 		return
 	}
