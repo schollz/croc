@@ -17,7 +17,7 @@ import (
 
 var Socks5Proxy = ""
 
-const MAXBYTES = 4000000
+var MAGIC_BYTES = []byte("croc")
 
 // Comm is some basic TCP communication
 type Comm struct {
@@ -95,6 +95,7 @@ func (c *Comm) Write(b []byte) (n int, err error) {
 		fmt.Println("binary.Write failed:", err)
 	}
 	tmpCopy := append(header.Bytes(), b...)
+	tmpCopy = append(MAGIC_BYTES, tmpCopy...)
 	n, err = c.connection.Write(tmpCopy)
 	if err != nil {
 		err = fmt.Errorf("connection.Write failed: %w", err)
@@ -115,8 +116,20 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	// must clear the timeout setting
 	defer c.connection.SetDeadline(time.Time{})
 
-	// read until we get 4 bytes for the header
+	// read until we get 4 bytes for the magic
 	header := make([]byte, 4)
+	_, err = io.ReadFull(c.connection, header)
+	if err != nil {
+		log.Debugf("initial read error: %v", err)
+		return
+	}
+	if !bytes.Equal(header, MAGIC_BYTES) {
+		err = fmt.Errorf("initial bytes are not magic: %x", header)
+		return
+	}
+
+	// read until we get 4 bytes for the header
+	header = make([]byte, 4)
 	_, err = io.ReadFull(c.connection, header)
 	if err != nil {
 		log.Debugf("initial read error: %v", err)
@@ -132,11 +145,6 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 		return
 	}
 	numBytes = int(numBytesUint32)
-	if numBytes > MAXBYTES {
-		err = fmt.Errorf("too many bytes: %d", numBytes)
-		log.Debug(err)
-		return
-	}
 
 	// shorten the reading deadline in case getting weird data
 	if err := c.connection.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {

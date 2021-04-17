@@ -20,10 +20,9 @@ import (
 
 	"github.com/denisbrodbeck/machineid"
 	log "github.com/schollz/logger"
-	"github.com/schollz/pake/v2"
+	"github.com/schollz/pake/v3"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v3"
-	"github.com/tscholl2/siec"
 
 	"github.com/schollz/croc/v8/src/comm"
 	"github.com/schollz/croc/v8/src/compress"
@@ -66,6 +65,8 @@ type Options struct {
 	SendingText    bool
 	NoCompress     bool
 	IP             string
+	Overwrite      bool
+	Curve          string
 }
 
 // Client holds the state of the croc transfer
@@ -104,11 +105,12 @@ type Client struct {
 	longestFilename int
 	firstSend       bool
 
-	mutex       *sync.Mutex
-	fread       *os.File
-	numfinished int
-	quit        chan bool
-	finishedNum int
+	mutex                   *sync.Mutex
+	fread                   *os.File
+	numfinished             int
+	quit                    chan bool
+	finishedNum             int
+	numberOfTransferedFiles int
 }
 
 // Chunk contains information about the
@@ -157,18 +159,16 @@ func New(ops Options) (c *Client, err error) {
 	Debug(c.Options.Debug)
 	log.Debugf("options: %+v", c.Options)
 
-	if len(c.Options.SharedSecret) < 4 {
+	if len(c.Options.SharedSecret) < 6 {
 		err = fmt.Errorf("code is too short")
 		return
 	}
 
 	c.conn = make([]*comm.Comm, 16)
 
-	// initialize pake
-	if c.Options.IsSender {
-		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 1, siec.SIEC255(), 1*time.Microsecond)
-	} else {
-		c.Pake, err = pake.Init([]byte(c.Options.SharedSecret), 0, siec.SIEC255(), 1*time.Microsecond)
+	// initialize pake for recipient
+	if !c.Options.IsSender {
+		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, c.Options.Curve)
 	}
 	if err != nil {
 		return
@@ -674,7 +674,13 @@ func (c *Client) Receive() (err error) {
 	}
 	log.Debug("exchanged header message")
 	fmt.Fprintf(os.Stderr, "\rsecuring channel...")
-	return c.transfer(TransferOptions{})
+	err = c.transfer(TransferOptions{})
+	if err == nil {
+		if c.numberOfTransferedFiles == 0 {
+			fmt.Fprintf(os.Stderr, "\rNo files transferred.")
+		}
+	}
+	return
 }
 
 func (c *Client) transfer(options TransferOptions) (err error) {
@@ -687,8 +693,9 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 	log.Debug("ready")
 	if !c.Options.IsSender && !c.Step1ChannelSecured {
 		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:  "pake",
-			Bytes: c.Pake.Bytes(),
+			Type:   "pake",
+			Bytes:  c.Pake.Bytes(),
+			Bytes2: []byte(c.Options.Curve),
 		})
 		if err != nil {
 			return
@@ -815,102 +822,92 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	return
 }
 
-func (c *Client) procesMessagePake(m message.Message) (err error) {
+func (c *Client) processMessagePake(m message.Message) (err error) {
 	log.Debug("received pake payload")
-	// if // c.spinner.Suffix != " performing PAKE..." {
-	// 	// c.spinner.Stop()
-	// 	// c.spinner.Suffix = " performing PAKE..."
-	// 	// c.spinner.Start()
-	// }
-	notVerified := !c.Pake.IsVerified()
-	err = c.Pake.Update(m.Bytes)
-	if err != nil {
-		return
-	}
-	if (notVerified && c.Pake.IsVerified() && !c.Options.IsSender) || !c.Pake.IsVerified() {
-		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:  "pake",
-			Bytes: c.Pake.Bytes(),
-		})
-	}
-	if c.Pake.IsVerified() {
-		if c.Options.IsSender {
-			log.Debug("generating salt")
-			salt := make([]byte, 8)
-			if _, rerr := rand.Read(salt); err != nil {
-				log.Errorf("can't generate random numbers: %v", rerr)
-				return
-			}
-			err = message.Send(c.conn[0], c.Key, message.Message{
-				Type:  "salt",
-				Bytes: salt,
-			})
-			if err != nil {
-				return
-			}
-		}
 
-		// connects to the other ports of the server for transfer
-		var wg sync.WaitGroup
-		wg.Add(len(c.Options.RelayPorts))
-		for i := 0; i < len(c.Options.RelayPorts); i++ {
-			log.Debugf("port: [%s]", c.Options.RelayPorts[i])
-			go func(j int) {
-				defer wg.Done()
-				var host string
-				if c.Options.RelayAddress == "localhost" {
-					host = c.Options.RelayAddress
-				} else {
-					host, _, err = net.SplitHostPort(c.Options.RelayAddress)
-					if err != nil {
-						log.Errorf("bad relay address %s", c.Options.RelayAddress)
-						return
-					}
-				}
-				server := net.JoinHostPort(host, c.Options.RelayPorts[j])
-				log.Debugf("connecting to %s", server)
-				c.conn[j+1], _, _, err = tcp.ConnectToTCPServer(
-					server,
-					c.Options.RelayPassword,
-					fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret)[:7], j),
-				)
-				if err != nil {
-					panic(err)
-				}
-				log.Debugf("connected to %s", server)
-				if !c.Options.IsSender {
-					go c.receiveData(j)
-				}
-			}(i)
-		}
-		wg.Wait()
-	}
-	return
-}
-
-func (c *Client) processMessageSalt(m message.Message) (done bool, err error) {
-	log.Debug("received salt")
-	if !c.Options.IsSender {
-		log.Debug("sending salt back")
-		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:  "salt",
-			Bytes: m.Bytes,
-		})
+	var salt []byte
+	if c.Options.IsSender {
+		// initialize curve based on the recipient's choice
+		log.Debugf("using curve %s", string(m.Bytes2))
+		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, string(m.Bytes2))
 		if err != nil {
-			return true, err
+			log.Error(err)
+			return
 		}
+
+		// update the pake
+		err = c.Pake.Update(m.Bytes)
+		if err != nil {
+			return
+		}
+
+		// generate salt and send it back to recipient
+		log.Debug("generating salt")
+		salt = make([]byte, 8)
+		if _, rerr := rand.Read(salt); err != nil {
+			log.Errorf("can't generate random numbers: %v", rerr)
+			return
+		}
+		log.Debug("sender sending pake+salt")
+		err = message.Send(c.conn[0], c.Key, message.Message{
+			Type:   "pake",
+			Bytes:  c.Pake.Bytes(),
+			Bytes2: salt,
+		})
+	} else {
+		err = c.Pake.Update(m.Bytes)
+		if err != nil {
+			return
+		}
+		salt = m.Bytes2
 	}
-	log.Debugf("session key is verified, generating encryption with salt: %x", m.Bytes)
+	// generate key
 	key, err := c.Pake.SessionKey()
 	if err != nil {
-		return true, err
+		return err
 	}
-	c.Key, _, err = crypt.New(key, m.Bytes)
+	c.Key, _, err = crypt.New(key, salt)
 	if err != nil {
-		return true, err
+		return err
 	}
-	log.Debugf("key = %+x", c.Key)
-	if c.Options.IsSender {
+	log.Debugf("generated key = %+x with salt %x", c.Key, salt)
+
+	// connects to the other ports of the server for transfer
+	var wg sync.WaitGroup
+	wg.Add(len(c.Options.RelayPorts))
+	for i := 0; i < len(c.Options.RelayPorts); i++ {
+		log.Debugf("port: [%s]", c.Options.RelayPorts[i])
+		go func(j int) {
+			defer wg.Done()
+			var host string
+			if c.Options.RelayAddress == "localhost" {
+				host = c.Options.RelayAddress
+			} else {
+				host, _, err = net.SplitHostPort(c.Options.RelayAddress)
+				if err != nil {
+					log.Errorf("bad relay address %s", c.Options.RelayAddress)
+					return
+				}
+			}
+			server := net.JoinHostPort(host, c.Options.RelayPorts[j])
+			log.Debugf("connecting to %s", server)
+			c.conn[j+1], _, _, err = tcp.ConnectToTCPServer(
+				server,
+				c.Options.RelayPassword,
+				fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret[:5])[:6], j),
+			)
+			if err != nil {
+				panic(err)
+			}
+			log.Debugf("connected to %s", server)
+			if !c.Options.IsSender {
+				go c.receiveData(j)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	if !c.Options.IsSender {
 		log.Debug("sending external IP")
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:    "externalip",
@@ -923,7 +920,7 @@ func (c *Client) processMessageSalt(m message.Message) (done bool, err error) {
 
 func (c *Client) processExternalIP(m message.Message) (done bool, err error) {
 	log.Debugf("received external IP: %+v", m)
-	if !c.Options.IsSender {
+	if c.Options.IsSender {
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:    "externalip",
 			Message: c.ExternalIP,
@@ -949,6 +946,15 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		return
 	}
 
+	// only "pake" messages should be unencrypted
+	// if a non-"pake" message is received unencrypted something
+	// is weird
+	if m.Type != "pake" && c.Key == nil {
+		err = fmt.Errorf("unencrypted communication rejected")
+		done = true
+		return
+	}
+
 	switch m.Type {
 	case "finished":
 		err = message.Send(c.conn[0], c.Key, message.Message{
@@ -958,13 +964,11 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		c.SuccessfulTransfer = true
 		return
 	case "pake":
-		err = c.procesMessagePake(m)
+		err = c.processMessagePake(m)
 		if err != nil {
 			err = fmt.Errorf("pake not successful: %w", err)
 			log.Debug(err)
 		}
-	case "salt":
-		done, err = c.processMessageSalt(m)
 	case "externalip":
 		done, err = c.processExternalIP(m)
 	case "error":
@@ -1229,12 +1233,21 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			err = c.createEmptyFileAndFinish(fileInfo, i)
 			if err != nil {
 				return
+			} else {
+				c.numberOfTransferedFiles++
 			}
 			continue
 		}
 		log.Debugf("%s %+x %+x %+v", fileInfo.Name, fileHash, fileInfo.Hash, errHash)
 		if !bytes.Equal(fileHash, fileInfo.Hash) {
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
+			if errHash == nil && !c.Options.Overwrite {
+				ans := utils.GetInput(fmt.Sprintf("\rOverwrite '%s'? (y/n) ", path.Join(fileInfo.FolderRemote, fileInfo.Name)))
+				if strings.TrimSpace(strings.ToLower(ans)) != "y" {
+					fmt.Fprintf(os.Stderr, "skipping '%s'", path.Join(fileInfo.FolderRemote, fileInfo.Name))
+					continue
+				}
+			}
 		} else {
 			log.Debugf("hashes are equal %x == %x", fileHash, fileInfo.Hash)
 		}
@@ -1245,6 +1258,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		if errHash != nil || !bytes.Equal(fileHash, fileInfo.Hash) {
 			finished = false
 			c.FilesToTransferCurrentNum = i
+			c.numberOfTransferedFiles++
 			break
 		}
 		// TODO: print out something about this file already existing

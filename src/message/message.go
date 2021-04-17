@@ -14,6 +14,7 @@ type Message struct {
 	Type    string `json:"t,omitempty"`
 	Message string `json:"m,omitempty"`
 	Bytes   []byte `json:"b,omitempty"`
+	Bytes2  []byte `json:"b2,omitempty"`
 	Num     int    `json:"n,omitempty"`
 }
 
@@ -43,7 +44,7 @@ func Encode(key []byte, m Message) (b []byte, err error) {
 		log.Debugf("writing %s message (encrypted)", m.Type)
 		b, err = crypt.Encrypt(b, key)
 	} else {
-		log.Debugf("writing %s message", m.Type)
+		log.Debugf("writing %s message (unencrypted)", m.Type)
 	}
 	return
 }
@@ -58,5 +59,12 @@ func Decode(key []byte, b []byte) (m Message, err error) {
 	}
 	b = compress.Decompress(b)
 	err = json.Unmarshal(b, &m)
+	if err == nil {
+		if key != nil {
+			log.Debugf("read %s message (encrypted)", m.Type)
+		} else {
+			log.Debugf("read %s message (unencrypted)", m.Type)
+		}
+	}
 	return
 }
