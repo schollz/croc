@@ -190,6 +190,9 @@ You can choose from several different elliptic curves to use for encryption by u
 croc --curve p521 <codephrase>
 ```
 
+Available curves are P-256, P-348, P-521 and SIEC. SIEC is the default curve used, it is a lesser known curve that belongs to a class of "super-isolated" curves which has security that does not reduce to the security of curves around it. (Scholl, Travis. Experimental Mathematics 28.4 (2019): 385-397)
+
+
 ### Self-host relay
 
 The relay is needed to staple the parallel incoming and outgoing connections. By default, `croc` uses a public relay but you can also run your own relay:
