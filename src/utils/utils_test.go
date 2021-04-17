@@ -10,11 +10,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/schollz/croc/v8/src/models"
 	"github.com/stretchr/testify/assert"
 )
 
+var bigFileSize = 75000000
+
 func bigFile() {
-	ioutil.WriteFile("bigfile.test", bytes.Repeat([]byte("z"), 75000000), 0666)
+	ioutil.WriteFile("bigfile.test", bytes.Repeat([]byte("z"), bigFileSize), 0666)
 }
 
 func BenchmarkMD5(b *testing.B) {
@@ -44,6 +47,14 @@ func BenchmarkSha256(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		SHA256("hello,world")
+	}
+}
+
+func BenchmarkMissingChunks(b *testing.B) {
+	bigFile()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		MissingChunks("bigfile.test", int64(bigFileSize), models.TCP_BUFFER_SIZE/2)
 	}
 }
 
