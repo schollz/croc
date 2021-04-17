@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/schollz/croc/v8/src/comm"
-	"github.com/schollz/croc/v8/src/crypt"
+	"github.com/schollz/croc/v9/src/comm"
+	"github.com/schollz/croc/v9/src/crypt"
 	log "github.com/schollz/logger"
 	"github.com/stretchr/testify/assert"
 )
