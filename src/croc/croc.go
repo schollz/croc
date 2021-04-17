@@ -20,7 +20,7 @@ import (
 
 	"github.com/denisbrodbeck/machineid"
 	log "github.com/schollz/logger"
-	pake "github.com/schollz/pake3"
+	"github.com/schollz/pake/v3"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v3"
 

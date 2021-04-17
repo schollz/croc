@@ -20,7 +20,7 @@ import (
 	"github.com/schollz/croc/v8/src/tcp"
 	"github.com/schollz/croc/v8/src/utils"
 	log "github.com/schollz/logger"
-	pake "github.com/schollz/pake3"
+	"github.com/schollz/pake/v3"
 )
 
 // Version specifies the version
