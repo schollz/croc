@@ -678,7 +678,7 @@ func (c *Client) Receive() (err error) {
 	err = c.transfer(TransferOptions{})
 	if err == nil {
 		if c.numberOfTransferedFiles == 0 {
-			fmt.Fprintf(os.Stderr, "\rNo files need transfering.")
+			fmt.Fprintf(os.Stderr, "\rNo files transferred.")
 		}
 	}
 	return
