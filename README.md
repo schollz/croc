@@ -131,7 +131,7 @@ There are a number of configurable options (see `--help`). A set of options (lik
 
 ### Custom code phrase
 
-You can send with your own code phrase (must be more than 4 characters).
+You can send with your own code phrase (must be more than 6 characters).
 
 ```
 croc send --code [code-phrase] [file(s)-or-folder]
