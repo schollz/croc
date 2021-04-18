@@ -107,8 +107,6 @@ Or, you can [install Go](https://golang.org/dl/) and build from source (requires
 GO111MODULE=on go get -v github.com/schollz/croc/v9
 ```
 
-
-
 ## Usage 
 
 To send a file, simply do: 
@@ -210,6 +208,16 @@ croc --relay "myrelay.example.com:9009" send [filename]
 ```
 
 Note, when sending, you only need to include the first port (the communication port). The subsequent ports for data transfer will be transmitted back to the user from the relay.
+
+For systems that use systemd you can use the included service file to run croc automatically and with reduced system privileges.
+
+* Save the `croc.service` file to `/etc/systemd/system`.
+* Edit the `Environment="CROC_PASS...` line according to your relay password.
+* If your croc binary is located in a path other than `/usr/local/bin` you will need to amend the `ExecPath`, `TemporaryFileSystem` and `BindReadOnlyPaths` directives accordingly.
+* Amend the `User` and `Group` directives to reflect the system account that your relay uses.
+* Issue `# systemctl daemon-reload` after any changes to the service file.
+* Issue `# systemctl enable --now croc` to enable automatic start and to start the relay.
+* `$ journalctl -u croc` will list any problems starting the service and `$ systemctl status croc` will display the current state of the relay.
 
 #### Self-host relay (docker)
 
