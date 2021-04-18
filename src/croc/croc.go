@@ -94,6 +94,7 @@ type Client struct {
 	CurrentFileChunkRanges []int64
 	CurrentFileChunks      []int64
 	CurrentFileIsClosed    bool
+	LastFolder             string
 
 	TotalSent             int64
 	TotalChunksTransfered int
@@ -1200,6 +1201,8 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	if len(c.FilesToTransfer) == 1 {
 		// description = c.FilesToTransfer[i].Name
 		description = ""
+	} else {
+		description = " " + description
 	}
 	c.bar = progressbar.NewOptions64(1,
 		progressbar.OptionOnCompletion(func() {
@@ -1265,6 +1268,11 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			finished = false
 			c.FilesToTransferCurrentNum = i
 			c.numberOfTransferedFiles++
+			newFolder, _ := filepath.Split(fileInfo.FolderRemote)
+			if newFolder != c.LastFolder && len(c.FilesToTransfer) > 0 {
+				fmt.Fprintf(os.Stderr, "\r%s\n", newFolder)
+			}
+			c.LastFolder = newFolder
 			break
 		}
 		// TODO: print out something about this file already existing
@@ -1353,6 +1361,8 @@ func (c *Client) setBar() {
 	if len(c.FilesToTransfer) == 1 {
 		// description = c.FilesToTransfer[c.FilesToTransferCurrentNum].Name
 		description = ""
+	} else if !c.Options.IsSender {
+		description = " " + description
 	}
 	c.bar = progressbar.NewOptions64(
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
