@@ -93,6 +93,7 @@ type Client struct {
 	CurrentFile            *os.File
 	CurrentFileChunkRanges []int64
 	CurrentFileChunks      []int64
+	CurrentFileIsClosed    bool
 
 	TotalSent             int64
 	TotalChunksTransfered int
@@ -738,7 +739,10 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 		)
 		log.Debugf("pathToFile: %s", pathToFile)
 		// close if not closed already
-		c.CurrentFile.Close()
+		if !c.CurrentFileIsClosed {
+			c.CurrentFile.Close()
+			c.CurrentFileIsClosed = true
+		}
 		if err := os.Remove(pathToFile); err != nil {
 			log.Warnf("error removing %s: %v", pathToFile, err)
 		}
@@ -1135,6 +1139,7 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 	}
 
 	c.TotalSent = 0
+	c.CurrentFileIsClosed = false
 	machID, _ := machineid.ID()
 	bRequest, _ := json.Marshal(RemoteFileRequest{
 		CurrentFileChunkRanges:    c.CurrentFileChunkRanges,
@@ -1242,7 +1247,8 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		if !bytes.Equal(fileHash, fileInfo.Hash) {
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
 			if errHash == nil && !c.Options.Overwrite {
-				ans := utils.GetInput(fmt.Sprintf("\rOverwrite '%s'? (y/n) ", path.Join(fileInfo.FolderRemote, fileInfo.Name)))
+				log.Debug("asking to overwrite")
+				ans := utils.GetInput(fmt.Sprintf("\nOverwrite '%s'? (y/n) ", path.Join(fileInfo.FolderRemote, fileInfo.Name)))
 				if strings.TrimSpace(strings.ToLower(ans)) != "y" {
 					fmt.Fprintf(os.Stderr, "skipping '%s'", path.Join(fileInfo.FolderRemote, fileInfo.Name))
 					continue
@@ -1322,6 +1328,7 @@ func (c *Client) updateState() (err error) {
 		// setup the progressbar
 		c.setBar()
 		c.TotalSent = 0
+		c.CurrentFileIsClosed = false
 		log.Debug("beginning sending comms")
 		pathToFile := path.Join(
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource,
@@ -1411,10 +1418,11 @@ func (c *Client) receiveData(i int) {
 		c.bar.Add(len(data[8:]))
 		c.TotalSent += int64(len(data[8:]))
 		c.TotalChunksTransfered++
-		if c.TotalChunksTransfered == len(c.CurrentFileChunks) || c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size {
+		if !c.CurrentFileIsClosed && (c.TotalChunksTransfered == len(c.CurrentFileChunks) || c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size) {
+			c.CurrentFileIsClosed = true
 			log.Debug("finished receiving!")
 			if err := c.CurrentFile.Close(); err != nil {
-				log.Errorf("error closing %s: %v", c.CurrentFile.Name(), err)
+				log.Debugf("error closing %s: %v", c.CurrentFile.Name(), err)
 			}
 			if c.Options.Stdout || c.Options.SendingText {
 				pathToFile := path.Join(
