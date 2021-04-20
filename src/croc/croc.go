@@ -1239,10 +1239,10 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		if _, ok := c.FilesHasFinished[i]; ok {
 			continue
 		}
-		log.Debugf("checking %+v", fileInfo)
 		if i < c.FilesToTransferCurrentNum {
 			continue
 		}
+		log.Debugf("checking %+v", fileInfo)
 		recipientFileInfo, errRecipientFile := os.Lstat(path.Join(fileInfo.FolderRemote, fileInfo.Name))
 		var errHash error
 		var fileHash []byte
