@@ -1053,6 +1053,7 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 			Ask:             c.Options.Ask,
 			SendingText:     c.Options.SendingText,
 			NoCompress:      c.Options.NoCompress,
+			HashAlgorithm:   c.Options.HashAlgorithm,
 		})
 		if err != nil {
 			log.Error(err)
@@ -1261,7 +1262,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		log.Debugf("%s %+x %+x %+v", fileInfo.Name, fileHash, fileInfo.Hash, errHash)
 		if !bytes.Equal(fileHash, fileInfo.Hash) {
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
-			if errHash == nil && !c.Options.Overwrite {
+			if errHash == nil && !c.Options.Overwrite && errRecipientFile == nil {
 				log.Debug("asking to overwrite")
 				ans := utils.GetInput(fmt.Sprintf("\nOverwrite '%s'? (y/n) ", path.Join(fileInfo.FolderRemote, fileInfo.Name)))
 				if strings.TrimSpace(strings.ToLower(ans)) != "y" {
