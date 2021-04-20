@@ -1236,7 +1236,13 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		if i < c.FilesToTransferCurrentNum {
 			continue
 		}
-		fileHash, errHash := utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name))
+		recipientFileInfo, errRecipientFile := os.Lstat(path.Join(fileInfo.FolderRemote, fileInfo.Name))
+		var errHash error
+		var fileHash []byte
+		if errRecipientFile == nil && recipientFileInfo.Size() == fileInfo.Size {
+			// the file exists, but is same size, so hash it
+			fileHash, errHash = utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name))
+		}
 		if fileInfo.Size == 0 || fileInfo.Symlink != "" {
 			err = c.createEmptyFileAndFinish(fileInfo, i)
 			if err != nil {
@@ -1275,7 +1281,6 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			c.LastFolder = newFolder
 			break
 		}
-		// TODO: print out something about this file already existing
 	}
 	err = c.recipientGetFileReady(finished)
 	return
