@@ -67,6 +67,7 @@ type Options struct {
 	IP             string
 	Overwrite      bool
 	Curve          string
+	HashAlgorithm  string
 }
 
 // Client holds the state of the croc transfer
@@ -149,6 +150,7 @@ type SenderInfo struct {
 	Ask             bool
 	SendingText     bool
 	NoCompress      bool
+	HashAlgorithm   string
 }
 
 // New establishes a new connection for transferring files between two instances.
@@ -222,8 +224,11 @@ func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 			}
 			log.Debugf("%+v", c.FilesToTransfer[i])
 		}
-
-		c.FilesToTransfer[i].Hash, err = utils.HashFile(fullPath)
+		if c.Options.HashAlgorithm == "" {
+			c.Options.HashAlgorithm = "xxhash"
+		}
+		c.FilesToTransfer[i].Hash, err = utils.HashFile(fullPath, c.Options.HashAlgorithm)
+		log.Debugf("hashed %s to %x using %s", fullPath, c.FilesToTransfer[i].Hash, c.Options.HashAlgorithm)
 		totalFilesSize += fstats.Size()
 		if err != nil {
 			return
@@ -769,6 +774,11 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	}
 	c.Options.SendingText = senderInfo.SendingText
 	c.Options.NoCompress = senderInfo.NoCompress
+	c.Options.HashAlgorithm = senderInfo.HashAlgorithm
+	if c.Options.HashAlgorithm == "" {
+		c.Options.HashAlgorithm = "imohash"
+	}
+	log.Debugf("using hash algorithm: %s", c.Options.HashAlgorithm)
 	if c.Options.NoCompress {
 		log.Debug("disabling compression")
 	}
@@ -1047,6 +1057,7 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 			Ask:             c.Options.Ask,
 			SendingText:     c.Options.SendingText,
 			NoCompress:      c.Options.NoCompress,
+			HashAlgorithm:   c.Options.HashAlgorithm,
 		})
 		if err != nil {
 			log.Error(err)
@@ -1232,11 +1243,17 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		if _, ok := c.FilesHasFinished[i]; ok {
 			continue
 		}
-		log.Debugf("checking %+v", fileInfo)
 		if i < c.FilesToTransferCurrentNum {
 			continue
 		}
-		fileHash, errHash := utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name))
+		log.Debugf("checking %+v", fileInfo)
+		recipientFileInfo, errRecipientFile := os.Lstat(path.Join(fileInfo.FolderRemote, fileInfo.Name))
+		var errHash error
+		var fileHash []byte
+		if errRecipientFile == nil && recipientFileInfo.Size() == fileInfo.Size {
+			// the file exists, but is same size, so hash it
+			fileHash, errHash = utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name), c.Options.HashAlgorithm)
+		}
 		if fileInfo.Size == 0 || fileInfo.Symlink != "" {
 			err = c.createEmptyFileAndFinish(fileInfo, i)
 			if err != nil {
@@ -1248,8 +1265,9 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		}
 		log.Debugf("%s %+x %+x %+v", fileInfo.Name, fileHash, fileInfo.Hash, errHash)
 		if !bytes.Equal(fileHash, fileInfo.Hash) {
+			log.Debugf("hashed %s to %x using %s", fileInfo.Name, fileHash, c.Options.HashAlgorithm)
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
-			if errHash == nil && !c.Options.Overwrite {
+			if errHash == nil && !c.Options.Overwrite && errRecipientFile == nil {
 				log.Debug("asking to overwrite")
 				ans := utils.GetInput(fmt.Sprintf("\nOverwrite '%s'? (y/n) ", path.Join(fileInfo.FolderRemote, fileInfo.Name)))
 				if strings.TrimSpace(strings.ToLower(ans)) != "y" {
@@ -1275,7 +1293,6 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			c.LastFolder = newFolder
 			break
 		}
-		// TODO: print out something about this file already existing
 	}
 	err = c.recipientGetFileReady(finished)
 	return
