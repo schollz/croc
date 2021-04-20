@@ -107,9 +107,7 @@ Or, you can [install Go](https://golang.org/dl/) and build from source (requires
 GO111MODULE=on go get -v github.com/schollz/croc/v9
 ```
 
-For Android
-
-There is an Android version for croc at https://github.com/howeyc/crocgui which is available at for download at https://f-droid.org/en/packages/com.github.howeyc.crocgui/
+On Android there is a 3rd party F-Droid app [available to download](https://f-droid.org/en/packages/com.github.howeyc.crocgui/).
 
 
 ## Usage 
