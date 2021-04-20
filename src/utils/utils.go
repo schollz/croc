@@ -24,6 +24,8 @@ import (
 	"github.com/schollz/mnemonicode"
 )
 
+var imohashFull = imohash.NewCustom(0, 0) // full hash
+
 // Exists reports whether the named file or directory exists.
 func Exists(name string) bool {
 	if _, err := os.Stat(name); err != nil {
@@ -81,7 +83,7 @@ func MD5HashFile(fname string) (hash256 []byte, err error) {
 
 // IMOHashFile returns imohash
 func IMOHashFile(fname string) (hash []byte, err error) {
-	b, err := imohash.SumFile(fname)
+	b, err := imohashFull.SumFile(fname)
 	hash = b[:]
 	return
 }
