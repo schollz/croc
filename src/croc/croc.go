@@ -225,6 +225,7 @@ func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 			log.Debugf("%+v", c.FilesToTransfer[i])
 		}
 		c.FilesToTransfer[i].Hash, err = utils.HashFile(fullPath, c.Options.HashAlgorithm)
+		log.Debugf("hashed %s to %x using %s", fullPath, c.FilesToTransfer[i].Hash, c.Options.HashAlgorithm)
 		totalFilesSize += fstats.Size()
 		if err != nil {
 			return
@@ -1261,6 +1262,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		}
 		log.Debugf("%s %+x %+x %+v", fileInfo.Name, fileHash, fileInfo.Hash, errHash)
 		if !bytes.Equal(fileHash, fileInfo.Hash) {
+			log.Debugf("hashed %s to %x using %s", fileInfo.Name, fileHash, c.Options.HashAlgorithm)
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
 			if errHash == nil && !c.Options.Overwrite && errRecipientFile == nil {
 				log.Debug("asking to overwrite")
