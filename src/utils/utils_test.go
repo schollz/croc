@@ -175,9 +175,9 @@ func TestHashFile(t *testing.T) {
 	if err := tmpfile.Close(); err != nil {
 		panic(err)
 	}
-	hashed, err := HashFile(tmpfile.Name())
+	hashed, err := HashFile(tmpfile.Name(), "xxhash")
 	assert.Nil(t, err)
-	assert.Equal(t, "18c9673a4bb8325d323e7f24fda9ae1e", fmt.Sprintf("%x", hashed))
+	assert.Equal(t, "e66c561610ad51e2", fmt.Sprintf("%x", hashed))
 }
 
 func TestPublicIP(t *testing.T) {
