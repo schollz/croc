@@ -67,6 +67,7 @@ type Options struct {
 	IP             string
 	Overwrite      bool
 	Curve          string
+	HashAlgorithm  string
 }
 
 // Client holds the state of the croc transfer
@@ -149,6 +150,7 @@ type SenderInfo struct {
 	Ask             bool
 	SendingText     bool
 	NoCompress      bool
+	HashAlgorithm   string
 }
 
 // New establishes a new connection for transferring files between two instances.
@@ -222,8 +224,7 @@ func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 			}
 			log.Debugf("%+v", c.FilesToTransfer[i])
 		}
-
-		c.FilesToTransfer[i].Hash, err = utils.HashFile(fullPath)
+		c.FilesToTransfer[i].Hash, err = utils.HashFile(fullPath, c.Options.HashAlgorithm)
 		totalFilesSize += fstats.Size()
 		if err != nil {
 			return
@@ -769,6 +770,11 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	}
 	c.Options.SendingText = senderInfo.SendingText
 	c.Options.NoCompress = senderInfo.NoCompress
+	c.Options.HashAlgorithm = senderInfo.HashAlgorithm
+	if c.Options.HashAlgorithm == "" {
+		c.Options.HashAlgorithm = "imohash"
+	}
+	log.Debugf("using hash algorithm: %s", c.Options.HashAlgorithm)
 	if c.Options.NoCompress {
 		log.Debug("disabling compression")
 	}
@@ -1241,7 +1247,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		var fileHash []byte
 		if errRecipientFile == nil && recipientFileInfo.Size() == fileInfo.Size {
 			// the file exists, but is same size, so hash it
-			fileHash, errHash = utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name))
+			fileHash, errHash = utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name), c.Options.HashAlgorithm)
 		}
 		if fileInfo.Size == 0 || fileInfo.Symlink != "" {
 			err = c.createEmptyFileAndFinish(fileInfo, i)

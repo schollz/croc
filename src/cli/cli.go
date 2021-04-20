@@ -198,6 +198,7 @@ func send(c *cli.Context) (err error) {
 		NoCompress:     c.Bool("no-compress"),
 		Overwrite:      c.Bool("overwrite"),
 		Curve:          c.String("curve"),
+		HashAlgorithm:  "xxhash",
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -395,6 +396,7 @@ func receive(c *cli.Context) (err error) {
 		IP:            c.String("ip"),
 		Overwrite:     c.Bool("overwrite"),
 		Curve:         c.String("curve"),
+		HashAlgorithm: "xxhash",
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""

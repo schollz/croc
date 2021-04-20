@@ -43,9 +43,8 @@ func GetInput(prompt string) string {
 }
 
 // HashFile returns the hash of a file or, in case of a symlink, the
-// SHA256 hash of its target
-// HashFile returns the hash of a file
-func HashFile(fname string) (hash256 []byte, err error) {
+// SHA256 hash of its target. Takes an argument to specify the algorithm to use.
+func HashFile(fname string, algorithm string) (hash256 []byte, err error) {
 	var fstats os.FileInfo
 	fstats, err = os.Lstat(fname)
 	if err != nil {
@@ -59,7 +58,16 @@ func HashFile(fname string) (hash256 []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
-	return IMOHashFile(fname)
+	switch algorithm {
+	case "imohash":
+		return IMOHashFile(fname)
+	case "md5":
+		return MD5HashFile(fname)
+	case "xxhash":
+		return XXHashFile(fname)
+	}
+	err = fmt.Errorf("unspecified algorithm")
+	return
 }
 
 // MD5HashFile returns MD5 hash
