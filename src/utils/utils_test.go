@@ -35,11 +35,20 @@ func BenchmarkXXHash(b *testing.B) {
 		XXHashFile("bigfile.test")
 	}
 }
+
 func BenchmarkImoHash(b *testing.B) {
 	bigFile()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		IMOHashFile("bigfile.test")
+	}
+}
+
+func BenchmarkImoHashFull(b *testing.B) {
+	bigFile()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		IMOHashFileFull("bigfile.test")
 	}
 }
 
