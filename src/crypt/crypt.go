@@ -76,7 +76,7 @@ func Decrypt(encrypted []byte, key []byte) (plaintext []byte, err error) {
 // NewArgon2 generates a new key based on a passphrase and salt
 // using argon2
 // https://pkg.go.dev/golang.org/x/crypto/argon2
-func NewArgon2(passphrase []byte, usersalt []byte) (key []byte, salt []byte, err error) {
+func NewArgon2(passphrase []byte, usersalt []byte) (aead cipher.AEAD, salt []byte, err error) {
 	if len(passphrase) < 1 {
 		err = fmt.Errorf("need more than that for passphrase")
 		return
@@ -91,17 +91,13 @@ func NewArgon2(passphrase []byte, usersalt []byte) (key []byte, salt []byte, err
 	} else {
 		salt = usersalt
 	}
-	key = argon2.IDKey(passphrase, salt, 1, 64*1024, 4, 32)
+	aead, err = chacha20poly1305.NewX(argon2.IDKey(passphrase, salt, 1, 64*1024, 4, 32))
 	return
 }
 
 // EncryptChaCha will encrypt ChaCha20-Poly1305 using the pre-generated key
 // https://pkg.go.dev/golang.org/x/crypto/chacha20poly1305
-func EncryptChaCha(plaintext []byte, key []byte) (encrypted []byte, err error) {
-	aead, err := chacha20poly1305.NewX(key)
-	if err != nil {
-		return
-	}
+func EncryptChaCha(plaintext []byte, aead cipher.AEAD) (encrypted []byte, err error) {
 	nonce := make([]byte, aead.NonceSize(), aead.NonceSize()+len(plaintext)+aead.Overhead())
 	if _, err := rand.Read(nonce); err != nil {
 		panic(err)
@@ -114,11 +110,7 @@ func EncryptChaCha(plaintext []byte, key []byte) (encrypted []byte, err error) {
 
 // DecryptChaCha will encrypt ChaCha20-Poly1305 using the pre-generated key
 // https://pkg.go.dev/golang.org/x/crypto/chacha20poly1305
-func DecryptChaCha(encryptedMsg []byte, key []byte) (encrypted []byte, err error) {
-	aead, err := chacha20poly1305.NewX(key)
-	if err != nil {
-		return
-	}
+func DecryptChaCha(encryptedMsg []byte, aead cipher.AEAD) (encrypted []byte, err error) {
 	if len(encryptedMsg) < aead.NonceSize() {
 		err = fmt.Errorf("ciphertext too short")
 		return
