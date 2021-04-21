@@ -94,6 +94,15 @@ func IMOHashFile(fname string) (hash []byte, err error) {
 	return
 }
 
+var imofull = imohash.NewCustom(0, 0)
+
+// IMOHashFileFull returns imohash of full file
+func IMOHashFileFull(fname string) (hash []byte, err error) {
+	b, err := imofull.SumFile(fname)
+	hash = b[:]
+	return
+}
+
 // XXHashFile returns the xxhash of a file
 func XXHashFile(fname string) (hash256 []byte, err error) {
 	f, err := os.Open(fname)
