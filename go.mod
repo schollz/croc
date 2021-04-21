@@ -7,7 +7,7 @@ require (
 	github.com/cespare/xxhash v1.1.0
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/denisbrodbeck/machineid v1.0.1
-	github.com/kalafut/imohash v1.0.0
+	github.com/kalafut/imohash v1.0.2
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/mattn/go-runewidth v0.0.12 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
