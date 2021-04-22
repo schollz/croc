@@ -99,8 +99,8 @@ func NewArgon2(passphrase []byte, usersalt []byte) (aead cipher.AEAD, salt []byt
 // https://pkg.go.dev/golang.org/x/crypto/chacha20poly1305
 func EncryptChaCha(plaintext []byte, aead cipher.AEAD) (encrypted []byte, err error) {
 	nonce := make([]byte, aead.NonceSize(), aead.NonceSize()+len(plaintext)+aead.Overhead())
-	if _, err := rand.Read(nonce); err != nil {
-		panic(err)
+	if _, err = rand.Read(nonce); err != nil {
+		return
 	}
 
 	// Encrypt the message and append the ciphertext to the nonce.
