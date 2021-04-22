@@ -1,6 +1,7 @@
 package message
 
 import (
+	"crypto/cipher"
 	"encoding/json"
 
 	"github.com/schollz/croc/v9/src/comm"
@@ -24,7 +25,7 @@ func (m Message) String() string {
 }
 
 // Send will send out
-func Send(c *comm.Comm, key []byte, m Message) (err error) {
+func Send(c *comm.Comm, key cipher.AEAD, m Message) (err error) {
 	mSend, err := Encode(key, m)
 	if err != nil {
 		return
@@ -34,7 +35,7 @@ func Send(c *comm.Comm, key []byte, m Message) (err error) {
 }
 
 // Encode will convert to bytes
-func Encode(key []byte, m Message) (b []byte, err error) {
+func Encode(key cipher.AEAD, m Message) (b []byte, err error) {
 	b, err = json.Marshal(m)
 	if err != nil {
 		return
@@ -42,7 +43,7 @@ func Encode(key []byte, m Message) (b []byte, err error) {
 	b = compress.Compress(b)
 	if key != nil {
 		log.Debugf("writing %s message (encrypted)", m.Type)
-		b, err = crypt.Encrypt(b, key)
+		b, err = crypt.EncryptChaCha(b, key)
 	} else {
 		log.Debugf("writing %s message (unencrypted)", m.Type)
 	}
@@ -50,9 +51,9 @@ func Encode(key []byte, m Message) (b []byte, err error) {
 }
 
 // Decode will convert from bytes
-func Decode(key []byte, b []byte) (m Message, err error) {
+func Decode(key cipher.AEAD, b []byte) (m Message, err error) {
 	if key != nil {
-		b, err = crypt.Decrypt(b, key)
+		b, err = crypt.DecryptChaCha(b, key)
 		if err != nil {
 			return
 		}

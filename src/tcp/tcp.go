@@ -184,7 +184,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	if err != nil {
 		return
 	}
-	strongKeyForEncryption, _, err := crypt.New(strongKey, salt)
+	strongKeyForEncryption, _, err := crypt.NewArgon2(strongKey, salt)
 	if err != nil {
 		return
 	}
@@ -194,13 +194,13 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	if err != nil {
 		return
 	}
-	passwordBytes, err := crypt.Decrypt(passwordBytesEnc, strongKeyForEncryption)
+	passwordBytes, err := crypt.DecryptChaCha(passwordBytesEnc, strongKeyForEncryption)
 	if err != nil {
 		return
 	}
 	if strings.TrimSpace(string(passwordBytes)) != s.password {
 		err = fmt.Errorf("bad password")
-		enc, _ := crypt.Decrypt([]byte(err.Error()), strongKeyForEncryption)
+		enc, _ := crypt.DecryptChaCha([]byte(err.Error()), strongKeyForEncryption)
 		if err := c.Send(enc); err != nil {
 			return "", fmt.Errorf("send error: %w", err)
 		}
@@ -213,7 +213,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		banner = "ok"
 	}
 	log.Debugf("sending '%s'", banner)
-	bSend, err := crypt.Encrypt([]byte(banner+"|||"+c.Connection().RemoteAddr().String()), strongKeyForEncryption)
+	bSend, err := crypt.EncryptChaCha([]byte(banner+"|||"+c.Connection().RemoteAddr().String()), strongKeyForEncryption)
 	if err != nil {
 		return
 	}
@@ -228,7 +228,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	if err != nil {
 		return
 	}
-	roomBytes, err := crypt.Decrypt(enc, strongKeyForEncryption)
+	roomBytes, err := crypt.DecryptChaCha(enc, strongKeyForEncryption)
 	if err != nil {
 		return
 	}
@@ -244,7 +244,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		s.rooms.Unlock()
 		// tell the client that they got the room
 
-		bSend, err = crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
+		bSend, err = crypt.EncryptChaCha([]byte("ok"), strongKeyForEncryption)
 		if err != nil {
 			return
 		}
@@ -259,7 +259,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	}
 	if s.rooms.rooms[room].full {
 		s.rooms.Unlock()
-		bSend, err = crypt.Encrypt([]byte("room full"), strongKeyForEncryption)
+		bSend, err = crypt.EncryptChaCha([]byte("room full"), strongKeyForEncryption)
 		if err != nil {
 			return
 		}
@@ -293,7 +293,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	}(otherConnection, c, &wg)
 
 	// tell the sender everything is ready
-	bSend, err = crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
+	bSend, err = crypt.EncryptChaCha([]byte("ok"), strongKeyForEncryption)
 	if err != nil {
 		return
 	}
@@ -438,7 +438,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	}
 	log.Debugf("strong key: %x", strongKey)
 
-	strongKeyForEncryption, salt, err := crypt.New(strongKey, nil)
+	strongKeyForEncryption, salt, err := crypt.NewArgon2(strongKey, nil)
 	if err != nil {
 		return
 	}
@@ -449,7 +449,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	}
 
 	log.Debug("sending password")
-	bSend, err := crypt.Encrypt([]byte(password), strongKeyForEncryption)
+	bSend, err := crypt.EncryptChaCha([]byte(password), strongKeyForEncryption)
 	if err != nil {
 		return
 	}
@@ -462,7 +462,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	if err != nil {
 		return
 	}
-	data, err := crypt.Decrypt(enc, strongKeyForEncryption)
+	data, err := crypt.DecryptChaCha(enc, strongKeyForEncryption)
 	if err != nil {
 		return
 	}
@@ -473,7 +473,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	banner = strings.Split(string(data), "|||")[0]
 	ipaddr = strings.Split(string(data), "|||")[1]
 	log.Debug("sending room")
-	bSend, err = crypt.Encrypt([]byte(room), strongKeyForEncryption)
+	bSend, err = crypt.EncryptChaCha([]byte(room), strongKeyForEncryption)
 	if err != nil {
 		return
 	}
@@ -486,7 +486,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	if err != nil {
 		return
 	}
-	data, err = crypt.Decrypt(enc, strongKeyForEncryption)
+	data, err = crypt.DecryptChaCha(enc, strongKeyForEncryption)
 	if err != nil {
 		return
 	}

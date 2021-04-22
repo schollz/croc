@@ -2,6 +2,7 @@ package croc
 
 import (
 	"bytes"
+	"crypto/cipher"
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
@@ -74,7 +75,7 @@ type Options struct {
 type Client struct {
 	Options                         Options
 	Pake                            *pake.Pake
-	Key                             []byte
+	Key                             cipher.AEAD
 	ExternalIP, ExternalIPConnected string
 
 	// steps involved in forming relationship
@@ -881,7 +882,7 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 	if err != nil {
 		return err
 	}
-	c.Key, _, err = crypt.New(key, salt)
+	c.Key, _, err = crypt.NewArgon2(key, salt)
 	if err != nil {
 		return err
 	}
@@ -1419,7 +1420,7 @@ func (c *Client) receiveData(i int) {
 			continue
 		}
 
-		data, err = crypt.Decrypt(data, c.Key)
+		data, err = crypt.DecryptChaCha(data, c.Key)
 		if err != nil {
 			panic(err)
 		}
@@ -1512,13 +1513,13 @@ func (c *Client) sendData(i int) {
 				var err error
 				var dataToSend []byte
 				if c.Options.NoCompress {
-					dataToSend, err = crypt.Encrypt(
+					dataToSend, err = crypt.EncryptChaCha(
 						append(posByte, data[:n]...),
 						c.Key,
 					)
 				} else {
 
-					dataToSend, err = crypt.Encrypt(
+					dataToSend, err = crypt.EncryptChaCha(
 						compress.Compress(
 							append(posByte, data[:n]...),
 						),
