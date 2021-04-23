@@ -166,8 +166,9 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	}
 	// check whether we have a valid public key from client
 	keyPublic := string(retBytes)
-	_, err := age.ParseX25519Recipient(keyPublic)
+	_, err = age.ParseX25519Recipient(keyPublic)
 	if err != nil {
+		err = fmt.Errorf("bad public key: %s", keyPublic)
 		return
 	}
 
@@ -257,7 +258,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	}(otherConnection, c, &wg)
 
 	// tell the sender everything is ready
-	bSend, err = crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
+	bSend, err = crypt.EncryptAge([]byte("ok"), keyPublic)
 	if err != nil {
 		return
 	}
@@ -384,7 +385,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 
 	// send epheremal public key, encrypted using the server's public key
 	foo := strings.Split(password, "--")
-	keyPublicRelay = foo[1]
+	keyPublicRelay := foo[1]
 	password = foo[2]
 
 	sendBytesEnc, err := crypt.EncryptAge([]byte(keyPublic), keyPublicRelay)
@@ -412,7 +413,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	ipaddr = strings.Split(string(retBytes), "|||")[1]
 
 	log.Debug("sending room")
-	bSend, err = crypt.EncryptAge([]byte(room), keyPublicRelay)
+	bSend, err := crypt.EncryptAge([]byte(room), keyPublicRelay)
 	if err != nil {
 		return
 	}
@@ -421,11 +422,11 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		return
 	}
 	log.Debug("waiting for room confirmation")
-	enc, err = c.Receive()
+	enc, err := c.Receive()
 	if err != nil {
 		return
 	}
-	data, err = crypt.DecryptAge(enc, keyPrivate)
+	data, err := crypt.DecryptAge(enc, keyPrivate)
 	if err != nil {
 		return
 	}
