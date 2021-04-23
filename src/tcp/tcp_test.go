@@ -45,7 +45,9 @@ func TestTCP(t *testing.T) {
 	assert.NotNil(t, err)
 	_, _, _, err = ConnectToTCPServer("localhost:8281", "pass123", keyPublic, "testRoom", 1*time.Nanosecond)
 	assert.NotNil(t, err)
-	_, _, _, err = ConnectToTCPServer("localhost:8281", "pass123", keyPublic+"askldjfklsajdf", "testRoom", 1*time.Nanosecond)
+	_, _, _, err = ConnectToTCPServer("localhost:8281", "pass123", keyPublic+"askldjfklsajdf", "testRoom2")
+	assert.NotNil(t, err)
+	_, _, _, err = ConnectToTCPServer("localhost:8281", "pass125", keyPublic, "testRoom3")
 	assert.NotNil(t, err)
 
 	// try sending data
