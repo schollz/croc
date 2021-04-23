@@ -103,3 +103,15 @@ func TestEncryptionChaCha(t *testing.T) {
 	_, _, err = NewArgon2([]byte(""), nil)
 	assert.NotNil(t, err)
 }
+
+func TestEncryptionAge(t *testing.T) {
+	pub, priv, err := NewAge()
+	fmt.Printf("key: %s\n", pub)
+	assert.Nil(t, err)
+	msg := []byte("hello, world")
+	enc, err := EncryptAge(msg, pub)
+	assert.Nil(t, err)
+	dec, err := DecryptAge(enc, priv)
+	assert.Nil(t, err)
+	assert.Equal(t, msg, dec)
+}

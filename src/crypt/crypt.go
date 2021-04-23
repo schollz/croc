@@ -86,7 +86,7 @@ func NewAge() (pubkey string, privkey string, err error) {
 	return
 }
 
-func EncryptAge(pubkey string, data []byte) (encrypted []byte, err error) {
+func EncryptAge(data []byte, pubkey string) (encrypted []byte, err error) {
 	recipient, err := age.ParseX25519Recipient(pubkey)
 	if err != nil {
 		return
@@ -109,7 +109,7 @@ func EncryptAge(pubkey string, data []byte) (encrypted []byte, err error) {
 	return
 }
 
-func DecryptAge(privkey string, encrypted []byte) (data []byte, err error) {
+func DecryptAge(encrypted []byte, privkey string) (data []byte, err error) {
 	identity, err := age.ParseX25519Identity(privkey)
 	if err != nil {
 		return

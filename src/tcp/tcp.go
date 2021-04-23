@@ -8,10 +8,9 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/schollz/logger"
-	"github.com/schollz/pake/v3"
-
 	"filippo.io/age"
+	log "github.com/schollz/logger"
+
 	"github.com/schollz/croc/v9/src/comm"
 	"github.com/schollz/croc/v9/src/crypt"
 	"github.com/schollz/croc/v9/src/models"
@@ -19,8 +18,8 @@ import (
 
 type server struct {
 	port       string
-	privateKey string
-	publicKey  string
+	keyPrivate string
+	keyPublic  string
 	debugLevel string
 	banner     string
 	password   string
@@ -43,9 +42,11 @@ var timeToRoomDeletion = 10 * time.Minute
 var pingRoom = "pinglkasjdlfjsaldjf"
 
 // Run starts a tcp listener, run async
-func Run(debugLevel, port, password string, banner ...string) (err error) {
+func Run(debugLevel, port, password string, keyPublic string, keyPrivate string, banner ...string) (err error) {
 	s := new(server)
 	s.port = port
+	s.keyPrivate = keyPrivate
+	s.keyPublic = keyPublic
 	s.password = password
 	s.debugLevel = debugLevel
 	if len(banner) > 0 {
@@ -154,66 +155,19 @@ func (s *server) run() (err error) {
 var weakKey = []byte{1, 2, 3}
 
 func (s *server) clientCommunication(port string, c *comm.Comm) (room string, err error) {
-	identity, err := age.GenerateX25519Identity()
+	// get public key of the connecting client
+	retBytesEnc, err := c.Receive()
 	if err != nil {
 		return
 	}
-	// send public key for encryption
-	c.Send([]byte(identity.Recipient().String()))
-
-	// establish secure password with PAKE for communication with relay
-	B, err := pake.InitCurve(weakKey, 1, "siec")
+	retBytes, err := crypt.DecryptAge(retBytesEnc, s.keyPrivate)
 	if err != nil {
 		return
 	}
-	Abytes, err := c.Receive()
+	// check whether we have a valid public key from client
+	keyPublic := string(retBytes)
+	_, err := age.ParseX25519Recipient(keyPublic)
 	if err != nil {
-		return
-	}
-	if bytes.Equal(Abytes, []byte("ping")) {
-		room = pingRoom
-		c.Send([]byte("pong"))
-		return
-	}
-	err = B.Update(Abytes)
-	if err != nil {
-		return
-	}
-	err = c.Send(B.Bytes())
-	if err != nil {
-		return
-	}
-	strongKey, err := B.SessionKey()
-	if err != nil {
-		return
-	}
-	log.Debugf("strongkey: %x", strongKey)
-
-	// receive salt
-	salt, err := c.Receive()
-	if err != nil {
-		return
-	}
-	strongKeyForEncryption, _, err := crypt.New(strongKey, salt)
-	if err != nil {
-		return
-	}
-
-	log.Debugf("waiting for password")
-	passwordBytesEnc, err := c.Receive()
-	if err != nil {
-		return
-	}
-	passwordBytes, err := crypt.Decrypt(passwordBytesEnc, strongKeyForEncryption)
-	if err != nil {
-		return
-	}
-	if strings.TrimSpace(string(passwordBytes)) != s.password {
-		err = fmt.Errorf("bad password")
-		enc, _ := crypt.Decrypt([]byte(err.Error()), strongKeyForEncryption)
-		if err := c.Send(enc); err != nil {
-			return "", fmt.Errorf("send error: %w", err)
-		}
 		return
 	}
 
@@ -223,7 +177,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		banner = "ok"
 	}
 	log.Debugf("sending '%s'", banner)
-	bSend, err := crypt.Encrypt([]byte(banner+"|||"+c.Connection().RemoteAddr().String()), strongKeyForEncryption)
+	bSend, err := crypt.EncryptAge([]byte(banner+"|||"+c.Connection().RemoteAddr().String()), keyPublic)
 	if err != nil {
 		return
 	}
@@ -238,7 +192,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	if err != nil {
 		return
 	}
-	roomBytes, err := crypt.Decrypt(enc, strongKeyForEncryption)
+	roomBytes, err := crypt.DecryptAge(enc, s.keyPrivate)
 	if err != nil {
 		return
 	}
@@ -254,7 +208,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		s.rooms.Unlock()
 		// tell the client that they got the room
 
-		bSend, err = crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
+		bSend, err = crypt.EncryptAge([]byte("ok"), keyPublic)
 		if err != nil {
 			return
 		}
@@ -269,7 +223,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	}
 	if s.rooms.rooms[room].full {
 		s.rooms.Unlock()
-		bSend, err = crypt.Encrypt([]byte("room full"), strongKeyForEncryption)
+		bSend, err = crypt.EncryptAge([]byte("room full"), keyPublic)
 		if err != nil {
 			return
 		}
@@ -425,65 +379,40 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		return
 	}
 
-	// get PAKE connection with server to establish strong key to transfer info
-	A, err := pake.InitCurve(weakKey, 0, "siec")
-	if err != nil {
-		return
-	}
-	err = c.Send(A.Bytes())
-	if err != nil {
-		return
-	}
-	Bbytes, err := c.Receive()
-	if err != nil {
-		return
-	}
-	err = A.Update(Bbytes)
-	if err != nil {
-		return
-	}
-	strongKey, err := A.SessionKey()
-	if err != nil {
-		return
-	}
-	log.Debugf("strong key: %x", strongKey)
+	// generate ephermeral key
+	keyPublic, keyPrivate, err := crypt.NewAge()
 
-	strongKeyForEncryption, salt, err := crypt.New(strongKey, nil)
-	if err != nil {
-		return
-	}
-	// send salt
-	err = c.Send(salt)
+	// send epheremal public key, encrypted using the server's public key
+	foo := strings.Split(password, "--")
+	keyPublicRelay = foo[1]
+	password = foo[2]
+
+	sendBytesEnc, err := crypt.EncryptAge([]byte(keyPublic), keyPublicRelay)
 	if err != nil {
 		return
 	}
 
-	log.Debug("sending password")
-	bSend, err := crypt.Encrypt([]byte(password), strongKeyForEncryption)
+	err = c.Send(sendBytesEnc)
 	if err != nil {
 		return
 	}
-	err = c.Send(bSend)
+	retBytesEnc, err := c.Receive()
 	if err != nil {
 		return
 	}
-	log.Debug("waiting for first ok")
-	enc, err := c.Receive()
+	retBytes, err := crypt.DecryptAge(retBytesEnc, keyPrivate)
 	if err != nil {
 		return
 	}
-	data, err := crypt.Decrypt(enc, strongKeyForEncryption)
-	if err != nil {
+	if !strings.Contains(string(retBytes), "|||") {
+		err = fmt.Errorf("bad response: %s", string(retBytes))
 		return
 	}
-	if !strings.Contains(string(data), "|||") {
-		err = fmt.Errorf("bad response: %s", string(data))
-		return
-	}
-	banner = strings.Split(string(data), "|||")[0]
-	ipaddr = strings.Split(string(data), "|||")[1]
+	banner = strings.Split(string(retBytes), "|||")[0]
+	ipaddr = strings.Split(string(retBytes), "|||")[1]
+
 	log.Debug("sending room")
-	bSend, err = crypt.Encrypt([]byte(room), strongKeyForEncryption)
+	bSend, err = crypt.EncryptAge([]byte(room), keyPublicRelay)
 	if err != nil {
 		return
 	}
@@ -496,7 +425,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	if err != nil {
 		return
 	}
-	data, err = crypt.Decrypt(enc, strongKeyForEncryption)
+	data, err = crypt.DecryptAge(enc, keyPrivate)
 	if err != nil {
 		return
 	}
