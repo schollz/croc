@@ -9,12 +9,13 @@ import (
 // TCP_BUFFER_SIZE is the maximum packet size
 const TCP_BUFFER_SIZE = 1024 * 64
 
-// DEFAULT_RELAY is the default relay used (can be set using --relay)
+// DEFAULT_RELAY is the default relay used (can be set using --relay-pass)
 var (
-	DEFAULT_RELAY      = "croc.schollz.com"
-	DEFAULT_RELAY6     = "croc6.schollz.com"
-	DEFAULT_PORT       = "9009"
-	DEFAULT_PASSPHRASE = "pass123"
+	DEFAULT_RELAY           = "croc.schollz.com"
+	DEFAULT_RELAY6          = "croc6.schollz.com"
+	DEFAULT_PORT            = "9009"
+	DEFAULT_RELAY_PASSWORD  = "ZiNO9Y"
+	DEFAULT_RELAY_KEYPUBLIC = "age10yrxthzjrcr0e59nucg0epgnn0qpjv9rhsxqs90rdn335edgnueqrtdnyh"
 )
 
 func init() {

@@ -8,7 +8,10 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
+	"math/big"
+	"strings"
 
 	"filippo.io/age"
 	"golang.org/x/crypto/argon2"
@@ -74,6 +77,64 @@ func Decrypt(encrypted []byte, key []byte) (plaintext []byte, err error) {
 	}
 	plaintext, err = aesgcm.Open(nil, encrypted[:12], encrypted[12:], nil)
 	return
+}
+
+// GenerateIdentityAndPassword will generate a file with a public age identity and password
+func GenerateIdentityAndPassword(fname string) (err error) {
+	keyPublic, keyPrivate, err := NewAge()
+	if err != nil {
+		return
+	}
+	password, err := GenerateRandomString(6)
+	if err != nil {
+		return
+	}
+	err = ioutil.WriteFile(fname, []byte(fmt.Sprintf("%s\n%s\n%s", keyPrivate, keyPublic, password)), 0644)
+	return
+}
+
+// LoadIdentityAndPassword will load a file with a public age identity and password
+func LoadIdentityAndPassword(fname string) (keyPrivate string, keyPublic string, password string, err error) {
+	b, err := ioutil.ReadFile(fname)
+	if err != nil {
+		return
+	}
+	foo := strings.Fields(string(b))
+	if len(foo) < 3 {
+		err = fmt.Errorf("malformed file")
+		return
+	}
+	keyPrivate = foo[0]
+	keyPublic = foo[1]
+	password = foo[2]
+
+	_, err = age.ParseX25519Identity(keyPrivate)
+	if err != nil {
+		return
+	}
+	_, err = age.ParseX25519Recipient(keyPublic)
+	if err != nil {
+		return
+	}
+	return
+}
+
+// GenerateRandomString returns a securely generated random string.
+// It will return an error if the system's secure random
+// number generator fails to function correctly, in which
+// case the caller should not continue.
+func GenerateRandomString(n int) (string, error) {
+	const letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	ret := make([]byte, n)
+	for i := 0; i < n; i++ {
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(letters))))
+		if err != nil {
+			return "", err
+		}
+		ret[i] = letters[num.Int64()]
+	}
+
+	return string(ret), nil
 }
 
 func NewAge() (pubkey string, privkey string, err error) {

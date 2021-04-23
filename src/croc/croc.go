@@ -48,26 +48,31 @@ func Debug(debug bool) {
 
 // Options specifies user specific options
 type Options struct {
-	IsSender       bool
-	SharedSecret   string
-	Debug          bool
-	RelayAddress   string
-	RelayAddress6  string
-	RelayPorts     []string
-	RelayPassword  string
-	Stdout         bool
-	NoPrompt       bool
-	NoMultiplexing bool
-	DisableLocal   bool
-	OnlyLocal      bool
-	IgnoreStdin    bool
-	Ask            bool
-	SendingText    bool
-	NoCompress     bool
-	IP             string
-	Overwrite      bool
-	Curve          string
-	HashAlgorithm  string
+	IsSender             bool
+	SharedSecret         string
+	Debug                bool
+	RelayAddress         string
+	RelayAddress6        string
+	RelayPorts           []string
+	RelayPassword        string
+	RelayKeyPrivate      string
+	RelayKeyPublic       string
+	LocalRelayPassword   string
+	LocalRelayKeyPrivate string
+	LocalRelayKeyPublic  string
+	Stdout               bool
+	NoPrompt             bool
+	NoMultiplexing       bool
+	DisableLocal         bool
+	OnlyLocal            bool
+	IgnoreStdin          bool
+	Ask                  bool
+	SendingText          bool
+	NoCompress           bool
+	IP                   string
+	Overwrite            bool
+	Curve                string
+	HashAlgorithm        string
 }
 
 // Client holds the state of the croc transfer
@@ -288,7 +293,7 @@ func (c *Client) setupLocalRelay() {
 			if c.Options.Debug {
 				debugString = "debug"
 			}
-			err := tcp.Run(debugString, portStr, c.Options.RelayPassword, strings.Join(c.Options.RelayPorts[1:], ","))
+			err := tcp.Run(debugString, portStr, c.Options.LocalRelayPassword, c.Options.LocalRelayKeyPublic, c.Options.LocalRelayKeyPrivate, strings.Join(c.Options.RelayPorts[1:], ","))
 			if err != nil {
 				panic(err)
 			}
@@ -320,7 +325,7 @@ func (c *Client) transferOverLocalRelay(options TransferOptions, errchan chan<- 
 	time.Sleep(500 * time.Millisecond)
 	log.Debug("establishing connection")
 	var banner string
-	conn, banner, ipaddr, err := tcp.ConnectToTCPServer("localhost:"+c.Options.RelayPorts[0], c.Options.RelayPassword, c.Options.SharedSecret[:3])
+	conn, banner, ipaddr, err := tcp.ConnectToTCPServer("localhost:"+c.Options.RelayPorts[0], c.Options.LocalRelayPassword, c.Options.LocalRelayKeyPublic, c.Options.SharedSecret[:3])
 	log.Debugf("banner: %s", banner)
 	if err != nil {
 		err = fmt.Errorf("could not connect to localhost:%s: %w", c.Options.RelayPorts[0], err)
@@ -361,8 +366,9 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	if c.Options.RelayAddress != models.DEFAULT_RELAY {
 		flags.WriteString("--relay " + c.Options.RelayAddress + " ")
 	}
-	if c.Options.RelayPassword != models.DEFAULT_PASSPHRASE {
-		flags.WriteString("--pass " + c.Options.RelayPassword + " ")
+	if c.Options.RelayPassword != models.DEFAULT_RELAY_PASSWORD || c.Options.RelayKeyPublic != models.DEFAULT_RELAY_KEYPUBLIC {
+		flags.WriteString("--relay-pass " + c.Options.RelayPassword + " ")
+		flags.WriteString("--relay-key " + c.Options.RelayKeyPublic + " ")
 	}
 	fmt.Fprintf(os.Stderr, "Code is: %[1]s\nOn the other computer run\n\ncroc %[2]s%[1]s\n", c.Options.SharedSecret, flags.String())
 	if c.Options.Ask {
@@ -376,6 +382,8 @@ func (c *Client) Send(options TransferOptions) (err error) {
 	errchan := make(chan error, 1)
 
 	if !c.Options.DisableLocal {
+		c.Options.LocalRelayKeyPublic, c.Options.LocalRelayKeyPrivate, _ = crypt.NewAge()
+		c.Options.LocalRelayPassword, _ = crypt.GenerateRandomString(6)
 		// add two things to the error channel
 		errchan = make(chan error, 2)
 		c.setupLocalRelay()
@@ -405,7 +413,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 				log.Debugf("got host '%v' and port '%v'", host, port)
 				address = net.JoinHostPort(host, port)
 				log.Debugf("trying connection to %s", address)
-				conn, banner, ipaddr, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.SharedSecret[:3], durations[i])
+				conn, banner, ipaddr, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.RelayKeyPublic, c.Options.SharedSecret[:3], durations[i])
 				if err == nil {
 					c.Options.RelayAddress = address
 					break
@@ -599,7 +607,7 @@ func (c *Client) Receive() (err error) {
 		log.Debugf("got host '%v' and port '%v'", host, port)
 		address = net.JoinHostPort(host, port)
 		log.Debugf("trying connection to %s", address)
-		c.conn[0], banner, c.ExternalIP, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.SharedSecret[:3], durations[i])
+		c.conn[0], banner, c.ExternalIP, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.RelayKeyPublic, c.Options.SharedSecret[:3], durations[i])
 		if err == nil {
 			c.Options.RelayAddress = address
 			break
@@ -652,7 +660,7 @@ func (c *Client) Receive() (err error) {
 				}
 
 				serverTry := fmt.Sprintf("%s:%s", ip, port)
-				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.SharedSecret[:3], 50*time.Millisecond)
+				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.RelayKeyPublic, c.Options.SharedSecret[:3], 50*time.Millisecond)
 				if errConn != nil {
 					log.Debugf("could not connect to " + serverTry)
 					continue
@@ -909,6 +917,7 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 			c.conn[j+1], _, _, err = tcp.ConnectToTCPServer(
 				server,
 				c.Options.RelayPassword,
+				c.Options.RelayKeyPublic,
 				fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret[:5])[:6], j),
 			)
 			if err != nil {

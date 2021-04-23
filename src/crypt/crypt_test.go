@@ -2,8 +2,10 @@ package crypt
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
+	"github.com/schollz/croc/v9/src/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -114,4 +116,20 @@ func TestEncryptionAge(t *testing.T) {
 	dec, err := DecryptAge(enc, priv)
 	assert.Nil(t, err)
 	assert.Equal(t, msg, dec)
+}
+
+func TestGenerate(t *testing.T) {
+	err := GenerateIdentityAndPassword("test")
+	assert.Nil(t, err)
+	assert.True(t, utils.Exists("test"))
+	keyPrivate, keyPublic, password, err := LoadIdentityAndPassword("test")
+	assert.Nil(t, err)
+	fmt.Println(keyPrivate)
+	fmt.Println(keyPublic)
+	fmt.Println(password)
+	_, _, _, err = LoadIdentityAndPassword("crypt.go")
+	assert.NotNil(t, err)
+	_, _, _, err = LoadIdentityAndPassword("doesntexist")
+	assert.NotNil(t, err)
+	os.Remove("test")
 }

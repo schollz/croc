@@ -90,7 +90,7 @@ func (s *server) start() (err error) {
 }
 
 func (s *server) run() (err error) {
-	log.Infof("starting TCP server on " + s.port)
+	log.Debugf("starting TCP server on " + s.port)
 	server, err := net.Listen("tcp", ":"+s.port)
 	if err != nil {
 		return fmt.Errorf("error listening on %s: %w", s.port, err)
