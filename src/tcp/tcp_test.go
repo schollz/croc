@@ -41,6 +41,9 @@ func TestTCP(t *testing.T) {
 	assert.NotNil(t, err)
 	_, _, _, err = ConnectToTCPServer("localhost:8281", "pass123", "testRoom", 1*time.Nanosecond)
 	assert.NotNil(t, err)
+	_, _, _, err = ConnectToTCPServer("localhost:8281", "wrongpassword", "testRoom", 1*time.Nanosecond)
+	log.Debugf("wrong password: %s", err.Error())
+	assert.NotNil(t, err)
 
 	// try sending data
 	assert.Nil(t, c1.Send([]byte("hello, c2")))

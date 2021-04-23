@@ -189,24 +189,6 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		return
 	}
 
-	log.Debugf("waiting for password")
-	passwordBytesEnc, err := c.Receive()
-	if err != nil {
-		return
-	}
-	passwordBytes, err := crypt.Decrypt(passwordBytesEnc, strongKeyForEncryption)
-	if err != nil {
-		return
-	}
-	if strings.TrimSpace(string(passwordBytes)) != s.password {
-		err = fmt.Errorf("bad password")
-		enc, _ := crypt.Decrypt([]byte(err.Error()), strongKeyForEncryption)
-		if err := c.Send(enc); err != nil {
-			return "", fmt.Errorf("send error: %w", err)
-		}
-		return
-	}
-
 	// send ok to tell client they are connected
 	banner := s.banner
 	if len(banner) == 0 {
@@ -448,15 +430,6 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		return
 	}
 
-	log.Debug("sending password")
-	bSend, err := crypt.Encrypt([]byte(password), strongKeyForEncryption)
-	if err != nil {
-		return
-	}
-	err = c.Send(bSend)
-	if err != nil {
-		return
-	}
 	log.Debug("waiting for first ok")
 	enc, err := c.Receive()
 	if err != nil {
@@ -473,7 +446,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	banner = strings.Split(string(data), "|||")[0]
 	ipaddr = strings.Split(string(data), "|||")[1]
 	log.Debug("sending room")
-	bSend, err = crypt.Encrypt([]byte(room), strongKeyForEncryption)
+	bSend, err := crypt.Encrypt([]byte(room), strongKeyForEncryption)
 	if err != nil {
 		return
 	}
