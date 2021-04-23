@@ -10,6 +10,7 @@ import (
 
 	"filippo.io/age"
 	log "github.com/schollz/logger"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/schollz/croc/v9/src/comm"
 	"github.com/schollz/croc/v9/src/crypt"
@@ -160,12 +161,26 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	if err != nil {
 		return
 	}
+	if bytes.Equal(retBytesEnc, []byte("ping")) {
+		room = pingRoom
+		c.Send([]byte("pong"))
+		return
+	}
 	retBytes, err := crypt.DecryptAge(retBytesEnc, s.keyPrivate)
 	if err != nil {
 		return
 	}
 	// check whether we have a valid public key from client
-	keyPublic := string(retBytes)
+	foo := bytes.Split(retBytes, []byte("--"))
+	keyPublic := string(foo[0])
+	hashedPassword := foo[1]
+
+	err = bcrypt.CompareHashAndPassword(hashedPassword, []byte(s.password))
+	if err != nil {
+		err = fmt.Errorf("bad password")
+		return
+	}
+
 	_, err = age.ParseX25519Recipient(keyPublic)
 	if err != nil {
 		err = fmt.Errorf("bad public key: %s", keyPublic)
@@ -370,7 +385,7 @@ func PingServer(address string) (err error) {
 
 // ConnectToTCPServer will initiate a new connection
 // to the specified address, room with optional time limit
-func ConnectToTCPServer(address, password, room string, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, err error) {
+func ConnectToTCPServer(address, password, keyPublicRelay, room string, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, err error) {
 	if len(timelimit) > 0 {
 		c, err = comm.NewConnection(address, timelimit[0])
 	} else {
@@ -383,12 +398,13 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	// generate ephermeral key
 	keyPublic, keyPrivate, err := crypt.NewAge()
 
-	// send epheremal public key, encrypted using the server's public key
-	foo := strings.Split(password, "--")
-	keyPublicRelay := foo[1]
-	password = foo[2]
+	// send epheremal public key + bcrypted password, encrypted using the server's public key
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 10)
+	if err != nil {
+		return
+	}
 
-	sendBytesEnc, err := crypt.EncryptAge([]byte(keyPublic), keyPublicRelay)
+	sendBytesEnc, err := crypt.EncryptAge(append([]byte(keyPublic+"--"), hashedPassword...), keyPublicRelay)
 	if err != nil {
 		return
 	}
