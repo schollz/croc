@@ -10,6 +10,7 @@ import (
 
 	log "github.com/schollz/logger"
 	"github.com/schollz/pake/v3"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/schollz/croc/v9/src/comm"
 	"github.com/schollz/croc/v9/src/crypt"
@@ -190,15 +191,15 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	}
 
 	log.Debugf("waiting for password")
-	passwordBytesEnc, err := c.Receive()
+	passwordHashBytesEnc, err := c.Receive()
 	if err != nil {
 		return
 	}
-	passwordBytes, err := crypt.Decrypt(passwordBytesEnc, strongKeyForEncryption)
+	passwordHashBytes, err := crypt.Decrypt(passwordHashBytesEnc, strongKeyForEncryption)
 	if err != nil {
 		return
 	}
-	if strings.TrimSpace(string(passwordBytes)) != s.password {
+	if bcrypt.CompareHashAndPassword(passwordHashBytes, []byte(s.password)) != nil {
 		err = fmt.Errorf("bad password")
 		enc, _ := crypt.Decrypt([]byte(err.Error()), strongKeyForEncryption)
 		if err := c.Send(enc); err != nil {
@@ -448,8 +449,12 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		return
 	}
 
-	log.Debug("sending password")
-	bSend, err := crypt.Encrypt([]byte(password), strongKeyForEncryption)
+	log.Debug("sending password hash")
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), 10)
+	if err != nil {
+		return
+	}
+	bSend, err := crypt.Encrypt(passwordHash, strongKeyForEncryption)
 	if err != nil {
 		return
 	}
