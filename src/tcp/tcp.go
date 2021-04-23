@@ -11,6 +11,7 @@ import (
 	log "github.com/schollz/logger"
 	"github.com/schollz/pake/v3"
 
+	"filippo.io/age"
 	"github.com/schollz/croc/v9/src/comm"
 	"github.com/schollz/croc/v9/src/crypt"
 	"github.com/schollz/croc/v9/src/models"
@@ -18,6 +19,8 @@ import (
 
 type server struct {
 	port       string
+	privateKey string
+	publicKey  string
 	debugLevel string
 	banner     string
 	password   string
@@ -151,6 +154,13 @@ func (s *server) run() (err error) {
 var weakKey = []byte{1, 2, 3}
 
 func (s *server) clientCommunication(port string, c *comm.Comm) (room string, err error) {
+	identity, err := age.GenerateX25519Identity()
+	if err != nil {
+		return
+	}
+	// send public key for encryption
+	c.Send([]byte(identity.Recipient().String()))
+
 	// establish secure password with PAKE for communication with relay
 	B, err := pake.InitCurve(weakKey, 1, "siec")
 	if err != nil {

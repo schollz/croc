@@ -1,13 +1,16 @@
 package crypt
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"log"
 
+	"filippo.io/age"
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/pbkdf2"
@@ -70,6 +73,60 @@ func Decrypt(encrypted []byte, key []byte) (plaintext []byte, err error) {
 		return
 	}
 	plaintext, err = aesgcm.Open(nil, encrypted[:12], encrypted[12:], nil)
+	return
+}
+
+func NewAge() (pubkey string, privkey string, err error) {
+	identity, err := age.GenerateX25519Identity()
+	if err != nil {
+		return
+	}
+	pubkey = identity.Recipient().String()
+	privkey = identity.String()
+	return
+}
+
+func EncryptAge(pubkey string, data []byte) (encrypted []byte, err error) {
+	recipient, err := age.ParseX25519Recipient(pubkey)
+	if err != nil {
+		return
+	}
+
+	out := &bytes.Buffer{}
+	w, err := age.Encrypt(out, recipient)
+	if err != nil {
+		return
+	}
+	_, err = w.Write(data)
+	if err != nil {
+		return
+	}
+	err = w.Close()
+	if err != nil {
+		return
+	}
+	encrypted = out.Bytes()
+	return
+}
+
+func DecryptAge(privkey string, encrypted []byte) (data []byte, err error) {
+	identity, err := age.ParseX25519Identity(privkey)
+	if err != nil {
+		return
+	}
+
+	r, err := age.Decrypt(bytes.NewReader(encrypted), identity)
+	if err != nil {
+		return
+	}
+
+	out := &bytes.Buffer{}
+	_, err = io.Copy(out, r)
+	if err != nil {
+		return
+	}
+
+	data = out.Bytes()
 	return
 }
 

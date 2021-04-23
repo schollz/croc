@@ -3,6 +3,7 @@ module github.com/schollz/croc/v9
 go 1.13
 
 require (
+	filippo.io/age v1.0.0-rc.1 // indirect
 	github.com/OneOfOne/xxhash v1.2.5 // indirect
 	github.com/cespare/xxhash v1.1.0
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
