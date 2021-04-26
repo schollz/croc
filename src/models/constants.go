@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"time"
 )
@@ -17,15 +18,31 @@ var (
 	DEFAULT_PASSPHRASE = "pass123"
 )
 
+// lookupTimeout for DNS requests
+const lookupTimeout = time.Second
+
+// publicDns are servers to be queried if a local lookup fails
+var publicDns = []string{
+	"1.0.0.1",                // Cloudflare
+	"1.1.1.1",                // Cloudflare
+	"8.8.4.4",                // Google
+	"8.8.8.8",                // Google
+	"8.26.56.26",             // Comodo
+	"208.67.220.220",         // Cisco OpenDNS
+	"208.67.222.222",         // Cisco OpenDNS
+	"[2001:4860:4860::8844]", // Google
+	"[2001:4860:4860::8888]", // Google
+}
+
 func init() {
 	var err error
-	DEFAULT_RELAY, err = lookupIPs(DEFAULT_RELAY)
+	DEFAULT_RELAY, err = lookup(DEFAULT_RELAY)
 	if err == nil {
 		DEFAULT_RELAY += ":" + DEFAULT_PORT
 	} else {
 		DEFAULT_RELAY = ""
 	}
-	DEFAULT_RELAY6, err = lookupIPs(DEFAULT_RELAY6)
+	DEFAULT_RELAY6, err = lookup(DEFAULT_RELAY6)
 	if err == nil {
 		DEFAULT_RELAY6 = "[" + DEFAULT_RELAY6 + "]:" + DEFAULT_PORT
 	} else {
@@ -33,37 +50,56 @@ func init() {
 	}
 }
 
-func lookupIPs(address string) (ipaddress string, err error) {
-	var publicDns = []string{"1.1.1.1", "8.8.8.8", "8.8.4.4", "1.0.0.1", "8.26.56.26", "208.67.222.222", "208.67.220.220"}
-	result := make(chan string, len(publicDns)+1)
-	go func() {
-		ips, _ := net.LookupIP(address)
-		for _, ip := range ips {
-			result <- ip.String()
-		}
-		result <- ""
-	}()
+// lookup an IP address.
+//
+// Priority is given to local queries, and the system falls back to a list of
+// public DNS servers.
+func lookup(address string) (ipaddress string, err error) {
+	ipaddress, err = localLookupIP(address)
+	if err == nil {
+		return
+	}
+	err = nil
+
+	result := make(chan string, len(publicDns))
 	for _, dns := range publicDns {
 		go func(dns string) {
-			s, _ := lookupIP(address, dns)
+			s, _ := remoteLookupIP(address, dns)
 			result <- s
 		}(dns)
 	}
-	for i := 0; i < len(publicDns); i++ {
-		ipaddress = <-result
-		if ipaddress != "" {
+
+	for s := range result {
+		if s != "" {
+			ipaddress = s
 			return
 		}
 	}
+
+	err = fmt.Errorf("failed to lookup %s at any DNS server", address)
 	return
 }
 
-func lookupIP(address, dns string) (ipaddress string, err error) {
+// localLookupIP returns a host's IP address based on the local resolver.
+func localLookupIP(address string) (ipaddress string, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), lookupTimeout)
+	defer cancel()
+
+	ip, err := net.DefaultResolver.LookupHost(ctx, address)
+	if err != nil {
+		return
+	}
+	ipaddress = ip[0]
+	return
+}
+
+// remoteLookupIP returns a host's IP address based on a remote DNS server.
+func remoteLookupIP(address, dns string) (ipaddress string, err error) {
 	r := &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{
-				Timeout: time.Millisecond * time.Duration(1000),
+				Timeout: lookupTimeout,
 			}
 			return d.DialContext(ctx, "udp", dns+":53")
 		},
