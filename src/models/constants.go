@@ -69,9 +69,9 @@ func lookup(address string) (ipaddress string, err error) {
 		}(dns)
 	}
 
-	for s := range result {
-		if s != "" {
-			ipaddress = s
+	for i := 0; i < len(publicDns); i++ {
+		ipaddress = <-result
+		if ipaddress != "" {
 			return
 		}
 	}
