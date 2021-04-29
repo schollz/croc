@@ -1267,7 +1267,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		if !bytes.Equal(fileHash, fileInfo.Hash) {
 			log.Debugf("hashed %s to %x using %s", fileInfo.Name, fileHash, c.Options.HashAlgorithm)
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
-			if errHash == nil && !c.Options.Overwrite && errRecipientFile == nil {
+			if errHash == nil && !c.Options.Overwrite && errRecipientFile == nil && !strings.HasPrefix(fileInfo.Name, "croc-stdin-") {
 				log.Debug("asking to overwrite")
 				ans := utils.GetInput(fmt.Sprintf("\nOverwrite '%s'? (y/n) ", path.Join(fileInfo.FolderRemote, fileInfo.Name)))
 				if strings.TrimSpace(strings.ToLower(ans)) != "y" {
