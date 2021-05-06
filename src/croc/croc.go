@@ -190,8 +190,10 @@ type TransferOptions struct {
 
 func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 	c.FilesToTransfer = make([]FileInfo, len(options.PathToFiles))
+	totalFilesCount := len(c.FilesToTransfer)
 	totalFilesSize := int64(0)
 	for i, pathToFile := range options.PathToFiles {
+		fmt.Fprintf(os.Stderr, "\rPreparing file %d of %d (%d%%)", i+1, totalFilesCount, int64((float64(i) / float64(totalFilesCount)) * 100))
 		var fstats os.FileInfo
 		var fullPath string
 		fullPath, err = filepath.Abs(pathToFile)
@@ -256,6 +258,7 @@ func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 		}
 		log.Debugf("file %d info: %+v", i, c.FilesToTransfer[i])
 	}
+	fmt.Fprintf(os.Stderr, "\rPreparing file %d of %d (100%%)", totalFilesCount, totalFilesCount)
 	log.Debugf("longestFilename: %+v", c.longestFilename)
 	fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
 	if len(c.FilesToTransfer) == 1 {
@@ -268,7 +271,7 @@ func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "Sending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
+	fmt.Fprintf(os.Stderr, "\nSending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
 	return
 }
 
