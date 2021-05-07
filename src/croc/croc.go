@@ -804,7 +804,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 		}
 	}
 	// c.spinner.Stop()
-	action = "Accept"
+	action := "Accept"
 	if c.Options.SendingText {
 		action = "Display"
 		fname = "text message"
