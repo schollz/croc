@@ -804,18 +804,17 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 		}
 	}
 	// c.spinner.Stop()
-	if strings.HasPrefix(fname, "'croc-stdin") {
-		fname = "'stdin'"
-		if c.Options.SendingText {
-			fname = "'text'"
-		}
+	action = "Accept"
+	if c.Options.SendingText {
+		action = "Display"
+		fname = "text message"
 	}
 	if !c.Options.NoPrompt || c.Options.Ask || senderInfo.Ask {
 		if c.Options.Ask || senderInfo.Ask {
 			machID, _ := machineid.ID()
-			fmt.Fprintf(os.Stderr, "\rYour machine id is '%s'.\nAccept %s (%s) from '%s'? (y/n) ", machID, fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
+			fmt.Fprintf(os.Stderr, "\rYour machine id is '%s'.\n%s %s (%s) from '%s'? (y/n) ", machID, action, fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
 		} else {
-			fmt.Fprintf(os.Stderr, "\rAccept %s (%s)? (y/n) ", fname, utils.ByteCountDecimal(totalSize))
+			fmt.Fprintf(os.Stderr, "\r%s %s (%s)? (y/n) ", action, fname, utils.ByteCountDecimal(totalSize))
 		}
 		if strings.ToLower(strings.TrimSpace(utils.GetInput(""))) != "y" {
 			err = message.Send(c.conn[0], c.Key, message.Message{
