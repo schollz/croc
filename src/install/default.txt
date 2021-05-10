@@ -719,6 +719,7 @@ main() {
              autocomplete_install_rcode="${?}";
              print_message "== You will need to add the following to your ~/.zshrc to enable autocompletion" "info";
              print_message "\nPROG=croc\n_CLI_ZSH_AUTOCOMPLETE_HACK=1\nsource /etc/zsh/zsh_autocomplete_croc\n" "info";;
+     *)      autocomplete_install_rcode="1";;
   esac
 
   if [[ "${autocomplete_install_rcode}" == "0" ]] ; then
