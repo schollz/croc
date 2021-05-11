@@ -15,7 +15,7 @@ require (
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/mnemonicode v1.0.1
 	github.com/schollz/pake/v3 v3.0.2
-	github.com/schollz/peerdiscovery v1.6.3
+	github.com/schollz/peerdiscovery v1.6.4
 	github.com/schollz/progressbar/v3 v3.8.0
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stretchr/testify v1.6.1
