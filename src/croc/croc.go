@@ -583,7 +583,7 @@ func (c *Client) Receive() (err error) {
 		log.Debug("establishing connection")
 	}
 	var banner string
-	durations := []time.Duration{100 * time.Millisecond, 5 * time.Second}
+	durations := []time.Duration{200 * time.Millisecond, 5 * time.Second}
 	err = fmt.Errorf("found no addresses to connect")
 	for i, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
 		if address == "" {
@@ -652,7 +652,7 @@ func (c *Client) Receive() (err error) {
 				}
 
 				serverTry := fmt.Sprintf("%s:%s", ip, port)
-				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.SharedSecret[:3], 50*time.Millisecond)
+				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.SharedSecret[:3], 250*time.Millisecond)
 				if errConn != nil {
 					log.Debugf("could not connect to " + serverTry)
 					continue
