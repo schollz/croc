@@ -229,6 +229,18 @@ func send(c *cli.Context) (err error) {
 		if !c.IsSet("pass") {
 			crocOptions.RelayPassword = rememberedOptions.RelayPassword
 		}
+		if !c.IsSet("relay6") {
+			crocOptions.RelayAddress6 = rememberedOptions.RelayAddress6
+		}
+		if !c.IsSet("overwrite") {
+			crocOptions.Overwrite = rememberedOptions.Overwrite
+		}
+		if !c.IsSet("curve") {
+			crocOptions.Curve = rememberedOptions.Curve
+		}
+		if !c.IsSet("local") {
+			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
+		}
 	}
 
 	var fnames []string
@@ -442,6 +454,18 @@ func receive(c *cli.Context) (err error) {
 		}
 		if !c.IsSet("pass") {
 			crocOptions.RelayPassword = rememberedOptions.RelayPassword
+		}
+		if !c.IsSet("relay6") {
+			crocOptions.RelayAddress6 = rememberedOptions.RelayAddress6
+		}
+		if !c.IsSet("overwrite") {
+			crocOptions.Overwrite = rememberedOptions.Overwrite
+		}
+		if !c.IsSet("curve") {
+			crocOptions.Curve = rememberedOptions.Curve
+		}
+		if !c.IsSet("local") {
+			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
 		}
 	}
 
