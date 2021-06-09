@@ -6,3 +6,6 @@ bash_autocomplete
 dist
 bin
 croc-stdin*
+
+.idea/
+.vscode/
