@@ -34,7 +34,7 @@ func Run() (err error) {
 	app := cli.NewApp()
 	app.Name = "croc"
 	if Version == "" {
-		Version = "v9.1.4-d0ebb7a"
+		Version = "v9.1.5-0124356"
 	}
 	app.Version = Version
 	app.Compiled = time.Now()
