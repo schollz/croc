@@ -812,11 +812,12 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	if !c.Options.NoPrompt || c.Options.Ask || senderInfo.Ask {
 		if c.Options.Ask || senderInfo.Ask {
 			machID, _ := machineid.ID()
-			fmt.Fprintf(os.Stderr, "\rYour machine id is '%s'.\n%s %s (%s) from '%s'? (y/n) ", machID, action, fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
+			fmt.Fprintf(os.Stderr, "\rYour machine id is '%s'.\n%s %s (%s) from '%s'? (Y/n) ", machID, action, fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
 		} else {
-			fmt.Fprintf(os.Stderr, "\r%s %s (%s)? (y/n) ", action, fname, utils.ByteCountDecimal(totalSize))
+			fmt.Fprintf(os.Stderr, "\r%s %s (%s)? (Y/n) ", action, fname, utils.ByteCountDecimal(totalSize))
 		}
-		if strings.ToLower(strings.TrimSpace(utils.GetInput(""))) != "y" {
+		choice := strings.ToLower(utils.GetInput(""))
+		if choice != "" && choice != "y" && choice != "yes" {
 			err = message.Send(c.conn[0], c.Key, message.Message{
 				Type:    "error",
 				Message: "refusing files",
@@ -1011,8 +1012,9 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		c.Step3RecipientRequestFile = true
 
 		if c.Options.Ask {
-			fmt.Fprintf(os.Stderr, "Send to machine '%s'? (y/n) ", remoteFile.MachineID)
-			if strings.ToLower(strings.TrimSpace(utils.GetInput(""))) != "y" {
+			fmt.Fprintf(os.Stderr, "Send to machine '%s'? (Y/n) ", remoteFile.MachineID)
+			choice := strings.ToLower(utils.GetInput(""))
+			if choice != "" && choice != "y" && choice != "yes" {
 				err = message.Send(c.conn[0], c.Key, message.Message{
 					Type:    "error",
 					Message: "refusing files",
@@ -1268,8 +1270,9 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
 			if errHash == nil && !c.Options.Overwrite && errRecipientFile == nil && !strings.HasPrefix(fileInfo.Name, "croc-stdin-") {
 				log.Debug("asking to overwrite")
-				ans := utils.GetInput(fmt.Sprintf("\nOverwrite '%s'? (y/n) ", path.Join(fileInfo.FolderRemote, fileInfo.Name)))
-				if strings.TrimSpace(strings.ToLower(ans)) != "y" {
+				prompt := fmt.Sprintf("\nOverwrite '%s'? (y/N) ", path.Join(fileInfo.FolderRemote, fileInfo.Name))
+				choice := strings.ToLower(utils.GetInput(prompt))
+				if choice != "y" && choice != "yes" {
 					fmt.Fprintf(os.Stderr, "skipping '%s'", path.Join(fileInfo.FolderRemote, fileInfo.Name))
 					continue
 				}
@@ -1516,7 +1519,6 @@ func (c *Client) sendData(i int) {
 						c.Key,
 					)
 				} else {
-
 					dataToSend, err = crypt.Encrypt(
 						compress.Compress(
 							append(posByte, data[:n]...),
