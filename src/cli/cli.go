@@ -116,8 +116,9 @@ func Run() (err error) {
 				_, basename := filepath.Split(fpath)
 				fnames = append(fnames, "'"+basename+"'")
 			}
-			yn := utils.GetInput(fmt.Sprintf("Did you mean to send %s? (y/n) ", strings.Join(fnames, ", ")))
-			if strings.ToLower(yn) == "y" {
+			promptMessage := fmt.Sprintf("Did you mean to send %s? (Y/n) ", strings.Join(fnames, ", "))
+			choice := strings.ToLower(utils.GetInput(promptMessage))
+			if choice == "" || choice == "y" || choice == "yes" {
 				return send(c)
 			}
 		}
@@ -335,7 +336,6 @@ func makeTempFileWithString(s string) (fnames []string, err error) {
 	}
 	fnames = []string{f.Name()}
 	return
-
 }
 
 func getPaths(fnames []string) (paths []string, haveFolder bool, err error) {
