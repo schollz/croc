@@ -20,7 +20,7 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
-	golang.org/x/net v0.0.0-20210610132358-84b48f89b13b
-	golang.org/x/sys v0.0.0-20210608053332-aa57babbf139 // indirect
+	golang.org/x/net v0.0.0-20210614182718-04defd469f4e
+	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 )
