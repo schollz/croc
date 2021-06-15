@@ -1269,8 +1269,19 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			log.Debugf("hashed %s to %x using %s", fileInfo.Name, fileHash, c.Options.HashAlgorithm)
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
 			if errHash == nil && !c.Options.Overwrite && errRecipientFile == nil && !strings.HasPrefix(fileInfo.Name, "croc-stdin-") {
+
+				missingChunks := utils.ChunkRangesToChunks(utils.MissingChunks(
+					path.Join(fileInfo.FolderRemote, fileInfo.Name),
+					fileInfo.Size,
+					models.TCP_BUFFER_SIZE/2,
+				))
+				percentDone := 100 - float64(len(missingChunks)*models.TCP_BUFFER_SIZE/2)/float64(fileInfo.Size)*100
+
 				log.Debug("asking to overwrite")
 				prompt := fmt.Sprintf("\nOverwrite '%s'? (y/N) ", path.Join(fileInfo.FolderRemote, fileInfo.Name))
+				if percentDone < 99 {
+					prompt = fmt.Sprintf("\nResume '%s' (%2.1f%%)? (y/N) ", path.Join(fileInfo.FolderRemote, fileInfo.Name), percentDone)
+				}
 				choice := strings.ToLower(utils.GetInput(prompt))
 				if choice != "y" && choice != "yes" {
 					fmt.Fprintf(os.Stderr, "skipping '%s'", path.Join(fileInfo.FolderRemote, fileInfo.Name))
