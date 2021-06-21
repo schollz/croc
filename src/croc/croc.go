@@ -776,7 +776,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	c.Options.NoCompress = senderInfo.NoCompress
 	c.Options.HashAlgorithm = senderInfo.HashAlgorithm
 	if c.Options.HashAlgorithm == "" {
-		c.Options.HashAlgorithm = "imohash"
+		c.Options.HashAlgorithm = "xxhash"
 	}
 	log.Debugf("using hash algorithm: %s", c.Options.HashAlgorithm)
 	if c.Options.NoCompress {
