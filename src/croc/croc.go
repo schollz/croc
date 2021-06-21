@@ -255,6 +255,8 @@ func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 			}
 		}
 		log.Debugf("file %d info: %+v", i, c.FilesToTransfer[i])
+		fmt.Fprintf(os.Stderr, "\r                                 ")
+		fmt.Fprintf(os.Stderr, "\rSending %d files (%s)", i, utils.ByteCountDecimal(totalFilesSize))
 	}
 	log.Debugf("longestFilename: %+v", c.longestFilename)
 	fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
@@ -268,7 +270,8 @@ func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "Sending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
+	fmt.Fprintf(os.Stderr, "\r                                 ")
+	fmt.Fprintf(os.Stderr, "\rSending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
 	return
 }
 
