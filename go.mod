@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/OneOfOne/xxhash v1.2.5 // indirect
+	github.com/buger/jsonparser v1.1.1
 	github.com/cespare/xxhash v1.1.0
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/denisbrodbeck/machineid v1.0.1

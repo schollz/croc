@@ -96,6 +96,7 @@ func Run() (err error) {
 		&cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 		&cli.StringFlag{Name: "pass", Value: models.DEFAULT_PASSPHRASE, Usage: "password for the relay", EnvVars: []string{"CROC_PASS"}},
 		&cli.StringFlag{Name: "socks5", Value: "", Usage: "add a socks5 proxy", EnvVars: []string{"SOCKS5_PROXY"}},
+		&cli.StringFlag{Name: "no-update-notice", Usage: "Removes up-to-date check on error", EnvVars: []string{"NO_UPDATE_CHECK"}},
 	}
 	app.EnableBashCompletion = true
 	app.HideHelp = false
@@ -201,6 +202,7 @@ func send(c *cli.Context) (err error) {
 		Overwrite:      c.Bool("overwrite"),
 		Curve:          c.String("curve"),
 		HashAlgorithm:  c.String("hash"),
+		NoUpdateCheck:  c.Bool("no-update"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -241,6 +243,9 @@ func send(c *cli.Context) (err error) {
 			crocOptions.Curve = rememberedOptions.Curve
 		}
 		if !c.IsSet("local") {
+			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
+		}
+		if !c.IsSet("no-update") {
 			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
 		}
 	}
@@ -298,7 +303,7 @@ func send(c *cli.Context) (err error) {
 	err = cr.Send(croc.TransferOptions{
 		PathToFiles:      paths,
 		KeepPathInRemote: haveFolder,
-	})
+	}, Version)
 
 	return
 }
@@ -409,6 +414,7 @@ func receive(c *cli.Context) (err error) {
 		IP:            c.String("ip"),
 		Overwrite:     c.Bool("overwrite"),
 		Curve:         c.String("curve"),
+		NoUpdateCheck:  c.Bool("no-update"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -465,6 +471,9 @@ func receive(c *cli.Context) (err error) {
 			crocOptions.Curve = rememberedOptions.Curve
 		}
 		if !c.IsSet("local") {
+			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
+		}
+		if !c.IsSet("no-update") {
 			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
 		}
 	}

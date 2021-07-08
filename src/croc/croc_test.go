@@ -10,6 +10,9 @@ import (
 	"github.com/schollz/croc/v9/src/tcp"
 	log "github.com/schollz/logger"
 	"github.com/stretchr/testify/assert"
+	"net/http"
+	"github.com/buger/jsonparser"
+	"fmt"
 )
 
 func init() {
@@ -63,10 +66,13 @@ func TestCrocReadme(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
+	http_resp, _ := http.Get("https://api.github.com/repos/schollz/croc/releases/latest")
+	body, _ := ioutil.ReadAll(http_resp.Body)
+	gh_version, _ := jsonparser.GetString([]byte(fmt.Sprintf("%s\n", body)), "name")
 	go func() {
 		err := sender.Send(TransferOptions{
 			PathToFiles: []string{"../../README.md"},
-		})
+		}, gh_version)
 		if err != nil {
 			t.Errorf("send failed: %v", err)
 		}
@@ -130,10 +136,13 @@ func TestCrocLocal(t *testing.T) {
 	os.Create("touched")
 	wg.Add(2)
 	go func() {
-		err := sender.Send(TransferOptions{
+		http_resp, _ := http.Get("https://api.github.com/repos/schollz/croc/releases/latest")
+		body, _ := ioutil.ReadAll(http_resp.Body)
+		gh_version, _ := jsonparser.GetString([]byte(fmt.Sprintf("%s\n", body)), "name")
+		err = sender.Send(TransferOptions{
 			PathToFiles:      []string{"../../LICENSE", "touched"},
 			KeepPathInRemote: false,
-		})
+		}, gh_version)
 		if err != nil {
 			t.Errorf("send failed: %v", err)
 		}
@@ -182,10 +191,13 @@ func TestCrocError(t *testing.T) {
 		Curve:         "siec",
 		Overwrite:     true,
 	})
+	http_resp, _ := http.Get("https://api.github.com/repos/schollz/croc/releases/latest")
+	body, _ := ioutil.ReadAll(http_resp.Body)
+	gh_version, _ := jsonparser.GetString([]byte(fmt.Sprintf("%s\n", body)), "name")
 	err = sender.Send(TransferOptions{
 		PathToFiles:      []string{tmpfile.Name()},
 		KeepPathInRemote: true,
-	})
+	}, gh_version)
 	log.Debug(err)
 	assert.NotNil(t, err)
 

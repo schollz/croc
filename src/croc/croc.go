@@ -10,14 +10,17 @@ import (
 	"io/ioutil"
 	"math"
 	"net"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/buger/jsonparser"
 	"github.com/denisbrodbeck/machineid"
 	log "github.com/schollz/logger"
 	"github.com/schollz/pake/v3"
@@ -68,6 +71,7 @@ type Options struct {
 	Overwrite      bool
 	Curve          string
 	HashAlgorithm  string
+	NoUpdateCheck  bool
 }
 
 // Client holds the state of the croc transfer
@@ -355,7 +359,7 @@ func (c *Client) transferOverLocalRelay(options TransferOptions, errchan chan<- 
 }
 
 // Send will send the specified file
-func (c *Client) Send(options TransferOptions) (err error) {
+func (c *Client) Send(options TransferOptions, Version string) (err error) {
 	err = c.sendCollectFiles(options)
 	if err != nil {
 		return
@@ -422,6 +426,17 @@ func (c *Client) Send(options TransferOptions) (err error) {
 				err = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, err)
 				log.Debug(err)
 				errchan <- err
+				if c.Options.NoUpdateCheck {
+					regex_version := regexp.MustCompile(`-([\s\S]*)$`)
+					version_stripped := fmt.Sprint(regex_version.ReplaceAllString(Version, ""))
+					http_resp, _ := http.Get("https://api.github.com/repos/schollz/croc/releases/latest")
+					body, _ := ioutil.ReadAll(http_resp.Body)
+					gh_version, _ := jsonparser.GetString([]byte(fmt.Sprintf("%s\n", body)), "name")
+					if gh_version != version_stripped {
+						fmt.Println("Maybe try updating croc, to fix this error!")
+						fmt.Println("Update croc by running 'curl https://getcroc.schollz.com | bash'!")
+					}
+				}
 				return
 			}
 			log.Debugf("banner: %s", banner)
@@ -1106,7 +1121,7 @@ func (c *Client) recipientInitializeFile() (err error) {
 	if errOpen == nil {
 		stat, _ := c.CurrentFile.Stat()
 		truncate = stat.Size() != c.FilesToTransfer[c.FilesToTransferCurrentNum].Size
-		if truncate == false {
+		if !truncate {
 			// recipient requests the file and chunks (if empty, then should receive all chunks)
 			// TODO: determine the missing chunks
 			c.CurrentFileChunkRanges = utils.MissingChunks(
