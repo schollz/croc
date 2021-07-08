@@ -10,9 +10,9 @@ import (
 	"github.com/schollz/croc/v9/src/tcp"
 	log "github.com/schollz/logger"
 	"github.com/stretchr/testify/assert"
-	"net/http"
-	"github.com/buger/jsonparser"
-	"fmt"
+	"net/http" // Added by Mawoka to run the http-request
+	"github.com/buger/jsonparser" // Added by Mawoka for github-api-parsing
+	"fmt" // Added by Mawoka for github-api-parsing
 )
 
 func init() {

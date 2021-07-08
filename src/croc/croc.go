@@ -10,17 +10,17 @@ import (
 	"io/ioutil"
 	"math"
 	"net"
-	"net/http"
+	"net/http" // Added by Mawoka to do the api-request
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
+	"regexp" // Added by Mawoka to remove commit-info of version-string
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/buger/jsonparser"
+	"github.com/buger/jsonparser" // Added by Mawoka for github-api-parsing
 	"github.com/denisbrodbeck/machineid"
 	log "github.com/schollz/logger"
 	"github.com/schollz/pake/v3"
@@ -1121,7 +1121,7 @@ func (c *Client) recipientInitializeFile() (err error) {
 	if errOpen == nil {
 		stat, _ := c.CurrentFile.Stat()
 		truncate = stat.Size() != c.FilesToTransfer[c.FilesToTransferCurrentNum].Size
-		if !truncate {
+		if !truncate {        // Changed because of IDE-Mention
 			// recipient requests the file and chunks (if empty, then should receive all chunks)
 			// TODO: determine the missing chunks
 			c.CurrentFileChunkRanges = utils.MissingChunks(
