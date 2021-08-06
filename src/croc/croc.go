@@ -1454,13 +1454,14 @@ func (c *Client) receiveData(i int) {
 
 		c.mutex.Lock()
 		_, err = c.CurrentFile.WriteAt(data[8:], positionInt64)
-		c.mutex.Unlock()
 		if err != nil {
 			panic(err)
 		}
 		c.bar.Add(len(data[8:]))
 		c.TotalSent += int64(len(data[8:]))
 		c.TotalChunksTransfered++
+		// log.Debug(len(c.CurrentFileChunks), c.TotalChunksTransfered, c.TotalSent, c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
+
 		if !c.CurrentFileIsClosed && (c.TotalChunksTransfered == len(c.CurrentFileChunks) || c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size) {
 			c.CurrentFileIsClosed = true
 			log.Debug("finished receiving!")
@@ -1483,6 +1484,7 @@ func (c *Client) receiveData(i int) {
 				panic(err)
 			}
 		}
+		c.mutex.Unlock()
 	}
 }
 
