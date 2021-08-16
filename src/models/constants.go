@@ -23,13 +23,22 @@ var (
 var publicDns = []string{
 	"1.0.0.1",                // Cloudflare
 	"1.1.1.1",                // Cloudflare
+	"[2606:4700:4700::1111]", // Cloudflare
+	"[2606:4700:4700::1001]", // Cloudflare
 	"8.8.4.4",                // Google
 	"8.8.8.8",                // Google
-	"8.26.56.26",             // Comodo
-	"208.67.220.220",         // Cisco OpenDNS
-	"208.67.222.222",         // Cisco OpenDNS
 	"[2001:4860:4860::8844]", // Google
 	"[2001:4860:4860::8888]", // Google
+	"9.9.9.9",                // Quad9
+	"149.112.112.112",        // Quad9
+	"[2620:fe::fe]",          // Quad9
+	"[2620:fe::fe:9]",        // Quad9
+	"8.26.56.26",             // Comodo
+	"8.20.247.20",            // Comodo
+	"208.67.220.220",         // Cisco OpenDNS
+	"208.67.222.222",         // Cisco OpenDNS
+	"[2620:119:35::35]",      // Cisco OpenDNS
+	"[2620:119:53::53]",      // Cisco OpenDNS
 }
 
 func init() {
