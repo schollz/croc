@@ -80,6 +80,7 @@ func Run() (err error) {
 		},
 	}
 	app.Flags = []cli.Flag{
+		&cli.BoolFlag{Name: "internal-dns", Usage: "use a built-in DNS stub resolver rather than the host operating system"},
 		&cli.BoolFlag{Name: "remember", Usage: "save these settings to reuse next time"},
 		&cli.BoolFlag{Name: "debug", Usage: "toggle debug mode"},
 		&cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},

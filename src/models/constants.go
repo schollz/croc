@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"time"
 )
 
@@ -16,6 +17,7 @@ var (
 	DEFAULT_RELAY6     = "croc6.schollz.com"
 	DEFAULT_PORT       = "9009"
 	DEFAULT_PASSPHRASE = "pass123"
+	INTERNAL_DNS       = false
 )
 
 // lookupTimeout for DNS requests
@@ -35,6 +37,13 @@ var publicDns = []string{
 }
 
 func init() {
+	for _, flag := range os.Args {
+		if flag == "--internal-dns" {
+			INTERNAL_DNS = true
+			break
+		}
+	}
+
 	var err error
 	DEFAULT_RELAY, err = lookup(DEFAULT_RELAY)
 	if err == nil {
@@ -50,16 +59,11 @@ func init() {
 	}
 }
 
-// lookup an IP address.
-//
-// Priority is given to local queries, and the system falls back to a list of
-// public DNS servers.
+// Resolve a hostname to an IP address using DNS.
 func lookup(address string) (ipaddress string, err error) {
-	ipaddress, err = localLookupIP(address)
-	if err == nil {
-		return
+	if !INTERNAL_DNS {
+		return localLookupIP(address)
 	}
-	err = nil
 
 	result := make(chan string, len(publicDns))
 	for _, dns := range publicDns {
