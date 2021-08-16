@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"time"
 )
 
 // TCP_BUFFER_SIZE is the maximum packet size
@@ -19,9 +18,6 @@ var (
 	DEFAULT_PASSPHRASE = "pass123"
 	INTERNAL_DNS       = false
 )
-
-// lookupTimeout for DNS requests
-const lookupTimeout = time.Second
 
 // publicDns are servers to be queried if a local lookup fails
 var publicDns = []string{
@@ -86,10 +82,7 @@ func lookup(address string) (ipaddress string, err error) {
 
 // localLookupIP returns a host's IP address based on the local resolver.
 func localLookupIP(address string) (ipaddress string, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), lookupTimeout)
-	defer cancel()
-
-	ip, err := net.DefaultResolver.LookupHost(ctx, address)
+	ip, err := net.LookupHost(address)
 	if err != nil {
 		return
 	}
@@ -102,10 +95,8 @@ func remoteLookupIP(address, dns string) (ipaddress string, err error) {
 	r := &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d := net.Dialer{
-				Timeout: lookupTimeout,
-			}
-			return d.DialContext(ctx, "udp", dns+":53")
+			d := new(net.Dialer)
+			return d.DialContext(ctx, network, dns+":53")
 		},
 	}
 	ip, err := r.LookupHost(context.Background(), address)
