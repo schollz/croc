@@ -39,7 +39,6 @@ func init() {
 			break
 		}
 	}
-
 	var err error
 	DEFAULT_RELAY, err = lookup(DEFAULT_RELAY)
 	if err == nil {
@@ -60,23 +59,22 @@ func lookup(address string) (ipaddress string, err error) {
 	if !INTERNAL_DNS {
 		return localLookupIP(address)
 	}
-
 	result := make(chan string, len(publicDns))
 	for _, dns := range publicDns {
 		go func(dns string) {
-			s, _ := remoteLookupIP(address, dns)
-			result <- s
+			s, err := remoteLookupIP(address, dns)
+			if err == nil {
+				result <- s
+			}
 		}(dns)
 	}
-
 	for i := 0; i < len(publicDns); i++ {
 		ipaddress = <-result
 		if ipaddress != "" {
 			return
 		}
 	}
-
-	err = fmt.Errorf("failed to lookup %s at any DNS server", address)
+	err = fmt.Errorf("failed to resolve %s: all DNS servers exhausted", address)
 	return
 }
 
