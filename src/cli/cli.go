@@ -42,6 +42,14 @@ func Run() (err error) {
 	app.UsageText = `Send a file:
       croc send file.txt
 
+   Send multiple files:
+      croc send file1.txt file2.txt file3.txt
+    or
+      croc send *.jpg
+
+   Send everything in a folder:
+      croc send example-folder-name
+
    Send a file with a custom code:
       croc send --code secret-code file.txt
 
@@ -50,9 +58,9 @@ func Run() (err error) {
 	app.Commands = []*cli.Command{
 		{
 			Name:        "send",
-			Usage:       "send a file (see options with croc send -h)",
-			Description: "send a file over the relay",
-			ArgsUsage:   "[filename]",
+			Usage:       "send file(s), or folder (see options with croc send -h)",
+			Description: "send file(s), or folder, over the relay",
+			ArgsUsage:   "[filename(s) or folder]",
 			Flags: []cli.Flag{
 				&cli.StringFlag{Name: "code", Aliases: []string{"c"}, Usage: "codephrase used to connect to relay"},
 				&cli.StringFlag{Name: "hash", Value: "xxhash", Usage: "hash algorithm (xxhash, imohash, md5)"},
@@ -275,7 +283,7 @@ func send(c *cli.Context) (err error) {
 		fnames = c.Args().Slice()
 	}
 	if len(fnames) == 0 {
-		return errors.New("must specify file: croc send [filename]")
+		return errors.New("must specify file: croc send [filename(s) or folder]")
 	}
 
 	if len(crocOptions.SharedSecret) == 0 {
