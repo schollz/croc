@@ -427,14 +427,20 @@ func (c *Client) Send(options TransferOptions, Version string) (err error) {
 				log.Debug(err)
 				errchan <- err
 				if c.Options.NoUpdateCheck {
-					regex_version := regexp.MustCompile(`-([\s\S]*)$`)
-					version_stripped := fmt.Sprint(regex_version.ReplaceAllString(Version, ""))
-					http_resp, _ := http.Get("https://api.github.com/repos/schollz/croc/releases/latest")
-					body, _ := ioutil.ReadAll(http_resp.Body)
-					gh_version, _ := jsonparser.GetString([]byte(fmt.Sprintf("%s\n", body)), "name")
-					if gh_version != version_stripped {
-						fmt.Println("Maybe try updating croc, to fix this error!")
-						fmt.Println("Update croc by running 'curl https://getcroc.schollz.com | bash'!")
+					regexVersion := regexp.MustCompile(`-([\s\S]*)$`)
+					versionStripped := fmt.Sprint(regexVersion.ReplaceAllString(Version, ""))
+					httpResp, err := http.Get("https://api.github.com/repos/schollz/croc/releases/latest")
+					if err != nil {
+						fmt.Println("Couldn't check whether you are up-to-date or not, so please check manually!")
+						fmt.Println("You can also deactivate this check by setting no-update-check to true!")
+					} else {
+						body, _ := ioutil.ReadAll(httpResp.Body)
+						ghVersion, _ := jsonparser.GetString([]byte(fmt.Sprintf("%s\n", body)), "name")
+						if ghVersion != versionStripped {
+							fmt.Println("Maybe try updating croc, to fix this error!")
+							fmt.Println("Update croc by running 'curl https://getcroc.schollz.com | bash'!")
+						}
+
 					}
 				}
 				return
@@ -1121,7 +1127,7 @@ func (c *Client) recipientInitializeFile() (err error) {
 	if errOpen == nil {
 		stat, _ := c.CurrentFile.Stat()
 		truncate = stat.Size() != c.FilesToTransfer[c.FilesToTransferCurrentNum].Size
-		if !truncate {        // Changed because of IDE-Mention
+		if !truncate { // Changed because of IDE-Mention
 			// recipient requests the file and chunks (if empty, then should receive all chunks)
 			// TODO: determine the missing chunks
 			c.CurrentFileChunkRanges = utils.MissingChunks(
