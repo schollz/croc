@@ -83,6 +83,7 @@ func Run() (err error) {
 				return relay(c)
 			},
 			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "host", Usage: "host of the relay"},
 				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay"},
 			},
 		},
@@ -519,6 +520,7 @@ func relay(c *cli.Context) (err error) {
 	if c.Bool("debug") {
 		debugString = "debug"
 	}
+	host := c.String("host")
 	ports := strings.Split(c.String("ports"), ",")
 	tcpPorts := strings.Join(ports[1:], ",")
 	for i, port := range ports {
@@ -526,11 +528,11 @@ func relay(c *cli.Context) (err error) {
 			continue
 		}
 		go func(portStr string) {
-			err = tcp.Run(debugString, portStr, determinePass(c))
+			err = tcp.Run(debugString, host, portStr, determinePass(c))
 			if err != nil {
 				panic(err)
 			}
 		}(port)
 	}
-	return tcp.Run(debugString, ports[0], determinePass(c), tcpPorts)
+	return tcp.Run(debugString, host, ports[0], determinePass(c), tcpPorts)
 }

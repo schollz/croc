@@ -17,6 +17,7 @@ import (
 )
 
 type server struct {
+	host       string
 	port       string
 	debugLevel string
 	banner     string
@@ -40,8 +41,9 @@ var timeToRoomDeletion = 10 * time.Minute
 var pingRoom = "pinglkasjdlfjsaldjf"
 
 // Run starts a tcp listener, run async
-func Run(debugLevel, port, password string, banner ...string) (err error) {
+func Run(debugLevel, host, port, password string, banner ...string) (err error) {
 	s := new(server)
+	s.host = host
 	s.port = port
 	s.password = password
 	s.debugLevel = debugLevel
@@ -85,10 +87,30 @@ func (s *server) start() (err error) {
 }
 
 func (s *server) run() (err error) {
-	log.Infof("starting TCP server on " + s.port)
-	server, err := net.Listen("tcp", ":"+s.port)
+	network := "tcp"
+	addr := net.JoinHostPort(s.host, s.port)
+	if s.host != "" {
+		ip := net.ParseIP(s.host)
+		if ip == nil {
+			tcpIP, err := net.ResolveIPAddr("ip", s.host)
+			if err != nil {
+				return err
+			}
+			ip = tcpIP.IP
+		}
+		addr = net.JoinHostPort(ip.String(), s.port)
+		if s.host != "" {
+			if ip.To4() != nil {
+				network = "tcp4"
+			} else {
+				network = "tcp6"
+			}
+		}
+	}
+	log.Infof("starting TCP server on " + addr)
+	server, err := net.Listen(network, addr)
 	if err != nil {
-		return fmt.Errorf("error listening on %s: %w", s.port, err)
+		return fmt.Errorf("error listening on %s: %w", addr, err)
 	}
 	defer server.Close()
 	// spawn a new goroutine whenever a client connects
