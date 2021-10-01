@@ -33,6 +33,11 @@ import (
 	"github.com/schollz/croc/v9/src/utils"
 )
 
+var (
+	ipRequest        = []byte("ips?")
+	handshakeRequest = []byte("handshake")
+)
+
 func init() {
 	log.SetLevel("debug")
 }
@@ -334,7 +339,7 @@ func (c *Client) transferOverLocalRelay(options TransferOptions, errchan chan<- 
 	log.Debugf("local connection established: %+v", conn)
 	for {
 		data, _ := conn.Receive()
-		if bytes.Equal(data, []byte("handshake")) {
+		if bytes.Equal(data, handshakeRequest) {
 			break
 		} else if bytes.Equal(data, []byte{1}) {
 			log.Debug("got ping")
@@ -403,7 +408,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 				// Default port to :9009
 				if port == "" {
 					host = address
-					port = "9009"
+					port = models.DEFAULT_PORT
 				}
 				log.Debugf("got host '%v' and port '%v'", host, port)
 				address = net.JoinHostPort(host, port)
@@ -432,7 +437,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 				if errConn != nil {
 					log.Debugf("[%+v] had error: %s", conn, errConn.Error())
 				}
-				if bytes.Equal(data, []byte("ips?")) {
+				if bytes.Equal(data, ipRequest) {
 					// recipient wants to try to connect to local ips
 					var ips []string
 					// only get local ips if the local is enabled
@@ -449,7 +454,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 					if err := conn.Send(bips); err != nil {
 						log.Errorf("error sending: %v", err)
 					}
-				} else if bytes.Equal(data, []byte("handshake")) {
+				} else if bytes.Equal(data, handshakeRequest) {
 					break
 				} else if bytes.Equal(data, []byte{1}) {
 					log.Debug("got ping")
@@ -569,7 +574,7 @@ func (c *Client) Receive() (err error) {
 				log.Debug("switching to local")
 				portToUse := string(bytes.TrimPrefix(discoveries[0].Payload, []byte("croc")))
 				if portToUse == "" {
-					portToUse = "9009"
+					portToUse = models.DEFAULT_PORT
 				}
 				address := net.JoinHostPort(discoveries[0].Address, portToUse)
 				if tcp.PingServer(address) == nil {
@@ -597,7 +602,7 @@ func (c *Client) Receive() (err error) {
 		// Default port to :9009
 		if port == "" {
 			host = address
-			port = "9009"
+			port = models.DEFAULT_PORT
 		}
 		log.Debugf("got host '%v' and port '%v'", host, port)
 		address = net.JoinHostPort(host, port)
@@ -622,7 +627,7 @@ func (c *Client) Receive() (err error) {
 		// and try to connect to them
 		log.Debug("sending ips?")
 		var data []byte
-		if err := c.conn[0].Send([]byte("ips?")); err != nil {
+		if err := c.conn[0].Send(ipRequest); err != nil {
 			log.Errorf("ips send error: %v", err)
 		}
 		data, err = c.conn[0].Receive()
@@ -674,7 +679,7 @@ func (c *Client) Receive() (err error) {
 		}
 	}
 
-	if err := c.conn[0].Send([]byte("handshake")); err != nil {
+	if err := c.conn[0].Send(handshakeRequest); err != nil {
 		log.Errorf("handshake send error: %v", err)
 	}
 	c.Options.RelayPorts = strings.Split(banner, ",")
@@ -703,7 +708,7 @@ func (c *Client) transfer(options TransferOptions) (err error) {
 	log.Debug("ready")
 	if !c.Options.IsSender && !c.Step1ChannelSecured {
 		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:   "pake",
+			Type:   message.TypePAKE,
 			Bytes:  c.Pake.Bytes(),
 			Bytes2: []byte(c.Options.Curve),
 		})
@@ -822,7 +827,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 		choice := strings.ToLower(utils.GetInput(""))
 		if choice != "" && choice != "y" && choice != "yes" {
 			err = message.Send(c.conn[0], c.Key, message.Message{
-				Type:    "error",
+				Type:    message.TypeError,
 				Message: "refusing files",
 			})
 			if err != nil {
@@ -868,7 +873,7 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 		}
 		log.Debug("sender sending pake+salt")
 		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:   "pake",
+			Type:   message.TypePAKE,
 			Bytes:  c.Pake.Bytes(),
 			Bytes2: salt,
 		})
@@ -928,7 +933,7 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 	if !c.Options.IsSender {
 		log.Debug("sending external IP")
 		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:    "externalip",
+			Type:    message.TypeExternalIP,
 			Message: c.ExternalIP,
 			Bytes:   m.Bytes,
 		})
@@ -940,7 +945,7 @@ func (c *Client) processExternalIP(m message.Message) (done bool, err error) {
 	log.Debugf("received external IP: %+v", m)
 	if c.Options.IsSender {
 		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:    "externalip",
+			Type:    message.TypeExternalIP,
 			Message: c.ExternalIP,
 		})
 		if err != nil {
@@ -967,36 +972,36 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 	// only "pake" messages should be unencrypted
 	// if a non-"pake" message is received unencrypted something
 	// is weird
-	if m.Type != "pake" && c.Key == nil {
+	if m.Type != message.TypePAKE && c.Key == nil {
 		err = fmt.Errorf("unencrypted communication rejected")
 		done = true
 		return
 	}
 
 	switch m.Type {
-	case "finished":
+	case message.TypeFinished:
 		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type: "finished",
+			Type: message.TypeFinished,
 		})
 		done = true
 		c.SuccessfulTransfer = true
 		return
-	case "pake":
+	case message.TypePAKE:
 		err = c.processMessagePake(m)
 		if err != nil {
 			err = fmt.Errorf("pake not successful: %w", err)
 			log.Debug(err)
 		}
-	case "externalip":
+	case message.TypeExternalIP:
 		done, err = c.processExternalIP(m)
-	case "error":
+	case message.TypeError:
 		// c.spinner.Stop()
 		fmt.Print("\r")
 		err = fmt.Errorf("peer error: %s", m.Message)
 		return true, err
-	case "fileinfo":
+	case message.TypeFileInfo:
 		done, err = c.processMessageFileInfo(m)
-	case "recipientready":
+	case message.TypeRecipientReady:
 		var remoteFile RemoteFileRequest
 		err = json.Unmarshal(m.Bytes, &remoteFile)
 		if err != nil {
@@ -1019,23 +1024,23 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 			choice := strings.ToLower(utils.GetInput(""))
 			if choice != "" && choice != "y" && choice != "yes" {
 				err = message.Send(c.conn[0], c.Key, message.Message{
-					Type:    "error",
+					Type:    message.TypeError,
 					Message: "refusing files",
 				})
 				done = true
 				return
 			}
 		}
-	case "close-sender":
+	case message.TypeCloseSender:
 		c.bar.Finish()
 		log.Debug("close-sender received...")
 		c.Step4FileTransfer = false
 		c.Step3RecipientRequestFile = false
 		log.Debug("sending close-recipient")
 		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type: "close-recipient",
+			Type: message.TypeCloseRecipient,
 		})
-	case "close-recipient":
+	case message.TypeCloseRecipient:
 		c.Step4FileTransfer = false
 		c.Step3RecipientRequestFile = false
 	}
@@ -1068,7 +1073,7 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 			return
 		}
 		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:  "fileinfo",
+			Type:  message.TypeFileInfo,
 			Bytes: b,
 		})
 		if err != nil {
@@ -1140,7 +1145,7 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 		// TODO: do the last finishing stuff
 		log.Debug("finished")
 		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type: "finished",
+			Type: message.TypeFinished,
 		})
 		if err != nil {
 			panic(err)
@@ -1172,7 +1177,7 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 
 	log.Debugf("sending recipient ready with %d chunks", len(c.CurrentFileChunks))
 	err = message.Send(c.conn[0], c.Key, message.Message{
-		Type:  "recipientready",
+		Type:  message.TypeRecipientReady,
 		Bytes: bRequest,
 	})
 	if err != nil {
@@ -1478,7 +1483,7 @@ func (c *Client) receiveData(i int) {
 			}
 			log.Debug("sending close-sender")
 			err = message.Send(c.conn[0], c.Key, message.Message{
-				Type: "close-sender",
+				Type: message.TypeCloseSender,
 			})
 			if err != nil {
 				panic(err)

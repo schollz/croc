@@ -13,9 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var TypeMessage Type = "message"
+
 func TestMessage(t *testing.T) {
 	log.SetLevel("debug")
-	m := Message{Type: "message", Message: "hello, world"}
+	m := Message{Type: TypeMessage, Message: "hello, world"}
 	e, salt, err := crypt.New([]byte("pass"), nil)
 	assert.Nil(t, err)
 	fmt.Println(salt)
@@ -35,7 +37,7 @@ func TestMessage(t *testing.T) {
 
 func TestMessageNoPass(t *testing.T) {
 	log.SetLevel("debug")
-	m := Message{Type: "message", Message: "hello, world"}
+	m := Message{Type: TypeMessage, Message: "hello, world"}
 	b, err := Encode(nil, m)
 	assert.Nil(t, err)
 	fmt.Printf("%x\n", b)
@@ -85,7 +87,7 @@ func TestSend(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
 	a, err := comm.NewConnection("localhost:"+port, 10*time.Minute)
 	assert.Nil(t, err)
-	m := Message{Type: "message", Message: "hello, world"}
+	m := Message{Type: TypeMessage, Message: "hello, world"}
 	e, salt, err := crypt.New([]byte("pass"), nil)
 	log.Debug(salt)
 	assert.Nil(t, err)
