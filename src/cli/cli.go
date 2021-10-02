@@ -225,28 +225,28 @@ func send(c *cli.Context) (err error) {
 			return
 		}
 		// update anything that isn't explicitly set
-		if !c.IsSet("relay") {
+		if !c.IsSet("relay") && rememberedOptions.RelayAddress != "" {
 			crocOptions.RelayAddress = rememberedOptions.RelayAddress
 		}
 		if !c.IsSet("no-local") {
 			crocOptions.DisableLocal = rememberedOptions.DisableLocal
 		}
-		if !c.IsSet("ports") {
+		if !c.IsSet("ports") && len(rememberedOptions.RelayPorts) > 0 {
 			crocOptions.RelayPorts = rememberedOptions.RelayPorts
 		}
 		if !c.IsSet("code") {
 			crocOptions.SharedSecret = rememberedOptions.SharedSecret
 		}
-		if !c.IsSet("pass") {
+		if !c.IsSet("pass") && rememberedOptions.RelayPassword != "" {
 			crocOptions.RelayPassword = rememberedOptions.RelayPassword
 		}
-		if !c.IsSet("relay6") {
+		if !c.IsSet("relay6") && rememberedOptions.RelayAddress6 != "" {
 			crocOptions.RelayAddress6 = rememberedOptions.RelayAddress6
 		}
 		if !c.IsSet("overwrite") {
 			crocOptions.Overwrite = rememberedOptions.Overwrite
 		}
-		if !c.IsSet("curve") {
+		if !c.IsSet("curve") && rememberedOptions.Curve != "" {
 			crocOptions.Curve = rememberedOptions.Curve
 		}
 		if !c.IsSet("local") {
@@ -452,7 +452,7 @@ func receive(c *cli.Context) (err error) {
 			return
 		}
 		// update anything that isn't expliciGlobalIsSettly set
-		if !c.IsSet("relay") {
+		if !c.IsSet("relay") && rememberedOptions.RelayAddress != "" {
 			crocOptions.RelayAddress = rememberedOptions.RelayAddress
 		}
 		if !c.IsSet("yes") {
@@ -461,16 +461,16 @@ func receive(c *cli.Context) (err error) {
 		if crocOptions.SharedSecret == "" {
 			crocOptions.SharedSecret = rememberedOptions.SharedSecret
 		}
-		if !c.IsSet("pass") {
+		if !c.IsSet("pass") && rememberedOptions.RelayPassword != "" {
 			crocOptions.RelayPassword = rememberedOptions.RelayPassword
 		}
-		if !c.IsSet("relay6") {
+		if !c.IsSet("relay6") && rememberedOptions.RelayAddress6 != "" {
 			crocOptions.RelayAddress6 = rememberedOptions.RelayAddress6
 		}
 		if !c.IsSet("overwrite") {
 			crocOptions.Overwrite = rememberedOptions.Overwrite
 		}
-		if !c.IsSet("curve") {
+		if !c.IsSet("curve") && rememberedOptions.Curve != "" {
 			crocOptions.Curve = rememberedOptions.Curve
 		}
 		if !c.IsSet("local") {
