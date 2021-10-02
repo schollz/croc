@@ -189,7 +189,6 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		room = pingRoom
 		log.Debug("sending back pong")
 		c.Send([]byte("pong"))
-		time.Sleep(100 * time.Millisecond)
 		return
 	}
 	err = B.Update(Abytes)
@@ -443,62 +442,75 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		c, err = comm.NewConnection(address)
 	}
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 
 	// get PAKE connection with server to establish strong key to transfer info
 	A, err := pake.InitCurve(weakKey, 0, "siec")
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	err = c.Send(A.Bytes())
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	Bbytes, err := c.Receive()
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	err = A.Update(Bbytes)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	strongKey, err := A.SessionKey()
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	log.Debugf("strong key: %x", strongKey)
 
 	strongKeyForEncryption, salt, err := crypt.New(strongKey, nil)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	// send salt
 	err = c.Send(salt)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 
 	log.Debug("sending password")
 	bSend, err := crypt.Encrypt([]byte(password), strongKeyForEncryption)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	err = c.Send(bSend)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	log.Debug("waiting for first ok")
 	enc, err := c.Receive()
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	data, err := crypt.Decrypt(enc, strongKeyForEncryption)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	if !strings.Contains(string(data), "|||") {
 		err = fmt.Errorf("bad response: %s", string(data))
+		log.Debug(err)
 		return
 	}
 	banner = strings.Split(string(data), "|||")[0]
@@ -506,23 +518,28 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	log.Debug("sending room")
 	bSend, err = crypt.Encrypt([]byte(room), strongKeyForEncryption)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	err = c.Send(bSend)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	log.Debug("waiting for room confirmation")
 	enc, err = c.Receive()
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	data, err = crypt.Decrypt(enc, strongKeyForEncryption)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	if !bytes.Equal(data, []byte("ok")) {
 		err = fmt.Errorf("got bad response: %s", data)
+		log.Debug(err)
 		return
 	}
 	log.Debug("all set")
