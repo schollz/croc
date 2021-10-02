@@ -9,9 +9,23 @@ import (
 	log "github.com/schollz/logger"
 )
 
+// Type is a message type
+type Type string
+
+const (
+	TypePAKE           Type = "pake"
+	TypeExternalIP     Type = "externalip"
+	TypeFinished       Type = "finished"
+	TypeError          Type = "error"
+	TypeCloseRecipient Type = "close-recipient"
+	TypeCloseSender    Type = "close-sender"
+	TypeRecipientReady Type = "recipientready"
+	TypeFileInfo       Type = "fileinfo"
+)
+
 // Message is the possible payload for messaging
 type Message struct {
-	Type    string `json:"t,omitempty"`
+	Type    Type   `json:"t,omitempty"`
 	Message string `json:"m,omitempty"`
 	Bytes   []byte `json:"b,omitempty"`
 	Bytes2  []byte `json:"b2,omitempty"`
