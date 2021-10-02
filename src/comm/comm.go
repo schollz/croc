@@ -49,8 +49,10 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 			log.Debug(err)
 			return
 		}
+		log.Debug("dialing with dialer.Dial")
 		connection, err = dialer.Dial("tcp", address)
 	} else {
+		log.Debugf("dialing to %s with timelimit %s", address, tlimit)
 		connection, err = net.DialTimeout("tcp", address, tlimit)
 	}
 	if err != nil {
