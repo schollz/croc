@@ -70,18 +70,14 @@ func Run() (err error) {
 				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the local relay (optional)"},
 			},
 			HelpName: "croc send",
-			Action: func(c *cli.Context) error {
-				return send(c)
-			},
+			Action:   send,
 		},
 		{
 			Name:        "relay",
 			Usage:       "start your own relay (optional)",
 			Description: "start relay",
 			HelpName:    "croc relay",
-			Action: func(c *cli.Context) error {
-				return relay(c)
-			},
+			Action:      relay,
 			Flags: []cli.Flag{
 				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay"},
 			},
@@ -352,6 +348,17 @@ func getPaths(fnames []string) (paths []string, haveFolder bool, err error) {
 	haveFolder = false
 	paths = []string{}
 	for _, fname := range fnames {
+		// Support wildcard
+		if strings.Contains(fname, "*") {
+			matches, errGlob := filepath.Glob(fname)
+			if errGlob != nil {
+				err = errGlob
+				return
+			}
+			paths = append(paths, matches...)
+			continue
+		}
+
 		stat, errStat := os.Lstat(fname)
 		if errStat != nil {
 			err = errStat
