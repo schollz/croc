@@ -13,7 +13,7 @@ require (
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/mnemonicode v1.0.1
 	github.com/schollz/pake/v3 v3.0.2
-	github.com/schollz/peerdiscovery v1.6.7
+	github.com/schollz/peerdiscovery v1.6.9
 	github.com/schollz/progressbar/v3 v3.8.3
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stretchr/testify v1.6.1
@@ -21,7 +21,6 @@ require (
 	github.com/twmb/murmur3 v1.1.6 // indirect
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/net v0.0.0-20210929193557-e81a3d93ecf6
-	golang.org/x/sys v0.0.0-20211002104244-808efd93c36d // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
