@@ -40,11 +40,13 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 		socks5ProxyURL, urlParseError := url.Parse(Socks5Proxy)
 		if urlParseError != nil {
 			err = fmt.Errorf("Unable to parse socks proxy url: %s", urlParseError)
+			log.Debug(err)
 			return
 		}
 		dialer, err = proxy.FromURL(socks5ProxyURL, proxy.Direct)
 		if err != nil {
 			err = fmt.Errorf("proxy failed: %w", err)
+			log.Debug(err)
 			return
 		}
 		connection, err = dialer.Dial("tcp", address)
@@ -53,6 +55,7 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 	}
 	if err != nil {
 		err = fmt.Errorf("comm.NewConnection failed: %w", err)
+		log.Debug(err)
 		return
 	}
 	c = New(connection)
