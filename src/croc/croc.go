@@ -572,18 +572,21 @@ func (c *Client) Receive() (err error) {
 					continue
 				}
 				log.Debug("switching to local")
-				portToUse := string(bytes.TrimPrefix(discoveries[0].Payload, []byte("croc")))
+				portToUse := string(bytes.TrimPrefix(discoveries[i].Payload, []byte("croc")))
 				if portToUse == "" {
 					portToUse = models.DEFAULT_PORT
 				}
-				address := net.JoinHostPort(discoveries[0].Address, portToUse)
-				if tcp.PingServer(address) == nil {
+				address := net.JoinHostPort(discoveries[i].Address, portToUse)
+				errPing := tcp.PingServer(address)
+				if errPing == nil {
 					log.Debugf("succesfully pinged '%s'", address)
 					c.Options.RelayAddress = address
 					c.ExternalIPConnected = c.Options.RelayAddress
 					c.Options.RelayAddress6 = ""
 					usingLocal = true
 					break
+				} else {
+					log.Debugf("could not ping: %+v", errPing)
 				}
 			}
 		}
@@ -660,8 +663,9 @@ func (c *Client) Receive() (err error) {
 				}
 
 				serverTry := fmt.Sprintf("%s:%s", ip, port)
-				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.SharedSecret[:3], 250*time.Millisecond)
+				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.SharedSecret[:3], 500*time.Millisecond)
 				if errConn != nil {
+					log.Debug(errConn)
 					log.Debugf("could not connect to " + serverTry)
 					continue
 				}
