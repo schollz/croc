@@ -184,6 +184,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	if err != nil {
 		return
 	}
+	log.Debugf("Abytes: %s", Abytes)
 	if bytes.Equal(Abytes, []byte("ping")) {
 		room = pingRoom
 		log.Debug("sending back pong")
