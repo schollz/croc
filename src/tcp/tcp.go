@@ -186,7 +186,9 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	}
 	if bytes.Equal(Abytes, []byte("ping")) {
 		room = pingRoom
+		log.Debug("sending back pong")
 		c.Send([]byte("pong"))
+		time.Sleep(100 * time.Millisecond)
 		return
 	}
 	err = B.Update(Abytes)
@@ -409,16 +411,20 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 }
 
 func PingServer(address string) (err error) {
-	c, err := comm.NewConnection(address, 200*time.Millisecond)
+	log.Debugf("pinging %s", address)
+	c, err := comm.NewConnection(address, 300*time.Millisecond)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	err = c.Send([]byte("ping"))
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	b, err := c.Receive()
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	if bytes.Equal(b, []byte("pong")) {
