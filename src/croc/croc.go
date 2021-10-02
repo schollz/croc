@@ -296,7 +296,7 @@ func (c *Client) setupLocalRelay() {
 			if c.Options.Debug {
 				debugString = "debug"
 			}
-			err := tcp.Run(debugString, portStr, c.Options.RelayPassword, strings.Join(c.Options.RelayPorts[1:], ","))
+			err := tcp.Run(debugString, "localhost", portStr, c.Options.RelayPassword, strings.Join(c.Options.RelayPorts[1:], ","))
 			if err != nil {
 				panic(err)
 			}
