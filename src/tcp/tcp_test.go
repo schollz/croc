@@ -25,13 +25,13 @@ func TestTCP(t *testing.T) {
 	log.SetLevel("error")
 	timeToRoomDeletion = 100 * time.Millisecond
 	go Run("debug", "localhost", "8281", "pass123", "8282")
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(timeToRoomDeletion)
 	err := PingServer("localhost:8281")
 	assert.Nil(t, err)
 	err = PingServer("localhost:8333")
 	assert.NotNil(t, err)
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(timeToRoomDeletion)
 	c1, banner, _, err := ConnectToTCPServer("localhost:8281", "pass123", "testRoom", 1*time.Minute)
 	assert.Equal(t, banner, "8282")
 	assert.Nil(t, err)
