@@ -37,10 +37,9 @@ type roomMap struct {
 	sync.Mutex
 }
 
-const (
-	timeToRoomDeletion = 10 * time.Minute
-	pingRoom           = "pinglkasjdlfjsaldjf"
-)
+const pingRoom = "pinglkasjdlfjsaldjf"
+
+var timeToRoomDeletion = 10 * time.Minute
 
 // Run starts a tcp listener, run async
 func Run(debugLevel, host, port, password string, banner ...string) (err error) {
