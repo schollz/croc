@@ -6,9 +6,11 @@ on:
     branches: [master]
 
 jobs:
-  test:
-    name: Run tests
+  unit-tests:
+    name: Go unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - run: go test ./...
+    - uses: actions/checkout@v2
+    - uses: actions/setup-go@v2
+    - run: go version
+    - run: go test -v .
