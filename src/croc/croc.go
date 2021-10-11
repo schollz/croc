@@ -426,7 +426,7 @@ func (c *Client) Send(options TransferOptions, Version string) (err error) {
 				err = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, err)
 				log.Debug(err)
 				errchan <- err
-				if c.Options.NoUpdateCheck {
+				if !c.Options.NoUpdateCheck {
 					regexVersion := regexp.MustCompile(`-([\s\S]*)$`)
 					versionStripped := fmt.Sprint(regexVersion.ReplaceAllString(Version, ""))
 					httpResp, err := http.Get("https://api.github.com/repos/schollz/croc/releases/latest")
