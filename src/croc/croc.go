@@ -178,7 +178,8 @@ func New(ops Options) (c *Client, err error) {
 
 	c.conn = make([]*comm.Comm, 16)
 
-	if len(c.Options.ThrottleUpload) > 0 && c.Options.IsSender {
+	// initialize throttler
+	if len(c.Options.ThrottleUpload) > 1 && c.Options.IsSender {
 		upload := c.Options.ThrottleUpload[:len(c.Options.ThrottleUpload)-1]
 		uploadLimit, err := strconv.ParseInt(upload, 10, 64)
 		if err != nil {
@@ -193,6 +194,11 @@ func New(ops Options) (c *Client, err error) {
 			uploadLimit = uploadLimit*1024*1024
 		case "k", "K":
 			uploadLimit = uploadLimit*1024
+		default:
+			uploadLimit, err = strconv.ParseInt(c.Options.ThrottleUpload, 10, 64)
+			if err != nil {
+				panic("Could not parse given Upload Limit")
+			}
 		}
 		// Somehow 4* is neccessary
 		rt = rate.Every(time.Second / (4*time.Duration(uploadLimit)))
