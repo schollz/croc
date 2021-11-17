@@ -3,7 +3,6 @@ package utils
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
@@ -17,7 +16,7 @@ import (
 var bigFileSize = 75000000
 
 func bigFile() {
-	ioutil.WriteFile("bigfile.test", bytes.Repeat([]byte("z"), bigFileSize), 0666)
+	os.WriteFile("bigfile.test", bytes.Repeat([]byte("z"), bigFileSize), 0666)
 }
 
 func BenchmarkMD5(b *testing.B) {
@@ -119,7 +118,7 @@ func TestMissingChunks(t *testing.T) {
 	rand.Seed(1)
 	bigBuff := make([]byte, fileSize)
 	rand.Read(bigBuff)
-	ioutil.WriteFile("missing.test", bigBuff, 0644)
+	os.WriteFile("missing.test", bigBuff, 0644)
 	empty := make([]byte, chunkSize)
 	f, err := os.OpenFile("missing.test", os.O_RDWR, 0644)
 	assert.Nil(t, err)
@@ -139,7 +138,7 @@ func TestMissingChunks(t *testing.T) {
 	os.Remove("missing.test")
 
 	content := []byte("temporary file's content")
-	tmpfile, err := ioutil.TempFile("", "example")
+	tmpfile, err := os.CreateTemp("", "example")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -171,7 +170,7 @@ func TestMissingChunks(t *testing.T) {
 
 func TestHashFile(t *testing.T) {
 	content := []byte("temporary file's content")
-	tmpfile, err := ioutil.TempFile("", "example")
+	tmpfile, err := os.CreateTemp("", "example")
 	if err != nil {
 		log.Fatal(err)
 	}

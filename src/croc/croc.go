@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net"
 	"os"
@@ -1482,7 +1481,7 @@ func (c *Client) receiveData(i int) {
 					c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
 					c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
 				)
-				b, _ := ioutil.ReadFile(pathToFile)
+				b, _ := os.ReadFile(pathToFile)
 				fmt.Print(string(b))
 			}
 			log.Debug("sending close-sender")

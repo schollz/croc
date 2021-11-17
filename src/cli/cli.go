@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -177,7 +176,7 @@ func getConfigFile() string {
 
 func determinePass(c *cli.Context) (pass string) {
 	pass = c.String("pass")
-	b, err := ioutil.ReadFile(pass)
+	b, err := os.ReadFile(pass)
 	if err == nil {
 		pass = strings.TrimSpace(string(b))
 	}
@@ -213,7 +212,7 @@ func send(c *cli.Context) (err error) {
 	} else if crocOptions.RelayAddress6 != models.DEFAULT_RELAY6 {
 		crocOptions.RelayAddress = ""
 	}
-	b, errOpen := ioutil.ReadFile(getConfigFile())
+	b, errOpen := os.ReadFile(getConfigFile())
 	if errOpen == nil && !c.Bool("remember") {
 		var rememberedOptions croc.Options
 		err = json.Unmarshal(b, &rememberedOptions)
@@ -310,7 +309,7 @@ func send(c *cli.Context) (err error) {
 }
 
 func getStdin() (fnames []string, err error) {
-	f, err := ioutil.TempFile(".", "croc-stdin-")
+	f, err := os.CreateTemp(".", "croc-stdin-")
 	if err != nil {
 		return
 	}
@@ -327,7 +326,7 @@ func getStdin() (fnames []string, err error) {
 }
 
 func makeTempFileWithString(s string) (fnames []string, err error) {
-	f, err := ioutil.TempFile(".", "croc-stdin-")
+	f, err := os.CreateTemp(".", "croc-stdin-")
 	if err != nil {
 		return
 	}
@@ -401,7 +400,7 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 			log.Error(err)
 			return
 		}
-		err = ioutil.WriteFile(configFile, bConfig, 0644)
+		err = os.WriteFile(configFile, bConfig, 0644)
 		if err != nil {
 			log.Error(err)
 			return
@@ -451,7 +450,7 @@ func receive(c *cli.Context) (err error) {
 		return
 	}
 	configFile = path.Join(configFile, "receive.json")
-	b, errOpen := ioutil.ReadFile(configFile)
+	b, errOpen := os.ReadFile(configFile)
 	if errOpen == nil && !c.Bool("remember") {
 		var rememberedOptions croc.Options
 		err = json.Unmarshal(b, &rememberedOptions)
@@ -509,7 +508,7 @@ func receive(c *cli.Context) (err error) {
 			log.Error(err)
 			return
 		}
-		err = ioutil.WriteFile(configFile, bConfig, 0644)
+		err = os.WriteFile(configFile, bConfig, 0644)
 		if err != nil {
 			log.Error(err)
 			return
