@@ -85,7 +85,7 @@ type Client struct {
 
 	// steps involved in forming relationship
 	Step1ChannelSecured       bool
-	Step2FileInfoTransfered   bool
+	Step2FileInfoTransferred   bool
 	Step3RecipientRequestFile bool
 	Step4FileTransfer         bool
 	Step5CloseChannels        bool
@@ -104,7 +104,7 @@ type Client struct {
 	LastFolder             string
 
 	TotalSent             int64
-	TotalChunksTransfered int
+	TotalChunksTransferred int
 	chunkMap              map[uint64]struct{}
 	limiter               *rate.Limiter
 
@@ -120,7 +120,7 @@ type Client struct {
 	numfinished             int
 	quit                    chan bool
 	finishedNum             int
-	numberOfTransferedFiles int
+	numberOfTransferredFiles int
 }
 
 // Chunk contains information about the
@@ -612,7 +612,7 @@ func (c *Client) Receive() (err error) {
 				address := net.JoinHostPort(discoveries[i].Address, portToUse)
 				errPing := tcp.PingServer(address)
 				if errPing == nil {
-					log.Debugf("succesfully pinged '%s'", address)
+					log.Debugf("successfully pinged '%s'", address)
 					c.Options.RelayAddress = address
 					c.ExternalIPConnected = c.Options.RelayAddress
 					c.Options.RelayAddress6 = ""
@@ -728,7 +728,7 @@ func (c *Client) Receive() (err error) {
 	fmt.Fprintf(os.Stderr, "\rsecuring channel...")
 	err = c.transfer(TransferOptions{})
 	if err == nil {
-		if c.numberOfTransferedFiles == 0 {
+		if c.numberOfTransferredFiles == 0 {
 			fmt.Fprintf(os.Stderr, "\rNo files transferred.")
 		}
 	}
@@ -878,7 +878,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)\n", c.ExternalIPConnected)
 
 	log.Debug(c.FilesToTransfer)
-	c.Step2FileInfoTransfered = true
+	c.Step2FileInfoTransferred = true
 	return
 }
 
@@ -1094,7 +1094,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 }
 
 func (c *Client) updateIfSenderChannelSecured() (err error) {
-	if c.Options.IsSender && c.Step1ChannelSecured && !c.Step2FileInfoTransfered {
+	if c.Options.IsSender && c.Step1ChannelSecured && !c.Step2FileInfoTransferred {
 		var b []byte
 		machID, _ := machineid.ID()
 		b, err = json.Marshal(SenderInfo{
@@ -1117,7 +1117,7 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 			return
 		}
 
-		c.Step2FileInfoTransfered = true
+		c.Step2FileInfoTransferred = true
 	}
 	return
 }
@@ -1278,7 +1278,7 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 }
 
 func (c *Client) updateIfRecipientHasFileInfo() (err error) {
-	if !(!c.Options.IsSender && c.Step2FileInfoTransfered && !c.Step3RecipientRequestFile) {
+	if !(!c.Options.IsSender && c.Step2FileInfoTransferred && !c.Step3RecipientRequestFile) {
 		return
 	}
 	// find the next file to transfer and send that number
@@ -1305,7 +1305,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			if err != nil {
 				return
 			} else {
-				c.numberOfTransferedFiles++
+				c.numberOfTransferredFiles++
 			}
 			continue
 		}
@@ -1343,7 +1343,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		if errHash != nil || !bytes.Equal(fileHash, fileInfo.Hash) {
 			finished = false
 			c.FilesToTransferCurrentNum = i
-			c.numberOfTransferedFiles++
+			c.numberOfTransferredFiles++
 			newFolder, _ := filepath.Split(fileInfo.FolderRemote)
 			if newFolder != c.LastFolder && len(c.FilesToTransfer) > 0 {
 				fmt.Fprintf(os.Stderr, "\r%s\n", newFolder)
@@ -1501,10 +1501,10 @@ func (c *Client) receiveData(i int) {
 		}
 		c.bar.Add(len(data[8:]))
 		c.TotalSent += int64(len(data[8:]))
-		c.TotalChunksTransfered++
-		// log.Debug(len(c.CurrentFileChunks), c.TotalChunksTransfered, c.TotalSent, c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
+		c.TotalChunksTransferred++
+		// log.Debug(len(c.CurrentFileChunks), c.TotalChunksTransferred, c.TotalSent, c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
 
-		if !c.CurrentFileIsClosed && (c.TotalChunksTransfered == len(c.CurrentFileChunks) || c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size) {
+		if !c.CurrentFileIsClosed && (c.TotalChunksTransferred == len(c.CurrentFileChunks) || c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size) {
 			c.CurrentFileIsClosed = true
 			log.Debug("finished receiving!")
 			if err := c.CurrentFile.Close(); err != nil {

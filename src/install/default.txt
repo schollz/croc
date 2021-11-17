@@ -159,7 +159,7 @@ make_tempdir() {
 #   DESCRIPTION:  Attempts to determin host os using uname
 #    PARAMETERS:  none
 #       RETURNS:  0 = OS Detected. Also prints detected os to stdout
-#                 1 = Unkown OS
+#                 1 = Unknown OS
 #                 20 = 'uname' not found in path
 #-------------------------------------------------------------------------------
 determine_os() {
@@ -183,7 +183,7 @@ determine_os() {
 #   DESCRIPTION:  Attempt to determin architecture of host
 #    PARAMETERS:  none
 #       RETURNS:  0 = Arch Detected. Also prints detected arch to stdout
-#                 1 = Unkown arch
+#                 1 = Unknown arch
 #                 20 = 'uname' not found in path
 #-------------------------------------------------------------------------------
 determine_arch() {
@@ -238,7 +238,7 @@ download_file() {
 #---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  checksum_check
 #   DESCRIPTION:  Attempt to verify checksum of downloaded file to ensure
-#                 integrity.  Tries multiple tools before faling.
+#                 integrity.  Tries multiple tools before failing.
 #    PARAMETERS:  $1 = path to checksum file
 #                 $2 = location of file to check
 #                 $3 = working directory
