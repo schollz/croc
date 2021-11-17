@@ -684,7 +684,7 @@ main() {
     print_message "== Install prefix already exists. No need to create it." "info"
   fi
 
-
+  [ ! -d "/etc/bash_completion.d/croc" ] && mkdir -p "/etc/bash_completion.d/croc"
   case "${croc_os}" in
     "Linux" ) install_file_linux "${tmpdir}/${croc_bin_name}" "${prefix}/";
               install_file_rcode="${?}";;
