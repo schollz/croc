@@ -1,7 +1,6 @@
 package croc
 
 import (
-	"io/ioutil"
 	"os"
 	"sync"
 	"testing"
@@ -153,7 +152,7 @@ func TestCrocLocal(t *testing.T) {
 
 func TestCrocError(t *testing.T) {
 	content := []byte("temporary file's content")
-	tmpfile, err := ioutil.TempFile("", "example")
+	tmpfile, err := os.CreateTemp("", "example")
 	if err != nil {
 		panic(err)
 	}
