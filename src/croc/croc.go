@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"golang.org/x/time/rate"
 
 	"github.com/denisbrodbeck/machineid"
 	log "github.com/schollz/logger"
@@ -72,6 +73,7 @@ type Options struct {
 	Overwrite      bool
 	Curve          string
 	HashAlgorithm  string
+	ThrottleUpload string
 }
 
 // Client holds the state of the croc transfer
@@ -104,6 +106,7 @@ type Client struct {
 	TotalSent             int64
 	TotalChunksTransfered int
 	chunkMap              map[uint64]struct{}
+	limiter               *rate.Limiter
 
 	// tcp connections
 	conn []*comm.Comm
@@ -173,6 +176,37 @@ func New(ops Options) (c *Client, err error) {
 	}
 
 	c.conn = make([]*comm.Comm, 16)
+
+	// initialize throttler
+	if len(c.Options.ThrottleUpload) > 1 && c.Options.IsSender {
+		upload := c.Options.ThrottleUpload[:len(c.Options.ThrottleUpload)-1]
+		uploadLimit, err := strconv.ParseInt(upload, 10, 64)
+		if err != nil {
+			panic("Could not parse given Upload Limit")
+		}
+		minBurstSize := models.TCP_BUFFER_SIZE
+		var rt rate.Limit
+		switch unit := string(c.Options.ThrottleUpload[len(c.Options.ThrottleUpload)-1:]); unit {
+		case "g", "G":
+			uploadLimit = uploadLimit*1024*1024*1024
+		case "m", "M":
+			uploadLimit = uploadLimit*1024*1024
+		case "k", "K":
+			uploadLimit = uploadLimit*1024
+		default:
+			uploadLimit, err = strconv.ParseInt(c.Options.ThrottleUpload, 10, 64)
+			if err != nil {
+				panic("Could not parse given Upload Limit")
+			}
+		}
+		// Somehow 4* is neccessary
+		rt = rate.Every(time.Second / (4*time.Duration(uploadLimit)))
+		if (int(uploadLimit) > minBurstSize) {
+			minBurstSize = int(uploadLimit)
+		}
+		c.limiter = rate.NewLimiter(rt, minBurstSize)
+		log.Debugf("Throttling Upload to %#v", c.limiter.Limit())
+	}
 
 	// initialize pake for recipient
 	if !c.Options.IsSender {
@@ -1518,6 +1552,11 @@ func (c *Client) sendData(i int) {
 		n, errRead := c.fread.ReadAt(data, readingPos)
 		// log.Debugf("%d read %d bytes", i, n)
 		readingPos += int64(n)
+		if (c.limiter != nil) {
+			r := c.limiter.ReserveN(time.Now(), n)
+			log.Debugf("Limiting Upload for %d", r.Delay())
+			time.Sleep(r.Delay())
+		}
 
 		if math.Mod(curi, float64(len(c.Options.RelayPorts))) == float64(i) {
 			// check to see if this is a chunk that the recipient wants

@@ -101,6 +101,7 @@ func Run() (err error) {
 		&cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 		&cli.StringFlag{Name: "pass", Value: models.DEFAULT_PASSPHRASE, Usage: "password for the relay", EnvVars: []string{"CROC_PASS"}},
 		&cli.StringFlag{Name: "socks5", Value: "", Usage: "add a socks5 proxy", EnvVars: []string{"SOCKS5_PROXY"}},
+		&cli.StringFlag{Name: "throttleUpload", Value: "", Usage: "Throttle the upload speed e.g. 500k"},
 	}
 	app.EnableBashCompletion = true
 	app.HideHelp = false
@@ -206,6 +207,7 @@ func send(c *cli.Context) (err error) {
 		Overwrite:      c.Bool("overwrite"),
 		Curve:          c.String("curve"),
 		HashAlgorithm:  c.String("hash"),
+		ThrottleUpload: c.String("throttleUpload"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
