@@ -459,7 +459,7 @@ func receive(c *cli.Context) (err error) {
 			log.Error(err)
 			return
 		}
-		// update anything that isn't expliciGlobalIsSettly set
+		// update anything that isn't explicitly Globally set
 		if !c.IsSet("relay") && rememberedOptions.RelayAddress != "" {
 			crocOptions.RelayAddress = rememberedOptions.RelayAddress
 		}

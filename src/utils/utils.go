@@ -172,7 +172,7 @@ func GenerateRandomPin() string {
 	return s
 }
 
-// GetRandomName returns mnemoicoded random name
+// GetRandomName returns mnemonicoded random name
 func GetRandomName() string {
 	var result []string
 	bs := make([]byte, 4)
