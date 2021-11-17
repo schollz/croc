@@ -101,7 +101,7 @@ On FreeBSD you can install with `pkg`:
 pkg install croc
 ```
 
-Or, you can [install Go](https://golang.org/dl/) and build from source (requires Go 1.15+): 
+Or, you can [install Go](https://golang.org/dl/) and build from source (requires Go 1.17+): 
 
 ```
 go install github.com/schollz/croc/v9@latest
