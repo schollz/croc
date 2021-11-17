@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -43,7 +42,7 @@ func run() (err error) {
 }
 
 func replaceInFile(fname, start, end, replacement string) (err error) {
-	b, err := ioutil.ReadFile(fname)
+	b, err := os.ReadFile(fname)
 	if err != nil {
 		return
 	}
@@ -58,7 +57,7 @@ func replaceInFile(fname, start, end, replacement string) (err error) {
 		fmt.Sprintf("%s%s%s", start, replacement, end),
 		1,
 	)
-	err = ioutil.WriteFile(fname, []byte(newF), 0644)
+	err = os.WriteFile(fname, []byte(newF), 0644)
 	return
 }
 
