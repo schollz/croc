@@ -281,10 +281,6 @@ func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
 			if err != nil {
 				return
 			}
-			if !strings.HasPrefix(folderName, curFolder) {
-				err = fmt.Errorf("remote directory must be relative to current")
-				return
-			}
 			c.FilesToTransfer[i].FolderRemote = strings.TrimPrefix(folderName, curFolder)
 			c.FilesToTransfer[i].FolderRemote = filepath.ToSlash(c.FilesToTransfer[i].FolderRemote)
 			c.FilesToTransfer[i].FolderRemote = strings.TrimPrefix(c.FilesToTransfer[i].FolderRemote, "/")
