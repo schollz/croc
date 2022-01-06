@@ -52,10 +52,10 @@ func HashFile(fname string, algorithm string) (hash256 []byte, err error) {
 	if fstats.Mode()&os.ModeSymlink != 0 {
 		var target string
 		target, err = os.Readlink(fname)
+		if err != nil {
+			return nil, err
+		}
 		return []byte(SHA256(target)), nil
-	}
-	if err != nil {
-		return nil, err
 	}
 	switch algorithm {
 	case "imohash":
