@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path"
+
+	"github.com/schollz/croc/v9/src/utils"
 )
 
 // TCP_BUFFER_SIZE is the maximum packet size
@@ -41,11 +44,38 @@ var publicDns = []string{
 	"[2620:119:53::53]",      // Cisco OpenDNS
 }
 
+func getConfigFile() (fname string, err error) {
+	configFile, err := utils.GetConfigDir()
+	if err != nil {
+		return
+	}
+	fname = path.Join(configFile, "internal-dns")
+	return
+}
+
 func init() {
+	doRemember := false
 	for _, flag := range os.Args {
 		if flag == "--internal-dns" {
 			INTERNAL_DNS = true
 			break
+		}
+		if flag == "--remember" {
+			doRemember = true
+		}
+	}
+	if doRemember {
+		// save in config file
+		fname, err := getConfigFile()
+		if err == nil {
+			f, _ := os.Create(fname)
+			f.Close()
+		}
+	}
+	if !INTERNAL_DNS {
+		fname, err := getConfigFile()
+		if err == nil {
+			INTERNAL_DNS = utils.Exists(fname)
 		}
 	}
 	var err error

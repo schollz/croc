@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -22,6 +23,27 @@ import (
 	"github.com/kalafut/imohash"
 	"github.com/schollz/mnemonicode"
 )
+
+// Get or create home directory
+func GetConfigDir() (homedir string, err error) {
+	homedir, err = os.UserHomeDir()
+	if err != nil {
+		return
+	}
+
+	if envHomedir, isSet := os.LookupEnv("CROC_CONFIG_DIR"); isSet {
+		homedir = envHomedir
+	} else if xdgConfigHome, isSet := os.LookupEnv("XDG_CONFIG_HOME"); isSet {
+		homedir = path.Join(xdgConfigHome, "croc")
+	} else {
+		homedir = path.Join(homedir, ".config", "croc")
+	}
+
+	if _, err = os.Stat(homedir); os.IsNotExist(err) {
+		err = os.MkdirAll(homedir, 0700)
+	}
+	return
+}
 
 // Exists reports whether the named file or directory exists.
 func Exists(name string) bool {
