@@ -9,9 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/schollz/croc/v9/src/models"
 	"github.com/stretchr/testify/assert"
 )
+
+const TCP_BUFFER_SIZE = 1024 * 64
 
 var bigFileSize = 75000000
 
@@ -62,7 +63,7 @@ func BenchmarkMissingChunks(b *testing.B) {
 	bigFile()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		MissingChunks("bigfile.test", int64(bigFileSize), models.TCP_BUFFER_SIZE/2)
+		MissingChunks("bigfile.test", int64(bigFileSize), TCP_BUFFER_SIZE/2)
 	}
 }
 
