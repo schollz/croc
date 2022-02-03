@@ -841,7 +841,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 		if len(fi.Name) > c.longestFilename {
 			c.longestFilename = len(fi.Name)
 		}
-		if strings.HasPrefix(fi.Name, "croc-stdin-") {
+		if strings.HasPrefix(fi.Name, "croc-stdin-") && c.Options.SendingText {
 			c.FilesToTransfer[i].Name, err = utils.RandomFileName()
 			if err != nil {
 				return
