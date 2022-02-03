@@ -135,28 +135,6 @@ func Run() (err error) {
 	return app.Run(os.Args)
 }
 
-func getConfigDir() (homedir string, err error) {
-	homedir, err = os.UserHomeDir()
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
-	if envHomedir, isSet := os.LookupEnv("CROC_CONFIG_DIR"); isSet {
-		homedir = envHomedir
-	} else if xdgConfigHome, isSet := os.LookupEnv("XDG_CONFIG_HOME"); isSet {
-		homedir = path.Join(xdgConfigHome, "croc")
-	} else {
-		homedir = path.Join(homedir, ".config", "croc")
-	}
-
-	if _, err = os.Stat(homedir); os.IsNotExist(err) {
-		log.Debugf("creating home directory %s", homedir)
-		err = os.MkdirAll(homedir, 0700)
-	}
-	return
-}
-
 func setDebugLevel(c *cli.Context) {
 	if c.Bool("debug") {
 		log.SetLevel("debug")
@@ -167,7 +145,7 @@ func setDebugLevel(c *cli.Context) {
 }
 
 func getConfigFile() string {
-	configFile, err := getConfigDir()
+	configFile, err := utils.GetConfigDir()
 	if err != nil {
 		log.Error(err)
 		return ""
@@ -446,7 +424,7 @@ func receive(c *cli.Context) (err error) {
 
 	// load options here
 	setDebugLevel(c)
-	configFile, err := getConfigDir()
+	configFile, err := utils.GetConfigDir()
 	if err != nil {
 		log.Error(err)
 		return
