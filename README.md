@@ -28,7 +28,7 @@ Status"></a>
 - **ipv6-first** with ipv4 fallback
 - can **use proxy**, like tor
 
-For more information about `croc`, see [my blog post](https://schollz.com/software/croc6).
+For more information about `croc`, see [my blog post](https://schollz.com/software/croc6) or read a [recent interview I did](https://console.substack.com/p/console-91).
 
 ![Example](src/install/customization.gif)
 
