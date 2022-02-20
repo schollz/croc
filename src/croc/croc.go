@@ -338,12 +338,19 @@ func (c *Client) setupLocalRelay() {
 }
 
 func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
+	var timeLimit time.Duration
+	//if we don't use an external relay, the broadcast messages need to be sent continuously
+	if c.Options.OnlyLocal {
+		timeLimit = -1 * time.Second
+	} else {
+		timeLimit = 30 * time.Second
+	}
 	// look for peers first
 	settings := peerdiscovery.Settings{
 		Limit:     -1,
 		Payload:   []byte("croc" + c.Options.RelayPorts[0]),
 		Delay:     20 * time.Millisecond,
-		TimeLimit: 30 * time.Second,
+		TimeLimit: timeLimit,
 	}
 	if useipv6 {
 		settings.IPVersion = peerdiscovery.IPv6
