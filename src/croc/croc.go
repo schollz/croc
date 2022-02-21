@@ -302,71 +302,37 @@ func GetFilesInfo(fnames []string) (filesInfo []FileInfo, err error) {
 	return
 }
 
-func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
-	c.FilesToTransfer = make([]FileInfo, len(options.PathToFiles))
+func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {
+	c.FilesToTransfer = filesInfo
 	totalFilesSize := int64(0)
-	for i, pathToFile := range options.PathToFiles {
-		var fstats os.FileInfo
-		var fullPath string
-		fullPath, err = filepath.Abs(pathToFile)
-		if err != nil {
-			return
-		}
-		fullPath = filepath.Clean(fullPath)
-		var folderName string
-		folderName, _ = filepath.Split(fullPath)
 
-		fstats, err = os.Lstat(fullPath)
-		if err != nil {
-			return
+	for i, fileInfo := range c.FilesToTransfer {
+		var fullPath string
+		fullPath = fileInfo.FolderSource + string(os.PathSeparator) + fileInfo.Name
+		fullPath = filepath.Clean(fullPath)
+
+		if len(fileInfo.Name) > c.longestFilename {
+			c.longestFilename = len(fileInfo.Name)
 		}
-		if len(fstats.Name()) > c.longestFilename {
-			c.longestFilename = len(fstats.Name())
-		}
-		c.FilesToTransfer[i] = FileInfo{
-			Name:         fstats.Name(),
-			FolderRemote: ".",
-			FolderSource: folderName,
-			Size:         fstats.Size(),
-			ModTime:      fstats.ModTime(),
-		}
-		if fstats.Mode()&os.ModeSymlink != 0 {
-			log.Debugf("%s is symlink", fstats.Name())
-			c.FilesToTransfer[i].Symlink, err = os.Readlink(pathToFile)
+
+		if fileInfo.Mode&os.ModeSymlink != 0 {
+			log.Debugf("%s is symlink", fileInfo.Name)
+			c.FilesToTransfer[i].Symlink, err = os.Readlink(fullPath)
 			if err != nil {
 				log.Debugf("error getting symlink: %s", err.Error())
 			}
 			log.Debugf("%+v", c.FilesToTransfer[i])
 		}
+
 		if c.Options.HashAlgorithm == "" {
 			c.Options.HashAlgorithm = "xxhash"
 		}
+
 		c.FilesToTransfer[i].Hash, err = utils.HashFile(fullPath, c.Options.HashAlgorithm)
 		log.Debugf("hashed %s to %x using %s", fullPath, c.FilesToTransfer[i].Hash, c.Options.HashAlgorithm)
-		totalFilesSize += fstats.Size()
+		totalFilesSize += fileInfo.Size
 		if err != nil {
 			return
-		}
-		if options.KeepPathInRemote {
-			var curFolder string
-			curFolder, err = os.Getwd()
-			if err != nil {
-				return
-			}
-			curFolder, err = filepath.Abs(curFolder)
-			if err != nil {
-				return
-			}
-			if !strings.HasPrefix(folderName, curFolder) {
-				err = fmt.Errorf("remote directory must be relative to current")
-				return
-			}
-			c.FilesToTransfer[i].FolderRemote = strings.TrimPrefix(folderName, curFolder)
-			c.FilesToTransfer[i].FolderRemote = filepath.ToSlash(c.FilesToTransfer[i].FolderRemote)
-			c.FilesToTransfer[i].FolderRemote = strings.TrimPrefix(c.FilesToTransfer[i].FolderRemote, "/")
-			if c.FilesToTransfer[i].FolderRemote == "" {
-				c.FilesToTransfer[i].FolderRemote = "."
-			}
 		}
 		log.Debugf("file %d info: %+v", i, c.FilesToTransfer[i])
 		fmt.Fprintf(os.Stderr, "\r                                 ")
@@ -440,7 +406,7 @@ func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 	}
 }
 
-func (c *Client) transferOverLocalRelay(options TransferOptions, errchan chan<- error) {
+func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 	time.Sleep(500 * time.Millisecond)
 	log.Debug("establishing connection")
 	var banner string
@@ -472,12 +438,12 @@ func (c *Client) transferOverLocalRelay(options TransferOptions, errchan chan<- 
 		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
 	}
 	c.ExternalIP = ipaddr
-	errchan <- c.transfer(options)
+	errchan <- c.transfer()
 }
 
 // Send will send the specified file
-func (c *Client) Send(options TransferOptions) (err error) {
-	err = c.sendCollectFiles(options)
+func (c *Client) Send(filesInfo []FileInfo) (err error) {
+	err = c.sendCollectFiles(filesInfo)
 	if err != nil {
 		return
 	}
@@ -507,7 +473,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 		go c.broadcastOnLocalNetwork(false)
 		// broadcast on ipv6
 		go c.broadcastOnLocalNetwork(true)
-		go c.transferOverLocalRelay(options, errchan)
+		go c.transferOverLocalRelay(errchan)
 	}
 
 	if !c.Options.OnlyLocal {
@@ -591,7 +557,7 @@ func (c *Client) Send(options TransferOptions) (err error) {
 			}
 			c.ExternalIP = ipaddr
 			log.Debug("exchanged header message")
-			errchan <- c.transfer(options)
+			errchan <- c.transfer()
 		}()
 	}
 
@@ -809,7 +775,7 @@ func (c *Client) Receive() (err error) {
 	}
 	log.Debug("exchanged header message")
 	fmt.Fprintf(os.Stderr, "\rsecuring channel...")
-	err = c.transfer(TransferOptions{})
+	err = c.transfer()
 	if err == nil {
 		if c.numberOfTransferredFiles == 0 {
 			fmt.Fprintf(os.Stderr, "\rNo files transferred.")
@@ -818,7 +784,7 @@ func (c *Client) Receive() (err error) {
 	return
 }
 
-func (c *Client) transfer(options TransferOptions) (err error) {
+func (c *Client) transfer() (err error) {
 	// connect to the server
 
 	// quit with c.quit <- true
@@ -1635,7 +1601,7 @@ func (c *Client) sendData(i int) {
 		n, errRead := c.fread.ReadAt(data, readingPos)
 		// log.Debugf("%d read %d bytes", i, n)
 		readingPos += int64(n)
-		if c.limiter != nil {
+		if (c.limiter != nil) {
 			r := c.limiter.ReserveN(time.Now(), n)
 			log.Debugf("Limiting Upload for %d", r.Delay())
 			time.Sleep(r.Delay())

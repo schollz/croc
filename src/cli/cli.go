@@ -267,7 +267,7 @@ func send(c *cli.Context) (err error) {
 		crocOptions.SharedSecret = utils.GetRandomName()
 	}
 
-	paths, haveFolder, err := getPaths(fnames)
+	minimalFileInfos, err := croc.GetFilesInfo(fnames)
 	if err != nil {
 		return
 	}
@@ -280,10 +280,7 @@ func send(c *cli.Context) (err error) {
 	// save the config
 	saveConfig(c, crocOptions)
 
-	err = cr.Send(croc.TransferOptions{
-		PathToFiles:      paths,
-		KeepPathInRemote: haveFolder,
-	})
+	err = cr.Send(minimalFileInfos)
 
 	return
 }
@@ -324,47 +321,6 @@ func makeTempFileWithString(s string) (fnames []string, err error) {
 	return
 }
 
-func getPaths(fnames []string) (paths []string, haveFolder bool, err error) {
-	haveFolder = false
-	paths = []string{}
-	for _, fname := range fnames {
-		// Support wildcard
-		if strings.Contains(fname, "*") {
-			matches, errGlob := filepath.Glob(fname)
-			if errGlob != nil {
-				err = errGlob
-				return
-			}
-			paths = append(paths, matches...)
-			continue
-		}
-
-		stat, errStat := os.Lstat(fname)
-		if errStat != nil {
-			err = errStat
-			return
-		}
-		if stat.IsDir() {
-			haveFolder = true
-			err = filepath.Walk(fname,
-				func(pathName string, info os.FileInfo, err error) error {
-					if err != nil {
-						return err
-					}
-					if !info.IsDir() {
-						paths = append(paths, filepath.ToSlash(pathName))
-					}
-					return nil
-				})
-			if err != nil {
-				return
-			}
-		} else {
-			paths = append(paths, filepath.ToSlash(fname))
-		}
-	}
-	return
-}
 
 func saveConfig(c *cli.Context, crocOptions croc.Options) {
 	if c.Bool("remember") {
