@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+
 	"golang.org/x/time/rate"
 
 	"github.com/denisbrodbeck/machineid"
@@ -85,7 +86,7 @@ type Client struct {
 
 	// steps involved in forming relationship
 	Step1ChannelSecured       bool
-	Step2FileInfoTransferred   bool
+	Step2FileInfoTransferred  bool
 	Step3RecipientRequestFile bool
 	Step4FileTransfer         bool
 	Step5CloseChannels        bool
@@ -103,10 +104,10 @@ type Client struct {
 	CurrentFileIsClosed    bool
 	LastFolder             string
 
-	TotalSent             int64
+	TotalSent              int64
 	TotalChunksTransferred int
-	chunkMap              map[uint64]struct{}
-	limiter               *rate.Limiter
+	chunkMap               map[uint64]struct{}
+	limiter                *rate.Limiter
 
 	// tcp connections
 	conn []*comm.Comm
@@ -115,11 +116,11 @@ type Client struct {
 	longestFilename int
 	firstSend       bool
 
-	mutex                   *sync.Mutex
-	fread                   *os.File
-	numfinished             int
-	quit                    chan bool
-	finishedNum             int
+	mutex                    *sync.Mutex
+	fread                    *os.File
+	numfinished              int
+	quit                     chan bool
+	finishedNum              int
 	numberOfTransferredFiles int
 }
 
@@ -132,15 +133,16 @@ type Chunk struct {
 
 // FileInfo registers the information about the file
 type FileInfo struct {
-	Name         string    `json:"n,omitempty"`
-	FolderRemote string    `json:"fr,omitempty"`
-	FolderSource string    `json:"fs,omitempty"`
-	Hash         []byte    `json:"h,omitempty"`
-	Size         int64     `json:"s,omitempty"`
-	ModTime      time.Time `json:"m,omitempty"`
-	IsCompressed bool      `json:"c,omitempty"`
-	IsEncrypted  bool      `json:"e,omitempty"`
-	Symlink      string    `json:"sy,omitempty"`
+	Name         string      `json:"n,omitempty"`
+	FolderRemote string      `json:"fr,omitempty"`
+	FolderSource string      `json:"fs,omitempty"`
+	Hash         []byte      `json:"h,omitempty"`
+	Size         int64       `json:"s,omitempty"`
+	ModTime      time.Time   `json:"m,omitempty"`
+	IsCompressed bool        `json:"c,omitempty"`
+	IsEncrypted  bool        `json:"e,omitempty"`
+	Symlink      string      `json:"sy,omitempty"`
+	Mode         os.FileMode `json:"md,omitempty"`
 }
 
 // RemoteFileRequest requests specific bytes
@@ -188,11 +190,11 @@ func New(ops Options) (c *Client, err error) {
 		var rt rate.Limit
 		switch unit := string(c.Options.ThrottleUpload[len(c.Options.ThrottleUpload)-1:]); unit {
 		case "g", "G":
-			uploadLimit = uploadLimit*1024*1024*1024
+			uploadLimit = uploadLimit * 1024 * 1024 * 1024
 		case "m", "M":
-			uploadLimit = uploadLimit*1024*1024
+			uploadLimit = uploadLimit * 1024 * 1024
 		case "k", "K":
-			uploadLimit = uploadLimit*1024
+			uploadLimit = uploadLimit * 1024
 		default:
 			uploadLimit, err = strconv.ParseInt(c.Options.ThrottleUpload, 10, 64)
 			if err != nil {
@@ -200,8 +202,8 @@ func New(ops Options) (c *Client, err error) {
 			}
 		}
 		// Somehow 4* is neccessary
-		rt = rate.Every(time.Second / (4*time.Duration(uploadLimit)))
-		if (int(uploadLimit) > minBurstSize) {
+		rt = rate.Every(time.Second / (4 * time.Duration(uploadLimit)))
+		if int(uploadLimit) > minBurstSize {
 			minBurstSize = int(uploadLimit)
 		}
 		c.limiter = rate.NewLimiter(rt, minBurstSize)
@@ -224,6 +226,80 @@ func New(ops Options) (c *Client, err error) {
 type TransferOptions struct {
 	PathToFiles      []string
 	KeepPathInRemote bool
+}
+
+// This function retrives the important file informations
+// for every file that will be transfered
+func GetFilesInfo(fnames []string) (filesInfo []FileInfo, err error) {
+	// fnames: the relativ/absolute paths of files/folders that will be transfered
+
+	var paths []string
+	for _, fname := range fnames {
+		// Support wildcard
+		if strings.Contains(fname, "*") {
+			matches, errGlob := filepath.Glob(fname)
+			if errGlob != nil {
+				err = errGlob
+				return
+			}
+			paths = append(paths, matches...)
+			continue
+		} else {
+			paths = append(paths, fname)
+		}
+	}
+
+	for _, path := range paths {
+		stat, errStat := os.Lstat(path)
+
+		if errStat != nil {
+			err = errStat
+			return
+		}
+
+		absPath, errAbs := filepath.Abs(path)
+		absPath = filepath.ToSlash(absPath)
+
+		if errAbs != nil {
+			err = errAbs
+			return
+		}
+
+		if stat.IsDir() {
+			err = filepath.Walk(absPath,
+				func(pathName string, info os.FileInfo, err error) error {
+					if err != nil {
+						return err
+					}
+					if !info.IsDir() {
+						filesInfo = append(filesInfo, FileInfo{
+							Name: info.Name(),
+							FolderRemote: strings.TrimPrefix(filepath.Dir(filepath.ToSlash(pathName)),
+								filepath.Dir(absPath)+"/"),
+							FolderSource: filepath.Dir(pathName),
+							Size:         info.Size(),
+							ModTime:      info.ModTime(),
+							Mode:         info.Mode(),
+						})
+					}
+					return nil
+				})
+			if err != nil {
+				return
+			}
+		} else {
+			filesInfo = append(filesInfo, FileInfo{
+				Name:         stat.Name(),
+				FolderRemote: "./",
+				FolderSource: filepath.Dir(absPath),
+				Size:         stat.Size(),
+				ModTime:      stat.ModTime(),
+				Mode:         stat.Mode(),
+			})
+		}
+
+	}
+	return
 }
 
 func (c *Client) sendCollectFiles(options TransferOptions) (err error) {
@@ -1559,7 +1635,7 @@ func (c *Client) sendData(i int) {
 		n, errRead := c.fread.ReadAt(data, readingPos)
 		// log.Debugf("%d read %d bytes", i, n)
 		readingPos += int64(n)
-		if (c.limiter != nil) {
+		if c.limiter != nil {
 			r := c.limiter.ReserveN(time.Now(), n)
 			log.Debugf("Limiting Upload for %d", r.Delay())
 			time.Sleep(r.Delay())
