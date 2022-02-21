@@ -258,7 +258,6 @@ func GetFilesInfo(fnames []string) (filesInfo []FileInfo, err error) {
 		}
 
 		absPath, errAbs := filepath.Abs(path)
-		absPath = filepath.ToSlash(absPath)
 
 		if errAbs != nil {
 			err = errAbs
@@ -272,10 +271,12 @@ func GetFilesInfo(fnames []string) (filesInfo []FileInfo, err error) {
 						return err
 					}
 					if !info.IsDir() {
+
+						remoteFolder := strings.TrimPrefix(filepath.Dir(pathName),
+							filepath.Dir(absPath)+string(os.PathSeparator))
 						filesInfo = append(filesInfo, FileInfo{
-							Name: info.Name(),
-							FolderRemote: strings.TrimPrefix(filepath.Dir(filepath.ToSlash(pathName)),
-								filepath.Dir(absPath)+"/"),
+							Name:         info.Name(),
+							FolderRemote: strings.Replace(remoteFolder, string(os.PathSeparator), "/", -1) + "/",
 							FolderSource: filepath.Dir(pathName),
 							Size:         info.Size(),
 							ModTime:      info.ModTime(),
@@ -1601,7 +1602,7 @@ func (c *Client) sendData(i int) {
 		n, errRead := c.fread.ReadAt(data, readingPos)
 		// log.Debugf("%d read %d bytes", i, n)
 		readingPos += int64(n)
-		if (c.limiter != nil) {
+		if c.limiter != nil {
 			r := c.limiter.ReserveN(time.Now(), n)
 			log.Debugf("Limiting Upload for %d", r.Delay())
 			time.Sleep(r.Delay())
