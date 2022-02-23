@@ -226,7 +226,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	}
 	if strings.TrimSpace(string(passwordBytes)) != s.password {
 		err = fmt.Errorf("bad password")
-		enc, _ := crypt.Decrypt([]byte(err.Error()), strongKeyForEncryption)
+		enc, _ := crypt.Encrypt([]byte(err.Error()), strongKeyForEncryption)
 		if err := c.Send(enc); err != nil {
 			return "", fmt.Errorf("send error: %w", err)
 		}
