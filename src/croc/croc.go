@@ -1363,7 +1363,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		if !bytes.Equal(fileHash, fileInfo.Hash) {
 			log.Debugf("hashed %s to %x using %s", fileInfo.Name, fileHash, c.Options.HashAlgorithm)
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
-			if errHash == nil && !c.Options.Overwrite && errRecipientFile == nil && !strings.HasPrefix(fileInfo.Name, "croc-stdin-") {
+			if errHash == nil && !c.Options.Overwrite && errRecipientFile == nil && !strings.HasPrefix(fileInfo.Name, "croc-stdin-") && !c.Options.SendingText {
 
 				missingChunks := utils.ChunkRangesToChunks(utils.MissingChunks(
 					path.Join(fileInfo.FolderRemote, fileInfo.Name),
@@ -1395,7 +1395,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			c.FilesToTransferCurrentNum = i
 			c.numberOfTransferredFiles++
 			newFolder, _ := filepath.Split(fileInfo.FolderRemote)
-			if newFolder != c.LastFolder && len(c.FilesToTransfer) > 0 {
+			if newFolder != c.LastFolder && len(c.FilesToTransfer) > 0 && !c.Options.SendingText && newFolder != "./" {
 				fmt.Fprintf(os.Stderr, "\r%s\n", newFolder)
 			}
 			c.LastFolder = newFolder
