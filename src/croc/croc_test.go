@@ -63,9 +63,11 @@ func TestCrocReadme(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
-		err := sender.Send(TransferOptions{
-			PathToFiles: []string{"../../README.md"},
-		})
+		filesInfo, errGet := GetFilesInfo([]string{"../../README.md"})
+		if errGet != nil {
+			t.Errorf("failed to get minimal info: %v", errGet)
+		}
+		err := sender.Send(filesInfo)
 		if err != nil {
 			t.Errorf("send failed: %v", err)
 		}
@@ -129,10 +131,11 @@ func TestCrocLocal(t *testing.T) {
 	os.Create("touched")
 	wg.Add(2)
 	go func() {
-		err := sender.Send(TransferOptions{
-			PathToFiles:      []string{"../../LICENSE", "touched"},
-			KeepPathInRemote: false,
-		})
+		filesInfo, errGet := GetFilesInfo([]string{"../../LICENSE", "touched"})
+		if errGet != nil {
+			t.Errorf("failed to get minimal info: %v", errGet)
+		}
+		err := sender.Send(filesInfo)
 		if err != nil {
 			t.Errorf("send failed: %v", err)
 		}
@@ -181,10 +184,11 @@ func TestCrocError(t *testing.T) {
 		Curve:         "siec",
 		Overwrite:     true,
 	})
-	err = sender.Send(TransferOptions{
-		PathToFiles:      []string{tmpfile.Name()},
-		KeepPathInRemote: true,
-	})
+	filesInfo, errGet := GetFilesInfo([]string{tmpfile.Name()})
+	if errGet != nil {
+		t.Errorf("failed to get minimal info: %v", errGet)
+	}
+	err = sender.Send(filesInfo)
 	log.Debug(err)
 	assert.NotNil(t, err)
 
