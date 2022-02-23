@@ -2,6 +2,8 @@ package croc
 
 import (
 	"os"
+	"path"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -83,6 +85,80 @@ func TestCrocReadme(t *testing.T) {
 	}()
 
 	wg.Wait()
+}
+
+func TestCrocSymlink(t *testing.T) {
+	pathName := "../link-in-folder"
+	defer os.RemoveAll(pathName)
+	os.MkdirAll(pathName, 0755)
+	os.Symlink("../../README.md", filepath.Join(pathName, "README.link"))
+
+	log.Debug("setting up sender")
+	sender, err := New(Options{
+		IsSender:      true,
+		SharedSecret:  "8124-testingthecroc",
+		Debug:         true,
+		RelayAddress:  "localhost:8281",
+		RelayPorts:    []string{"8281"},
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	log.Debug("setting up receiver")
+	receiver, err := New(Options{
+		IsSender:      false,
+		SharedSecret:  "8124-testingthecroc",
+		Debug:         true,
+		RelayAddress:  "localhost:8281",
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		filesInfo, errGet := GetFilesInfo([]string{pathName})
+		if errGet != nil {
+			t.Errorf("failed to get minimal info: %v", errGet)
+		}
+		err := sender.Send(filesInfo)
+		if err != nil {
+			t.Errorf("send failed: %v", err)
+		}
+		wg.Done()
+	}()
+	time.Sleep(100 * time.Millisecond)
+	go func() {
+		err := receiver.Receive()
+		if err != nil {
+			t.Errorf("receive failed: %v", err)
+		}
+		wg.Done()
+	}()
+
+	wg.Wait()
+
+	s, err := filepath.EvalSymlinks(path.Join(pathName, "README.link"))
+	if s != "../../README.md" {
+		t.Errorf("symlink failed to transfer in folder")
+	}
+	if err != nil {
+		t.Errorf("symlink transfer failed: %s", err.Error())
+	}
 }
 
 func TestCrocLocal(t *testing.T) {
