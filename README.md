@@ -193,6 +193,13 @@ croc --curve p521 <codephrase>
 
 Available curves are P-256, P-348, P-521 and SIEC. SIEC is the default curve used, it is a lesser known curve that belongs to a class of "super-isolated" curves which has security that does not reduce to the security of curves around it. (Scholl, Travis. Experimental Mathematics 28.4 (2019): 385-397)
 
+### Change hash algorithm
+
+You can choose from several different hash algorithms. The default is the `xxhash` algorithm which is fast and thorough. If you want to optimize for speed you can use the `imohash` algorithm which is even faster, but since it samples files (versus reading the whole file) it can mistakenly determine that a file is the same on the two computers transferring - though this is only a problem if you are syncing files versus sending a new file to a computer.
+
+```
+croc send --hash imohash SOMEFILE
+```
 
 ### Self-host relay
 
