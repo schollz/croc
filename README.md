@@ -1,3 +1,6 @@
+⚠️**WARNING:** By default `croc` uses the SIEC curve (which hasn't received third-party cryptanalysis), however, it can be [changed to use standardized curves such as P-256 and P-384](#change-encryption-curve).
+
+---
 
 <p align="center">
 <img
