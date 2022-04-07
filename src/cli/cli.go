@@ -94,7 +94,7 @@ func Run() (err error) {
 		&cli.BoolFlag{Name: "local", Usage: "force to use only local connections"},
 		&cli.BoolFlag{Name: "ignore-stdin", Usage: "ignore piped stdin"},
 		&cli.BoolFlag{Name: "overwrite", Usage: "do not prompt to overwrite"},
-		&cli.StringFlag{Name: "curve", Value: "siec", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
+		&cli.StringFlag{Name: "curve", Value: "p256", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
 		&cli.StringFlag{Name: "ip", Value: "", Usage: "set sender ip if known e.g. 10.0.0.1:9009, [::1]:9009"},
 		&cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay", EnvVars: []string{"CROC_RELAY"}},
 		&cli.StringFlag{Name: "relay6", Value: models.DEFAULT_RELAY6, Usage: "ipv6 address of the relay", EnvVars: []string{"CROC_RELAY6"}},
@@ -320,7 +320,6 @@ func makeTempFileWithString(s string) (fnames []string, err error) {
 	fnames = []string{f.Name()}
 	return
 }
-
 
 func saveConfig(c *cli.Context, crocOptions croc.Options) {
 	if c.Bool("remember") {
