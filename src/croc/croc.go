@@ -88,12 +88,14 @@ type Client struct {
 	Step1ChannelSecured       bool
 	Step2FileInfoTransferred  bool
 	Step3RecipientRequestFile bool
-	Step4FileTransfer         bool
+	Step4FileTransferred      bool
 	Step5CloseChannels        bool
 	SuccessfulTransfer        bool
 
 	// send / receive information of all files
 	FilesToTransfer           []FileInfo
+	EmptyFoldersToTransfer    []FileInfo
+	TotalNumberFolders        int
 	FilesToTransferCurrentNum int
 	FilesHasFinished          map[int]struct{}
 
@@ -154,12 +156,14 @@ type RemoteFileRequest struct {
 
 // SenderInfo lists the files to be transferred
 type SenderInfo struct {
-	FilesToTransfer []FileInfo
-	MachineID       string
-	Ask             bool
-	SendingText     bool
-	NoCompress      bool
-	HashAlgorithm   string
+	FilesToTransfer        []FileInfo
+	EmptyFoldersToTransfer []FileInfo
+	TotalNumberFolders     int
+	MachineID              string
+	Ask                    bool
+	SendingText            bool
+	NoCompress             bool
+	HashAlgorithm          string
 }
 
 // New establishes a new connection for transferring files between two instances.
@@ -228,11 +232,25 @@ type TransferOptions struct {
 	KeepPathInRemote bool
 }
 
+func isEmptyFolder(folderPath string) (bool, error) {
+	f, err := os.Open(folderPath)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	_, err = f.Readdirnames(1)
+	if err == io.EOF {
+		return true, nil
+	}
+	return false, nil
+}
+
 // This function retrives the important file informations
 // for every file that will be transfered
-func GetFilesInfo(fnames []string) (filesInfo []FileInfo, err error) {
+func GetFilesInfo(fnames []string) (filesInfo []FileInfo, emptyFolders []FileInfo, totalNumberFolders int, err error) {
 	// fnames: the relativ/absolute paths of files/folders that will be transfered
-
+	totalNumberFolders = 0
 	var paths []string
 	for _, fname := range fnames {
 		// Support wildcard
@@ -270,10 +288,9 @@ func GetFilesInfo(fnames []string) (filesInfo []FileInfo, err error) {
 					if err != nil {
 						return err
 					}
+					remoteFolder := strings.TrimPrefix(filepath.Dir(pathName),
+						filepath.Dir(absPath)+string(os.PathSeparator))
 					if !info.IsDir() {
-
-						remoteFolder := strings.TrimPrefix(filepath.Dir(pathName),
-							filepath.Dir(absPath)+string(os.PathSeparator))
 						filesInfo = append(filesInfo, FileInfo{
 							Name:         info.Name(),
 							FolderRemote: strings.Replace(remoteFolder, string(os.PathSeparator), "/", -1) + "/",
@@ -282,6 +299,15 @@ func GetFilesInfo(fnames []string) (filesInfo []FileInfo, err error) {
 							ModTime:      info.ModTime(),
 							Mode:         info.Mode(),
 						})
+					} else {
+						totalNumberFolders++
+						isEmptyFolder, _ := isEmptyFolder(pathName)
+						if isEmptyFolder {
+							emptyFolders = append(emptyFolders, FileInfo{
+								FolderRemote: strings.Replace(strings.TrimPrefix(pathName,
+									filepath.Dir(absPath)+string(os.PathSeparator)), string(os.PathSeparator), "/", -1) + "/",
+							})
+						}
 					}
 					return nil
 				})
@@ -443,8 +469,10 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 }
 
 // Send will send the specified file
-func (c *Client) Send(filesInfo []FileInfo) (err error) {
+func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, totalNumberFolders int) (err error) {
 	err = c.sendCollectFiles(filesInfo)
+	c.EmptyFoldersToTransfer = emptyFoldersToTransfer
+	c.TotalNumberFolders = totalNumberFolders
 	if err != nil {
 		return
 	}
@@ -778,7 +806,7 @@ func (c *Client) Receive() (err error) {
 	fmt.Fprintf(os.Stderr, "\rsecuring channel...")
 	err = c.transfer()
 	if err == nil {
-		if c.numberOfTransferredFiles == 0 {
+		if c.numberOfTransferredFiles+len(c.EmptyFoldersToTransfer) == 0 {
 			fmt.Fprintf(os.Stderr, "\rNo files transferred.")
 		}
 	}
@@ -870,6 +898,8 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	c.Options.SendingText = senderInfo.SendingText
 	c.Options.NoCompress = senderInfo.NoCompress
 	c.Options.HashAlgorithm = senderInfo.HashAlgorithm
+	c.EmptyFoldersToTransfer = senderInfo.EmptyFoldersToTransfer
+	c.TotalNumberFolders = senderInfo.TotalNumberFolders
 	if c.Options.HashAlgorithm == "" {
 		c.Options.HashAlgorithm = "xxhash"
 	}
@@ -882,6 +912,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	}
 	c.FilesToTransfer = senderInfo.FilesToTransfer
 	fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
+	folderName := fmt.Sprintf("%d folders", c.TotalNumberFolders)
 	if len(c.FilesToTransfer) == 1 {
 		fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
 	}
@@ -909,7 +940,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 			machID, _ := machineid.ID()
 			fmt.Fprintf(os.Stderr, "\rYour machine id is '%s'.\n%s %s (%s) from '%s'? (Y/n) ", machID, action, fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
 		} else {
-			fmt.Fprintf(os.Stderr, "\r%s %s (%s)? (Y/n) ", action, fname, utils.ByteCountDecimal(totalSize))
+			fmt.Fprintf(os.Stderr, "\r%s %s and %s (%s)? (Y/n) ", action, fname, folderName, utils.ByteCountDecimal(totalSize))
 		}
 		choice := strings.ToLower(utils.GetInput(""))
 		if choice != "" && choice != "y" && choice != "yes" {
@@ -927,6 +958,25 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	}
 	fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)\n", c.ExternalIPConnected)
 
+	//after user accepted the transfer we can create empty folders
+	for i := 0; i < len(c.EmptyFoldersToTransfer); i += 1 {
+		errMkDirAll := os.MkdirAll(c.EmptyFoldersToTransfer[i].FolderRemote, os.ModePerm)
+		if err != nil {
+			err = errMkDirAll
+			return
+		}
+	}
+	if c.FilesToTransfer == nil {
+		c.SuccessfulTransfer = true
+		c.Step3RecipientRequestFile = true
+		c.Step4FileTransferred = true
+		errStopTransfer := message.Send(c.conn[0], c.Key, message.Message{
+			Type: message.TypeFinished,
+		})
+		if errStopTransfer != nil {
+			err = errStopTransfer
+		}
+	}
 	log.Debug(c.FilesToTransfer)
 	c.Step2FileInfoTransferred = true
 	return
@@ -1121,14 +1171,14 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 	case message.TypeCloseSender:
 		c.bar.Finish()
 		log.Debug("close-sender received...")
-		c.Step4FileTransfer = false
+		c.Step4FileTransferred = false
 		c.Step3RecipientRequestFile = false
 		log.Debug("sending close-recipient")
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type: message.TypeCloseRecipient,
 		})
 	case message.TypeCloseRecipient:
-		c.Step4FileTransfer = false
+		c.Step4FileTransferred = false
 		c.Step3RecipientRequestFile = false
 	}
 	if err != nil {
@@ -1148,12 +1198,14 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 		var b []byte
 		machID, _ := machineid.ID()
 		b, err = json.Marshal(SenderInfo{
-			FilesToTransfer: c.FilesToTransfer,
-			MachineID:       machID,
-			Ask:             c.Options.Ask,
-			SendingText:     c.Options.SendingText,
-			NoCompress:      c.Options.NoCompress,
-			HashAlgorithm:   c.Options.HashAlgorithm,
+			FilesToTransfer:        c.FilesToTransfer,
+			EmptyFoldersToTransfer: c.EmptyFoldersToTransfer,
+			MachineID:              machID,
+			Ask:                    c.Options.Ask,
+			TotalNumberFolders:     c.TotalNumberFolders,
+			SendingText:            c.Options.SendingText,
+			NoCompress:             c.Options.NoCompress,
+			HashAlgorithm:          c.Options.HashAlgorithm,
 		})
 		if err != nil {
 			log.Error(err)
@@ -1402,7 +1454,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			break
 		}
 	}
-	err = c.recipientGetFileReady(finished)
+	c.recipientGetFileReady(finished)
 	return
 }
 
@@ -1426,7 +1478,7 @@ func (c *Client) updateState() (err error) {
 		return
 	}
 
-	if c.Options.IsSender && c.Step3RecipientRequestFile && !c.Step4FileTransfer {
+	if c.Options.IsSender && c.Step3RecipientRequestFile && !c.Step4FileTransferred {
 		log.Debug("start sending data!")
 
 		if !c.firstSend {
@@ -1457,7 +1509,7 @@ func (c *Client) updateState() (err error) {
 				}
 			}
 		}
-		c.Step4FileTransfer = true
+		c.Step4FileTransferred = true
 		// setup the progressbar
 		c.setBar()
 		c.TotalSent = 0
