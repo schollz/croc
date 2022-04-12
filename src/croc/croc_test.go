@@ -91,6 +91,7 @@ func TestCrocReadme(t *testing.T) {
 func TestCrocEmptyFolder(t *testing.T) {
 	pathName := "../../testEmpty"
 	defer os.RemoveAll(pathName)
+	defer os.RemoveAll("./testEmpty")
 	os.MkdirAll(pathName, 0755)
 
 	log.Debug("setting up sender")
@@ -156,6 +157,7 @@ func TestCrocEmptyFolder(t *testing.T) {
 func TestCrocSymlink(t *testing.T) {
 	pathName := "../link-in-folder"
 	defer os.RemoveAll(pathName)
+	defer os.RemoveAll("./link-in-folder")
 	os.MkdirAll(pathName, 0755)
 	os.Symlink("../../README.md", filepath.Join(pathName, "README.link"))
 
@@ -353,7 +355,7 @@ func TestCleanUp(t *testing.T) {
 			if err == nil {
 				log.Debugf("Successfuly purged %s", file)
 			} else {
-				log.Debug("%s was already purged.", file)
+				log.Debugf("%s was already purged.", file)
 			}
 		}
 		for _, folder := range []string{"./testEmpty", "./link-in-folder"} {
@@ -361,7 +363,7 @@ func TestCleanUp(t *testing.T) {
 			if err == nil {
 				log.Debugf("Successfuly purged %s", folder)
 			} else {
-				log.Debug("%s was already purged.", folder)
+				log.Debugf("%s was already purged.", folder)
 			}
 		}
 	}
