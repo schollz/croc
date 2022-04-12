@@ -95,6 +95,7 @@ type Client struct {
 	// send / receive information of all files
 	FilesToTransfer           []FileInfo
 	EmptyFoldersToTransfer    []FileInfo
+	TotalNumberOfContents     int
 	TotalNumberFolders        int
 	FilesToTransferCurrentNum int
 	FilesHasFinished          map[int]struct{}
@@ -474,7 +475,7 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, totalNumberFolders int) (err error) {
 	c.EmptyFoldersToTransfer = emptyFoldersToTransfer
 	c.TotalNumberFolders = totalNumberFolders
-
+	c.TotalNumberOfContents = len(filesInfo)
 	err = c.sendCollectFiles(filesInfo)
 
 	if err != nil {
@@ -892,6 +893,28 @@ func (c *Client) transfer() (err error) {
 	return
 }
 
+func (c *Client) createEmptyFolder(i int) (err error) {
+	err = os.MkdirAll(c.EmptyFoldersToTransfer[i].FolderRemote, os.ModePerm)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "%s\n", c.EmptyFoldersToTransfer[i].FolderRemote)
+	c.bar = progressbar.NewOptions64(1,
+		progressbar.OptionOnCompletion(func() {
+			c.fmtPrintUpdate()
+		}),
+		progressbar.OptionSetWidth(20),
+		progressbar.OptionSetDescription(" "),
+		progressbar.OptionSetRenderBlankState(true),
+		progressbar.OptionShowBytes(true),
+		progressbar.OptionShowCount(),
+		progressbar.OptionSetWriter(os.Stderr),
+		progressbar.OptionSetVisibility(!c.Options.SendingText),
+	)
+	c.bar.Finish()
+	return
+}
+
 func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error) {
 	var senderInfo SenderInfo
 	err = json.Unmarshal(m.Bytes, &senderInfo)
@@ -904,6 +927,15 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	c.Options.HashAlgorithm = senderInfo.HashAlgorithm
 	c.EmptyFoldersToTransfer = senderInfo.EmptyFoldersToTransfer
 	c.TotalNumberFolders = senderInfo.TotalNumberFolders
+	c.FilesToTransfer = senderInfo.FilesToTransfer
+	c.TotalNumberOfContents = 0
+	if c.FilesToTransfer != nil {
+		c.TotalNumberOfContents += len(c.FilesToTransfer)
+	}
+	if c.EmptyFoldersToTransfer != nil {
+		c.TotalNumberOfContents += len(c.EmptyFoldersToTransfer)
+	}
+
 	if c.Options.HashAlgorithm == "" {
 		c.Options.HashAlgorithm = "xxhash"
 	}
@@ -914,7 +946,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	if c.Options.SendingText {
 		c.Options.Stdout = true
 	}
-	c.FilesToTransfer = senderInfo.FilesToTransfer
+
 	fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
 	folderName := fmt.Sprintf("%d folders", c.TotalNumberFolders)
 	if len(c.FilesToTransfer) == 1 {
@@ -963,25 +995,27 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)\n", c.ExternalIPConnected)
 
 	for i := 0; i < len(c.EmptyFoldersToTransfer); i += 1 {
-		errMkDirAll := os.MkdirAll(c.EmptyFoldersToTransfer[i].FolderRemote, os.ModePerm)
-		if err != nil {
-			err = errMkDirAll
-			return
+		_, errExists := os.Stat(c.EmptyFoldersToTransfer[i].FolderRemote)
+		if os.IsNotExist(errExists) {
+			err = c.createEmptyFolder(i)
+			if err != nil {
+				return
+			}
+		} else {
+			isEmpty, _ := isEmptyFolder(c.EmptyFoldersToTransfer[i].FolderRemote)
+			if !isEmpty {
+				log.Debug("asking to overwrite")
+				prompt := fmt.Sprintf("\n%s already has some content in it. \nDo you want"+
+					" to overwrite it with an empty folder? (y/N) ", c.EmptyFoldersToTransfer[i].FolderRemote)
+				choice := strings.ToLower(utils.GetInput(prompt))
+				if choice == "y" || choice == "yes" {
+					err = c.createEmptyFolder(i)
+					if err != nil {
+						return
+					}
+				}
+			}
 		}
-		fmt.Fprintf(os.Stderr, "%s\n", c.EmptyFoldersToTransfer[i].FolderRemote)
-		c.bar = progressbar.NewOptions64(1,
-			progressbar.OptionOnCompletion(func() {
-				c.fmtPrintUpdate()
-			}),
-			progressbar.OptionSetWidth(20),
-			progressbar.OptionSetDescription(" "),
-			progressbar.OptionSetRenderBlankState(true),
-			progressbar.OptionShowBytes(true),
-			progressbar.OptionShowCount(),
-			progressbar.OptionSetWriter(os.Stderr),
-			progressbar.OptionSetVisibility(!c.Options.SendingText),
-		)
-		c.bar.Finish()
 	}
 
 	// if no files are to be transfered, then we can end the file transfer process
@@ -1478,8 +1512,8 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 
 func (c *Client) fmtPrintUpdate() {
 	c.finishedNum++
-	if len(c.FilesToTransfer) > 1 {
-		fmt.Fprintf(os.Stderr, " %d/%d\n", c.finishedNum, len(c.FilesToTransfer))
+	if c.TotalNumberOfContents > 1 {
+		fmt.Fprintf(os.Stderr, " %d/%d\n", c.finishedNum, c.TotalNumberOfContents)
 	} else {
 		fmt.Fprintf(os.Stderr, "\n")
 	}
@@ -1554,9 +1588,9 @@ func (c *Client) updateState() (err error) {
 func (c *Client) setBar() {
 	description := fmt.Sprintf("%-*s", c.longestFilename, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 	folder, _ := filepath.Split(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote)
-	if len(c.FilesToTransfer) == 1 {
+	if folder == "./" {
 		description = c.FilesToTransfer[c.FilesToTransferCurrentNum].Name
-	} else if !c.Options.IsSender && folder != "./" {
+	} else if !c.Options.IsSender {
 		description = " " + description
 	}
 	c.bar = progressbar.NewOptions64(
