@@ -1,10 +1,10 @@
-FROM golang:1.16-alpine as builder
+FROM golang:1.17-alpine as builder
 RUN apk add --no-cache git
 WORKDIR /go/croc
 COPY . .
 RUN go build -v -ldflags="-s -w"
 
-FROM alpine:latest 
+FROM alpine:latest
 EXPOSE 9009
 EXPOSE 9010
 EXPOSE 9011

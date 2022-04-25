@@ -12,7 +12,7 @@ import (
 
 func BenchmarkConnection(b *testing.B) {
 	log.SetLevel("trace")
-	go Run("debug", "8283", "pass123", "8284")
+	go Run("debug", "localhost", "8283", "pass123", "8284")
 	time.Sleep(100 * time.Millisecond)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -24,22 +24,22 @@ func BenchmarkConnection(b *testing.B) {
 func TestTCP(t *testing.T) {
 	log.SetLevel("error")
 	timeToRoomDeletion = 100 * time.Millisecond
-	go Run("debug", "8281", "pass123", "8282")
-	time.Sleep(100 * time.Millisecond)
-	err := PingServer("localhost:8281")
+	go Run("debug", "localhost", "8381", "pass123", "8382")
+	time.Sleep(timeToRoomDeletion)
+	err := PingServer("localhost:8381")
 	assert.Nil(t, err)
 	err = PingServer("localhost:8333")
 	assert.NotNil(t, err)
 
-	time.Sleep(100 * time.Millisecond)
-	c1, banner, _, err := ConnectToTCPServer("localhost:8281", "pass123", "testRoom", 1*time.Minute)
-	assert.Equal(t, banner, "8282")
+	time.Sleep(timeToRoomDeletion)
+	c1, banner, _, err := ConnectToTCPServer("localhost:8381", "pass123", "testRoom", 1*time.Minute)
+	assert.Equal(t, banner, "8382")
 	assert.Nil(t, err)
-	c2, _, _, err := ConnectToTCPServer("localhost:8281", "pass123", "testRoom")
+	c2, _, _, err := ConnectToTCPServer("localhost:8381", "pass123", "testRoom")
 	assert.Nil(t, err)
-	_, _, _, err = ConnectToTCPServer("localhost:8281", "pass123", "testRoom")
+	_, _, _, err = ConnectToTCPServer("localhost:8381", "pass123", "testRoom")
 	assert.NotNil(t, err)
-	_, _, _, err = ConnectToTCPServer("localhost:8281", "pass123", "testRoom", 1*time.Nanosecond)
+	_, _, _, err = ConnectToTCPServer("localhost:8381", "pass123", "testRoom", 1*time.Nanosecond)
 	assert.NotNil(t, err)
 
 	// try sending data

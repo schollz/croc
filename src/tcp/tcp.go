@@ -17,6 +17,7 @@ import (
 )
 
 type server struct {
+	host       string
 	port       string
 	debugLevel string
 	banner     string
@@ -36,12 +37,14 @@ type roomMap struct {
 	sync.Mutex
 }
 
+const pingRoom = "pinglkasjdlfjsaldjf"
+
 var timeToRoomDeletion = 10 * time.Minute
-var pingRoom = "pinglkasjdlfjsaldjf"
 
 // Run starts a tcp listener, run async
-func Run(debugLevel, port, password string, banner ...string) (err error) {
+func Run(debugLevel, host, port, password string, banner ...string) (err error) {
 	s := new(server)
+	s.host = host
 	s.port = port
 	s.password = password
 	s.debugLevel = debugLevel
@@ -85,10 +88,31 @@ func (s *server) start() (err error) {
 }
 
 func (s *server) run() (err error) {
-	log.Infof("starting TCP server on " + s.port)
-	server, err := net.Listen("tcp", ":"+s.port)
+	network := "tcp"
+	addr := net.JoinHostPort(s.host, s.port)
+	if s.host != "" {
+		ip := net.ParseIP(s.host)
+		if ip == nil {
+			tcpIP, err := net.ResolveIPAddr("ip", s.host)
+			if err != nil {
+				return err
+			}
+			ip = tcpIP.IP
+		}
+		addr = net.JoinHostPort(ip.String(), s.port)
+		if s.host != "" {
+			if ip.To4() != nil {
+				network = "tcp4"
+			} else {
+				network = "tcp6"
+			}
+		}
+	}
+	addr = strings.Replace(addr, "127.0.0.1", "0.0.0.0", 1)
+	log.Infof("starting TCP server on " + addr)
+	server, err := net.Listen(network, addr)
 	if err != nil {
-		return fmt.Errorf("error listening on %s: %w", s.port, err)
+		return fmt.Errorf("error listening on %s: %w", addr, err)
 	}
 	defer server.Close()
 	// spawn a new goroutine whenever a client connects
@@ -160,8 +184,10 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	if err != nil {
 		return
 	}
+	log.Debugf("Abytes: %s", Abytes)
 	if bytes.Equal(Abytes, []byte("ping")) {
 		room = pingRoom
+		log.Debug("sending back pong")
 		c.Send([]byte("pong"))
 		return
 	}
@@ -200,7 +226,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	}
 	if strings.TrimSpace(string(passwordBytes)) != s.password {
 		err = fmt.Errorf("bad password")
-		enc, _ := crypt.Decrypt([]byte(err.Error()), strongKeyForEncryption)
+		enc, _ := crypt.Encrypt([]byte(err.Error()), strongKeyForEncryption)
 		if err := c.Send(enc); err != nil {
 			return "", fmt.Errorf("send error: %w", err)
 		}
@@ -385,16 +411,20 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 }
 
 func PingServer(address string) (err error) {
-	c, err := comm.NewConnection(address, 200*time.Millisecond)
+	log.Debugf("pinging %s", address)
+	c, err := comm.NewConnection(address, 300*time.Millisecond)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	err = c.Send([]byte("ping"))
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	b, err := c.Receive()
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	if bytes.Equal(b, []byte("pong")) {
@@ -412,62 +442,75 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		c, err = comm.NewConnection(address)
 	}
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 
 	// get PAKE connection with server to establish strong key to transfer info
 	A, err := pake.InitCurve(weakKey, 0, "siec")
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	err = c.Send(A.Bytes())
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	Bbytes, err := c.Receive()
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	err = A.Update(Bbytes)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	strongKey, err := A.SessionKey()
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	log.Debugf("strong key: %x", strongKey)
 
 	strongKeyForEncryption, salt, err := crypt.New(strongKey, nil)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	// send salt
 	err = c.Send(salt)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 
 	log.Debug("sending password")
 	bSend, err := crypt.Encrypt([]byte(password), strongKeyForEncryption)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	err = c.Send(bSend)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	log.Debug("waiting for first ok")
 	enc, err := c.Receive()
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	data, err := crypt.Decrypt(enc, strongKeyForEncryption)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	if !strings.Contains(string(data), "|||") {
 		err = fmt.Errorf("bad response: %s", string(data))
+		log.Debug(err)
 		return
 	}
 	banner = strings.Split(string(data), "|||")[0]
@@ -475,23 +518,28 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	log.Debug("sending room")
 	bSend, err = crypt.Encrypt([]byte(room), strongKeyForEncryption)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	err = c.Send(bSend)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	log.Debug("waiting for room confirmation")
 	enc, err = c.Receive()
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	data, err = crypt.Decrypt(enc, strongKeyForEncryption)
 	if err != nil {
+		log.Debug(err)
 		return
 	}
 	if !bytes.Equal(data, []byte("ok")) {
 		err = fmt.Errorf("got bad response: %s", data)
+		log.Debug(err)
 		return
 	}
 	log.Debug("all set")

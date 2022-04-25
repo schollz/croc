@@ -4,18 +4,12 @@
     src="https://user-images.githubusercontent.com/6550035/46709024-9b23ad00-cbf6-11e8-9fb2-ca8b20b7dbec.jpg"
     width="408px" border="0" alt="croc">
 <br>
-<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-v9.2.0-brightgreen.svg?style=flat-square" alt="Version"></a>
+<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-v9.5.3-brightgreen.svg?style=flat-square" alt="Version"></a>
 <a href="https://coveralls.io/github/schollz/croc"><img src="https://img.shields.io/badge/coverage-81%25-green.svg?style=flat-square" alt="Coverage"></a>
 <a href="https://travis-ci.org/schollz/croc"><img
 src="https://img.shields.io/travis/schollz/croc.svg?style=flat-square" alt="Build
 Status"></a> 
-<p align="center">This project is supported by:</p>
-<p align="center">
-  <a href="https://www.digitalocean.com/">
-    <img src="https://opensource.nyc3.cdn.digitaloceanspaces.com/attribution/assets/SVG/DO_Logo_horizontal_blue.svg" width="201px">
-  </a>
-</p>
-</p>
+<p align="center">This project is supported by <a href="https://github.com/sponsors/schollz">Github sponsors</a>.</p>
 
 `croc` is a tool that allows any two computers to simply and securely transfer files and folders. AFAIK, *croc* is the only CLI file-transfer tool that does **all** of the following:
 
@@ -28,7 +22,7 @@ Status"></a>
 - **ipv6-first** with ipv4 fallback
 - can **use proxy**, like tor
 
-For more information about `croc`, see [my blog post](https://schollz.com/software/croc6).
+For more information about `croc`, see [my blog post](https://schollz.com/software/croc6) or read a [recent interview I did](https://console.substack.com/p/console-91).
 
 ![Example](src/install/customization.gif)
 
@@ -101,7 +95,7 @@ On FreeBSD you can install with `pkg`:
 pkg install croc
 ```
 
-Or, you can [install Go](https://golang.org/dl/) and build from source (requires Go 1.15+): 
+Or, you can [install Go](https://golang.org/dl/) and build from source (requires Go 1.17+): 
 
 ```
 go install github.com/schollz/croc/v9@latest
@@ -191,8 +185,15 @@ You can choose from several different elliptic curves to use for encryption by u
 croc --curve p521 <codephrase>
 ```
 
-Available curves are P-256, P-348, P-521 and SIEC. SIEC is the default curve used, it is a lesser known curve that belongs to a class of "super-isolated" curves which has security that does not reduce to the security of curves around it. (Scholl, Travis. Experimental Mathematics 28.4 (2019): 385-397)
+Available curves are P-256, P-348, P-521 and SIEC. P-256 is the default curve.
 
+### Change hash algorithm
+
+You can choose from several different hash algorithms. The default is the `xxhash` algorithm which is fast and thorough. If you want to optimize for speed you can use the `imohash` algorithm which is even faster, but since it samples files (versus reading the whole file) it can mistakenly determine that a file is the same on the two computers transferring - though this is only a problem if you are syncing files versus sending a new file to a computer.
+
+```
+croc send --hash imohash SOMEFILE
+```
 
 ### Self-host relay
 

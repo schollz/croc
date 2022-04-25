@@ -9,13 +9,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math"
 	"math/big"
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -23,6 +23,27 @@ import (
 	"github.com/kalafut/imohash"
 	"github.com/schollz/mnemonicode"
 )
+
+// Get or create home directory
+func GetConfigDir() (homedir string, err error) {
+	homedir, err = os.UserHomeDir()
+	if err != nil {
+		return
+	}
+
+	if envHomedir, isSet := os.LookupEnv("CROC_CONFIG_DIR"); isSet {
+		homedir = envHomedir
+	} else if xdgConfigHome, isSet := os.LookupEnv("XDG_CONFIG_HOME"); isSet {
+		homedir = path.Join(xdgConfigHome, "croc")
+	} else {
+		homedir = path.Join(homedir, ".config", "croc")
+	}
+
+	if _, err = os.Stat(homedir); os.IsNotExist(err) {
+		err = os.MkdirAll(homedir, 0700)
+	}
+	return
+}
 
 // Exists reports whether the named file or directory exists.
 func Exists(name string) bool {
@@ -53,10 +74,10 @@ func HashFile(fname string, algorithm string) (hash256 []byte, err error) {
 	if fstats.Mode()&os.ModeSymlink != 0 {
 		var target string
 		target, err = os.Readlink(fname)
+		if err != nil {
+			return nil, err
+		}
 		return []byte(SHA256(target)), nil
-	}
-	if err != nil {
-		return nil, err
 	}
 	switch algorithm {
 	case "imohash":
@@ -136,7 +157,7 @@ func PublicIP() (ip string, err error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return "", err
 		}
@@ -172,7 +193,7 @@ func GenerateRandomPin() string {
 	return s
 }
 
-// GetRandomName returns mnemoicoded random name
+// GetRandomName returns mnemonicoded random name
 func GetRandomName() string {
 	var result []string
 	bs := make([]byte, 4)
@@ -283,7 +304,7 @@ func GetLocalIPs() (ips []string, err error) {
 }
 
 func RandomFileName() (fname string, err error) {
-	f, err := ioutil.TempFile(".", "croc-stdin-")
+	f, err := os.CreateTemp(".", "croc-stdin-")
 	if err != nil {
 		return
 	}

@@ -1,5 +1,3 @@
-#! /bin/bash
-
 : ${PROG:=$(basename ${BASH_SOURCE})}
 
 _cli_bash_autocomplete() {
