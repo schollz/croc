@@ -4,6 +4,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -65,11 +66,77 @@ func TestCrocReadme(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
-		filesInfo, errGet := GetFilesInfo([]string{"../../README.md"})
+		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{"../../README.md"})
 		if errGet != nil {
 			t.Errorf("failed to get minimal info: %v", errGet)
 		}
-		err := sender.Send(filesInfo)
+		err := sender.Send(filesInfo, emptyFolders, totalNumberFolders)
+		if err != nil {
+			t.Errorf("send failed: %v", err)
+		}
+		wg.Done()
+	}()
+	time.Sleep(100 * time.Millisecond)
+	go func() {
+		err := receiver.Receive()
+		if err != nil {
+			t.Errorf("receive failed: %v", err)
+		}
+		wg.Done()
+	}()
+
+	wg.Wait()
+}
+
+func TestCrocEmptyFolder(t *testing.T) {
+	pathName := "../../testEmpty"
+	defer os.RemoveAll(pathName)
+	defer os.RemoveAll("./testEmpty")
+	os.MkdirAll(pathName, 0755)
+
+	log.Debug("setting up sender")
+	sender, err := New(Options{
+		IsSender:      true,
+		SharedSecret:  "8123-testingthecroc",
+		Debug:         true,
+		RelayAddress:  "localhost:8281",
+		RelayPorts:    []string{"8281"},
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	log.Debug("setting up receiver")
+	receiver, err := New(Options{
+		IsSender:      false,
+		SharedSecret:  "8123-testingthecroc",
+		Debug:         true,
+		RelayAddress:  "localhost:8281",
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{pathName})
+		if errGet != nil {
+			t.Errorf("failed to get minimal info: %v", errGet)
+		}
+		err := sender.Send(filesInfo, emptyFolders, totalNumberFolders)
 		if err != nil {
 			t.Errorf("send failed: %v", err)
 		}
@@ -90,6 +157,7 @@ func TestCrocReadme(t *testing.T) {
 func TestCrocSymlink(t *testing.T) {
 	pathName := "../link-in-folder"
 	defer os.RemoveAll(pathName)
+	defer os.RemoveAll("./link-in-folder")
 	os.MkdirAll(pathName, 0755)
 	os.Symlink("../../README.md", filepath.Join(pathName, "README.link"))
 
@@ -131,11 +199,11 @@ func TestCrocSymlink(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
-		filesInfo, errGet := GetFilesInfo([]string{pathName})
+		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{pathName})
 		if errGet != nil {
 			t.Errorf("failed to get minimal info: %v", errGet)
 		}
-		err := sender.Send(filesInfo)
+		err := sender.Send(filesInfo, emptyFolders, totalNumberFolders)
 		if err != nil {
 			t.Errorf("send failed: %v", err)
 		}
@@ -153,7 +221,8 @@ func TestCrocSymlink(t *testing.T) {
 	wg.Wait()
 
 	s, err := filepath.EvalSymlinks(path.Join(pathName, "README.link"))
-	if s != "../../README.md" {
+	if s != "../../README.md" && s != "..\\..\\README.md" {
+		log.Debug(s)
 		t.Errorf("symlink failed to transfer in folder")
 	}
 	if err != nil {
@@ -207,11 +276,11 @@ func TestCrocLocal(t *testing.T) {
 	os.Create("touched")
 	wg.Add(2)
 	go func() {
-		filesInfo, errGet := GetFilesInfo([]string{"../../LICENSE", "touched"})
+		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{"../../LICENSE", "touched"})
 		if errGet != nil {
 			t.Errorf("failed to get minimal info: %v", errGet)
 		}
-		err := sender.Send(filesInfo)
+		err := sender.Send(filesInfo, emptyFolders, totalNumberFolders)
 		if err != nil {
 			t.Errorf("send failed: %v", err)
 		}
@@ -260,12 +329,42 @@ func TestCrocError(t *testing.T) {
 		Curve:         "siec",
 		Overwrite:     true,
 	})
-	filesInfo, errGet := GetFilesInfo([]string{tmpfile.Name()})
+	filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{tmpfile.Name()})
 	if errGet != nil {
 		t.Errorf("failed to get minimal info: %v", errGet)
 	}
-	err = sender.Send(filesInfo)
+	err = sender.Send(filesInfo, emptyFolders, totalNumberFolders)
 	log.Debug(err)
 	assert.NotNil(t, err)
+}
 
+func TestCleanUp(t *testing.T) {
+	// windows allows files to be deleted only if they
+	// are not open by another program so the remove actions
+	// from the above tests will not always do a good clean up
+	// This "test" will make sure
+	operatingSystem := runtime.GOOS
+	log.Debugf("The operating system is %s", operatingSystem)
+	if operatingSystem == "windows" {
+		time.Sleep(1 * time.Second)
+		log.Debug("Full cleanup")
+		var err error
+
+		for _, file := range []string{"README.md", "./README.md"} {
+			err = os.Remove(file)
+			if err == nil {
+				log.Debugf("Successfuly purged %s", file)
+			} else {
+				log.Debugf("%s was already purged.", file)
+			}
+		}
+		for _, folder := range []string{"./testEmpty", "./link-in-folder"} {
+			err = os.RemoveAll(folder)
+			if err == nil {
+				log.Debugf("Successfuly purged %s", folder)
+			} else {
+				log.Debugf("%s was already purged.", folder)
+			}
+		}
+	}
 }

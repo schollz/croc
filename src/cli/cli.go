@@ -267,7 +267,7 @@ func send(c *cli.Context) (err error) {
 		crocOptions.SharedSecret = utils.GetRandomName()
 	}
 
-	minimalFileInfos, err := croc.GetFilesInfo(fnames)
+	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfo(fnames)
 	if err != nil {
 		return
 	}
@@ -280,7 +280,7 @@ func send(c *cli.Context) (err error) {
 	// save the config
 	saveConfig(c, crocOptions)
 
-	err = cr.Send(minimalFileInfos)
+	err = cr.Send(minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders)
 
 	return
 }
