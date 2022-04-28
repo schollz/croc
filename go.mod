@@ -13,7 +13,7 @@ require (
 	github.com/schollz/peerdiscovery v1.6.11
 	github.com/schollz/progressbar/v3 v3.8.6
 	github.com/stretchr/testify v1.6.1
-	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4
+	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f
 	golang.org/x/net v0.0.0-20220425223048-2871e0cb64e4
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
 )
