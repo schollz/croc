@@ -78,6 +78,12 @@ On Arch Linux you can install the latest release with `pacman`:
 pacman -S croc
 ```
 
+On Fedora you can install with `dnf`:
+
+```
+dnf install croc
+```
+
 On Gentoo you can install with `portage`:
 ```
 emerge net-misc/croc
