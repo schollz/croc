@@ -79,15 +79,16 @@ func init() {
 		}
 	}
 	var err error
-	DEFAULT_RELAY, err = lookup(DEFAULT_RELAY)
+	var addr string
+	addr, err = lookup(DEFAULT_RELAY)
 	if err == nil {
-		DEFAULT_RELAY += ":" + DEFAULT_PORT
+		DEFAULT_RELAY = net.JoinHostPort(addr, DEFAULT_PORT)
 	} else {
 		DEFAULT_RELAY = ""
 	}
-	DEFAULT_RELAY6, err = lookup(DEFAULT_RELAY6)
+	addr, err = lookup(DEFAULT_RELAY6)
 	if err == nil {
-		DEFAULT_RELAY6 = "[" + DEFAULT_RELAY6 + "]:" + DEFAULT_PORT
+		DEFAULT_RELAY6 = net.JoinHostPort(addr, DEFAULT_PORT)
 	} else {
 		DEFAULT_RELAY6 = ""
 	}

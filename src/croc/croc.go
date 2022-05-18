@@ -778,7 +778,7 @@ func (c *Client) Receive() (err error) {
 					continue
 				}
 
-				serverTry := fmt.Sprintf("%s:%s", ip, port)
+				serverTry := net.JoinHostPort(ip, port)
 				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.SharedSecret[:3], 500*time.Millisecond)
 				if errConn != nil {
 					log.Debug(errConn)
