@@ -980,7 +980,11 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 			machID, _ := machineid.ID()
 			fmt.Fprintf(os.Stderr, "\rYour machine id is '%s'.\n%s %s (%s) from '%s'? (Y/n) ", machID, action, fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
 		} else {
-			fmt.Fprintf(os.Stderr, "\r%s %s and %s (%s)? (Y/n) ", action, fname, folderName, utils.ByteCountDecimal(totalSize))
+			if c.TotalNumberFolders > 0 {
+				fmt.Fprintf(os.Stderr, "\r%s %s and %s (%s)? (Y/n) ", action, fname, folderName, utils.ByteCountDecimal(totalSize))
+			} else {
+				fmt.Fprintf(os.Stderr, "\r%s %s (%s)? (Y/n) ", action, fname, utils.ByteCountDecimal(totalSize))
+			}
 		}
 		choice := strings.ToLower(utils.GetInput(""))
 		if choice != "" && choice != "y" && choice != "yes" {
