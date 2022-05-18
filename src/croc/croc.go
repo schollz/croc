@@ -381,7 +381,11 @@ func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {
 	}
 
 	fmt.Fprintf(os.Stderr, "\r                                 ")
-	fmt.Fprintf(os.Stderr, "\rSending %s and %s (%s)\n", fname, folderName, utils.ByteCountDecimal(totalFilesSize))
+	if c.TotalNumberFolders > 0 {
+		fmt.Fprintf(os.Stderr, "\rSending %s and %s (%s)\n", fname, folderName, utils.ByteCountDecimal(totalFilesSize))
+	} else {
+		fmt.Fprintf(os.Stderr, "\rSending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
+	}
 	return
 }
 
