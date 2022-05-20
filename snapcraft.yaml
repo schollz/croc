@@ -1,0 +1,21 @@
+name: croc
+version: git
+summary: Easily and securely send things from one computer to another
+description: Easily and securely send things from one computer to another
+confinement: classic
+base: core20
+
+parts:
+  docker-image-save:
+    plugin: go
+    source: https://github.com/schollz/croc
+    source-type: git
+    build-packages:
+      - gcc
+
+apps:
+  croc:
+    command: bin/croc
+    plugs:
+      - network
+      - network-bind
