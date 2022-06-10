@@ -236,6 +236,14 @@ croc --pass YOURPASSWORD --relay "myreal.example.com:9009" send [filename]
 
 Note: when including `--pass YOURPASSWORD` you can instead pass a file with the password, e.g. `--pass FILEWITHPASSWORD`.
 
+#### Self-host relay (cloud-init)
+
+Paste just ONE of the [three equivalent compressed scripts](https://github.com/mirage335/ubiquitous_bash/tree/master/_lib/kit/install/cloud/cloud-init/zRotten/specialized/croc) in your cloud provider (eg. 'Hetzner', 'DigitalOcean', possibly 'Azure', etc) 'User data' , 'Cloud-init configuration' , or similar text input when creating your 'Debian' or 'Ubuntu' VPS - '[cloud-config.cfg](https://raw.githubusercontent.com/mirage335/ubiquitous_bash/master/_lib/kit/install/cloud/cloud-init/zRotten/specialized/croc/cloud-config.cfg)' , '[rotten_install.sh](https://raw.githubusercontent.com/mirage335/ubiquitous_bash/master/_lib/kit/install/cloud/cloud-init/zRotten/specialized/croc/rotten_install.sh)' , '[rotten_install_compressed.sh](https://raw.githubusercontent.com/mirage335/ubiquitous_bash/master/_lib/kit/install/cloud/cloud-init/zRotten/specialized/croc/rotten_install_compressed.sh)' .
+
+You should, within two minutes, have a croc relay running at the IP address of your VPS server. No login necessary - you can use a bogus SSH key, throwaway password, etc.
+
+By pasting one script, selecting either 'Debian' or 'Ubuntu', and clicking 'create' server, you can thus cause your cloud provider to give you an IP address to a croc relay.
+
 ## License
 
 MIT
