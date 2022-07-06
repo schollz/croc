@@ -908,6 +908,16 @@ func (c *Client) transfer() (err error) {
 		}
 	}
 
+	if c.SuccessfulTransfer && !c.Options.IsSender {
+		for _, file := range c.FilesToTransfer {
+			if file.TempFile {
+				utils.UnzipDirectory(".", file.Name)
+				os.Remove(file.Name)
+				log.Debugf("Removing %s\n", file.Name)
+			}
+		}
+	}
+
 	if c.Options.Stdout && !c.Options.IsSender {
 		pathToFile := path.Join(
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
