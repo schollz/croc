@@ -412,3 +412,45 @@ func ZipDirectory(destination string, source string) (err error) {
 	fmt.Println()
 	return nil
 }
+
+func UnzipDirectory(destination string, source string) error {
+
+	archive, err := zip.OpenReader(source)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer archive.Close()
+
+	for _, f := range archive.File {
+		filePath := filepath.Join(destination, f.Name)
+		fmt.Fprintf(os.Stderr, "\r\033[2K")
+		fmt.Fprintf(os.Stderr, "\rUnzipping file %s", filePath)
+		if f.FileInfo().IsDir() {
+			os.MkdirAll(filePath, os.ModePerm)
+			continue
+		}
+
+		if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
+			log.Fatalln(err)
+		}
+
+		dstFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		fileInArchive, err := f.Open()
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		if _, err := io.Copy(dstFile, fileInArchive); err != nil {
+			log.Fatalln(err)
+		}
+
+		dstFile.Close()
+		fileInArchive.Close()
+	}
+	fmt.Println()
+	return nil
+}
