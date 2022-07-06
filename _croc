@@ -1,0 +1,62 @@
+#compdef croc
+
+# zsh completion for croc - the file transfer tool
+
+typeset matchany=/$'[^\0]##\0'/
+typeset -a argvalue portsarg filearg hasharg curvearg iparg
+argvalue=("$matchany" ":value:value:")
+portsarg=(/$'[0-9,]#\0'/ ':ports:ports:{_guard "[0-9,]#" "comma separated list of ports"}')
+filearg=("${matchany}" ":file:file:_files")
+hasharg=(/$'(xxhash|imohash|md5)\0'/ ":hash:hash:(xxhash imohash md5)")
+curvearg=(/$'(p521|p256|p384|siec)'/ ":curve:encryption curve:(p521 p256 p384 siec)")
+iparg=(/$'[0-9.:]#:[0-9]#\0'/ ':ip:IP address & port:{_guard "[0-9.:]#:[0-9]#" "IP address:port"}')
+
+typeset -a sendopts
+_regex_words sendopts 'options'\
+	     {--code,-c}':codephrase used to connect to relay:$argvalue'\	     
+             '--hash:hash algorithm (xxhash, imohash, md5) (default="xxhash"):$hasharg'\
+	     {--help,-h}':show help (default=false)'\
+	     '--no-local:disable local relay when sending (default=false)'\
+	     '--no-multi:disable multiplexing (default=false)'\
+	     '--ports:ports of the local relay (optional) (default="9009,9010,9011,9012,9013"):$portsarg'\
+	     {--text,-t}':send some text:$argvalue'
+sendopts=("${reply[@]}" \#)
+
+typeset -a relayopts
+_regex_words relayopts 'options'\
+	     {--help,-h}':show help (default=false)'\
+	     '--host:host of the relay:$argvalue'\
+	     '--ports:ports of the relay:$portsarg'
+
+relayopts=("${reply[@]}" \#)
+
+typeset -a subcmds
+_regex_words subcmds 'Subcommands' 'relay:start your own relay:$relayopts' 'send:send a file:$sendopts' 'help:show help'
+subcmds=( "${reply[@]}" )
+
+typeset -a globalopts
+_regex_words globalopts 'options' \
+        '-ask:make sure sender and recipient are prompted (default=false):'\
+        '-curve:choose an encryption curve (p521, p256, p384, siec) (default="p256"):$curvearg'\
+        '-debug:toggle debug mode (default=false):'\
+	{-help,h}':show help (default=false):'\
+        '-ignore-stdin:ignore piped stdin (default=false):'\
+        '-internal-dns:use a built-in DNS stub resolver rather than the host operating system (default=false):'\
+        '-ip:set sender ip if known e.g. 10.0.0.1.9009:$iparg'\
+        '-local:force to use only local connections (default=false):'\
+        '-no-compress:disable compression (default=false):'\
+        '-out:specify an output folder to receive the file (default="."):$filearg'\
+        '-overwrite:do not prompt to overwrite (default=false):'\
+        '-pass:password for the relay (default="pass123" or \$CROC_PASS):$argvalue'\
+        '-relay6:ipv6 address of the relay (default="[2a01.4ff.f0.23c2..14c.1].9009" or \$CROC_RELAY6):$iparg'\
+        '-relay:address of the relay (default="5.161.69.143.9009" or \$CROC_RELAY):$iparg'\
+        '-remember:save these settings to reuse next time (default=false):'\
+        '-socks5:add a socks5 proxy (\$SOCKS5_PROXY):$argvalue'\
+        '-stdout:redirect file to stdout (default=false):'\
+        '-throttleUpload:Throttle the upload speed e.g. 500k:$argvalue'\
+	{-version,v}':print the version (default=false):'\
+        '-yes:automatically agree to all prompts (default=false):'
+globalopts=(/$'-'/ "${reply[@]}" )
+
+_regex_arguments _cmd /$'[^\0]##\0'/ \( "${globalopts[@]}" \) \# "${subcmds[@]}" 
+_cmd "$@"
