@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"archive/zip"
 	"bufio"
 	"bytes"
 	"crypto/md5"
@@ -16,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -368,4 +370,45 @@ func IsLocalIP(ipaddress string) bool {
 		}
 	}
 	return false
+}
+
+func ZipDirectory(destination string, source string) (err error) {
+	if _, err := os.Stat(destination); err == nil {
+		log.Fatalf("%s file already exists!\n", destination)
+	}
+	fmt.Fprintf(os.Stderr, "Zipping %s to %s\n", source, destination)
+	file, err := os.Create(destination)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer file.Close()
+	writer := zip.NewWriter(file)
+	defer writer.Close()
+	err = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			log.Fatalln(err)
+		}
+		if info.Mode().IsRegular() {
+			f1, err := os.Open(path)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			defer f1.Close()
+			w1, err := writer.Create(path)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			if _, err := io.Copy(w1, f1); err != nil {
+				log.Fatalln(err)
+			}
+			fmt.Fprintf(os.Stderr, "\r\033[2K")
+			fmt.Fprintf(os.Stderr, "\rAdding %s", path)
+		}
+		return nil
+	})
+	if err != nil {
+		log.Fatalln(err)
+	}
+	fmt.Println()
+	return nil
 }
