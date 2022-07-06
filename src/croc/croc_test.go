@@ -66,7 +66,7 @@ func TestCrocReadme(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
-		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{"../../README.md"})
+		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{"../../README.md"}, false)
 		if errGet != nil {
 			t.Errorf("failed to get minimal info: %v", errGet)
 		}
@@ -132,7 +132,7 @@ func TestCrocEmptyFolder(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
-		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{pathName})
+		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{pathName}, false)
 		if errGet != nil {
 			t.Errorf("failed to get minimal info: %v", errGet)
 		}
@@ -199,7 +199,7 @@ func TestCrocSymlink(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
-		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{pathName})
+		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{pathName}, false)
 		if errGet != nil {
 			t.Errorf("failed to get minimal info: %v", errGet)
 		}
@@ -276,7 +276,7 @@ func TestCrocLocal(t *testing.T) {
 	os.Create("touched")
 	wg.Add(2)
 	go func() {
-		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{"../../LICENSE", "touched"})
+		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{"../../LICENSE", "touched"}, false)
 		if errGet != nil {
 			t.Errorf("failed to get minimal info: %v", errGet)
 		}
@@ -329,7 +329,7 @@ func TestCrocError(t *testing.T) {
 		Curve:         "siec",
 		Overwrite:     true,
 	})
-	filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{tmpfile.Name()})
+	filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{tmpfile.Name()}, false)
 	if errGet != nil {
 		t.Errorf("failed to get minimal info: %v", errGet)
 	}
