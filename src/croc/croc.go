@@ -75,6 +75,7 @@ type Options struct {
 	Curve          string
 	HashAlgorithm  string
 	ThrottleUpload string
+	ZipFolder      bool
 }
 
 // Client holds the state of the croc transfer
@@ -146,6 +147,7 @@ type FileInfo struct {
 	IsEncrypted  bool        `json:"e,omitempty"`
 	Symlink      string      `json:"sy,omitempty"`
 	Mode         os.FileMode `json:"md,omitempty"`
+	TempFile     bool        `json:"tf,omitempty"`
 }
 
 // RemoteFileRequest requests specific bytes
@@ -249,7 +251,7 @@ func isEmptyFolder(folderPath string) (bool, error) {
 
 // This function retrives the important file informations
 // for every file that will be transfered
-func GetFilesInfo(fnames []string) (filesInfo []FileInfo, emptyFolders []FileInfo, totalNumberFolders int, err error) {
+func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyFolders []FileInfo, totalNumberFolders int, err error) {
 	// fnames: the relativ/absolute paths of files/folders that will be transfered
 	totalNumberFolders = 0
 	var paths []string
@@ -283,6 +285,31 @@ func GetFilesInfo(fnames []string) (filesInfo []FileInfo, emptyFolders []FileInf
 			return
 		}
 
+		if stat.IsDir() && zipfolder {
+			dest := path + ".zip"
+			utils.ZipDirectory(dest, path)
+			stat, errStat = os.Lstat(dest)
+			if errStat != nil {
+				err = errStat
+				return
+			}
+			absPath, errAbs = filepath.Abs(dest)
+			if errAbs != nil {
+				err = errAbs
+				return
+			}
+			filesInfo = append(filesInfo, FileInfo{
+				Name:         stat.Name(),
+				FolderRemote: "./",
+				FolderSource: filepath.Dir(absPath),
+				Size:         stat.Size(),
+				ModTime:      stat.ModTime(),
+				Mode:         stat.Mode(),
+				TempFile:     true,
+			})
+			continue
+		}
+
 		if stat.IsDir() {
 			err = filepath.Walk(absPath,
 				func(pathName string, info os.FileInfo, err error) error {
@@ -299,6 +326,7 @@ func GetFilesInfo(fnames []string) (filesInfo []FileInfo, emptyFolders []FileInf
 							Size:         info.Size(),
 							ModTime:      info.ModTime(),
 							Mode:         info.Mode(),
+							TempFile:     false,
 						})
 					} else {
 						totalNumberFolders++
@@ -316,6 +344,7 @@ func GetFilesInfo(fnames []string) (filesInfo []FileInfo, emptyFolders []FileInf
 			if err != nil {
 				return
 			}
+
 		} else {
 			filesInfo = append(filesInfo, FileInfo{
 				Name:         stat.Name(),
@@ -324,6 +353,7 @@ func GetFilesInfo(fnames []string) (filesInfo []FileInfo, emptyFolders []FileInf
 				Size:         stat.Size(),
 				ModTime:      stat.ModTime(),
 				Mode:         stat.Mode(),
+				TempFile:     false,
 			})
 		}
 
@@ -868,6 +898,14 @@ func (c *Client) transfer() (err error) {
 			log.Debugf("purging error: %s", err)
 		}
 		err = nil
+	}
+	if c.Options.IsSender && c.SuccessfulTransfer {
+		for _, file := range c.FilesToTransfer {
+			if file.TempFile {
+				fmt.Println("Removing " + file.Name)
+				os.Remove(file.Name)
+			}
+		}
 	}
 
 	if c.Options.Stdout && !c.Options.IsSender {
@@ -1579,7 +1617,6 @@ func (c *Client) updateState() (err error) {
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource,
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
 		)
-
 		c.fread, err = os.Open(pathToFile)
 		c.numfinished = 0
 		if err != nil {
