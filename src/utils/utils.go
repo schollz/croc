@@ -394,7 +394,8 @@ func ZipDirectory(destination string, source string) (err error) {
 				log.Fatalln(err)
 			}
 			defer f1.Close()
-			w1, err := writer.Create(path)
+			zip_path := strings.ReplaceAll(path, source, strings.TrimSuffix(destination, ".zip"))
+			w1, err := writer.Create(zip_path)
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -402,7 +403,7 @@ func ZipDirectory(destination string, source string) (err error) {
 				log.Fatalln(err)
 			}
 			fmt.Fprintf(os.Stderr, "\r\033[2K")
-			fmt.Fprintf(os.Stderr, "\rAdding %s", path)
+			fmt.Fprintf(os.Stderr, "\rAdding %s", zip_path)
 		}
 		return nil
 	})
