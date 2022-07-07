@@ -10,12 +10,12 @@ require (
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/mnemonicode v1.0.1
 	github.com/schollz/pake/v3 v3.0.4
-	github.com/schollz/peerdiscovery v1.6.11
+	github.com/schollz/peerdiscovery v1.6.12
 	github.com/schollz/progressbar/v3 v3.8.6
 	github.com/stretchr/testify v1.6.1
-	golang.org/x/crypto v0.0.0-20220518034528-6f7dac969898
-	golang.org/x/net v0.0.0-20220517181318-183a9ca12b87
-	golang.org/x/time v0.0.0-20220411224347-583f2d630306
+	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d
+	golang.org/x/net v0.0.0-20220706163947-c90051bbdb60
+	golang.org/x/time v0.0.0-20220609170525-579cf78fd858
 )
 
 require (
@@ -31,8 +31,8 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/tscholl2/siec v0.0.0-20210707234609-9bdfc483d499 // indirect
 	github.com/twmb/murmur3 v1.1.6 // indirect
-	golang.org/x/sys v0.0.0-20220517195934-5e4e11fc645e // indirect
-	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
+	golang.org/x/sys v0.0.0-20220704084225-05e143d24a9e // indirect
+	golang.org/x/term v0.0.0-20220526004731-065cf7ba2467 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
