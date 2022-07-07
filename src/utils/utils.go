@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bufio"
 	"bytes"
+	"compress/flate"
 	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha256"
@@ -383,6 +384,10 @@ func ZipDirectory(destination string, source string) (err error) {
 	}
 	defer file.Close()
 	writer := zip.NewWriter(file)
+	// no compression because croc does its compression on the fly
+	writer.RegisterCompressor(zip.Deflate, func(out io.Writer) (io.WriteCloser, error) {
+		return flate.NewWriter(out, flate.NoCompression)
+	})
 	defer writer.Close()
 	err = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

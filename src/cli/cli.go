@@ -61,6 +61,7 @@ func Run() (err error) {
 			Description: "send file(s), or folder, over the relay",
 			ArgsUsage:   "[filename(s) or folder]",
 			Flags: []cli.Flag{
+				&cli.BoolFlag{Name: "zip", Usage: "zip folder before sending"},
 				&cli.StringFlag{Name: "code", Aliases: []string{"c"}, Usage: "codephrase used to connect to relay"},
 				&cli.StringFlag{Name: "hash", Value: "xxhash", Usage: "hash algorithm (xxhash, imohash, md5)"},
 				&cli.StringFlag{Name: "text", Aliases: []string{"t"}, Usage: "send some text"},
@@ -94,7 +95,6 @@ func Run() (err error) {
 		&cli.BoolFlag{Name: "local", Usage: "force to use only local connections"},
 		&cli.BoolFlag{Name: "ignore-stdin", Usage: "ignore piped stdin"},
 		&cli.BoolFlag{Name: "overwrite", Usage: "do not prompt to overwrite"},
-		&cli.BoolFlag{Name: "zip", Usage: "zip folder if specified"},
 		&cli.StringFlag{Name: "curve", Value: "p256", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
 		&cli.StringFlag{Name: "ip", Value: "", Usage: "set sender ip if known e.g. 10.0.0.1:9009, [::1]:9009"},
 		&cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay", EnvVars: []string{"CROC_RELAY"}},
