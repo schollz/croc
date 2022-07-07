@@ -94,6 +94,7 @@ func Run() (err error) {
 		&cli.BoolFlag{Name: "local", Usage: "force to use only local connections"},
 		&cli.BoolFlag{Name: "ignore-stdin", Usage: "ignore piped stdin"},
 		&cli.BoolFlag{Name: "overwrite", Usage: "do not prompt to overwrite"},
+		&cli.BoolFlag{Name: "zip", Usage: "zip folder if specified"},
 		&cli.StringFlag{Name: "curve", Value: "p256", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
 		&cli.StringFlag{Name: "ip", Value: "", Usage: "set sender ip if known e.g. 10.0.0.1:9009, [::1]:9009"},
 		&cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay", EnvVars: []string{"CROC_RELAY"}},
@@ -186,6 +187,7 @@ func send(c *cli.Context) (err error) {
 		Curve:          c.String("curve"),
 		HashAlgorithm:  c.String("hash"),
 		ThrottleUpload: c.String("throttleUpload"),
+		ZipFolder:      c.Bool("zip"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -266,8 +268,7 @@ func send(c *cli.Context) (err error) {
 		// generate code phrase
 		crocOptions.SharedSecret = utils.GetRandomName()
 	}
-
-	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfo(fnames)
+	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfo(fnames, crocOptions.ZipFolder)
 	if err != nil {
 		return
 	}
