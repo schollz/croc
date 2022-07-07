@@ -286,6 +286,9 @@ func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyF
 		}
 
 		if stat.IsDir() && zipfolder {
+			if path[len(path)-1:] != "/" {
+				path += "/"
+			}
 			path := filepath.Dir(path)
 			dest := filepath.Base(path) + ".zip"
 			utils.ZipDirectory(dest, path)
