@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"archive/zip"
 	"bufio"
 	"bytes"
 	"crypto/md5"
@@ -16,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -368,4 +370,88 @@ func IsLocalIP(ipaddress string) bool {
 		}
 	}
 	return false
+}
+
+func ZipDirectory(destination string, source string) (err error) {
+	if _, err := os.Stat(destination); err == nil {
+		log.Fatalf("%s file already exists!\n", destination)
+	}
+	fmt.Fprintf(os.Stderr, "Zipping %s to %s\n", source, destination)
+	file, err := os.Create(destination)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer file.Close()
+	writer := zip.NewWriter(file)
+	defer writer.Close()
+	err = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			log.Fatalln(err)
+		}
+		if info.Mode().IsRegular() {
+			f1, err := os.Open(path)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			defer f1.Close()
+			zip_path := strings.ReplaceAll(path, source, strings.TrimSuffix(destination, ".zip"))
+			w1, err := writer.Create(zip_path)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			if _, err := io.Copy(w1, f1); err != nil {
+				log.Fatalln(err)
+			}
+			fmt.Fprintf(os.Stderr, "\r\033[2K")
+			fmt.Fprintf(os.Stderr, "\rAdding %s", zip_path)
+		}
+		return nil
+	})
+	if err != nil {
+		log.Fatalln(err)
+	}
+	fmt.Println()
+	return nil
+}
+
+func UnzipDirectory(destination string, source string) error {
+
+	archive, err := zip.OpenReader(source)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer archive.Close()
+
+	for _, f := range archive.File {
+		filePath := filepath.Join(destination, f.Name)
+		fmt.Fprintf(os.Stderr, "\r\033[2K")
+		fmt.Fprintf(os.Stderr, "\rUnzipping file %s", filePath)
+		if f.FileInfo().IsDir() {
+			os.MkdirAll(filePath, os.ModePerm)
+			continue
+		}
+
+		if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
+			log.Fatalln(err)
+		}
+
+		dstFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		fileInArchive, err := f.Open()
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		if _, err := io.Copy(dstFile, fileInArchive); err != nil {
+			log.Fatalln(err)
+		}
+
+		dstFile.Close()
+		fileInArchive.Close()
+	}
+	fmt.Println()
+	return nil
 }
