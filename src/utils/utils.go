@@ -415,7 +415,7 @@ func ZipDirectory(destination string, source string) (err error) {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	fmt.Println()
+	fmt.Fprintf(os.Stderr, "\n")
 	return nil
 }
 
@@ -457,6 +457,6 @@ func UnzipDirectory(destination string, source string) error {
 		dstFile.Close()
 		fileInArchive.Close()
 	}
-	fmt.Println()
+	fmt.Fprintf(os.Stderr, "\n")
 	return nil
 }
