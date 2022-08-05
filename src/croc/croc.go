@@ -208,7 +208,7 @@ func New(ops Options) (c *Client, err error) {
 				panic("Could not parse given Upload Limit")
 			}
 		}
-		// Somehow 4* is neccessary
+		// Somehow 4* is necessary
 		rt = rate.Every(time.Second / (4 * time.Duration(uploadLimit)))
 		if int(uploadLimit) > minBurstSize {
 			minBurstSize = int(uploadLimit)
@@ -250,9 +250,9 @@ func isEmptyFolder(folderPath string) (bool, error) {
 }
 
 // This function retrives the important file informations
-// for every file that will be transfered
+// for every file that will be transferred
 func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyFolders []FileInfo, totalNumberFolders int, err error) {
-	// fnames: the relativ/absolute paths of files/folders that will be transfered
+	// fnames: the relativ/absolute paths of files/folders that will be transferred
 	totalNumberFolders = 0
 	var paths []string
 	for _, fname := range fnames {
@@ -1078,7 +1078,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 		}
 	}
 
-	// if no files are to be transfered, then we can end the file transfer process
+	// if no files are to be transferred, then we can end the file transfer process
 	if c.FilesToTransfer == nil {
 		c.SuccessfulTransfer = true
 		c.Step3RecipientRequestFile = true
