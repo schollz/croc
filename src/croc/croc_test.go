@@ -353,7 +353,7 @@ func TestCleanUp(t *testing.T) {
 		for _, file := range []string{"README.md", "./README.md"} {
 			err = os.Remove(file)
 			if err == nil {
-				log.Debugf("Successfuly purged %s", file)
+				log.Debugf("Successfully purged %s", file)
 			} else {
 				log.Debugf("%s was already purged.", file)
 			}
@@ -361,7 +361,7 @@ func TestCleanUp(t *testing.T) {
 		for _, folder := range []string{"./testEmpty", "./link-in-folder"} {
 			err = os.RemoveAll(folder)
 			if err == nil {
-				log.Debugf("Successfuly purged %s", folder)
+				log.Debugf("Successfully purged %s", folder)
 			} else {
 				log.Debugf("%s was already purged.", folder)
 			}
