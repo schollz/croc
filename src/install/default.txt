@@ -86,7 +86,7 @@ print_help() {
       Default = /usr/local/bin ('\${PREFIX}/bin' on Termux for Android)
   
   -h
-      Prints this helpfull message and exit."
+      Prints this helpful message and exit."
 
   echo "${help_header}"
   echo ""
@@ -300,10 +300,10 @@ checksum_check() {
 #---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  extract_file
 #   DESCRIPTION:  Extracts a file into a location.  Attempts to determine which
-#                 tool to use by checking file extention.
+#                 tool to use by checking file extension.
 #    PARAMETERS:  $1 = file to extract
 #                 $2 = location to extract file into
-#                 $3 = extention
+#                 $3 = extension
 #       RETURNS:  Return code of the tool used to extract the file
 #                 20 = Failed to determine which tool to use
 #                 30 = Failed to find tool in path
