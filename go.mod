@@ -14,7 +14,7 @@ require (
 	github.com/schollz/progressbar/v3 v3.8.6
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d
-	golang.org/x/net v0.0.0-20220706163947-c90051bbdb60
+	golang.org/x/net v0.0.0-20220805013720-a33c5aa5df48
 	golang.org/x/time v0.0.0-20220609170525-579cf78fd858
 )
 
@@ -31,7 +31,7 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/tscholl2/siec v0.0.0-20210707234609-9bdfc483d499 // indirect
 	github.com/twmb/murmur3 v1.1.6 // indirect
-	golang.org/x/sys v0.0.0-20220704084225-05e143d24a9e // indirect
+	golang.org/x/sys v0.0.0-20220804214406-8e32c043e418 // indirect
 	golang.org/x/term v0.0.0-20220526004731-065cf7ba2467 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
