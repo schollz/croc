@@ -166,6 +166,10 @@ func determinePass(c *cli.Context) (pass string) {
 func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
 	comm.Socks5Proxy = c.String("socks5")
+	portsString:=c.String("ports")
+	if portsString=="" {
+		portsString="9009,9010,9011,9012,9013"
+	}
 	crocOptions := croc.Options{
 		SharedSecret:   c.String("code"),
 		IsSender:       true,
@@ -177,7 +181,7 @@ func send(c *cli.Context) (err error) {
 		DisableLocal:   c.Bool("no-local"),
 		OnlyLocal:      c.Bool("local"),
 		IgnoreStdin:    c.Bool("ignore-stdin"),
-		RelayPorts:     strings.Split(c.String("ports"), ","),
+		RelayPorts:     strings.Split(portsString, ","),
 		Ask:            c.Bool("ask"),
 		NoMultiplexing: c.Bool("no-multi"),
 		RelayPassword:  determinePass(c),
