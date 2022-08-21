@@ -69,6 +69,7 @@ func GetInput(prompt string) string {
 // HashFile returns the hash of a file or, in case of a symlink, the
 // SHA256 hash of its target. Takes an argument to specify the algorithm to use.
 func HashFile(fname string, algorithm string) (hash256 []byte, err error) {
+	fmt.Fprintf(os.Stderr, "Preparing files...")
 	var fstats os.FileInfo
 	fstats, err = os.Lstat(fname)
 	if err != nil {
