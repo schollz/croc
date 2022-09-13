@@ -19,6 +19,7 @@ require (
 )
 
 require (
+	github.com/DataDog/zstd v1.5.2
 	github.com/OneOfOne/xxhash v1.2.5 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
