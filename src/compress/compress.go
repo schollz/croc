@@ -2,8 +2,9 @@ package compress
 
 import (
 	"bytes"
-	"compress/flate"
 	"io"
+
+	"github.com/klauspost/compress/zstd"
 
 	log "github.com/schollz/logger"
 )
@@ -30,22 +31,24 @@ func Decompress(src []byte) []byte {
 	return deCompressedData.Bytes()
 }
 
-// compress uses flate to compress a byte slice to a corresponding level
+// compress uses zstd to compress a byte slice to a corresponding level
 func compress(src []byte, dest io.Writer, level int) {
-	compressor, err := flate.NewWriter(dest, level)
+	compressor, err := zstd.NewWriter(dest, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)))
 	if err != nil {
-		log.Debugf("error level data: %v", err)
-		return
+		panic(err)
 	}
-	if _, err := compressor.Write(src); err != nil {
+	if _, err = compressor.Write(src); err != nil {
 		log.Debugf("error writing data: %v", err)
 	}
 	compressor.Close()
 }
 
-// compress uses flate to decompress an io.Reader
+// decompress uses zstd to decompress an io.Reader
 func decompress(src io.Reader, dest io.Writer) {
-	decompressor := flate.NewReader(src)
+	decompressor, err := zstd.NewReader(src)
+	if err != nil {
+		panic(err)
+	}
 	if _, err := io.Copy(dest, decompressor); err != nil {
 		log.Debugf("error copying data: %v", err)
 	}
