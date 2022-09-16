@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/DataDog/zstd"
+	"github.com/klauspost/compress/zstd"
 
 	log "github.com/schollz/logger"
 )
@@ -33,8 +33,11 @@ func Decompress(src []byte) []byte {
 
 // compress uses zstd to compress a byte slice to a corresponding level
 func compress(src []byte, dest io.Writer, level int) {
-	compressor := zstd.NewWriterLevel(dest, level)
-	if _, err := compressor.Write(src); err != nil {
+	compressor, err := zstd.NewWriter(dest, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)))
+	if err != nil {
+		panic(err)
+	}
+	if _, err = compressor.Write(src); err != nil {
 		log.Debugf("error writing data: %v", err)
 	}
 	compressor.Close()
@@ -42,7 +45,10 @@ func compress(src []byte, dest io.Writer, level int) {
 
 // decompress uses zstd to decompress an io.Reader
 func decompress(src io.Reader, dest io.Writer) {
-	decompressor := zstd.NewReader(src)
+	decompressor, err := zstd.NewReader(src)
+	if err != nil {
+		panic(err)
+	}
 	if _, err := io.Copy(dest, decompressor); err != nil {
 		log.Debugf("error copying data: %v", err)
 	}

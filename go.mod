@@ -6,6 +6,7 @@ require (
 	github.com/cespare/xxhash v1.1.0
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/kalafut/imohash v1.0.2
+	github.com/klauspost/compress v1.15.9
 	github.com/schollz/cli/v2 v2.2.1
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/mnemonicode v1.0.1
