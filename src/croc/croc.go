@@ -252,7 +252,7 @@ func isEmptyFolder(folderPath string) (bool, error) {
 // This function retrives the important file informations
 // for every file that will be transferred
 func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyFolders []FileInfo, totalNumberFolders int, err error) {
-	// fnames: the relativ/absolute paths of files/folders that will be transferred
+	// fnames: the relative/absolute paths of files/folders that will be transferred
 	totalNumberFolders = 0
 	var paths []string
 	for _, fname := range fnames {
