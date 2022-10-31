@@ -52,19 +52,19 @@ func TestEncryption(t *testing.T) {
 	assert.Equal(t, msg, dec)
 
 	// check reusing the salt
-	key2, _, err := New([]byte("password"), salt)
+	key2, _, _ := New([]byte("password"), salt)
 	dec, err = Decrypt(enc, key2)
 	assert.Nil(t, err)
 	assert.Equal(t, msg, dec)
 
 	// check reusing the salt
-	key2, _, err = New([]byte("wrong password"), salt)
+	key2, _, _ = New([]byte("wrong password"), salt)
 	dec, err = Decrypt(enc, key2)
 	assert.NotNil(t, err)
 	assert.NotEqual(t, msg, dec)
 
 	// error with no password
-	dec, err = Decrypt([]byte(""), key)
+	_, err = Decrypt([]byte(""), key)
 	assert.NotNil(t, err)
 
 	// error with small password
@@ -84,19 +84,19 @@ func TestEncryptionChaCha(t *testing.T) {
 	assert.Equal(t, msg, dec)
 
 	// check reusing the salt
-	key2, _, err := NewArgon2([]byte("password"), salt)
+	key2, _, _ := NewArgon2([]byte("password"), salt)
 	dec, err = DecryptChaCha(enc, key2)
 	assert.Nil(t, err)
 	assert.Equal(t, msg, dec)
 
 	// check reusing the salt
-	key2, _, err = NewArgon2([]byte("wrong password"), salt)
+	key2, _, _ = NewArgon2([]byte("wrong password"), salt)
 	dec, err = DecryptChaCha(enc, key2)
 	assert.NotNil(t, err)
 	assert.NotEqual(t, msg, dec)
 
 	// error with no password
-	dec, err = DecryptChaCha([]byte(""), key)
+	_, err = DecryptChaCha([]byte(""), key)
 	assert.NotNil(t, err)
 
 	// error with small password
