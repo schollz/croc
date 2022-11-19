@@ -9,7 +9,7 @@ require (
 	github.com/schollz/cli/v2 v2.2.1
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/mnemonicode v1.0.1
-	github.com/schollz/pake/v3 v3.0.4
+	github.com/schollz/pake/v3 v3.0.5
 	github.com/schollz/peerdiscovery v1.6.14
 	github.com/schollz/progressbar/v3 v3.12.1
 	github.com/stretchr/testify v1.6.1
