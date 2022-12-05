@@ -271,15 +271,15 @@ func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyF
 		}
 	}
 
-	for _, path := range paths {
-		stat, errStat := os.Lstat(path)
+	for _, fpath := range paths {
+		stat, errStat := os.Lstat(fpath)
 
 		if errStat != nil {
 			err = errStat
 			return
 		}
 
-		absPath, errAbs := filepath.Abs(path)
+		absPath, errAbs := filepath.Abs(fpath)
 
 		if errAbs != nil {
 			err = errAbs
@@ -287,12 +287,12 @@ func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyF
 		}
 
 		if stat.IsDir() && zipfolder {
-			if path[len(path)-1:] != "/" {
-				path += "/"
+			if fpath[len(fpath)-1:] != "/" {
+				fpath += "/"
 			}
-			path = filepath.Dir(path)
-			dest := filepath.Base(path) + ".zip"
-			utils.ZipDirectory(dest, path)
+			fpath = filepath.Dir(fpath)
+			dest := filepath.Base(fpath) + ".zip"
+			utils.ZipDirectory(dest, fpath)
 			stat, errStat = os.Lstat(dest)
 			if errStat != nil {
 				err = errStat
