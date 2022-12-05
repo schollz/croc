@@ -22,8 +22,8 @@ var (
 	INTERNAL_DNS       = false
 )
 
-// publicDns are servers to be queried if a local lookup fails
-var publicDns = []string{
+// publicDNS are servers to be queried if a local lookup fails
+var publicDNS = []string{
 	"1.0.0.1",                // Cloudflare
 	"1.1.1.1",                // Cloudflare
 	"[2606:4700:4700::1111]", // Cloudflare
@@ -103,15 +103,15 @@ func lookup(address string) (ipaddress string, err error) {
 		s   string
 		err error
 	}
-	result := make(chan Result, len(publicDns))
-	for _, dns := range publicDns {
+	result := make(chan Result, len(publicDNS))
+	for _, dns := range publicDNS {
 		go func(dns string) {
 			var r Result
 			r.s, r.err = remoteLookupIP(address, dns)
 			result <- r
 		}(dns)
 	}
-	for i := 0; i < len(publicDns); i++ {
+	for i := 0; i < len(publicDNS); i++ {
 		ipaddress = (<-result).s
 		if ipaddress != "" {
 			return
@@ -135,7 +135,7 @@ func localLookupIP(address string) (ipaddress string, err error) {
 func remoteLookupIP(address, dns string) (ipaddress string, err error) {
 	r := &net.Resolver{
 		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+		Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
 			d := new(net.Dialer)
 			return d.DialContext(ctx, network, dns+":53")
 		},

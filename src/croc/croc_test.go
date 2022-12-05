@@ -92,7 +92,7 @@ func TestCrocEmptyFolder(t *testing.T) {
 	pathName := "../../testEmpty"
 	defer os.RemoveAll(pathName)
 	defer os.RemoveAll("./testEmpty")
-	os.MkdirAll(pathName, 0755)
+	os.MkdirAll(pathName, 0o755)
 
 	log.Debug("setting up sender")
 	sender, err := New(Options{
@@ -158,7 +158,7 @@ func TestCrocSymlink(t *testing.T) {
 	pathName := "../link-in-folder"
 	defer os.RemoveAll(pathName)
 	defer os.RemoveAll("./link-in-folder")
-	os.MkdirAll(pathName, 0755)
+	os.MkdirAll(pathName, 0o755)
 	os.Symlink("../../README.md", filepath.Join(pathName, "README.link"))
 
 	log.Debug("setting up sender")
@@ -203,7 +203,7 @@ func TestCrocSymlink(t *testing.T) {
 		if errGet != nil {
 			t.Errorf("failed to get minimal info: %v", errGet)
 		}
-		err := sender.Send(filesInfo, emptyFolders, totalNumberFolders)
+		err = sender.Send(filesInfo, emptyFolders, totalNumberFolders)
 		if err != nil {
 			t.Errorf("send failed: %v", err)
 		}
@@ -211,7 +211,7 @@ func TestCrocSymlink(t *testing.T) {
 	}()
 	time.Sleep(100 * time.Millisecond)
 	go func() {
-		err := receiver.Receive()
+		err = receiver.Receive()
 		if err != nil {
 			t.Errorf("receive failed: %v", err)
 		}
@@ -307,10 +307,10 @@ func TestCrocError(t *testing.T) {
 
 	defer os.Remove(tmpfile.Name()) // clean up
 
-	if _, err := tmpfile.Write(content); err != nil {
+	if _, err = tmpfile.Write(content); err != nil {
 		panic(err)
 	}
-	if err := tmpfile.Close(); err != nil {
+	if err = tmpfile.Close(); err != nil {
 		panic(err)
 	}
 

@@ -93,7 +93,8 @@ func (s *server) run() (err error) {
 	if s.host != "" {
 		ip := net.ParseIP(s.host)
 		if ip == nil {
-			tcpIP, err := net.ResolveIPAddr("ip", s.host)
+			var tcpIP *net.IPAddr
+			tcpIP, err = net.ResolveIPAddr("ip", s.host)
 			if err != nil {
 				return err
 			}
@@ -227,7 +228,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	if strings.TrimSpace(string(passwordBytes)) != s.password {
 		err = fmt.Errorf("bad password")
 		enc, _ := crypt.Encrypt([]byte(err.Error()), strongKeyForEncryption)
-		if err := c.Send(enc); err != nil {
+		if err = c.Send(enc); err != nil {
 			return "", fmt.Errorf("send error: %w", err)
 		}
 		return
@@ -350,11 +351,11 @@ func (s *server) deleteRoom(room string) {
 	}
 	s.rooms.rooms[room] = roomInfo{first: nil, second: nil}
 	delete(s.rooms.rooms, room)
-
 }
 
 // chanFromConn creates a channel from a Conn object, and sends everything it
-//  Read()s from the socket to the channel.
+//
+//	Read()s from the socket to the channel.
 func chanFromConn(conn net.Conn) chan []byte {
 	c := make(chan []byte, 1)
 	if err := conn.SetReadDeadline(time.Now().Add(3 * time.Hour)); err != nil {
