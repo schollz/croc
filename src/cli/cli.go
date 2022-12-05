@@ -234,6 +234,9 @@ func send(c *cli.Context) (err error) {
 		if !c.IsSet("local") {
 			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
 		}
+		if !c.IsSet("hash") {
+			crocOptions.HashAlgorithm = rememberedOptions.HashAlgorithm
+		}
 	}
 
 	var fnames []string
