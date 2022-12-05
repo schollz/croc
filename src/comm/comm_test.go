@@ -31,7 +31,7 @@ func TestComm(t *testing.T) {
 				log.Error(err)
 			}
 			log.Debugf("client %s connected", connection.RemoteAddr().String())
-			go func(port string, connection net.Conn) {
+			go func(_ string, connection net.Conn) {
 				c := New(connection)
 				err = c.Send([]byte("hello, world"))
 				assert.Nil(t, err)
@@ -63,5 +63,4 @@ func TestComm(t *testing.T) {
 	assert.NotNil(t, a.Send(token))
 	_, err = a.Write(token)
 	assert.NotNil(t, err)
-
 }

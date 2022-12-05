@@ -43,7 +43,7 @@ func GetConfigDir() (homedir string, err error) {
 	}
 
 	if _, err = os.Stat(homedir); os.IsNotExist(err) {
-		err = os.MkdirAll(homedir, 0700)
+		err = os.MkdirAll(homedir, 0o700)
 	}
 	return
 }
@@ -268,7 +268,6 @@ func MissingChunks(fname string, fsize int64, chunkSize int) (chunkRanges []int6
 			}
 		}
 		chunkRanges = append(chunkRanges, int64(curCount+1))
-		chunks = chunkRanges
 	}
 	return
 }
@@ -374,7 +373,7 @@ func IsLocalIP(ipaddress string) bool {
 }
 
 func ZipDirectory(destination string, source string) (err error) {
-	if _, err := os.Stat(destination); err == nil {
+	if _, err = os.Stat(destination); err == nil {
 		log.Fatalf("%s file already exists!\n", destination)
 	}
 	fmt.Fprintf(os.Stderr, "Zipping %s to %s\n", source, destination)
@@ -399,8 +398,8 @@ func ZipDirectory(destination string, source string) (err error) {
 				log.Fatalln(err)
 			}
 			defer f1.Close()
-			zip_path := strings.ReplaceAll(path, source, strings.TrimSuffix(destination, ".zip"))
-			w1, err := writer.Create(zip_path)
+			zipPath := strings.ReplaceAll(path, source, strings.TrimSuffix(destination, ".zip"))
+			w1, err := writer.Create(zipPath)
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -408,7 +407,7 @@ func ZipDirectory(destination string, source string) (err error) {
 				log.Fatalln(err)
 			}
 			fmt.Fprintf(os.Stderr, "\r\033[2K")
-			fmt.Fprintf(os.Stderr, "\rAdding %s", zip_path)
+			fmt.Fprintf(os.Stderr, "\rAdding %s", zipPath)
 		}
 		return nil
 	})
@@ -420,7 +419,6 @@ func ZipDirectory(destination string, source string) (err error) {
 }
 
 func UnzipDirectory(destination string, source string) error {
-
 	archive, err := zip.OpenReader(source)
 	if err != nil {
 		log.Fatalln(err)

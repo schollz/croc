@@ -166,9 +166,9 @@ func determinePass(c *cli.Context) (pass string) {
 func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
 	comm.Socks5Proxy = c.String("socks5")
-	portsString:=c.String("ports")
-	if portsString=="" {
-		portsString="9009,9010,9011,9012,9013"
+	portsString := c.String("ports")
+	if portsString == "" {
+		portsString = "9009,9010,9011,9012,9013"
 	}
 	crocOptions := croc.Options{
 		SharedSecret:   c.String("code"),
@@ -340,7 +340,7 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 			log.Error(err)
 			return
 		}
-		err = os.WriteFile(configFile, bConfig, 0644)
+		err = os.WriteFile(configFile, bConfig, 0o644)
 		if err != nil {
 			log.Error(err)
 			return
@@ -448,7 +448,7 @@ func receive(c *cli.Context) (err error) {
 			log.Error(err)
 			return
 		}
-		err = os.WriteFile(configFile, bConfig, 0644)
+		err = os.WriteFile(configFile, bConfig, 0o644)
 		if err != nil {
 			log.Error(err)
 			return

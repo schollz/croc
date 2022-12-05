@@ -39,7 +39,7 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 		}
 		socks5ProxyURL, urlParseError := url.Parse(Socks5Proxy)
 		if urlParseError != nil {
-			err = fmt.Errorf("Unable to parse socks proxy url: %s", urlParseError)
+			err = fmt.Errorf("unable to parse socks proxy url: %s", urlParseError)
 			log.Debug(err)
 			return
 		}
@@ -115,7 +115,7 @@ func (c *Comm) Write(b []byte) (n int, err error) {
 
 func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	// long read deadline in case waiting for file
-	if err := c.connection.SetReadDeadline(time.Now().Add(3 * time.Hour)); err != nil {
+	if err = c.connection.SetReadDeadline(time.Now().Add(3 * time.Hour)); err != nil {
 		log.Warnf("error setting read deadline: %v", err)
 	}
 	// must clear the timeout setting
@@ -152,7 +152,7 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	numBytes = int(numBytesUint32)
 
 	// shorten the reading deadline in case getting weird data
-	if err := c.connection.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+	if err = c.connection.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
 		log.Warnf("error setting read deadline: %v", err)
 	}
 	buf = make([]byte, numBytes)
