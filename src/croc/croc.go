@@ -189,7 +189,8 @@ func New(ops Options) (c *Client, err error) {
 	// initialize throttler
 	if len(c.Options.ThrottleUpload) > 1 && c.Options.IsSender {
 		upload := c.Options.ThrottleUpload[:len(c.Options.ThrottleUpload)-1]
-		uploadLimit, err := strconv.ParseInt(upload, 10, 64)
+		var uploadLimit int64
+		uploadLimit, err = strconv.ParseInt(upload, 10, 64)
 		if err != nil {
 			panic("Could not parse given Upload Limit")
 		}
@@ -289,7 +290,7 @@ func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyF
 			if path[len(path)-1:] != "/" {
 				path += "/"
 			}
-			path := filepath.Dir(path)
+			path = filepath.Dir(path)
 			dest := filepath.Base(path) + ".zip"
 			utils.ZipDirectory(dest, path)
 			stat, errStat = os.Lstat(dest)
@@ -325,7 +326,7 @@ func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyF
 					if !info.IsDir() {
 						filesInfo = append(filesInfo, FileInfo{
 							Name:         info.Name(),
-							FolderRemote: strings.Replace(remoteFolder, string(os.PathSeparator), "/", -1) + "/",
+							FolderRemote: strings.ReplaceAll(remoteFolder, string(os.PathSeparator), "/") + "/",
 							FolderSource: filepath.Dir(pathName),
 							Size:         info.Size(),
 							ModTime:      info.ModTime(),
@@ -338,8 +339,8 @@ func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyF
 						if isEmptyFolder {
 							emptyFolders = append(emptyFolders, FileInfo{
 								// Name: info.Name(),
-								FolderRemote: strings.Replace(strings.TrimPrefix(pathName,
-									filepath.Dir(absPath)+string(os.PathSeparator)), string(os.PathSeparator), "/", -1) + "/",
+								FolderRemote: strings.ReplaceAll(strings.TrimPrefix(pathName,
+									filepath.Dir(absPath)+string(os.PathSeparator)), string(os.PathSeparator), "/") + "/",
 							})
 						}
 					}
@@ -449,7 +450,7 @@ func (c *Client) setupLocalRelay() {
 
 func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 	var timeLimit time.Duration
-	//if we don't use an external relay, the broadcast messages need to be sent continuously
+	// if we don't use an external relay, the broadcast messages need to be sent continuously
 	if c.Options.OnlyLocal {
 		timeLimit = -1 * time.Second
 	} else {
@@ -605,7 +606,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 						ips = append([]string{c.Options.RelayPorts[0]}, ips...)
 					}
 					bips, _ := json.Marshal(ips)
-					if err := conn.Send(bips); err != nil {
+					if err = conn.Send(bips); err != nil {
 						log.Errorf("error sending: %v", err)
 					}
 				} else if bytes.Equal(data, handshakeRequest) {
@@ -784,7 +785,7 @@ func (c *Client) Receive() (err error) {
 		// and try to connect to them
 		log.Debug("sending ips?")
 		var data []byte
-		if err := c.conn[0].Send(ipRequest); err != nil {
+		if err = c.conn[0].Send(ipRequest); err != nil {
 			log.Errorf("ips send error: %v", err)
 		}
 		data, err = c.conn[0].Receive()
@@ -793,7 +794,7 @@ func (c *Client) Receive() (err error) {
 		}
 		log.Debugf("ips data: %s", data)
 		var ips []string
-		if err := json.Unmarshal(data, &ips); err != nil {
+		if err = json.Unmarshal(data, &ips); err != nil {
 			log.Debugf("ips unmarshal error: %v", err)
 		}
 		if len(ips) > 1 {
@@ -837,7 +838,7 @@ func (c *Client) Receive() (err error) {
 		}
 	}
 
-	if err := c.conn[0].Send(handshakeRequest); err != nil {
+	if err = c.conn[0].Send(handshakeRequest); err != nil {
 		log.Errorf("handshake send error: %v", err)
 	}
 	c.Options.RelayPorts = strings.Split(banner, ",")
@@ -933,7 +934,7 @@ func (c *Client) transfer() (err error) {
 			c.CurrentFile.Close()
 			c.CurrentFileIsClosed = true
 		}
-		if err := os.Remove(pathToFile); err != nil {
+		if err = os.Remove(pathToFile); err != nil {
 			log.Warnf("error removing %s: %v", pathToFile, err)
 		}
 		fmt.Print("\n")
@@ -1356,7 +1357,7 @@ func (c *Client) recipientInitializeFile() (err error) {
 	var errOpen error
 	c.CurrentFile, errOpen = os.OpenFile(
 		pathToFile,
-		os.O_WRONLY, 0666)
+		os.O_WRONLY, 0o666)
 	var truncate bool // default false
 	c.CurrentFileChunks = []int64{}
 	c.CurrentFileChunkRanges = []int64{}
@@ -1493,7 +1494,7 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 }
 
 func (c *Client) updateIfRecipientHasFileInfo() (err error) {
-	if !(!c.Options.IsSender && c.Step2FileInfoTransferred && !c.Step3RecipientRequestFile) {
+	if c.Options.IsSender || !c.Step2FileInfoTransferred || c.Step3RecipientRequestFile {
 		return
 	}
 	// find the next file to transfer and send that number
@@ -1720,7 +1721,7 @@ func (c *Client) receiveData(i int) {
 		if !c.CurrentFileIsClosed && (c.TotalChunksTransferred == len(c.CurrentFileChunks) || c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size) {
 			c.CurrentFileIsClosed = true
 			log.Debug("finished receiving!")
-			if err := c.CurrentFile.Close(); err != nil {
+			if err = c.CurrentFile.Close(); err != nil {
 				log.Debugf("error closing %s: %v", c.CurrentFile.Name(), err)
 			} else {
 				log.Debugf("Successful closing %s", c.CurrentFile.Name())

@@ -17,7 +17,7 @@ const TCP_BUFFER_SIZE = 1024 * 64
 var bigFileSize = 75000000
 
 func bigFile() {
-	os.WriteFile("bigfile.test", bytes.Repeat([]byte("z"), bigFileSize), 0666)
+	os.WriteFile("bigfile.test", bytes.Repeat([]byte("z"), bigFileSize), 0o666)
 }
 
 func BenchmarkMD5(b *testing.B) {
@@ -119,9 +119,9 @@ func TestMissingChunks(t *testing.T) {
 	rand.Seed(1)
 	bigBuff := make([]byte, fileSize)
 	rand.Read(bigBuff)
-	os.WriteFile("missing.test", bigBuff, 0644)
+	os.WriteFile("missing.test", bigBuff, 0o644)
 	empty := make([]byte, chunkSize)
-	f, err := os.OpenFile("missing.test", os.O_RDWR, 0644)
+	f, err := os.OpenFile("missing.test", os.O_RDWR, 0o644)
 	assert.Nil(t, err)
 	for block := 0; block < fileSize/chunkSize; block++ {
 		if block == 0 || block == 4 || block == 5 || block >= 7 {
@@ -178,10 +178,10 @@ func TestHashFile(t *testing.T) {
 
 	defer os.Remove(tmpfile.Name()) // clean up
 
-	if _, err := tmpfile.Write(content); err != nil {
+	if _, err = tmpfile.Write(content); err != nil {
 		panic(err)
 	}
-	if err := tmpfile.Close(); err != nil {
+	if err = tmpfile.Close(); err != nil {
 		panic(err)
 	}
 	hashed, err := HashFile(tmpfile.Name(), "xxhash")

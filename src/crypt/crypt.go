@@ -39,7 +39,7 @@ func Encrypt(plaintext []byte, key []byte) (encrypted []byte, err error) {
 	// http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 	// Section 8.2
 	ivBytes := make([]byte, 12)
-	if _, err := rand.Read(ivBytes); err != nil {
+	if _, err = rand.Read(ivBytes); err != nil {
 		log.Fatalf("can't initialize crypto: %v", err)
 	}
 	b, err := aes.NewCipher(key)
@@ -85,7 +85,7 @@ func NewArgon2(passphrase []byte, usersalt []byte) (aead cipher.AEAD, salt []byt
 		salt = make([]byte, 8)
 		// http://www.ietf.org/rfc/rfc2898.txt
 		// Salt.
-		if _, err := rand.Read(salt); err != nil {
+		if _, err = rand.Read(salt); err != nil {
 			log.Fatalf("can't get random salt: %v", err)
 		}
 	} else {
