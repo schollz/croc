@@ -13,5 +13,7 @@ release:
 	cd ../../ && ./src/install/upload-src-tarball.sh
 
 test:
+	cp zsh_autocomplete ../../
+	cp bash_autocomplete ../../
 	cd ../../ && go generate
 	cd ../../ && goreleaser release --skip-publish
