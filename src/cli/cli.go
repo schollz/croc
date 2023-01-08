@@ -95,6 +95,7 @@ func Run() (err error) {
 		&cli.BoolFlag{Name: "local", Usage: "force to use only local connections"},
 		&cli.BoolFlag{Name: "ignore-stdin", Usage: "ignore piped stdin"},
 		&cli.BoolFlag{Name: "overwrite", Usage: "do not prompt to overwrite"},
+		&cli.BoolFlag{Name: "testing", Usage: "flag for testing purposes"},
 		&cli.StringFlag{Name: "curve", Value: "p256", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
 		&cli.StringFlag{Name: "ip", Value: "", Usage: "set sender ip if known e.g. 10.0.0.1:9009, [::1]:9009"},
 		&cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay", EnvVars: []string{"CROC_RELAY"}},
@@ -368,6 +369,7 @@ func receive(c *cli.Context) (err error) {
 		IP:            c.String("ip"),
 		Overwrite:     c.Bool("overwrite"),
 		Curve:         c.String("curve"),
+		TestFlag:      c.Bool("testing"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
