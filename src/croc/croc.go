@@ -76,6 +76,7 @@ type Options struct {
 	HashAlgorithm  string
 	ThrottleUpload string
 	ZipFolder      bool
+	TestFlag       bool
 }
 
 // Client holds the state of the croc transfer
@@ -780,7 +781,10 @@ func (c *Client) Receive() (err error) {
 	log.Debugf("receiver connection established: %+v", c.conn[0])
 	log.Debugf("banner: %s", banner)
 
-	if !usingLocal && !c.Options.DisableLocal && !isIPset {
+	if c.Options.TestFlag {
+		log.Debugf("TEST FLAG ENABLED, TESTING LOCAL IPS")
+	}
+	if c.Options.TestFlag || (!usingLocal && !c.Options.DisableLocal && !isIPset) {
 		// ask the sender for their local ips and port
 		// and try to connect to them
 		log.Debug("sending ips?")
@@ -807,8 +811,10 @@ func (c *Client) Receive() (err error) {
 				haveLocalIP := false
 				for _, localIP := range localIps {
 					localIPparsed := net.ParseIP(localIP)
+					log.Debugf("localIP: %+v, localIPparsed: %+v", localIP, localIPparsed)
 					if ipv4Net.Contains(localIPparsed) {
 						haveLocalIP = true
+						log.Debugf("ip: %+v is a local IP", ip)
 						break
 					}
 				}
