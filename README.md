@@ -109,6 +109,7 @@ go install github.com/schollz/croc/v9@latest
 
 On Android there is a 3rd party F-Droid app [available to download](https://f-droid.org/en/packages/com.github.howeyc.crocgui/).
 
+On iOS & macOS there is a 3rd party iCroc app [available to download](https://apps.apple.com/us/app/id6444355962).
 
 ## Usage 
 
