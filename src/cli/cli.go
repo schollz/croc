@@ -359,18 +359,19 @@ type TabComplete struct{}
 
 func (t TabComplete) Do(line []rune, pos int) ([][]rune, int) {
 	var words = strings.SplitAfter(string(line), "-")
-	var last_partial_word = words[len(words)-1]
-	if len(last_partial_word) == 0 {
+	var lastPartialWord = words[len(words)-1]
+	var nbCharacter = len(lastPartialWord)
+	if nbCharacter == 0 {
 		// No completion
 		return [][]rune{[]rune("")}, 0
 	}
 	var strArray [][]rune
 	for _, s := range mnemonicode.WordList {
-		if strings.HasPrefix(s, last_partial_word) {
-			strArray = append(strArray, []rune(s[len(last_partial_word):]))
+		if strings.HasPrefix(s, lastPartialWord) {
+			strArray = append(strArray, []rune(s[nbCharacter:]))
 		}
 	}
-	return strArray, len(last_partial_word)
+	return strArray, nbCharacter
 }
 
 func receive(c *cli.Context) (err error) {
