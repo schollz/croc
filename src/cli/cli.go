@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chzyer/readline"
 	"github.com/schollz/cli/v2"
 	"github.com/schollz/croc/v9/src/comm"
 	"github.com/schollz/croc/v9/src/croc"
@@ -19,6 +20,7 @@ import (
 	"github.com/schollz/croc/v9/src/tcp"
 	"github.com/schollz/croc/v9/src/utils"
 	log "github.com/schollz/logger"
+	"github.com/schollz/mnemonicode"
 	"github.com/schollz/pake/v3"
 )
 
@@ -353,6 +355,25 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 	}
 }
 
+type TabComplete struct{}
+
+func (t TabComplete) Do(line []rune, pos int) ([][]rune, int) {
+	var words = strings.SplitAfter(string(line), "-")
+	var lastPartialWord = words[len(words)-1]
+	var nbCharacter = len(lastPartialWord)
+	if nbCharacter == 0 {
+		// No completion
+		return [][]rune{[]rune("")}, 0
+	}
+	var strArray [][]rune
+	for _, s := range mnemonicode.WordList {
+		if strings.HasPrefix(s, lastPartialWord) {
+			strArray = append(strArray, []rune(s[nbCharacter:]))
+		}
+	}
+	return strArray, nbCharacter
+}
+
 func receive(c *cli.Context) (err error) {
 	comm.Socks5Proxy = c.String("socks5")
 	crocOptions := croc.Options{
@@ -431,7 +452,17 @@ func receive(c *cli.Context) (err error) {
 	}
 
 	if crocOptions.SharedSecret == "" {
-		crocOptions.SharedSecret = utils.GetInput("Enter receive code: ")
+		l, err := readline.NewEx(&readline.Config{
+			Prompt:       "Enter receive code: ",
+			AutoComplete: TabComplete{},
+		})
+		if err != nil {
+			return err
+		}
+		crocOptions.SharedSecret, err = l.Readline()
+		if err != nil {
+			return err
+		}
 	}
 	if c.String("out") != "" {
 		if err = os.Chdir(c.String("out")); err != nil {
