@@ -8,7 +8,7 @@ require (
 	github.com/kalafut/imohash v1.0.2
 	github.com/schollz/cli/v2 v2.2.1
 	github.com/schollz/logger v1.2.0
-	github.com/schollz/mnemonicode v1.0.1
+	github.com/schollz/mnemonicode v1.0.2-0.20190421205639-63fa713ece0d
 	github.com/schollz/pake/v3 v3.0.5
 	github.com/schollz/peerdiscovery v1.7.0
 	github.com/schollz/progressbar/v3 v3.12.2
@@ -20,6 +20,7 @@ require (
 
 require (
 	github.com/OneOfOne/xxhash v1.2.5 // indirect
+	github.com/chzyer/readline v1.5.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
