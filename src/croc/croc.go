@@ -1386,6 +1386,10 @@ func (c *Client) recipientInitializeFile() (err error) {
 			log.Error(errOpen)
 			return errOpen
 		}
+		errChmod := os.Chmod(pathToFile, c.FilesToTransfer[c.FilesToTransferCurrentNum].Mode.Perm())
+		if errChmod != nil {
+			log.Error(errChmod)
+		}
 		truncate = true
 	}
 	if truncate {
