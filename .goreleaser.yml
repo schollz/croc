@@ -97,4 +97,4 @@ announce:
   twitter:
     # Wether its enabled or not.
     # Defaults to false.
-    enabled: true
+    enabled: false
