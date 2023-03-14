@@ -25,6 +25,7 @@ import (
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v3"
 
+	ignore "github.com/sabhiram/go-gitignore"
 	"github.com/schollz/croc/v9/src/comm"
 	"github.com/schollz/croc/v9/src/compress"
 	"github.com/schollz/croc/v9/src/crypt"
@@ -162,6 +163,7 @@ type RemoteFileRequest struct {
 type SenderInfo struct {
 	FilesToTransfer        []FileInfo
 	EmptyFoldersToTransfer []FileInfo
+	TotalFilesIgnored      int
 	TotalNumberFolders     int
 	MachineID              string
 	Ask                    bool
@@ -251,12 +253,51 @@ func isEmptyFolder(folderPath string) (bool, error) {
 	return false, nil
 }
 
+// Linear search to check if file exists, otherwise we may be storing
+// information of files or folders we should be ignoring
+func hasGitignore(fnames []string) (hasGitignore bool, newfiles []string, Error error) {
+	var ignorefile string
+	for _, fname := range fnames {
+		if strings.HasSuffix(fname, ".gitignore") {
+			hasGitignore = true
+			ignorefile = fname
+			break
+		}
+	}
+	if !hasGitignore {
+		newfiles = fnames
+		return
+	} else {
+		ignores, err := ignore.CompileIgnoreFile(ignorefile)
+		if err != nil {
+			return
+		}
+		for _, fname := range fnames {
+			if ignores.MatchesPath(fname) {
+				continue
+			} else {
+				newfiles = append(newfiles, fname)
+			}
+		}
+
+	}
+	return
+}
+
 // This function retrives the important file informations
 // for every file that will be transferred
 func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyFolders []FileInfo, totalNumberFolders int, err error) {
 	// fnames: the relative/absolute paths of files/folders that will be transferred
 	totalNumberFolders = 0
 	var paths []string
+	hasIgnore, newList, errGit := hasGitignore(fnames)
+	if errGit != nil {
+		err = errGit
+		return
+	}
+	if hasIgnore {
+		fnames = newList
+	}
 	for _, fname := range fnames {
 		// Support wildcard
 		if strings.Contains(fname, "*") {
