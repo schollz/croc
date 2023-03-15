@@ -163,7 +163,6 @@ type RemoteFileRequest struct {
 type SenderInfo struct {
 	FilesToTransfer        []FileInfo
 	EmptyFoldersToTransfer []FileInfo
-	TotalFilesIgnored      int
 	TotalNumberFolders     int
 	MachineID              string
 	Ask                    bool
