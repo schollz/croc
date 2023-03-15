@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -365,10 +366,21 @@ func (t TabComplete) Do(line []rune, pos int) ([][]rune, int) {
 		// No completion
 		return [][]rune{[]rune("")}, 0
 	}
+	if len(words) == 1 && nbCharacter == utils.NbPinNumbers {
+		// Check if word is indeed a number
+		_, err := strconv.Atoi(lastPartialWord)
+		if err == nil {
+			return [][]rune{[]rune("-")}, nbCharacter
+		}
+	}
 	var strArray [][]rune
 	for _, s := range mnemonicode.WordList {
 		if strings.HasPrefix(s, lastPartialWord) {
-			strArray = append(strArray, []rune(s[nbCharacter:]))
+			var completionCandidate = s[nbCharacter:]
+			if len(words) <= mnemonicode.WordsRequired(utils.NbBytesWords) {
+				completionCandidate += "-"
+			}
+			strArray = append(strArray, []rune(completionCandidate))
 		}
 	}
 	return strArray, nbCharacter
