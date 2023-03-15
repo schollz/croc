@@ -4,7 +4,7 @@
     src="https://user-images.githubusercontent.com/6550035/46709024-9b23ad00-cbf6-11e8-9fb2-ca8b20b7dbec.jpg"
     width="408px" border="0" alt="croc">
 <br>
-<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-v9.6.2-brightgreen.svg?style=flat-square" alt="Version"></a>
+<a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-v9.6.4-brightgreen.svg?style=flat-square" alt="Version"></a>
 <a href="https://coveralls.io/github/schollz/croc"><img src="https://img.shields.io/badge/coverage-81%25-green.svg?style=flat-square" alt="Coverage"></a>
 <a href="https://travis-ci.org/schollz/croc"><img
 src="https://img.shields.io/travis/schollz/croc.svg?style=flat-square" alt="Build
@@ -48,7 +48,7 @@ sudo port selfupdate
 sudo port install croc
 ```
 
-On Windows you can install the latest release with [Scoop](https://scoop.sh/) or [Chocolatey](https://chocolatey.org): 
+On Windows you can install the latest release with [Scoop](https://scoop.sh/), [Chocolatey](https://chocolatey.org), or [Winget](https://learn.microsoft.com/en-us/windows/package-manager/): 
 
 ```
 scoop install croc
@@ -56,6 +56,10 @@ scoop install croc
 
 ```
 choco install croc
+```
+
+```
+winget install schollz.croc
 ```
 
 On Unix you can install the latest release with [Nix](https://nixos.org/nix):
