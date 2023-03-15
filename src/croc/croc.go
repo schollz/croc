@@ -163,7 +163,6 @@ type RemoteFileRequest struct {
 type SenderInfo struct {
 	FilesToTransfer        []FileInfo
 	EmptyFoldersToTransfer []FileInfo
-	TotalFilesIgnored      int
 	TotalNumberFolders     int
 	MachineID              string
 	Ask                    bool
@@ -253,7 +252,7 @@ func isEmptyFolder(folderPath string) (bool, error) {
 	return false, nil
 }
 
-// Linear search to check if file exists, otherwise we may be storing
+// Additional search to check if ignore file exists, otherwise we may be storing
 // information of files or folders we should be ignoring
 func hasGitignore(fnames []string) (hasGitignore bool, newfiles []string, Error error) {
 	var ignorefile string
@@ -284,8 +283,8 @@ func hasGitignore(fnames []string) (hasGitignore bool, newfiles []string, Error 
 	return
 }
 
-// This function retrives the important file informations
-// for every file that will be transferred
+// This function retrieves the important file information
+// for every file that will be transferred, after we check if ignored
 func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyFolders []FileInfo, totalNumberFolders int, err error) {
 	// fnames: the relative/absolute paths of files/folders that will be transferred
 	totalNumberFolders = 0
