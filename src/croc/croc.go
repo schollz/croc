@@ -252,11 +252,6 @@ func isEmptyFolder(folderPath string) (bool, error) {
 }
 
 func findGitignore(paths []string) (g *ignore.GitIgnore, findErr error) {
-	temp, err := os.Create("GetFilesInfoTest")
-	if err != nil {
-		return
-	}
-	defer temp.Close()
 	var gitignorePaths []string
 	for _, path := range paths {
 		// If the path is not an absolute path, append it to the current working directory.
@@ -268,13 +263,11 @@ func findGitignore(paths []string) (g *ignore.GitIgnore, findErr error) {
 			}
 			path = filepath.Join(cwd, path)
 		}
-		temp.Write([]byte(path))
 		err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
 			if strings.Contains(path, ".gitignore") {
-				temp.Write([]byte(path + "****"))
 				gitignorePaths = append(gitignorePaths, path)
 			}
 			return nil
@@ -298,11 +291,6 @@ func findGitignore(paths []string) (g *ignore.GitIgnore, findErr error) {
 // for every file that will be transferred, after we check if ignored
 func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyFolders []FileInfo, totalNumberFolders int, err error) {
 	// fnames: the relative/absolute paths of files/folders that will be transferred
-	temp, err := os.Create("GetFilesInfo")
-	if err != nil {
-		return
-	}
-	defer temp.Close()
 	totalNumberFolders = 0
 	var paths []string
 	for _, fname := range fnames {
@@ -325,20 +313,14 @@ func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyF
 		return
 	}
 	for _, fpath := range paths {
-		temp.Write([]byte(fpath))
 		info, infoErr := os.Stat(fpath)
 		if infoErr != nil {
 			err = infoErr
 		}
-		if info.IsDir() {
+		if info.IsDir() && fpath[len(fpath)-1:] != "/" {
 			fpath += "/"
 		}
 		if g.MatchesPath(fpath) {
-			temp.Write([]byte("******"))
-			_, err = temp.Write([]byte(fpath))
-			if err != nil {
-				return
-			}
 			continue
 		}
 		stat, errStat := os.Lstat(fpath)
@@ -351,9 +333,6 @@ func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyF
 		absPath, errAbs := filepath.Abs(fpath)
 
 		if stat.IsDir() && zipfolder {
-			if fpath[len(fpath)-1:] != "/" {
-				fpath += "/"
-			}
 			fpath = filepath.Dir(fpath)
 			dest := filepath.Base(fpath) + ".zip"
 			utils.ZipDirectory(dest, fpath)
