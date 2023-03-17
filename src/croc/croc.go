@@ -20,11 +20,6 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/denisbrodbeck/machineid"
-	log "github.com/schollz/logger"
-	"github.com/schollz/pake/v3"
-	"github.com/schollz/peerdiscovery"
-	"github.com/schollz/progressbar/v3"
-
 	ignore "github.com/sabhiram/go-gitignore"
 	"github.com/schollz/croc/v9/src/comm"
 	"github.com/schollz/croc/v9/src/compress"
@@ -33,6 +28,10 @@ import (
 	"github.com/schollz/croc/v9/src/models"
 	"github.com/schollz/croc/v9/src/tcp"
 	"github.com/schollz/croc/v9/src/utils"
+	log "github.com/schollz/logger"
+	"github.com/schollz/pake/v3"
+	"github.com/schollz/peerdiscovery"
+	"github.com/schollz/progressbar/v3"
 )
 
 var (
@@ -252,34 +251,39 @@ func isEmptyFolder(folderPath string) (bool, error) {
 	return false, nil
 }
 
-// Additional search to check if ignore file exists, otherwise we may be storing
-// information of files or folders we should be ignoring
-func hasGitignore(fnames []string) (hasGitignore bool, newfiles []string, Error error) {
-	var ignorefile string
-	for _, fname := range fnames {
-		if strings.HasSuffix(fname, ".gitignore") {
-			hasGitignore = true
-			ignorefile = fname
-			break
+func findGitignore(paths []string) (g *ignore.GitIgnore, findErr error) {
+	var gitignorePaths []string
+	for _, path := range paths {
+		// If the path is not an absolute path, append it to the current working directory.
+		if !filepath.IsAbs(path) {
+			cwd, err := os.Getwd()
+			if err != nil {
+				findErr = err
+				return
+			}
+			path = filepath.Join(cwd, path)
 		}
-	}
-	if !hasGitignore {
-		newfiles = fnames
-		return
-	} else {
-		ignores, err := ignore.CompileIgnoreFile(ignorefile)
+		err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if strings.Contains(path, ".gitignore") {
+				gitignorePaths = append(gitignorePaths, path)
+			}
+			return nil
+		})
 		if err != nil {
+			findErr = err
 			return
 		}
-		for _, fname := range fnames {
-			if ignores.MatchesPath(fname) {
-				continue
-			} else {
-				newfiles = append(newfiles, fname)
-			}
-		}
-
 	}
+	for _, path := range gitignorePaths {
+		g, findErr = ignore.CompileIgnoreFile(path)
+		if findErr != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -289,14 +293,6 @@ func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyF
 	// fnames: the relative/absolute paths of files/folders that will be transferred
 	totalNumberFolders = 0
 	var paths []string
-	hasIgnore, newList, errGit := hasGitignore(fnames)
-	if errGit != nil {
-		err = errGit
-		return
-	}
-	if hasIgnore {
-		fnames = newList
-	}
 	for _, fname := range fnames {
 		// Support wildcard
 		if strings.Contains(fname, "*") {
@@ -311,8 +307,22 @@ func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyF
 			paths = append(paths, fname)
 		}
 	}
-
+	g, findErr := findGitignore(paths)
+	if findErr != nil {
+		err = findErr
+		return
+	}
 	for _, fpath := range paths {
+		info, infoErr := os.Stat(fpath)
+		if infoErr != nil {
+			err = infoErr
+		}
+		if info.IsDir() && fpath[len(fpath)-1:] != "/" {
+			fpath += "/"
+		}
+		if g.MatchesPath(fpath) {
+			continue
+		}
 		stat, errStat := os.Lstat(fpath)
 
 		if errStat != nil {
@@ -322,15 +332,7 @@ func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyF
 
 		absPath, errAbs := filepath.Abs(fpath)
 
-		if errAbs != nil {
-			err = errAbs
-			return
-		}
-
 		if stat.IsDir() && zipfolder {
-			if fpath[len(fpath)-1:] != "/" {
-				fpath += "/"
-			}
 			fpath = filepath.Dir(fpath)
 			dest := filepath.Base(fpath) + ".zip"
 			utils.ZipDirectory(dest, fpath)
@@ -344,6 +346,12 @@ func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyF
 				err = errAbs
 				return
 			}
+
+			if errAbs != nil {
+				err = errAbs
+				return
+			}
+
 			filesInfo = append(filesInfo, FileInfo{
 				Name:         stat.Name(),
 				FolderRemote: "./",
@@ -365,15 +373,17 @@ func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyF
 					remoteFolder := strings.TrimPrefix(filepath.Dir(pathName),
 						filepath.Dir(absPath)+string(os.PathSeparator))
 					if !info.IsDir() {
-						filesInfo = append(filesInfo, FileInfo{
-							Name:         info.Name(),
-							FolderRemote: strings.ReplaceAll(remoteFolder, string(os.PathSeparator), "/") + "/",
-							FolderSource: filepath.Dir(pathName),
-							Size:         info.Size(),
-							ModTime:      info.ModTime(),
-							Mode:         info.Mode(),
-							TempFile:     false,
-						})
+						if !g.MatchesPath(info.Name()) {
+							filesInfo = append(filesInfo, FileInfo{
+								Name:         info.Name(),
+								FolderRemote: strings.ReplaceAll(remoteFolder, string(os.PathSeparator), "/") + "/",
+								FolderSource: filepath.Dir(pathName),
+								Size:         info.Size(),
+								ModTime:      info.ModTime(),
+								Mode:         info.Mode(),
+								TempFile:     false,
+							})
+						}
 					} else {
 						totalNumberFolders++
 						isEmptyFolder, _ := isEmptyFolder(pathName)
@@ -392,17 +402,19 @@ func GetFilesInfo(fnames []string, zipfolder bool) (filesInfo []FileInfo, emptyF
 			}
 
 		} else {
-			filesInfo = append(filesInfo, FileInfo{
-				Name:         stat.Name(),
-				FolderRemote: "./",
-				FolderSource: filepath.Dir(absPath),
-				Size:         stat.Size(),
-				ModTime:      stat.ModTime(),
-				Mode:         stat.Mode(),
-				TempFile:     false,
-			})
-		}
+			if !g.MatchesPath(stat.Name()) {
+				filesInfo = append(filesInfo, FileInfo{
+					Name:         stat.Name(),
+					FolderRemote: "./",
+					FolderSource: filepath.Dir(absPath),
+					Size:         stat.Size(),
+					ModTime:      stat.ModTime(),
+					Mode:         stat.Mode(),
+					TempFile:     false,
+				})
+			}
 
+		}
 	}
 	return
 }
