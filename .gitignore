@@ -9,3 +9,5 @@ croc-stdin*
 
 .idea/
 .vscode/
+/src/croc/touched
+LICENCE
