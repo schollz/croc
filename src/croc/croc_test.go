@@ -17,11 +17,11 @@ import (
 func init() {
 	log.SetLevel("trace")
 
-	go tcp.Run("debug", "localhost", "8281", "pass123", "8282,8283,8284,8285")
-	go tcp.Run("debug", "localhost", "8282", "pass123")
-	go tcp.Run("debug", "localhost", "8283", "pass123")
-	go tcp.Run("debug", "localhost", "8284", "pass123")
-	go tcp.Run("debug", "localhost", "8285", "pass123")
+	go tcp.Run("debug", "127.0.0.1", "8281", "pass123", "8282,8283,8284,8285")
+	go tcp.Run("debug", "127.0.0.1", "8282", "pass123")
+	go tcp.Run("debug", "127.0.0.1", "8283", "pass123")
+	go tcp.Run("debug", "127.0.0.1", "8284", "pass123")
+	go tcp.Run("debug", "127.0.0.1", "8285", "pass123")
 	time.Sleep(1 * time.Second)
 }
 
@@ -33,7 +33,7 @@ func TestCrocReadme(t *testing.T) {
 		IsSender:      true,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
-		RelayAddress:  "localhost:8281",
+		RelayAddress:  "127.0.0.1:8281",
 		RelayPorts:    []string{"8281"},
 		RelayPassword: "pass123",
 		Stdout:        false,
@@ -51,7 +51,7 @@ func TestCrocReadme(t *testing.T) {
 		IsSender:      false,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
-		RelayAddress:  "localhost:8281",
+		RelayAddress:  "127.0.0.1:8281",
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -99,7 +99,7 @@ func TestCrocEmptyFolder(t *testing.T) {
 		IsSender:      true,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
-		RelayAddress:  "localhost:8281",
+		RelayAddress:  "127.0.0.1:8281",
 		RelayPorts:    []string{"8281"},
 		RelayPassword: "pass123",
 		Stdout:        false,
@@ -117,7 +117,7 @@ func TestCrocEmptyFolder(t *testing.T) {
 		IsSender:      false,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
-		RelayAddress:  "localhost:8281",
+		RelayAddress:  "127.0.0.1:8281",
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -166,7 +166,7 @@ func TestCrocSymlink(t *testing.T) {
 		IsSender:      true,
 		SharedSecret:  "8124-testingthecroc",
 		Debug:         true,
-		RelayAddress:  "localhost:8281",
+		RelayAddress:  "127.0.0.1:8281",
 		RelayPorts:    []string{"8281"},
 		RelayPassword: "pass123",
 		Stdout:        false,
@@ -184,7 +184,7 @@ func TestCrocSymlink(t *testing.T) {
 		IsSender:      false,
 		SharedSecret:  "8124-testingthecroc",
 		Debug:         true,
-		RelayAddress:  "localhost:8281",
+		RelayAddress:  "127.0.0.1:8281",
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -241,7 +241,7 @@ func TestCrocLocal(t *testing.T) {
 		IsSender:      true,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
-		RelayAddress:  "localhost:8181",
+		RelayAddress:  "127.0.0.1:8181",
 		RelayPorts:    []string{"8181", "8182"},
 		RelayPassword: "pass123",
 		Stdout:        true,
@@ -260,7 +260,7 @@ func TestCrocLocal(t *testing.T) {
 		IsSender:      false,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
-		RelayAddress:  "localhost:8181",
+		RelayAddress:  "127.0.0.1:8181",
 		RelayPassword: "pass123",
 		Stdout:        true,
 		NoPrompt:      true,

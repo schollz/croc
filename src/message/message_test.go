@@ -85,7 +85,7 @@ func TestSend(t *testing.T) {
 	}()
 
 	time.Sleep(300 * time.Millisecond)
-	a, err := comm.NewConnection("localhost:"+port, 10*time.Minute)
+	a, err := comm.NewConnection("127.0.0.1:"+port, 10*time.Minute)
 	assert.Nil(t, err)
 	m := Message{Type: TypeMessage, Message: "hello, world"}
 	e, salt, err := crypt.New([]byte("pass"), nil)

@@ -359,7 +359,7 @@ func init() {
 }
 
 func IsLocalIP(ipaddress string) bool {
-	if strings.Contains(ipaddress, "localhost") {
+	if strings.Contains(ipaddress, "127.0.0.1") {
 		return true
 	}
 	host, _, _ := net.SplitHostPort(ipaddress)

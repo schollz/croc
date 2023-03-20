@@ -209,7 +209,7 @@ func TestGetRandomName(t *testing.T) {
 }
 
 func TestFindOpenPorts(t *testing.T) {
-	openPorts := FindOpenPorts("localhost", 9009, 4)
+	openPorts := FindOpenPorts("127.0.0.1", 9009, 4)
 	assert.Equal(t, []int{9009, 9010, 9011, 9012}, openPorts)
 }
 
