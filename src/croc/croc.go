@@ -428,7 +428,7 @@ func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {
 func (c *Client) setupLocalRelay() {
 	// setup the relay locally
 	firstPort, _ := strconv.Atoi(c.Options.RelayPorts[0])
-	openPorts := utils.FindOpenPorts("localhost", firstPort, len(c.Options.RelayPorts))
+	openPorts := utils.FindOpenPorts("127.0.0.1", firstPort, len(c.Options.RelayPorts))
 	if len(openPorts) < len(c.Options.RelayPorts) {
 		panic("not enough open ports to run local relay")
 	}
@@ -441,7 +441,7 @@ func (c *Client) setupLocalRelay() {
 			if c.Options.Debug {
 				debugString = "debug"
 			}
-			err := tcp.Run(debugString, "localhost", portStr, c.Options.RelayPassword, strings.Join(c.Options.RelayPorts[1:], ","))
+			err := tcp.Run(debugString, "127.0.0.1", portStr, c.Options.RelayPassword, strings.Join(c.Options.RelayPorts[1:], ","))
 			if err != nil {
 				panic(err)
 			}
@@ -480,10 +480,10 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 	time.Sleep(500 * time.Millisecond)
 	log.Debug("establishing connection")
 	var banner string
-	conn, banner, ipaddr, err := tcp.ConnectToTCPServer("localhost:"+c.Options.RelayPorts[0], c.Options.RelayPassword, c.Options.SharedSecret[:3])
+	conn, banner, ipaddr, err := tcp.ConnectToTCPServer("127.0.0.1:"+c.Options.RelayPorts[0], c.Options.RelayPassword, c.Options.SharedSecret[:3])
 	log.Debugf("banner: %s", banner)
 	if err != nil {
-		err = fmt.Errorf("could not connect to localhost:%s: %w", c.Options.RelayPorts[0], err)
+		err = fmt.Errorf("could not connect to 127.0.0.1:%s: %w", c.Options.RelayPorts[0], err)
 		log.Debug(err)
 		// not really an error because it will try to connect over the actual relay
 		return
@@ -501,7 +501,7 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 	}
 	c.conn[0] = conn
 	log.Debug("exchanged header message")
-	c.Options.RelayAddress = "localhost"
+	c.Options.RelayAddress = "127.0.0.1"
 	c.Options.RelayPorts = strings.Split(banner, ",")
 	if c.Options.NoMultiplexing {
 		log.Debug("no multiplexing")
@@ -1160,7 +1160,7 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 		go func(j int) {
 			defer wg.Done()
 			var host string
-			if c.Options.RelayAddress == "localhost" {
+			if c.Options.RelayAddress == "127.0.0.1" {
 				host = c.Options.RelayAddress
 			} else {
 				host, _, err = net.SplitHostPort(c.Options.RelayAddress)
