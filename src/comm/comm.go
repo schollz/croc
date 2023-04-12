@@ -61,7 +61,7 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 		}
 		HttpProxyURL, urlParseError := url.Parse(HttpProxy)
 		if urlParseError != nil {
-			err = fmt.Errorf("unable to parse socks proxy url: %s", urlParseError)
+			err = fmt.Errorf("unable to parse http proxy url: %s", urlParseError)
 			log.Debug(err)
 			return
 		}
