@@ -10,12 +10,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/magisterquis/connectproxy"
 	"github.com/schollz/croc/v9/src/utils"
 	log "github.com/schollz/logger"
 	"golang.org/x/net/proxy"
 )
 
 var Socks5Proxy = ""
+var HttpProxy = ""
 
 var MAGIC_BYTES = []byte("croc")
 
@@ -51,6 +53,27 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 		}
 		log.Debug("dialing with dialer.Dial")
 		connection, err = dialer.Dial("tcp", address)
+	} else if HttpProxy != "" && !utils.IsLocalIP(address) {
+		var dialer proxy.Dialer
+		// prepend schema if no schema is given
+		if !strings.Contains(HttpProxy, `://`) {
+			HttpProxy = `http://` + HttpProxy
+		}
+		HttpProxyURL, urlParseError := url.Parse(HttpProxy)
+		if urlParseError != nil {
+			err = fmt.Errorf("unable to parse socks proxy url: %s", urlParseError)
+			log.Debug(err)
+			return
+		}
+		dialer, err = connectproxy.New(HttpProxyURL, proxy.Direct)
+		if err != nil {
+			err = fmt.Errorf("proxy failed: %w", err)
+			log.Debug(err)
+			return
+		}
+		log.Debug("dialing with dialer.Dial")
+		connection, err = dialer.Dial("tcp", address)
+
 	} else {
 		log.Debugf("dialing to %s with timelimit %s", address, tlimit)
 		connection, err = net.DialTimeout("tcp", address, tlimit)

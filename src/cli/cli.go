@@ -106,6 +106,7 @@ func Run() (err error) {
 		&cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 		&cli.StringFlag{Name: "pass", Value: models.DEFAULT_PASSPHRASE, Usage: "password for the relay", EnvVars: []string{"CROC_PASS"}},
 		&cli.StringFlag{Name: "socks5", Value: "", Usage: "add a socks5 proxy", EnvVars: []string{"SOCKS5_PROXY"}},
+		&cli.StringFlag{Name: "connect", Value: "", Usage: "add a http proxy", EnvVars: []string{"HTTP_PROXY"}},
 		&cli.StringFlag{Name: "throttleUpload", Value: "", Usage: "Throttle the upload speed e.g. 500k"},
 	}
 	app.EnableBashCompletion = true
@@ -170,6 +171,7 @@ func determinePass(c *cli.Context) (pass string) {
 func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
 	comm.Socks5Proxy = c.String("socks5")
+	comm.HttpProxy = c.String("connect")
 	portsString := c.String("ports")
 	if portsString == "" {
 		portsString = "9009,9010,9011,9012,9013"
@@ -388,6 +390,7 @@ func (t TabComplete) Do(line []rune, pos int) ([][]rune, int) {
 
 func receive(c *cli.Context) (err error) {
 	comm.Socks5Proxy = c.String("socks5")
+	comm.HttpProxy = c.String("connect")
 	crocOptions := croc.Options{
 		SharedSecret:  c.String("code"),
 		IsSender:      false,
