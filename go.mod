@@ -14,8 +14,8 @@ require (
 	github.com/schollz/peerdiscovery v1.7.0
 	github.com/schollz/progressbar/v3 v3.13.1
 	github.com/stretchr/testify v1.8.2
-	golang.org/x/crypto v0.8.0
-	golang.org/x/net v0.10.0
+	golang.org/x/crypto v0.10.0
+	golang.org/x/net v0.11.0
 	golang.org/x/time v0.3.0
 )
 
@@ -32,9 +32,9 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/tscholl2/siec v0.0.0-20210707234609-9bdfc483d499 // indirect
 	github.com/twmb/murmur3 v1.1.7 // indirect
-	golang.org/x/sys v0.8.0 // indirect
-	golang.org/x/term v0.8.0 // indirect
-	golang.org/x/text v0.9.0 // indirect
+	golang.org/x/sys v0.9.0 // indirect
+	golang.org/x/term v0.9.0 // indirect
+	golang.org/x/text v0.10.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
