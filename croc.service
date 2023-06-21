@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=nobody
+DynamicUser=yes
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 ExecStart=/usr/bin/croc relay
 
