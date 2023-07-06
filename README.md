@@ -88,6 +88,12 @@ On Fedora you can install with `dnf`:
 dnf install croc
 ```
 
+On openSUSE you can install with `zypper`:
+
+```
+zypper install croc
+```
+
 On Gentoo you can install with `portage`:
 ```
 emerge net-misc/croc
