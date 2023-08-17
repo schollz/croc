@@ -402,6 +402,7 @@ func ZipDirectory(destination string, source string) (err error) {
 			}
 			defer f1.Close()
 			zipPath := strings.ReplaceAll(path, source, strings.TrimSuffix(destination, ".zip"))
+			zipPath = filepath.ToSlash(zipPath)
 			w1, err := writer.Create(zipPath)
 			if err != nil {
 				log.Fatalln(err)
