@@ -89,6 +89,7 @@ func Run() (err error) {
 	}
 	app.Flags = []cli.Flag{
 		&cli.BoolFlag{Name: "internal-dns", Usage: "use a built-in DNS stub resolver rather than the host operating system"},
+		&cli.BoolFlag{Name: "qrcode", Usage: "show receive command as qrcode"},
 		&cli.BoolFlag{Name: "remember", Usage: "save these settings to reuse next time"},
 		&cli.BoolFlag{Name: "debug", Usage: "toggle debug mode"},
 		&cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
@@ -198,6 +199,7 @@ func send(c *cli.Context) (err error) {
 		HashAlgorithm:  c.String("hash"),
 		ThrottleUpload: c.String("throttleUpload"),
 		ZipFolder:      c.Bool("zip"),
+		ShowQrCode:     c.Bool("qrcode"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""

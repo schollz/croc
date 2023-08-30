@@ -19,6 +19,8 @@ require (
 	golang.org/x/time v0.3.0
 )
 
+require github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
+
 require (
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
