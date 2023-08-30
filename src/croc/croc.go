@@ -32,8 +32,8 @@ import (
 	"github.com/schollz/croc/v9/src/models"
 	"github.com/schollz/croc/v9/src/tcp"
 	"github.com/schollz/croc/v9/src/utils"
+	qrcode "github.com/skip2/go-qrcode"
 )
-import qrcode "github.com/skip2/go-qrcode"
 var (
 	ipRequest        = []byte("ips?")
 	handshakeRequest = []byte("handshake")
