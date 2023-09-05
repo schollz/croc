@@ -531,7 +531,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 	}
 	fmt.Fprintf(os.Stderr, "Code is: %[1]s\nOn the other computer run\n\ncroc %[2]s%[1]s\n", c.Options.SharedSecret, flags.String())
 	if c.Options.ShowQrCode {
-	    showReceiveCommandQrCode(fmt.Sprintf("croc %[2]s%[1]s", c.Options.SharedSecret, flags.String()))
+	    showReceiveCommandQrCode(fmt.Sprintf("%[1]s", c.Options.SharedSecret))
 	}
 	if c.Options.Ask {
 		machid, _ := machineid.ID()

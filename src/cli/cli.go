@@ -65,6 +65,7 @@ func Run() (err error) {
 			ArgsUsage:   "[filename(s) or folder]",
 			Flags: []cli.Flag{
 				&cli.BoolFlag{Name: "zip", Usage: "zip folder before sending"},
+		        &cli.BoolFlag{Name: "qrcode",Aliases: []string{"qr"}, Usage: "show receive code as a qrcode"},
 				&cli.StringFlag{Name: "code", Aliases: []string{"c"}, Usage: "codephrase used to connect to relay"},
 				&cli.StringFlag{Name: "hash", Value: "xxhash", Usage: "hash algorithm (xxhash, imohash, md5)"},
 				&cli.StringFlag{Name: "text", Aliases: []string{"t"}, Usage: "send some text"},
@@ -89,7 +90,6 @@ func Run() (err error) {
 	}
 	app.Flags = []cli.Flag{
 		&cli.BoolFlag{Name: "internal-dns", Usage: "use a built-in DNS stub resolver rather than the host operating system"},
-		&cli.BoolFlag{Name: "qrcode", Usage: "show receive command as qrcode"},
 		&cli.BoolFlag{Name: "remember", Usage: "save these settings to reuse next time"},
 		&cli.BoolFlag{Name: "debug", Usage: "toggle debug mode"},
 		&cli.BoolFlag{Name: "yes", Usage: "automatically agree to all prompts"},
