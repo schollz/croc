@@ -7,6 +7,7 @@ require (
 	github.com/chzyer/readline v1.5.1
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/kalafut/imohash v1.0.2
+	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/schollz/cli/v2 v2.2.1
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/mnemonicode v1.0.2-0.20190421205639-63fa713ece0d
