@@ -1802,10 +1802,10 @@ func (c *Client) receiveData(i int) {
 			continue
 		}
 
-		data, err = crypt.Decrypt(data, c.Key)
-		if err != nil {
-			panic(err)
-		}
+		// data, err = crypt.Decrypt(data, c.Key)
+		// if err != nil {
+		// 	panic(err)
+		// }
 		if !c.Options.NoCompress {
 			data = compress.Decompress(data)
 		}
@@ -1904,10 +1904,7 @@ func (c *Client) sendData(i int) {
 				var err error
 				var dataToSend []byte
 				if c.Options.NoCompress {
-					dataToSend, err = crypt.Encrypt(
-						append(posByte, data[:n]...),
-						c.Key,
-					)
+					dataToSend = append(posByte, data[:n]...)
 				} else {
 					dataToSend, err = crypt.Encrypt(
 						compress.Compress(

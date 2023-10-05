@@ -1,6 +1,7 @@
 package crypt
 
 import (
+	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
@@ -34,46 +35,42 @@ func New(passphrase []byte, usersalt []byte) (key []byte, salt []byte, err error
 
 // Encrypt will encrypt using the pre-generated key
 func Encrypt(plaintext []byte, key []byte) (encrypted []byte, err error) {
-	encrypted = plaintext
+	// generate a random iv each time
+	// http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
+	// Section 8.2
+	ivBytes := make([]byte, 12)
+	if _, err = rand.Read(ivBytes); err != nil {
+		log.Fatalf("can't initialize crypto: %v", err)
+	}
+	b, err := aes.NewCipher(key)
+	if err != nil {
+		return
+	}
+	aesgcm, err := cipher.NewGCM(b)
+	if err != nil {
+		return
+	}
+	encrypted = aesgcm.Seal(nil, ivBytes, plaintext, nil)
+	encrypted = append(ivBytes, encrypted...)
 	return
-	// // generate a random iv each time
-	// // http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
-	// // Section 8.2
-	// ivBytes := make([]byte, 12)
-	// if _, err = rand.Read(ivBytes); err != nil {
-	// 	log.Fatalf("can't initialize crypto: %v", err)
-	// }
-	// b, err := aes.NewCipher(key)
-	// if err != nil {
-	// 	return
-	// }
-	// aesgcm, err := cipher.NewGCM(b)
-	// if err != nil {
-	// 	return
-	// }
-	// encrypted = aesgcm.Seal(nil, ivBytes, plaintext, nil)
-	// encrypted = append(ivBytes, encrypted...)
-	//	return
 }
 
 // Decrypt using the pre-generated key
 func Decrypt(encrypted []byte, key []byte) (plaintext []byte, err error) {
-	plaintext = encrypted
+	if len(encrypted) < 13 {
+		err = fmt.Errorf("incorrect passphrase")
+		return
+	}
+	b, err := aes.NewCipher(key)
+	if err != nil {
+		return
+	}
+	aesgcm, err := cipher.NewGCM(b)
+	if err != nil {
+		return
+	}
+	plaintext, err = aesgcm.Open(nil, encrypted[:12], encrypted[12:], nil)
 	return
-	// if len(encrypted) < 13 {
-	// 	err = fmt.Errorf("incorrect passphrase")
-	// 	return
-	// }
-	// b, err := aes.NewCipher(key)
-	// if err != nil {
-	// 	return
-	// }
-	// aesgcm, err := cipher.NewGCM(b)
-	// if err != nil {
-	// 	return
-	// }
-	// plaintext, err = aesgcm.Open(nil, encrypted[:12], encrypted[12:], nil)
-	// return
 }
 
 // NewArgon2 generates a new key based on a passphrase and salt
