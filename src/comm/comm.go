@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/magisterquis/connectproxy"
 	"github.com/schollz/croc/v9/src/utils"
 	log "github.com/schollz/logger"
@@ -23,6 +24,7 @@ var MAGIC_BYTES = []byte("croc")
 
 // Comm is some basic TCP communication
 type Comm struct {
+	id         string
 	connection net.Conn
 }
 
@@ -100,6 +102,7 @@ func New(c net.Conn) *Comm {
 		log.Errorf("error setting write deadline: %v", err)
 	}
 	comm := new(Comm)
+	comm.id = uuid.New().String()
 	comm.connection = c
 	return comm
 }
@@ -107,6 +110,10 @@ func New(c net.Conn) *Comm {
 // Connection returns the net.Conn connection
 func (c *Comm) Connection() net.Conn {
 	return c.connection
+}
+
+func (c *Comm) ID() string {
+	return c.id
 }
 
 // Close closes the connection
