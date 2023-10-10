@@ -65,6 +65,8 @@ func Run() (err error) {
 			ArgsUsage:   "[filename(s) or folder]",
 			Flags: []cli.Flag{
 				&cli.BoolFlag{Name: "zip", Usage: "zip folder before sending"},
+				&cli.IntFlag{Name: "timelimit", Value: 30, Usage: "timelimit in secods for sender to allow all transfers"},
+				&cli.IntFlag{Name: "multiple", Value: 2, Usage: "maximum number of transfers"},
 				&cli.StringFlag{Name: "code", Aliases: []string{"c"}, Usage: "codephrase used to connect to relay"},
 				&cli.StringFlag{Name: "hash", Value: "xxhash", Usage: "hash algorithm (xxhash, imohash, md5)"},
 				&cli.StringFlag{Name: "text", Aliases: []string{"t"}, Usage: "send some text"},
@@ -179,6 +181,8 @@ func send(c *cli.Context) (err error) {
 	crocOptions := croc.Options{
 		SharedSecret:   c.String("code"),
 		IsSender:       true,
+		TimeLimit:      c.Int("timeout"),
+		MaxTransfers:   c.Int("multiple"),
 		Debug:          c.Bool("debug"),
 		NoPrompt:       c.Bool("yes"),
 		RelayAddress:   c.String("relay"),
@@ -199,11 +203,21 @@ func send(c *cli.Context) (err error) {
 		ThrottleUpload: c.String("throttleUpload"),
 		ZipFolder:      c.Bool("zip"),
 	}
+
+	if crocOptions.TimeLimit <= 0 {
+		fmt.Println("timelimit must be greater than 0. Defaulting to 30 seconds.")
+		crocOptions.TimeLimit = 30
+	}
+	if crocOptions.MaxTransfers <= 1 {
+		fmt.Println("multiple must be greater than 1. Defaulting to 2 transfers.")
+		crocOptions.MaxTransfers = 2
+	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
 	} else if crocOptions.RelayAddress6 != models.DEFAULT_RELAY6 {
 		crocOptions.RelayAddress = ""
 	}
+
 	b, errOpen := os.ReadFile(getConfigFile())
 	if errOpen == nil && !c.Bool("remember") {
 		var rememberedOptions croc.Options
