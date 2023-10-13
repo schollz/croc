@@ -79,6 +79,7 @@ type Options struct {
 	ThrottleUpload string
 	ZipFolder      bool
 	TestFlag       bool
+	DoubleIps      bool
 }
 
 // Client holds the state of the croc transfer
@@ -513,6 +514,90 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 	errchan <- c.transfer()
 }
 
+func (c *Client) establishSecureConnectionWithTCPServer(errchan chan error) (conn *comm.Comm, ipaddr, banner string, err error) {
+	durations := []time.Duration{100 * time.Millisecond, 5 * time.Second}
+	for i, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
+		if address == "" {
+			continue
+		}
+		host, port, _ := net.SplitHostPort(address)
+		log.Debugf("host: '%s', port: '%s'", host, port)
+		// Default port to :9009
+		if port == "" {
+			host = address
+			port = models.DEFAULT_PORT
+		}
+		log.Debugf("got host '%v' and port '%v'", host, port)
+		address = net.JoinHostPort(host, port)
+		log.Debugf("trying connection to %s", address)
+		conn, banner, ipaddr, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.SharedSecret[:3], c.Options.IsSender, true, c.Options.MaxTransfers, durations[i])
+		if err == nil {
+			c.Options.RelayAddress = address
+			break
+		}
+		log.Debugf("could not establish '%s'", address)
+	}
+
+	return
+}
+
+func (c *Client) listenToMainConn(conn *comm.Comm, ipaddr, banner string, errchan chan error) (err error) {
+	for {
+		log.Debug("waiting for bytes")
+		data, errConn := conn.Receive()
+		if errConn != nil {
+			log.Debugf("[%+v] had error: %s", conn, errConn.Error())
+			break
+		}
+		if bytes.Equal(data, ipRequest) {
+			// recipient wants to try to connect to local ips
+			var ips []string
+			// only get local ips if the local is enabled
+			if !c.Options.DisableLocal {
+				// get list of local ips
+				ips, err = utils.GetLocalIPs()
+				if err != nil {
+					log.Debugf("error getting local ips: %v", err)
+				}
+				// prepend the port that is being listened to
+				ips = append([]string{c.Options.RelayPorts[0]}, ips...)
+			}
+			bips, _ := json.Marshal(ips)
+			if err = conn.Send(bips); err != nil {
+				log.Errorf("error sending: %v", err)
+			}
+		} else if bytes.Equal(data, handshakeRequest) {
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go c.makeTheTransfer(conn, ipaddr, banner, &wg, errchan)
+			wg.Wait()
+		} else if bytes.Equal(data, []byte{1}) {
+			log.Debug("got ping")
+			continue
+		} else {
+			log.Debugf("[%+v] got weird bytes: %+v", conn, data)
+			// throttle the reading
+			errchan <- fmt.Errorf("gracefully refusing using the public relay")
+			return
+		}
+	}
+	return
+}
+
+func (c *Client) makeTheTransfer(conn *comm.Comm, ipaddr, banner string, wg *sync.WaitGroup, errchan chan error) (err error) {
+	c.conn[0] = conn
+	c.Options.RelayPorts = strings.Split(banner, ",")
+	if c.Options.NoMultiplexing {
+		log.Debug("no multiplexing")
+		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
+	}
+	c.ExternalIP = ipaddr
+	log.Debug("exchanged header message")
+	errchan <- c.transfer()
+	wg.Done()
+	return
+}
+
 // Send will send the specified file
 func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, totalNumberFolders int) (err error) {
 	c.EmptyFoldersToTransfer = emptyFoldersToTransfer
@@ -553,88 +638,21 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 	}
 
 	if !c.Options.OnlyLocal {
-		go func() {
-			var ipaddr, banner string
-			var conn *comm.Comm
-			durations := []time.Duration{100 * time.Millisecond, 5 * time.Second}
-			for i, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
-				if address == "" {
-					continue
-				}
-				host, port, _ := net.SplitHostPort(address)
-				log.Debugf("host: '%s', port: '%s'", host, port)
-				// Default port to :9009
-				if port == "" {
-					host = address
-					port = models.DEFAULT_PORT
-				}
-				log.Debugf("got host '%v' and port '%v'", host, port)
-				address = net.JoinHostPort(host, port)
-				log.Debugf("trying connection to %s", address)
-				conn, banner, ipaddr, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.SharedSecret[:3], c.Options.IsSender, true, c.Options.MaxTransfers, durations[i])
-				if err == nil {
-					c.Options.RelayAddress = address
-					break
-				}
-				log.Debugf("could not establish '%s'", address)
-			}
-			if conn == nil && err == nil {
-				err = fmt.Errorf("could not connect")
-			}
-			if err != nil {
-				err = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, err)
-				log.Debug(err)
-				errchan <- err
-				return
-			}
-			log.Debugf("banner: %s", banner)
-			log.Debugf("connection established: %+v", conn)
-			for {
-				log.Debug("waiting for bytes")
-				data, errConn := conn.Receive()
-				if errConn != nil {
-					log.Debugf("[%+v] had error: %s", conn, errConn.Error())
-				}
-				if bytes.Equal(data, ipRequest) {
-					// recipient wants to try to connect to local ips
-					var ips []string
-					// only get local ips if the local is enabled
-					if !c.Options.DisableLocal {
-						// get list of local ips
-						ips, err = utils.GetLocalIPs()
-						if err != nil {
-							log.Debugf("error getting local ips: %v", err)
-						}
-						// prepend the port that is being listened to
-						ips = append([]string{c.Options.RelayPorts[0]}, ips...)
-					}
-					bips, _ := json.Marshal(ips)
-					if err = conn.Send(bips); err != nil {
-						log.Errorf("error sending: %v", err)
-					}
-				} else if bytes.Equal(data, handshakeRequest) {
-					break
-				} else if bytes.Equal(data, []byte{1}) {
-					log.Debug("got ping")
-					continue
-				} else {
-					log.Debugf("[%+v] got weird bytes: %+v", conn, data)
-					// throttle the reading
-					errchan <- fmt.Errorf("gracefully refusing using the public relay")
-					return
-				}
-			}
+		conn, ipaddr, banner, err := c.establishSecureConnectionWithTCPServer(errchan)
 
-			c.conn[0] = conn
-			c.Options.RelayPorts = strings.Split(banner, ",")
-			if c.Options.NoMultiplexing {
-				log.Debug("no multiplexing")
-				c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
-			}
-			c.ExternalIP = ipaddr
-			log.Debug("exchanged header message")
-			errchan <- c.transfer()
-		}()
+		if conn == nil && err == nil {
+			err = fmt.Errorf("could not connect")
+		}
+		if err != nil {
+			err = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, err)
+			log.Debug(err)
+			errchan <- err
+		}
+
+		log.Debugf("banner: %s", banner)
+		log.Debugf("connection established: %+v", conn)
+
+		go c.listenToMainConn(conn, ipaddr, banner, errchan)
 	}
 
 	err = <-errchan
