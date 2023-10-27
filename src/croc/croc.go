@@ -550,6 +550,7 @@ func (c *Client) listenToMainConn(conn *comm.Comm, ipaddr, banner string, errcha
 			break
 		}
 		if bytes.Equal(data, ipRequest) {
+			log.Debug("Got ip request")
 			// recipient wants to try to connect to local ips
 			var ips []string
 			// only get local ips if the local is enabled
@@ -571,6 +572,11 @@ func (c *Client) listenToMainConn(conn *comm.Comm, ipaddr, banner string, errcha
 			wg.Add(1)
 			go c.makeTheTransfer(conn, ipaddr, banner, &wg, errchan)
 			wg.Wait()
+			c.Step1ChannelSecured = false
+			c.Step2FileInfoTransferred = false
+			c.Step3RecipientRequestFile = false
+			c.Step4FileTransferred = false
+			c.Step5CloseChannels = false
 		} else if bytes.Equal(data, []byte{1}) {
 			log.Debug("got ping")
 			continue
@@ -593,7 +599,12 @@ func (c *Client) makeTheTransfer(conn *comm.Comm, ipaddr, banner string, wg *syn
 	}
 	c.ExternalIP = ipaddr
 	log.Debug("exchanged header message")
-	errchan <- c.transfer()
+
+	err = c.transfer()
+	if err != nil {
+		errchan <- err
+	}
+
 	wg.Done()
 	return
 }
@@ -652,7 +663,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 		log.Debugf("banner: %s", banner)
 		log.Debugf("connection established: %+v", conn)
 
-		go c.listenToMainConn(conn, ipaddr, banner, errchan)
+		c.listenToMainConn(conn, ipaddr, banner, errchan)
 	}
 
 	err = <-errchan
@@ -1248,7 +1259,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		log.Debug(err)
 		return
 	}
-
+	log.Debugf("Got the message: %s with type: %s", m, m.Type)
 	// only "pake" messages should be unencrypted
 	// if a non-"pake" message is received unencrypted something
 	// is weird
@@ -1260,9 +1271,12 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 
 	switch m.Type {
 	case message.TypeFinished:
-		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type: message.TypeFinished,
-		})
+		// only senders should respond to "finished" messages
+		if c.Options.IsSender {
+			err = message.Send(c.conn[0], c.Key, message.Message{
+				Type: message.TypeFinished,
+			})
+		}
 		done = true
 		c.SuccessfulTransfer = true
 		return
@@ -1438,6 +1452,10 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 		}
 		c.SuccessfulTransfer = true
 		c.FilesHasFinished[c.FilesToTransferCurrentNum] = struct{}{}
+
+		if !c.Options.IsSender {
+			return
+		}
 	}
 
 	err = c.recipientInitializeFile()

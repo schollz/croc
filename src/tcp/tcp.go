@@ -46,7 +46,7 @@ type roomMap struct {
 
 const pingRoom = "pinglkasjdlfjsaldjf"
 
-var timeToRoomDeletion = 10 * time.Minute
+var timeToRoomDeletion = 60 * time.Minute
 
 // Run starts a tcp listener, run async
 func Run(debugLevel, host, port, password string, banner ...string) (err error) {
@@ -361,6 +361,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 			s.rooms.rooms[room] = roomInfo{
 				first:         s.rooms.rooms[room].first,
 				second:        s.rooms.rooms[room].second,
+				isMainRoom:    s.rooms.rooms[room].isMainRoom,
 				opened:        s.rooms.rooms[room].opened,
 				maxOccupants:  s.rooms.rooms[room].maxOccupants,
 				doneTransfers: s.rooms.rooms[room].doneTransfers,
@@ -389,16 +390,17 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 					s.rooms.roomLocks[room].Unlock()
 					time.Sleep(1 * time.Second)
 					// tell the client that they need to wait
-					bSend, err = crypt.Encrypt([]byte("wait"), strongKeyForEncryption)
-					if err != nil {
-						return
-					}
-					err = c.Send(bSend)
-					if err != nil {
-						log.Error(err)
-						return
-					}
+					// bSend, err = crypt.Encrypt([]byte("wait"), strongKeyForEncryption)
+					// if err != nil {
+					// 	return
+					// }
+					// err = c.Send(bSend)
+					// if err != nil {
+					// 	log.Error(err)
+					// 	return
+					// }
 				} else {
+					s.rooms.Lock()
 					newQueue := s.rooms.rooms[room].queue
 					newQueue.Remove(newQueue.Front())
 					s.rooms.rooms[room] = roomInfo{
@@ -413,16 +415,6 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 					}
 					break
 				}
-			}
-			// tell the client that they got the room
-			bSend, err = crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
-			if err != nil {
-				return
-			}
-			err = c.Send(bSend)
-			if err != nil {
-				log.Error(err)
-				return
 			}
 		} else {
 			s.rooms.Unlock()
@@ -480,7 +472,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	wg.Wait()
 
 	newDoneTransfers := s.rooms.rooms[room].doneTransfers + 1
-	if newDoneTransfers == s.rooms.rooms[room].maxOccupants {
+	if newDoneTransfers == s.rooms.rooms[room].maxOccupants-1 {
 		log.Debugf("room %s is done", room)
 		// delete room
 		s.deleteRoom(room)
@@ -539,7 +531,7 @@ func (s *server) deleteRoom(room string) {
 // chanFromConn creates a channel from a Conn object, and sends everything it
 //
 //	Read()s from the socket to the channel.
-func chanFromConn(conn net.Conn) chan []byte {
+func chanFromConn(conn net.Conn, isSender bool) chan []byte {
 	c := make(chan []byte, 1)
 	if err := conn.SetReadDeadline(time.Now().Add(3 * time.Hour)); err != nil {
 		log.Warnf("can't set read deadline: %v", err)
@@ -554,14 +546,19 @@ func chanFromConn(conn net.Conn) chan []byte {
 				// Copy the buffer so it doesn't get changed while read by the recipient.
 				copy(res, b[:n])
 				c <- res
+				//if finished, then we must exit in order to prevent zombie listeners
+				if strings.Contains(string(res), "finished") && isSender {
+					log.Debugf("closing channel for %s", conn.RemoteAddr().String())
+					close(c)
+					break
+				}
 			}
 			if err != nil {
-				log.Debug(err)
+				log.Debugf("closing channel for %s: %v", conn.RemoteAddr().String(), err)
 				c <- nil
 				break
 			}
 		}
-		log.Debug("exiting")
 	}()
 
 	return c
@@ -570,26 +567,33 @@ func chanFromConn(conn net.Conn) chan []byte {
 // pipe creates a full-duplex pipe between the two sockets and
 // transfers data from one to the other.
 func pipe(conn1 net.Conn, conn2 net.Conn) {
-	chan1 := chanFromConn(conn1)
-	chan2 := chanFromConn(conn2)
+	chan1 := chanFromConn(conn1, true)
+	chan2 := chanFromConn(conn2, false)
 
 	for {
+		log.Debugf("running in pipe %v - %v", conn1.RemoteAddr().String(), conn2.RemoteAddr().String())
 		select {
-		case b1 := <-chan1:
-			if b1 == nil {
+		case b1, ok := <-chan1:
+			if b1 == nil || !ok {
 				return
 			}
+			log.Debugf("got %s bytes from conn 1, sending it to conn 2", b1)
 			if _, err := conn2.Write(b1); err != nil {
 				log.Errorf("write error on channel 1: %v", err)
 			}
 
-		case b2 := <-chan2:
-			if b2 == nil {
+		case b2, ok := <-chan2:
+			if b2 == nil || !ok {
 				return
 			}
+			log.Debugf("got %s bytes from conn 2, sending it to conn 1", b2)
 			if _, err := conn1.Write(b2); err != nil {
 				log.Errorf("write error on channel 2: %v", err)
 			}
+		}
+
+		if chan1 == nil || chan2 == nil {
+			break
 		}
 	}
 }
