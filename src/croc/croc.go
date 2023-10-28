@@ -574,12 +574,6 @@ func (c *Client) listenToMainConn(conn *comm.Comm, ipaddr, banner string, errcha
 			wg.Add(1)
 			go c.makeTheTransfer(conn, ipaddr, banner, &wg, errchan)
 			wg.Wait()
-			c.Key = nil
-			c.Step1ChannelSecured = false
-			c.Step2FileInfoTransferred = false
-			c.Step3RecipientRequestFile = false
-			c.Step4FileTransferred = false
-			c.Step5CloseChannels = false
 		} else if bytes.Equal(data, []byte{1}) {
 			log.Debug("got ping")
 			continue
@@ -606,7 +600,19 @@ func (c *Client) makeTheTransfer(conn *comm.Comm, ipaddr, banner string, wg *syn
 	err = c.transfer()
 	if err != nil {
 		errchan <- err
+		fmt.Print("Did not transfer successfully\n")
+	} else {
+		fmt.Print("Transfer successful!\n")
 	}
+
+	// reset flags and keys for next transfer
+	c.Key = nil
+	c.Step1ChannelSecured = false
+	c.Step2FileInfoTransferred = false
+	c.Step3RecipientRequestFile = false
+	c.Step4FileTransferred = false
+	c.Step5CloseChannels = false
+	c.SuccessfulTransfer = false
 
 	wg.Done()
 	return

@@ -390,15 +390,15 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 					s.rooms.roomLocks[room].Unlock()
 					time.Sleep(1 * time.Second)
 					// tell the client that they need to wait
-					// bSend, err = crypt.Encrypt([]byte("wait"), strongKeyForEncryption)
-					// if err != nil {
-					// 	return
-					// }
-					// err = c.Send(bSend)
-					// if err != nil {
-					// 	log.Error(err)
-					// 	return
-					// }
+					bSend, err = crypt.Encrypt([]byte("wait"), strongKeyForEncryption)
+					if err != nil {
+						return
+					}
+					err = c.Send(bSend)
+					if err != nil {
+						log.Error(err)
+						return
+					}
 				} else {
 					s.rooms.Lock()
 					newQueue := s.rooms.rooms[room].queue
