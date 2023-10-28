@@ -79,7 +79,6 @@ type Options struct {
 	ThrottleUpload string
 	ZipFolder      bool
 	TestFlag       bool
-	DoubleIps      bool
 }
 
 // Client holds the state of the croc transfer
@@ -1268,7 +1267,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		log.Debug(err)
 		return
 	}
-	log.Debugf("Got the message: %s with type: %s", m, m.Type)
+
 	// only "pake" messages should be unencrypted
 	// if a non-"pake" message is received unencrypted something
 	// is weird

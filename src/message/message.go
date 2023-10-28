@@ -22,7 +22,6 @@ const (
 	TypeCloseSender    Type = "close-sender"
 	TypeRecipientReady Type = "recipientready"
 	TypeFileInfo       Type = "fileinfo"
-	TypeCloseChannel   Type = "close-channel"
 )
 
 // Message is the possible payload for messaging
