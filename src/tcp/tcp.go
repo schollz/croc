@@ -28,8 +28,8 @@ type server struct {
 }
 
 type roomInfo struct {
-	first         *comm.Comm
-	second        *comm.Comm
+	sender        *comm.Comm
+	receiver      *comm.Comm
 	queue         *list.List
 	isMainRoom    bool
 	maxTransfers  int
@@ -157,13 +157,13 @@ func (s *server) run() (err error) {
 					return
 				}
 				log.Debugf("room: %+v", s.rooms.rooms[room])
-				if s.rooms.rooms[room].first != nil && s.rooms.rooms[room].second != nil {
+				if s.rooms.rooms[room].sender != nil && s.rooms.rooms[room].receiver != nil {
 					log.Debug("rooms ready")
 					s.rooms.Unlock()
 					break
 				} else {
-					if s.rooms.rooms[room].first != nil {
-						errSend := s.rooms.rooms[room].first.Send([]byte{1})
+					if s.rooms.rooms[room].sender != nil {
+						errSend := s.rooms.rooms[room].sender.Send([]byte{1})
 						if errSend != nil {
 							log.Debug(errSend)
 							deleteIt = true
@@ -288,152 +288,26 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	room = string(roomBytes)
 
 	s.rooms.Lock()
-	// create the room if it is new
 	if _, ok := s.rooms.rooms[room]; !ok && isSender {
-		log.Debug("Check if this is a main room")
-		enc, err = c.Receive()
-		if err != nil {
-			return
-		}
-		data, err = crypt.Decrypt(enc, strongKeyForEncryption)
-		if err != nil {
-			return
-		}
-		if !bytes.Equal(data, []byte("main")) && !bytes.Equal(data, []byte("secondary")) {
-			err = fmt.Errorf("got bad response: %s", data)
-			return
-		}
-		isMainRoom := bytes.Equal(data, []byte("main"))
-		log.Debugf("isMainRoom: %v", isMainRoom)
-
-		maxTransfers := 1
-		if isMainRoom {
-			log.Debug("Wait for maxTransfers")
-			enc, err = c.Receive()
-			if err != nil {
-				return
-			}
-			data, err = crypt.Decrypt(enc, strongKeyForEncryption)
-			if err != nil {
-				return
-			}
-
-			maxTransfers, err = strconv.Atoi(string(data))
-			if err != nil {
-				return
-			}
-			log.Debugf("maxTransfers: %v", maxTransfers)
-		}
-
-		s.rooms.rooms[room] = roomInfo{
-			first:         c,
-			second:        nil,
-			isMainRoom:    isMainRoom,
-			maxTransfers:  maxTransfers,
-			doneTransfers: 0,
-			opened:        time.Now(),
-		}
-		s.rooms.roomLocks[room] = &sync.Mutex{}
-		s.rooms.Unlock()
-
-		// tell the client that they got the room
-		bSend, err = crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
-		if err != nil {
-			return
-		}
-		err = c.Send(bSend)
+		// create the room if it is new
+		err = s.createRoom(c, room, strongKeyForEncryption)
 		if err != nil {
 			log.Error(err)
-			s.deleteRoom(room)
-			return
 		}
-		log.Debugf("room %s has 1", room)
+		// sender is done
 		return
-	}
-	if s.rooms.rooms[room].full {
-		if s.rooms.rooms[room].isMainRoom {
-			log.Debugf("room %s is full, adding to queue", room)
-			queue := s.rooms.rooms[room].queue
-			if queue == nil {
-				queue = list.New()
-			}
-			queue.PushBack(c.ID())
-			s.rooms.rooms[room] = roomInfo{
-				first:         s.rooms.rooms[room].first,
-				second:        s.rooms.rooms[room].second,
-				isMainRoom:    s.rooms.rooms[room].isMainRoom,
-				opened:        s.rooms.rooms[room].opened,
-				maxTransfers:  s.rooms.rooms[room].maxTransfers,
-				doneTransfers: s.rooms.rooms[room].doneTransfers,
-				queue:         queue,
-				full:          true,
-			}
-			s.rooms.Unlock()
-
-			for {
-				s.rooms.roomLocks[room].Lock()
-
-				if s.rooms.rooms[room].doneTransfers >= s.rooms.rooms[room].maxTransfers {
-					s.rooms.roomLocks[room].Unlock()
-					// tell the client that the sender is no longer available
-					bSend, err = crypt.Encrypt([]byte("sender_gone"), strongKeyForEncryption)
-					if err != nil {
-						return
-					}
-					err = c.Send(bSend)
-					if err != nil {
-						log.Error(err)
-						return
-					}
-					return
-				} else if s.rooms.rooms[room].second != nil || s.rooms.rooms[room].queue.Front().Value.(string) != c.ID() {
-					s.rooms.roomLocks[room].Unlock()
-					time.Sleep(1 * time.Second)
-					// tell the client that they need to wait
-					bSend, err = crypt.Encrypt([]byte("wait"), strongKeyForEncryption)
-					if err != nil {
-						return
-					}
-					err = c.Send(bSend)
-					if err != nil {
-						log.Error(err)
-						return
-					}
-				} else {
-					s.rooms.Lock()
-					newQueue := s.rooms.rooms[room].queue
-					newQueue.Remove(newQueue.Front())
-					s.rooms.rooms[room] = roomInfo{
-						first:         s.rooms.rooms[room].first,
-						second:        c,
-						queue:         newQueue,
-						isMainRoom:    s.rooms.rooms[room].isMainRoom,
-						maxTransfers:  s.rooms.rooms[room].maxTransfers,
-						doneTransfers: s.rooms.rooms[room].doneTransfers,
-						opened:        s.rooms.rooms[room].opened,
-						full:          true,
-					}
-					break
-				}
-			}
-		} else {
-			s.rooms.Unlock()
-			bSend, err = crypt.Encrypt([]byte("room full"), strongKeyForEncryption)
-			if err != nil {
-				return
-			}
-			err = c.Send(bSend)
-			if err != nil {
-				log.Error(err)
-				return
-			}
+	} else if s.rooms.rooms[room].full {
+		// if the room is full, then add to waiting room
+		err = s.handleWaitingRoomForReceivers(c, room, strongKeyForEncryption)
+		if err != nil {
+			log.Error(err)
 			return
 		}
 	} else {
 		log.Debugf("room %s has 2", room)
 		s.rooms.rooms[room] = roomInfo{
-			first:         s.rooms.rooms[room].first,
-			second:        c,
+			sender:        s.rooms.rooms[room].sender,
+			receiver:      c,
 			queue:         s.rooms.rooms[room].queue,
 			isMainRoom:    s.rooms.rooms[room].isMainRoom,
 			maxTransfers:  s.rooms.rooms[room].maxTransfers,
@@ -444,7 +318,162 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		s.rooms.roomLocks[room].Lock()
 	}
 
-	otherConnection := s.rooms.rooms[room].first
+	err = s.beginTransfer(c, room, strongKeyForEncryption)
+	if err != nil {
+		log.Error(err)
+	}
+
+	return
+}
+
+func (s *server) createRoom(c *comm.Comm, room string, strongKeyForEncryption []byte) (err error) {
+	var enc, data, bSend []byte
+	log.Debug("Check if this is a main room")
+	enc, err = c.Receive()
+	if err != nil {
+		return
+	}
+	data, err = crypt.Decrypt(enc, strongKeyForEncryption)
+	if err != nil {
+		return
+	}
+	if !bytes.Equal(data, []byte("main")) && !bytes.Equal(data, []byte("secondary")) {
+		err = fmt.Errorf("got bad response: %s", data)
+		return
+	}
+	isMainRoom := bytes.Equal(data, []byte("main"))
+	log.Debugf("isMainRoom: %v", isMainRoom)
+
+	maxTransfers := 1
+	if isMainRoom {
+		log.Debug("Wait for maxTransfers")
+		enc, err = c.Receive()
+		if err != nil {
+			return
+		}
+		data, err = crypt.Decrypt(enc, strongKeyForEncryption)
+		if err != nil {
+			return
+		}
+
+		maxTransfers, err = strconv.Atoi(string(data))
+		if err != nil {
+			return
+		}
+		log.Debugf("maxTransfers: %v", maxTransfers)
+	}
+
+	s.rooms.rooms[room] = roomInfo{
+		sender:        c,
+		receiver:      nil,
+		isMainRoom:    isMainRoom,
+		maxTransfers:  maxTransfers,
+		doneTransfers: 0,
+		opened:        time.Now(),
+	}
+	s.rooms.roomLocks[room] = &sync.Mutex{}
+	s.rooms.Unlock()
+
+	// tell the client that they got the room
+	bSend, err = crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
+	if err != nil {
+		return
+	}
+	err = c.Send(bSend)
+	if err != nil {
+		log.Error(err)
+		s.deleteRoom(room)
+		return
+	}
+	log.Debugf("room %s has 1", room)
+	return
+}
+
+func (s *server) handleWaitingRoomForReceivers(c *comm.Comm, room string, strongKeyForEncryption []byte) (err error) {
+	var bSend []byte
+	if s.rooms.rooms[room].isMainRoom {
+		log.Debugf("room %s is full, adding to queue", room)
+		queue := s.rooms.rooms[room].queue
+		if queue == nil {
+			queue = list.New()
+		}
+		queue.PushBack(c.ID())
+		s.rooms.rooms[room] = roomInfo{
+			sender:        s.rooms.rooms[room].sender,
+			receiver:      s.rooms.rooms[room].receiver,
+			isMainRoom:    s.rooms.rooms[room].isMainRoom,
+			opened:        s.rooms.rooms[room].opened,
+			maxTransfers:  s.rooms.rooms[room].maxTransfers,
+			doneTransfers: s.rooms.rooms[room].doneTransfers,
+			queue:         queue,
+			full:          true,
+		}
+		s.rooms.Unlock()
+
+		for {
+			s.rooms.roomLocks[room].Lock()
+
+			if s.rooms.rooms[room].doneTransfers >= s.rooms.rooms[room].maxTransfers {
+				s.rooms.roomLocks[room].Unlock()
+				// tell the client that the sender is no longer available
+				bSend, err = crypt.Encrypt([]byte("sender_gone"), strongKeyForEncryption)
+				if err != nil {
+					return
+				}
+				err = c.Send(bSend)
+				if err != nil {
+					log.Error(err)
+					return
+				}
+				return
+			} else if s.rooms.rooms[room].receiver != nil || s.rooms.rooms[room].queue.Front().Value.(string) != c.ID() {
+				s.rooms.roomLocks[room].Unlock()
+				time.Sleep(1 * time.Second)
+				// tell the client that they need to wait
+				bSend, err = crypt.Encrypt([]byte("wait"), strongKeyForEncryption)
+				if err != nil {
+					return
+				}
+				err = c.Send(bSend)
+				if err != nil {
+					log.Error(err)
+					return
+				}
+			} else {
+				s.rooms.Lock()
+				newQueue := s.rooms.rooms[room].queue
+				newQueue.Remove(newQueue.Front())
+				s.rooms.rooms[room] = roomInfo{
+					sender:        s.rooms.rooms[room].sender,
+					receiver:      c,
+					queue:         newQueue,
+					isMainRoom:    s.rooms.rooms[room].isMainRoom,
+					maxTransfers:  s.rooms.rooms[room].maxTransfers,
+					doneTransfers: s.rooms.rooms[room].doneTransfers,
+					opened:        s.rooms.rooms[room].opened,
+					full:          true,
+				}
+				break
+			}
+		}
+	} else {
+		s.rooms.Unlock()
+		bSend, err = crypt.Encrypt([]byte("room full"), strongKeyForEncryption)
+		if err != nil {
+			return
+		}
+		err = c.Send(bSend)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+		return
+	}
+	return
+}
+
+func (s *server) beginTransfer(c *comm.Comm, room string, strongKeyForEncryption []byte) (err error) {
+	otherConnection := s.rooms.rooms[room].sender
 	s.rooms.Unlock()
 
 	// second connection is the sender, time to staple connections
@@ -459,8 +488,8 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		log.Debug("done piping")
 	}(otherConnection, c, &wg)
 
-	// tell the sender everything is ready
-	bSend, err = crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
+	// tell the receiver everything is ready
+	bSend, err := crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
 	if err != nil {
 		return
 	}
@@ -471,6 +500,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	}
 	wg.Wait()
 
+	// check if room is done and delete it if so
 	newDoneTransfers := s.rooms.rooms[room].doneTransfers + 1
 	if newDoneTransfers == s.rooms.rooms[room].maxTransfers {
 		log.Debugf("room %s is done", room)
@@ -484,8 +514,8 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 			lengthOfQueue = s.rooms.rooms[room].queue.Len()
 		}
 		s.rooms.rooms[room] = roomInfo{
-			first:         s.rooms.rooms[room].first,
-			second:        nil,
+			sender:        s.rooms.rooms[room].sender,
+			receiver:      nil,
 			queue:         s.rooms.rooms[room].queue,
 			isMainRoom:    s.rooms.rooms[room].isMainRoom,
 			maxTransfers:  s.rooms.rooms[room].maxTransfers,
@@ -496,7 +526,6 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		s.rooms.Unlock()
 		s.rooms.roomLocks[room].Unlock()
 	}
-
 	return
 }
 
@@ -518,13 +547,13 @@ func (s *server) deleteRoom(room string) {
 		delete(s.rooms.roomLocks, room)
 	}
 	log.Debugf("deleting room: %s", room)
-	if s.rooms.rooms[room].first != nil {
-		s.rooms.rooms[room].first.Close()
+	if s.rooms.rooms[room].sender != nil {
+		s.rooms.rooms[room].sender.Close()
 	}
-	if s.rooms.rooms[room].second != nil {
-		s.rooms.rooms[room].second.Close()
+	if s.rooms.rooms[room].receiver != nil {
+		s.rooms.rooms[room].receiver.Close()
 	}
-	s.rooms.rooms[room] = roomInfo{first: nil, second: nil}
+	s.rooms.rooms[room] = roomInfo{sender: nil, receiver: nil}
 	delete(s.rooms.rooms, room)
 }
 
@@ -546,7 +575,7 @@ func chanFromConn(conn net.Conn, isSender bool) chan []byte {
 				// Copy the buffer so it doesn't get changed while read by the recipient.
 				copy(res, b[:n])
 				c <- res
-				//if finished, then we must exit in order to prevent zombie listeners
+				// if finished, then we must exit in order to prevent zombie listeners
 				if bytes.Contains(res, []byte("finished")) && isSender {
 					log.Debugf("closing sender channel for %s", conn.RemoteAddr().String())
 					close(c)
@@ -685,7 +714,7 @@ func ConnectToTCPServer(address, password, room string, isSender, isMainRoom boo
 		log.Debug(err)
 		return
 	}
-	log.Debug("waiting for first ok")
+	log.Debug("waiting for sender ok")
 	enc, err := c.Receive()
 	if err != nil {
 		log.Debug(err)
