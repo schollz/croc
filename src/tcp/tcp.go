@@ -32,7 +32,7 @@ type roomInfo struct {
 	second        *comm.Comm
 	queue         *list.List
 	isMainRoom    bool
-	maxOccupants  int
+	maxTransfers  int
 	doneTransfers int
 	opened        time.Time
 	full          bool
@@ -306,9 +306,9 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		isMainRoom := bytes.Equal(data, []byte("main"))
 		log.Debugf("isMainRoom: %v", isMainRoom)
 
-		maxOccupants := 2
+		maxTransfers := 1
 		if isMainRoom {
-			log.Debug("Wait for maxOccupants")
+			log.Debug("Wait for maxTransfers")
 			enc, err = c.Receive()
 			if err != nil {
 				return
@@ -318,18 +318,18 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 				return
 			}
 
-			maxOccupants, err = strconv.Atoi(string(data))
+			maxTransfers, err = strconv.Atoi(string(data))
 			if err != nil {
 				return
 			}
-			log.Debugf("maxOccupants: %v", maxOccupants)
+			log.Debugf("maxTransfers: %v", maxTransfers)
 		}
 
 		s.rooms.rooms[room] = roomInfo{
 			first:         c,
 			second:        nil,
 			isMainRoom:    isMainRoom,
-			maxOccupants:  maxOccupants,
+			maxTransfers:  maxTransfers,
 			doneTransfers: 0,
 			opened:        time.Now(),
 		}
@@ -363,7 +363,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 				second:        s.rooms.rooms[room].second,
 				isMainRoom:    s.rooms.rooms[room].isMainRoom,
 				opened:        s.rooms.rooms[room].opened,
-				maxOccupants:  s.rooms.rooms[room].maxOccupants,
+				maxTransfers:  s.rooms.rooms[room].maxTransfers,
 				doneTransfers: s.rooms.rooms[room].doneTransfers,
 				queue:         queue,
 				full:          true,
@@ -373,7 +373,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 			for {
 				s.rooms.roomLocks[room].Lock()
 
-				if s.rooms.rooms[room].doneTransfers >= s.rooms.rooms[room].maxOccupants {
+				if s.rooms.rooms[room].doneTransfers >= s.rooms.rooms[room].maxTransfers {
 					s.rooms.roomLocks[room].Unlock()
 					// tell the client that the sender is no longer available
 					bSend, err = crypt.Encrypt([]byte("sender_gone"), strongKeyForEncryption)
@@ -408,7 +408,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 						second:        c,
 						queue:         newQueue,
 						isMainRoom:    s.rooms.rooms[room].isMainRoom,
-						maxOccupants:  s.rooms.rooms[room].maxOccupants,
+						maxTransfers:  s.rooms.rooms[room].maxTransfers,
 						doneTransfers: s.rooms.rooms[room].doneTransfers,
 						opened:        s.rooms.rooms[room].opened,
 						full:          true,
@@ -436,7 +436,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 			second:        c,
 			queue:         s.rooms.rooms[room].queue,
 			isMainRoom:    s.rooms.rooms[room].isMainRoom,
-			maxOccupants:  s.rooms.rooms[room].maxOccupants,
+			maxTransfers:  s.rooms.rooms[room].maxTransfers,
 			doneTransfers: s.rooms.rooms[room].doneTransfers,
 			opened:        s.rooms.rooms[room].opened,
 			full:          true,
@@ -472,7 +472,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	wg.Wait()
 
 	newDoneTransfers := s.rooms.rooms[room].doneTransfers + 1
-	if newDoneTransfers == s.rooms.rooms[room].maxOccupants-1 {
+	if newDoneTransfers == s.rooms.rooms[room].maxTransfers {
 		log.Debugf("room %s is done", room)
 		// delete room
 		s.deleteRoom(room)
@@ -488,7 +488,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 			second:        nil,
 			queue:         s.rooms.rooms[room].queue,
 			isMainRoom:    s.rooms.rooms[room].isMainRoom,
-			maxOccupants:  s.rooms.rooms[room].maxOccupants,
+			maxTransfers:  s.rooms.rooms[room].maxTransfers,
 			doneTransfers: newDoneTransfers,
 			opened:        s.rooms.rooms[room].opened,
 			full:          lengthOfQueue > 0,
@@ -547,8 +547,8 @@ func chanFromConn(conn net.Conn, isSender bool) chan []byte {
 				copy(res, b[:n])
 				c <- res
 				//if finished, then we must exit in order to prevent zombie listeners
-				if strings.Contains(string(res), "finished") && isSender {
-					log.Debugf("closing channel for %s", conn.RemoteAddr().String())
+				if bytes.Contains(res, []byte("finished")) && isSender {
+					log.Debugf("closing sender channel for %s", conn.RemoteAddr().String())
 					close(c)
 					break
 				}
@@ -623,7 +623,7 @@ func PingServer(address string) (err error) {
 
 // ConnectToTCPServer will initiate a new connection
 // to the specified address, room with optional time limit
-func ConnectToTCPServer(address, password, room string, isSender, isMainRoom bool, maxOccupants int, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, err error) {
+func ConnectToTCPServer(address, password, room string, isSender, isMainRoom bool, maxTransfers int, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, err error) {
 	if len(timelimit) > 0 {
 		c, err = comm.NewConnection(address, timelimit[0])
 	} else {
@@ -750,8 +750,8 @@ func ConnectToTCPServer(address, password, room string, isSender, isMainRoom boo
 		}
 
 		if isMainRoom {
-			log.Debug("tell server maxOccupants")
-			bSend, err = crypt.Encrypt([]byte(strconv.Itoa(maxOccupants)), strongKeyForEncryption)
+			log.Debug("tell server maxTransfers")
+			bSend, err = crypt.Encrypt([]byte(strconv.Itoa(maxTransfers)), strongKeyForEncryption)
 			if err != nil {
 				log.Debug(err)
 				return

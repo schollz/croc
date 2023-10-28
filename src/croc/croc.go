@@ -541,7 +541,9 @@ func (c *Client) establishSecureConnectionWithTCPServer(errchan chan error) (con
 	return
 }
 
-func (c *Client) listenToMainConn(conn *comm.Comm, ipaddr, banner string, errchan chan error) (err error) {
+func (c *Client) listenToMainConn(conn *comm.Comm, ipaddr, banner string, errchan chan error) {
+	var err error
+	err = nil
 	for {
 		log.Debug("waiting for bytes")
 		data, errConn := conn.Receive()
@@ -572,6 +574,7 @@ func (c *Client) listenToMainConn(conn *comm.Comm, ipaddr, banner string, errcha
 			wg.Add(1)
 			go c.makeTheTransfer(conn, ipaddr, banner, &wg, errchan)
 			wg.Wait()
+			c.Key = nil
 			c.Step1ChannelSecured = false
 			c.Step2FileInfoTransferred = false
 			c.Step3RecipientRequestFile = false
@@ -587,7 +590,7 @@ func (c *Client) listenToMainConn(conn *comm.Comm, ipaddr, banner string, errcha
 			return
 		}
 	}
-	return
+	errchan <- err
 }
 
 func (c *Client) makeTheTransfer(conn *comm.Comm, ipaddr, banner string, wg *sync.WaitGroup, errchan chan error) (err error) {

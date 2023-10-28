@@ -1,6 +1,7 @@
 package message
 
 import (
+	"bytes"
 	"encoding/json"
 
 	"github.com/schollz/croc/v9/src/comm"
@@ -21,6 +22,7 @@ const (
 	TypeCloseSender    Type = "close-sender"
 	TypeRecipientReady Type = "recipientready"
 	TypeFileInfo       Type = "fileinfo"
+	TypeCloseChannel   Type = "close-channel"
 )
 
 // Message is the possible payload for messaging
@@ -56,7 +58,9 @@ func Encode(key []byte, m Message) (b []byte, err error) {
 	b = compress.Compress(b)
 	if key != nil {
 		log.Debugf("writing %s message (encrypted)", m.Type)
-		b, err = crypt.Encrypt(b, key)
+		if m.Type != TypeFinished {
+			b, err = crypt.Encrypt(b, key)
+		}
 	} else {
 		log.Debugf("writing %s message (unencrypted)", m.Type)
 	}
@@ -65,7 +69,7 @@ func Encode(key []byte, m Message) (b []byte, err error) {
 
 // Decode will convert from bytes
 func Decode(key []byte, b []byte) (m Message, err error) {
-	if key != nil {
+	if key != nil && !bytes.Contains(b, []byte(TypeFinished)) {
 		b, err = crypt.Decrypt(b, key)
 		if err != nil {
 			return
