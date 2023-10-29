@@ -514,8 +514,7 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 }
 
 func (c *Client) establishSecureConnectionWithTCPServer(errchan chan error) (conn *comm.Comm, ipaddr, banner string, err error) {
-	durations := []time.Duration{100 * time.Millisecond, 5 * time.Second}
-	for i, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
+	for _, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
 		if address == "" {
 			continue
 		}
@@ -529,7 +528,7 @@ func (c *Client) establishSecureConnectionWithTCPServer(errchan chan error) (con
 		log.Debugf("got host '%v' and port '%v'", host, port)
 		address = net.JoinHostPort(host, port)
 		log.Debugf("trying connection to %s", address)
-		conn, banner, ipaddr, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.SharedSecret[:3], c.Options.IsSender, true, c.Options.MaxTransfers, durations[i])
+		conn, banner, ipaddr, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.SharedSecret[:3], c.Options.IsSender, true, c.Options.MaxTransfers, time.Duration(c.Options.TimeLimit)*time.Second)
 		if err == nil {
 			c.Options.RelayAddress = address
 			break
@@ -789,9 +788,8 @@ func (c *Client) Receive() (err error) {
 		log.Debug("establishing connection")
 	}
 	var banner string
-	durations := []time.Duration{200 * time.Millisecond, 5 * time.Second}
 	err = fmt.Errorf("found no addresses to connect")
-	for i, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
+	for _, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
 		if address == "" {
 			continue
 		}
@@ -805,7 +803,7 @@ func (c *Client) Receive() (err error) {
 		log.Debugf("got host '%v' and port '%v'", host, port)
 		address = net.JoinHostPort(host, port)
 		log.Debugf("trying connection to %s", address)
-		c.conn[0], banner, c.ExternalIP, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.SharedSecret[:3], c.Options.IsSender, true, 2, durations[i])
+		c.conn[0], banner, c.ExternalIP, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.SharedSecret[:3], c.Options.IsSender, true, 1, time.Duration(c.Options.TimeLimit)*time.Second)
 		if err == nil {
 			c.Options.RelayAddress = address
 			break
@@ -863,7 +861,7 @@ func (c *Client) Receive() (err error) {
 				}
 
 				serverTry := net.JoinHostPort(ip, port)
-				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.SharedSecret[:3], c.Options.IsSender, true, 2, 500*time.Millisecond)
+				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.SharedSecret[:3], c.Options.IsSender, true, 1, 500*time.Millisecond)
 				if errConn != nil {
 					log.Debug(errConn)
 					log.Debugf("could not connect to " + serverTry)
