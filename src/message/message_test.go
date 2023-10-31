@@ -1,6 +1,7 @@
 package message
 
 import (
+	"bytes"
 	"crypto/rand"
 	"fmt"
 	"net"
@@ -14,6 +15,18 @@ import (
 )
 
 var TypeMessage Type = "message"
+
+// Test that the finished message is not encrypted
+func TestMessageDontEncryptFinished(t *testing.T) {
+	log.SetLevel("debug")
+	m := Message{Type: TypeFinished, Message: "hello, world"}
+	e, salt, err := crypt.New([]byte("pass"), nil)
+	assert.Nil(t, err)
+	fmt.Println(string(salt))
+	b, err := Encode(e, m)
+	assert.Nil(t, err)
+	assert.True(t, bytes.Contains(b, []byte("hello, world")))
+}
 
 func TestMessage(t *testing.T) {
 	log.SetLevel("debug")
