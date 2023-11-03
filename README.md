@@ -213,7 +213,7 @@ The relay is needed to staple the parallel incoming and outgoing connections. By
 croc relay
 ```
 
-By default it uses TCP ports 9009-9013. Make sure to open those up. You can customized the ports (e.g. `croc relay --ports 1111,1112`), but you must have a minimum of **2** ports for the relay. The first port is for communication and the subsequent ports are used for the multiplexed data transfer.
+By default it uses TCP ports 9009-9013. Make sure to open those up. You can customize the ports (e.g. `croc relay --ports 1111,1112`), but you must have a minimum of **2** ports for the relay. The first port is for communication and the subsequent ports are used for the multiplexed data transfer.
 
 You can send files using your relay by entering `--relay` to change the relay that you are using if you want to custom host your own.
 
