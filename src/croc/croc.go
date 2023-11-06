@@ -37,6 +37,7 @@ import (
 var (
 	ipRequest        = []byte("ips?")
 	handshakeRequest = []byte("handshake")
+	wgTransfer       sync.WaitGroup
 )
 
 func init() {
@@ -478,7 +479,20 @@ func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 	}
 }
 
-func (c *Client) transferOverLocalRelay(errchan chan<- error) {
+func (c *Client) resetFlagsAndRealeaseLock() {
+	// reset flags and keys for next transfer
+	c.Key = nil
+	c.Step1ChannelSecured = false
+	c.Step2FileInfoTransferred = false
+	c.Step3RecipientRequestFile = false
+	c.Step4FileTransferred = false
+	c.Step5CloseChannels = false
+	c.SuccessfulTransfer = false
+
+	wgTransfer.Done()
+}
+
+func (c *Client) transferOverLocalRelay(errchan chan error) {
 	time.Sleep(500 * time.Millisecond)
 	log.Debug("establishing connection")
 	var banner string
@@ -491,16 +505,27 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 		return
 	}
 	log.Debugf("local connection established: %+v", conn)
+	err = nil
 	for {
-		data, _ := conn.Receive()
-		if bytes.Equal(data, handshakeRequest) {
+		data, errConn := conn.Receive()
+		if errConn != nil {
+			log.Debugf("[%+v] had error: %s", conn, errConn.Error())
 			break
+		}
+		if bytes.Equal(data, handshakeRequest) {
+			wgTransfer.Add(1)
+			go c.makeLocalTransfer(conn, ipaddr, banner, errchan)
+			wgTransfer.Wait()
 		} else if bytes.Equal(data, []byte{1}) {
 			log.Debug("got ping")
 		} else {
 			log.Debugf("instead of handshake got: %s", data)
 		}
 	}
+	errchan <- err
+}
+
+func (c *Client) makeLocalTransfer(conn *comm.Comm, ipaddr, banner string, errchan chan error) (err error) {
 	c.conn[0] = conn
 	log.Debug("exchanged header message")
 	c.Options.RelayAddress = "127.0.0.1"
@@ -510,7 +535,18 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
 	}
 	c.ExternalIP = ipaddr
-	errchan <- c.transfer()
+
+	err = c.transfer()
+	if err != nil {
+		errchan <- err
+		fmt.Print("Did not transfer successfully locally\n")
+	} else {
+		fmt.Print("Local transfer was successful!\n")
+	}
+
+	c.resetFlagsAndRealeaseLock()
+
+	return
 }
 
 func (c *Client) establishSecureConnectionWithTCPServer(errchan chan error) (conn *comm.Comm, ipaddr, banner string, err error) {
@@ -568,10 +604,9 @@ func (c *Client) listenToMainConn(conn *comm.Comm, ipaddr, banner string, errcha
 				log.Errorf("error sending: %v", err)
 			}
 		} else if bytes.Equal(data, handshakeRequest) {
-			var wg sync.WaitGroup
-			wg.Add(1)
-			go c.makeTheTransfer(conn, ipaddr, banner, &wg, errchan)
-			wg.Wait()
+			wgTransfer.Add(1)
+			go c.makeTheTransfer(conn, ipaddr, banner, errchan)
+			wgTransfer.Wait()
 		} else if bytes.Equal(data, []byte{1}) {
 			log.Debug("got ping")
 			continue
@@ -585,7 +620,7 @@ func (c *Client) listenToMainConn(conn *comm.Comm, ipaddr, banner string, errcha
 	errchan <- err
 }
 
-func (c *Client) makeTheTransfer(conn *comm.Comm, ipaddr, banner string, wg *sync.WaitGroup, errchan chan error) (err error) {
+func (c *Client) makeTheTransfer(conn *comm.Comm, ipaddr, banner string, errchan chan error) (err error) {
 	c.conn[0] = conn
 	c.Options.RelayPorts = strings.Split(banner, ",")
 	if c.Options.NoMultiplexing {
@@ -603,16 +638,8 @@ func (c *Client) makeTheTransfer(conn *comm.Comm, ipaddr, banner string, wg *syn
 		fmt.Print("Transfer successful!\n")
 	}
 
-	// reset flags and keys for next transfer
-	c.Key = nil
-	c.Step1ChannelSecured = false
-	c.Step2FileInfoTransferred = false
-	c.Step3RecipientRequestFile = false
-	c.Step4FileTransferred = false
-	c.Step5CloseChannels = false
-	c.SuccessfulTransfer = false
+	c.resetFlagsAndRealeaseLock()
 
-	wg.Done()
 	return
 }
 
