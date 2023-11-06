@@ -31,6 +31,8 @@ func TestCrocReadme(t *testing.T) {
 	log.Debug("setting up sender")
 	sender, err := New(Options{
 		IsSender:      true,
+		TimeLimit:     30,
+		MaxTransfers:  1,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
 		RelayAddress:  "127.0.0.1:8281",
@@ -97,6 +99,8 @@ func TestCrocEmptyFolder(t *testing.T) {
 	log.Debug("setting up sender")
 	sender, err := New(Options{
 		IsSender:      true,
+		TimeLimit:     30,
+		MaxTransfers:  1,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
 		RelayAddress:  "127.0.0.1:8281",
@@ -164,6 +168,8 @@ func TestCrocSymlink(t *testing.T) {
 	log.Debug("setting up sender")
 	sender, err := New(Options{
 		IsSender:      true,
+		TimeLimit:     30,
+		MaxTransfers:  1,
 		SharedSecret:  "8124-testingthecroc",
 		Debug:         true,
 		RelayAddress:  "127.0.0.1:8281",
@@ -239,6 +245,8 @@ func TestCrocLocal(t *testing.T) {
 	log.Debug("setting up sender")
 	sender, err := New(Options{
 		IsSender:      true,
+		TimeLimit:     30,
+		MaxTransfers:  1,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
 		RelayAddress:  "127.0.0.1:8181",
@@ -318,6 +326,8 @@ func TestCrocError(t *testing.T) {
 	log.SetLevel("warn")
 	sender, _ := New(Options{
 		IsSender:      true,
+		TimeLimit:     30,
+		MaxTransfers:  1,
 		SharedSecret:  "8123-testingthecroc2",
 		Debug:         true,
 		RelayAddress:  "doesntexistok.com:8381",

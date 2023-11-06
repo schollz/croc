@@ -665,12 +665,12 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 			err = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, err)
 			log.Debug(err)
 			errchan <- err
+		} else {
+			log.Debugf("banner: %s", banner)
+			log.Debugf("connection established: %+v", conn)
+
+			c.listenToMainConn(conn, ipaddr, banner, errchan)
 		}
-
-		log.Debugf("banner: %s", banner)
-		log.Debugf("connection established: %+v", conn)
-
-		c.listenToMainConn(conn, ipaddr, banner, errchan)
 	}
 
 	err = <-errchan
@@ -966,7 +966,7 @@ func (c *Client) transfer() (err error) {
 		}
 	}
 
-	if c.Options.Stdout && !c.Options.IsSender {
+	if c.Options.Stdout && !c.Options.IsSender && c.FilesToTransfer != nil && len(c.FilesToTransfer) > 0 {
 		pathToFile := path.Join(
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,

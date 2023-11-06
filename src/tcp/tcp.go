@@ -294,8 +294,8 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	room = string(roomBytes)
 
 	s.rooms.Lock()
-	if _, ok := s.rooms.rooms[room]; !ok {
-		if isSender {
+	if isSender {
+		if _, ok := s.rooms.rooms[room]; !ok {
 			// create the room if it is new
 			err = s.createRoom(c, room, strongKeyForEncryption)
 			if err != nil {
@@ -304,21 +304,27 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 			// sender is done
 			return
 		} else {
-			// if the room does not exist and the client is a receiver, then tell them
-			// that the room does not exist
-			s.rooms.Unlock()
-			bSend, err = crypt.Encrypt([]byte(noRoom), strongKeyForEncryption)
-			if err != nil {
-				return
-			}
-			err = c.Send(bSend)
-			if err != nil {
-				log.Error(err)
-				return
-			}
-
-			return "", fmt.Errorf("reciever tried to connect to room that does not exist")
+			// if the room already exists, then tell the client that the room is full
+			err = s.sendRoomIsFull(c, strongKeyForEncryption)
+			return
 		}
+	}
+
+	if _, ok := s.rooms.rooms[room]; !ok {
+		// if the room does not exist and the client is a receiver, then tell them
+		// that the room does not exist
+		s.rooms.Unlock()
+		bSend, err = crypt.Encrypt([]byte(noRoom), strongKeyForEncryption)
+		if err != nil {
+			return
+		}
+		err = c.Send(bSend)
+		if err != nil {
+			log.Error(err)
+			return
+		}
+
+		return "", fmt.Errorf("reciever tried to connect to room that does not exist")
 	} else if s.rooms.rooms[room].transfering {
 		// if the room has a transfer going on
 		if s.rooms.rooms[room].maxTransfers > 1 {
@@ -330,16 +336,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 			}
 		} else {
 			// otherwise, tell the client that the room is full
-			s.rooms.Unlock()
-			bSend, err = crypt.Encrypt([]byte(fullRoom), strongKeyForEncryption)
-			if err != nil {
-				return
-			}
-			err = c.Send(bSend)
-			if err != nil {
-				log.Error(err)
-				return
-			}
+			err = s.sendRoomIsFull(c, strongKeyForEncryption)
 			return
 		}
 	} else {
@@ -362,6 +359,20 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		log.Error(err)
 	}
 
+	return
+}
+
+func (s *server) sendRoomIsFull(c *comm.Comm, strongKeyForEncryption []byte) (err error) {
+	s.rooms.Unlock()
+	bSend, err := crypt.Encrypt([]byte(fullRoom), strongKeyForEncryption)
+	if err != nil {
+		return
+	}
+	err = c.Send(bSend)
+	if err != nil {
+		log.Error(err)
+		return
+	}
 	return
 }
 
