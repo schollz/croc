@@ -17,6 +17,7 @@ Status"></a>
 - provides **end-to-end encryption** (using PAKE)
 - enables easy **cross-platform** transfers (Windows, Linux, Mac)
 - allows **multiple file** transfers
+- allows **multiple sequential** transfers 
 - allows **resuming transfers** that are interrupted
 - local server or port-forwarding **not needed**
 - **ipv6-first** with ipv4 fallback
@@ -134,6 +135,33 @@ The code phrase is used to establish password-authenticated key agreement ([PAKE
 
 There are a number of configurable options (see `--help`). A set of options (like custom relay, ports, and code phrase) can be set using `--remember`.
 
+### Transfer on LAN only
+
+You can transfer files using only local connections.
+
+```
+crorc --local send [file(s)-or-folder]
+```
+
+### Allow multiple sequential transfers
+
+By default, after a transfer was done the program stops.
+You can allow more than one transfer to happen (one after another) by using the `--multuple` flag which requires a value >= 1.
+
+```
+croc send --multiple [nr-of-transfers] [file(s)-or-folder]
+```
+
+After all `[nr-of-transfers]` were done, the program will stop. To prevent keeping the program running forever if not all transfers
+possibilities are used, a timeout is set on the connection with the relay. By default, this `timeout` is set to `30 seconds`, which is 
+likely not enough. If you want to keep the connection alive for more time you can use the `--timeout` flag like this:
+
+```
+croc send --timeout [nr-of-seconds] (--multiple [nr-of-transfers]) [file(s)-or-folder]
+```
+
+*NOTE*: You can't keep the connection alive for more than `1 hour`.
+
 ### Custom code phrase
 
 You can send with your own code phrase (must be more than 6 characters).
@@ -213,7 +241,7 @@ The relay is needed to staple the parallel incoming and outgoing connections. By
 croc relay
 ```
 
-By default it uses TCP ports 9009-9013. Make sure to open those up. You can customize the ports (e.g. `croc relay --ports 1111,1112`), but you must have a minimum of **2** ports for the relay. The first port is for communication and the subsequent ports are used for the multiplexed data transfer.
+By default it uses TCP ports 9009-9013. Make sure to open those up. You can customized the ports (e.g. `croc relay --ports 1111,1112`), but you must have a minimum of **2** ports for the relay. The first port is for communication and the subsequent ports are used for the multiplexed data transfer.
 
 You can send files using your relay by entering `--relay` to change the relay that you are using if you want to custom host your own.
 

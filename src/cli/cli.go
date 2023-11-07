@@ -44,7 +44,6 @@ func Run() (err error) {
 	app.UsageText = `Send a file:
       croc send file.txt
 
-      -git to respect your .gitignore
    Send multiple files:
       croc send file1.txt file2.txt file3.txt
     or
@@ -66,14 +65,13 @@ func Run() (err error) {
 			ArgsUsage:   "[filename(s) or folder]",
 			Flags: []cli.Flag{
 				&cli.BoolFlag{Name: "zip", Usage: "zip folder before sending"},
-				&cli.IntFlag{Name: "timelimit", Value: 5, Usage: "timelimit in secods for sender to allow all transfers"},
+				&cli.IntFlag{Name: "timelimit", Value: 30, Usage: "timelimit in secods for sender to allow all transfers"},
 				&cli.IntFlag{Name: "multiple", Value: 1, Usage: "maximum number of transfers"},
 				&cli.StringFlag{Name: "code", Aliases: []string{"c"}, Usage: "codephrase used to connect to relay"},
 				&cli.StringFlag{Name: "hash", Value: "xxhash", Usage: "hash algorithm (xxhash, imohash, md5)"},
 				&cli.StringFlag{Name: "text", Aliases: []string{"t"}, Usage: "send some text"},
 				&cli.BoolFlag{Name: "no-local", Usage: "disable local relay when sending"},
 				&cli.BoolFlag{Name: "no-multi", Usage: "disable multiplexing"},
-				&cli.BoolFlag{Name: "git", Usage: "enable .gitignore respect / don't send ignored files"},
 				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the local relay (optional)"},
 			},
 			HelpName: "croc send",
@@ -204,20 +202,25 @@ func send(c *cli.Context) (err error) {
 		HashAlgorithm:  c.String("hash"),
 		ThrottleUpload: c.String("throttleUpload"),
 		ZipFolder:      c.Bool("zip"),
-		GitIgnore:      c.Bool("git"),
 	}
 
 	if crocOptions.TimeLimit <= 0 {
-		fmt.Println("timelimit must be greater than 0. Defaulting to 360 seconds.")
-		crocOptions.TimeLimit = 5
+		fmt.Println("timelimit must be greater than 0. Defaulting to 30 seconds.")
+		crocOptions.TimeLimit = 30
 	} else if crocOptions.TimeLimit > 3600 {
 		fmt.Println("timelimit must be less than 3600. Defaulting to 30 seconds.")
-		crocOptions.TimeLimit = 5
+		crocOptions.TimeLimit = 30
 	}
+
 	if crocOptions.MaxTransfers <= 0 {
 		fmt.Println("multiple must be greater than 0. Defaulting to 1 transfers.")
 		crocOptions.MaxTransfers = 1
+	} else if crocOptions.MaxTransfers > 1 {
+		fmt.Println("Allowing multiple transfers.")
+		fmt.Println("The connection will stay open until all transfers are complete, or the timelimit is reached.")
+		fmt.Printf("The current timelimit is %d seconds.\n", crocOptions.TimeLimit)
 	}
+
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
 	} else if crocOptions.RelayAddress6 != models.DEFAULT_RELAY6 {
@@ -263,9 +266,6 @@ func send(c *cli.Context) (err error) {
 		if !c.IsSet("hash") {
 			crocOptions.HashAlgorithm = rememberedOptions.HashAlgorithm
 		}
-		if !c.IsSet("git") {
-			crocOptions.GitIgnore = rememberedOptions.GitIgnore
-		}
 	}
 
 	var fnames []string
@@ -304,7 +304,7 @@ func send(c *cli.Context) (err error) {
 		// generate code phrase
 		crocOptions.SharedSecret = utils.GetRandomName()
 	}
-	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfo(fnames, crocOptions.ZipFolder, crocOptions.GitIgnore)
+	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfo(fnames, crocOptions.ZipFolder)
 	if err != nil {
 		return
 	}
