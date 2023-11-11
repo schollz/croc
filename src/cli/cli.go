@@ -44,7 +44,7 @@ func Run() (err error) {
 	app.UsageText = `Send a file:
       croc send file.txt
 
-	  -git to respect your .gitignore
+	-git to respect your .gitignore
    Send multiple files:
       croc send file1.txt file2.txt file3.txt
     or
