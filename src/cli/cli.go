@@ -304,7 +304,7 @@ func send(c *cli.Context) (err error) {
 		// generate code phrase
 		crocOptions.SharedSecret = utils.GetRandomName()
 	}
-	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfo(fnames, crocOptions.ZipFolder)
+	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfo(fnames, crocOptions.ZipFolder, crocOptions.GitIgnore)
 	if err != nil {
 		return
 	}
