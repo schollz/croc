@@ -614,7 +614,12 @@ func (c *Client) transferOverLocalRelay(errchan chan error) {
 			log.Debugf("[%+v] had error: %s", conn, errConn.Error())
 			break
 		}
-		if bytes.Equal(data, handshakeRequest) {
+		if bytes.Equal(data, ipRequest) {
+			log.Debug("Got ip request, sending nil since we are local")
+			if err = conn.Send(nil); err != nil {
+				log.Errorf("error sending: %v", err)
+			}
+		} else if bytes.Equal(data, handshakeRequest) {
 			wgTransfer.Add(1)
 			go c.makeLocalTransfer(conn, ipaddr, banner, errchan)
 			wgTransfer.Wait()
@@ -989,7 +994,7 @@ func (c *Client) Receive() (err error) {
 				}
 
 				serverTry := net.JoinHostPort(ip, port)
-				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.SharedSecret[:3], c.Options.IsSender, true, 1, 500*time.Millisecond)
+				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.SharedSecret[:3], c.Options.IsSender, false, 1, 500*time.Millisecond)
 				if errConn != nil {
 					log.Debug(errConn)
 					log.Debugf("could not connect to " + serverTry)
@@ -1009,6 +1014,7 @@ func (c *Client) Receive() (err error) {
 		}
 	}
 
+	log.Debug("sending handshake message")
 	if err = c.conn[0].Send(handshakeRequest); err != nil {
 		log.Errorf("handshake send error: %v", err)
 	}
@@ -1037,6 +1043,7 @@ func (c *Client) transfer() (err error) {
 	// if recipient, initialize with sending pake information
 	log.Debug("ready")
 	if !c.Options.IsSender && !c.Step1ChannelSecured {
+		log.Debug("sending pake information")
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:   message.TypePAKE,
 			Bytes:  c.Pake.Bytes(),

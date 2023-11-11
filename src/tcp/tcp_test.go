@@ -33,18 +33,6 @@ func TestTCPServerPing(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-// Test that a reeciver cannot connect to a non-existent room
-func TestTCPServerNonExistentRoom(t *testing.T) {
-	log.SetLevel("error")
-	go Run("debug", "127.0.0.1", "8381", "pass123", "8382")
-	time.Sleep(100 * time.Millisecond)
-
-	c1, _, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", false, true, 1)
-	assert.NotNil(t, err)
-	assert.True(t, strings.Contains(err.Error(), "room does not exist"))
-	assert.Nil(t, c1)
-}
-
 // This is helper function to test that a mocks a transfer
 // between two clients connected to the server,
 // and checks that the data is transferred correctly
@@ -94,6 +82,28 @@ func TestTCPServerSingleConnectionTransfer(t *testing.T) {
 
 	c1.Close()
 	c2.Close()
+	time.Sleep(300 * time.Millisecond)
+}
+
+// Test that a receiver can connect before a sender
+func TestTCPRecieverFirst(t *testing.T) {
+	log.SetLevel("error")
+	go Run("debug", "127.0.0.1", "8381", "pass123", "8382")
+	time.Sleep(100 * time.Millisecond)
+
+	receiver, banner, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", false, true, 1, 1*time.Minute)
+	assert.Nil(t, err)
+	assert.NotNil(t, receiver)
+	assert.Equal(t, banner, "8382")
+
+	sender, _, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", true, true, 1, 1*time.Minute)
+	assert.Nil(t, err)
+	assert.NotNil(t, sender)
+
+	mockTransfer(receiver, sender, t)
+
+	receiver.Close()
+	sender.Close()
 	time.Sleep(300 * time.Millisecond)
 }
 
@@ -237,26 +247,15 @@ func TestTCPMultipleConnectionWaitingRoomCloses(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, c2)
 
-	// we need to run this transfer in a goroutine because
-	// otherwise connections will be idle and the server will
-	// close them when we try to connect a third client
 	go func() {
-		counter := 1
-		time.Sleep(100 * time.Millisecond)
-		for {
-			mockTransfer(c1, c2, t)
-			if counter == 5 {
-				c2.Close()
-				// tell c1 to close pipe listener
-				c1.Send([]byte("finished"))
-				break
-			}
-			counter++
-		}
+		c3, _, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", false, true, 1, 5*time.Minute)
+		assert.NotNil(t, err)
+		assert.True(t, strings.Contains(err.Error(), "sender is gone"))
+		assert.Nil(t, c3)
 	}()
 
-	c3, _, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", false, true, 1, 5*time.Minute)
-	assert.NotNil(t, err)
-	assert.True(t, strings.Contains(err.Error(), "sender is gone"))
-	assert.Nil(t, c3)
+	time.Sleep(100 * time.Millisecond)
+	c2.Close()
+	// tell c1 to close pipe listener
+	c1.Send([]byte("finished"))
 }

@@ -35,7 +35,6 @@ type roomInfo struct {
 	maxTransfers  int
 	doneTransfers int
 	opened        time.Time
-	transfering   bool
 }
 
 type roomMap struct {
@@ -293,39 +292,36 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	}
 	room = string(roomBytes)
 
-	s.rooms.Lock()
-	if isSender {
-		if _, ok := s.rooms.rooms[room]; !ok {
-			// create the room if it is new
-			err = s.createRoom(c, room, strongKeyForEncryption)
-			if err != nil {
-				log.Error(err)
-			}
-			// sender is done
-			return
-		} else {
-			// if the room already exists, then tell the client that the room is full
-			err = s.sendRoomIsFull(c, strongKeyForEncryption)
-			return
-		}
+	log.Debug("Check if this is a main room")
+	enc, err = c.Receive()
+	if err != nil {
+		return
 	}
+	data, err = crypt.Decrypt(enc, strongKeyForEncryption)
+	if err != nil {
+		return
+	}
+	if !bytes.Equal(data, []byte("main")) && !bytes.Equal(data, []byte("secondary")) {
+		err = fmt.Errorf("got bad response: %s", data)
+		return
+	}
+	isMainRoom := bytes.Equal(data, []byte("main"))
+	log.Debugf("isMainRoom: %v", isMainRoom)
 
-	if _, ok := s.rooms.rooms[room]; !ok {
-		// if the room does not exist and the client is a receiver, then tell them
-		// that the room does not exist
-		s.rooms.Unlock()
-		bSend, err = crypt.Encrypt([]byte(noRoom), strongKeyForEncryption)
-		if err != nil {
-			return
-		}
-		err = c.Send(bSend)
+	s.rooms.Lock()
+	_, roomExists := s.rooms.rooms[room]
+	// create the room if it is new
+	if !roomExists || isSender {
+		err = s.createOrUpdateRoom(c, room, strongKeyForEncryption, isMainRoom, isSender, roomExists)
 		if err != nil {
 			log.Error(err)
-			return
 		}
 
-		return "", fmt.Errorf("reciever tried to connect to room that does not exist")
-	} else if s.rooms.rooms[room].transfering {
+		// if the room is new then return
+		if !roomExists {
+			return
+		}
+	} else if s.rooms.rooms[room].receiver != nil {
 		// if the room has a transfer going on
 		if s.rooms.rooms[room].maxTransfers > 1 {
 			// if the room is a multi-transfer room then add to queue
@@ -349,7 +345,6 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 			maxTransfers:  s.rooms.rooms[room].maxTransfers,
 			doneTransfers: s.rooms.rooms[room].doneTransfers,
 			opened:        s.rooms.rooms[room].opened,
-			transfering:   true,
 		}
 		s.rooms.roomLocks[room].Lock()
 	}
@@ -376,26 +371,11 @@ func (s *server) sendRoomIsFull(c *comm.Comm, strongKeyForEncryption []byte) (er
 	return
 }
 
-func (s *server) createRoom(c *comm.Comm, room string, strongKeyForEncryption []byte) (err error) {
+func (s *server) createOrUpdateRoom(c *comm.Comm, room string, strongKeyForEncryption []byte, isMainRoom, isSender, updateRoom bool) (err error) {
 	var enc, data, bSend []byte
-	log.Debug("Check if this is a main room")
-	enc, err = c.Receive()
-	if err != nil {
-		return
-	}
-	data, err = crypt.Decrypt(enc, strongKeyForEncryption)
-	if err != nil {
-		return
-	}
-	if !bytes.Equal(data, []byte("main")) && !bytes.Equal(data, []byte("secondary")) {
-		err = fmt.Errorf("got bad response: %s", data)
-		return
-	}
-	isMainRoom := bytes.Equal(data, []byte("main"))
-	log.Debugf("isMainRoom: %v", isMainRoom)
 
 	maxTransfers := 1
-	if isMainRoom {
+	if isMainRoom && isSender {
 		log.Debug("Wait for maxTransfers")
 		enc, err = c.Receive()
 		if err != nil {
@@ -413,29 +393,53 @@ func (s *server) createRoom(c *comm.Comm, room string, strongKeyForEncryption []
 		log.Debugf("maxTransfers: %v", maxTransfers)
 	}
 
+	var sender, receiver *comm.Comm
+	var queue *list.List
+	opened := time.Now()
+	if isSender {
+		sender = c
+		if updateRoom {
+			receiver = s.rooms.rooms[room].receiver
+			queue = s.rooms.rooms[room].queue
+			opened = s.rooms.rooms[room].opened
+		}
+	} else {
+		receiver = c
+		if updateRoom {
+			sender = s.rooms.rooms[room].sender
+			queue = s.rooms.rooms[room].queue
+			opened = s.rooms.rooms[room].opened
+		}
+	}
+
 	s.rooms.rooms[room] = roomInfo{
-		sender:        c,
-		receiver:      nil,
+		sender:        sender,
+		receiver:      receiver,
+		queue:         queue,
 		isMainRoom:    isMainRoom,
 		maxTransfers:  maxTransfers,
 		doneTransfers: 0,
-		opened:        time.Now(),
+		opened:        opened,
 	}
-	s.rooms.roomLocks[room] = &sync.Mutex{}
-	s.rooms.Unlock()
 
-	// tell the client that they got the room
-	bSend, err = crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
-	if err != nil {
-		return
+	if !updateRoom {
+		log.Debugf("Client crated main room %s, %v", room, isSender)
+		s.rooms.roomLocks[room] = &sync.Mutex{}
+		// tell the client that they got the room
+		bSend, err = crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
+		if err != nil {
+			return
+		}
+		err = c.Send(bSend)
+		if err != nil {
+			log.Error(err)
+			s.deleteRoom(room)
+			return
+		}
+		log.Debugf("room %s has 1", room)
+		s.rooms.Unlock()
 	}
-	err = c.Send(bSend)
-	if err != nil {
-		log.Error(err)
-		s.deleteRoom(room)
-		return
-	}
-	log.Debugf("room %s has 1", room)
+
 	return
 }
 
@@ -455,7 +459,6 @@ func (s *server) handleWaitingRoomForReceivers(c *comm.Comm, room string, strong
 		maxTransfers:  s.rooms.rooms[room].maxTransfers,
 		doneTransfers: s.rooms.rooms[room].doneTransfers,
 		queue:         queue,
-		transfering:   true,
 	}
 	s.rooms.Unlock()
 
@@ -500,7 +503,6 @@ func (s *server) handleWaitingRoomForReceivers(c *comm.Comm, room string, strong
 				maxTransfers:  s.rooms.rooms[room].maxTransfers,
 				doneTransfers: s.rooms.rooms[room].doneTransfers,
 				opened:        s.rooms.rooms[room].opened,
-				transfering:   true,
 			}
 			break
 		}
@@ -509,7 +511,6 @@ func (s *server) handleWaitingRoomForReceivers(c *comm.Comm, room string, strong
 }
 
 func (s *server) beginTransfer(c *comm.Comm, room string, strongKeyForEncryption []byte) (err error) {
-	otherConnection := s.rooms.rooms[room].sender
 	s.rooms.Unlock()
 
 	// second connection is the sender, time to staple connections
@@ -522,9 +523,10 @@ func (s *server) beginTransfer(c *comm.Comm, room string, strongKeyForEncryption
 		pipe(com1.Connection(), com2.Connection())
 		wg.Done()
 		log.Debug("done piping")
-	}(otherConnection, c, &wg)
+	}(s.rooms.rooms[room].sender, s.rooms.rooms[room].receiver, &wg)
 
-	// tell the receiver everything is ready
+	// tell the client everything is ready
+	log.Debug("sending ok to client")
 	bSend, err := crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
 	if err != nil {
 		return
@@ -544,6 +546,7 @@ func (s *server) beginTransfer(c *comm.Comm, room string, strongKeyForEncryption
 	if s.rooms.rooms[room].queue != nil {
 		lengthOfQueue = s.rooms.rooms[room].queue.Len()
 	}
+	log.Debugf("room %s has %d left in queue", room, lengthOfQueue)
 	s.rooms.rooms[room] = roomInfo{
 		sender:        s.rooms.rooms[room].sender,
 		receiver:      nil,
@@ -552,7 +555,6 @@ func (s *server) beginTransfer(c *comm.Comm, room string, strongKeyForEncryption
 		maxTransfers:  s.rooms.rooms[room].maxTransfers,
 		doneTransfers: newDoneTransfers,
 		opened:        s.rooms.rooms[room].opened,
-		transfering:   lengthOfQueue > 0 && newDoneTransfers < s.rooms.rooms[room].maxTransfers,
 	}
 	s.rooms.Unlock()
 
@@ -799,13 +801,25 @@ func ConnectToTCPServer(address, password, room string, isSender, isMainRoom boo
 		return
 	}
 
-	if isSender {
-		log.Debug("tell server if this is a main room")
-		roomType := "secondary"
-		if isMainRoom {
-			roomType = "main"
-		}
-		bSend, err = crypt.Encrypt([]byte(roomType), strongKeyForEncryption)
+	log.Debug("tell server if this is a main room")
+	roomType := "secondary"
+	if isMainRoom {
+		roomType = "main"
+	}
+	bSend, err = crypt.Encrypt([]byte(roomType), strongKeyForEncryption)
+	if err != nil {
+		log.Debug(err)
+		return
+	}
+	err = c.Send(bSend)
+	if err != nil {
+		log.Debug(err)
+		return
+	}
+
+	if isMainRoom && isSender {
+		log.Debug("tell server maxTransfers")
+		bSend, err = crypt.Encrypt([]byte(strconv.Itoa(maxTransfers)), strongKeyForEncryption)
 		if err != nil {
 			log.Debug(err)
 			return
@@ -814,20 +828,6 @@ func ConnectToTCPServer(address, password, room string, isSender, isMainRoom boo
 		if err != nil {
 			log.Debug(err)
 			return
-		}
-
-		if isMainRoom {
-			log.Debug("tell server maxTransfers")
-			bSend, err = crypt.Encrypt([]byte(strconv.Itoa(maxTransfers)), strongKeyForEncryption)
-			if err != nil {
-				log.Debug(err)
-				return
-			}
-			err = c.Send(bSend)
-			if err != nil {
-				log.Debug(err)
-				return
-			}
 		}
 	}
 
