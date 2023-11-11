@@ -266,6 +266,9 @@ func send(c *cli.Context) (err error) {
 		if !c.IsSet("hash") {
 			crocOptions.HashAlgorithm = rememberedOptions.HashAlgorithm
 		}
+		if !c.IsSet("git") {
+			crocOptions.GitIgnore = rememberedOptions.GitIgnore
+		}
 	}
 
 	var fnames []string

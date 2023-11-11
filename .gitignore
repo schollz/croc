@@ -6,8 +6,6 @@ bash_autocomplete
 dist
 bin
 croc-stdin*
-/transfer_folder
-/test
 
 .idea/
 .vscode/
