@@ -35,15 +35,15 @@ func TestTCPServerPing(t *testing.T) {
 
 func TestOnlyOneSenderPerRoom(t *testing.T) {
 	log.SetLevel("error")
-	go Run("debug", "127.0.0.1", "8281", "pass123", "8382")
+	go Run("debug", "127.0.0.1", "8280", "pass123", "8382")
 	time.Sleep(100 * time.Millisecond)
 
-	c1, banner, _, err := ConnectToTCPServer("127.0.0.1:8281", "pass123", "testRoom", true, true, 1, 1*time.Minute)
+	c1, banner, _, err := ConnectToTCPServer("127.0.0.1:8280", "pass123", "testRoom", true, true, 1, 1*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, c1)
 	assert.Equal(t, banner, "8382")
 
-	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8281", "pass123", "testRoom", true, true, 1, 1*time.Minute)
+	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8280", "pass123", "testRoom", true, true, 1, 1*time.Minute)
 	assert.NotNil(t, err)
 	assert.True(t, strings.Contains(err.Error(), "room is full"))
 	assert.Nil(t, c2)
@@ -85,15 +85,15 @@ func mockTransfer(c1, c2 *comm.Comm, t *testing.T) {
 // Test that a successful transfer can be made
 func TestTCPServerSingleConnectionTransfer(t *testing.T) {
 	log.SetLevel("error")
-	go Run("debug", "127.0.0.1", "8381", "pass123", "8382")
+	go Run("debug", "127.0.0.1", "8281", "pass123", "8382")
 	time.Sleep(100 * time.Millisecond)
 
-	c1, banner, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", true, true, 1, 1*time.Minute)
+	c1, banner, _, err := ConnectToTCPServer("127.0.0.1:8281", "pass123", "testRoom", true, true, 1, 1*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, c1)
 	assert.Equal(t, banner, "8382")
 
-	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", false, true, 1)
+	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8281", "pass123", "testRoom", false, true, 1)
 	assert.Nil(t, err)
 	assert.NotNil(t, c2)
 
@@ -107,15 +107,15 @@ func TestTCPServerSingleConnectionTransfer(t *testing.T) {
 // Test that a receiver can connect before a sender
 func TestTCPRecieverFirst(t *testing.T) {
 	log.SetLevel("error")
-	go Run("debug", "127.0.0.1", "8381", "pass123", "8382")
+	go Run("debug", "127.0.0.1", "8383", "pass123", "8382")
 	time.Sleep(100 * time.Millisecond)
 
-	receiver, banner, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", false, true, 1, 1*time.Minute)
+	receiver, banner, _, err := ConnectToTCPServer("127.0.0.1:8383", "pass123", "testRoom", false, true, 1, 1*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, receiver)
 	assert.Equal(t, banner, "8382")
 
-	sender, _, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", true, true, 1, 1*time.Minute)
+	sender, _, _, err := ConnectToTCPServer("127.0.0.1:8383", "pass123", "testRoom", true, true, 1, 1*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, sender)
 
@@ -131,15 +131,15 @@ func TestTCPRecieverFirst(t *testing.T) {
 // connected to it with maxTransfers=1
 func TestTCPSingleConnectionOnly2Clients(t *testing.T) {
 	log.SetLevel("error")
-	go Run("debug", "127.0.0.1", "8381", "pass123", "8382")
+	go Run("debug", "127.0.0.1", "8384", "pass123", "8382")
 	time.Sleep(100 * time.Millisecond)
 
-	c1, banner, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", true, true, 1, 10*time.Minute)
+	c1, banner, _, err := ConnectToTCPServer("127.0.0.1:8384", "pass123", "testRoom", true, true, 1, 10*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, c1)
 	assert.Equal(t, banner, "8382")
 
-	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", false, true, 1, 10*time.Minute)
+	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8384", "pass123", "testRoom", false, true, 1, 10*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, c2)
 	closeChan := make(chan int)
@@ -159,7 +159,7 @@ func TestTCPSingleConnectionOnly2Clients(t *testing.T) {
 		}
 	}()
 
-	c3, _, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", false, true, 1, 5*time.Minute)
+	c3, _, _, err := ConnectToTCPServer("127.0.0.1:8384", "pass123", "testRoom", false, true, 1, 5*time.Minute)
 	assert.NotNil(t, err)
 	assert.True(t, strings.Contains(err.Error(), "room is full"))
 	assert.Nil(t, c3)
@@ -170,15 +170,15 @@ func TestTCPSingleConnectionOnly2Clients(t *testing.T) {
 // successive transfers from the same sender
 func TestTCPMultipleConnectionTransfer(t *testing.T) {
 	log.SetLevel("error")
-	go Run("debug", "127.0.0.1", "8383", "pass123", "8382")
+	go Run("debug", "127.0.0.1", "8385", "pass123", "8382")
 	time.Sleep(100 * time.Millisecond)
 
-	c1, banner, _, err := ConnectToTCPServer("127.0.0.1:8383", "pass123", "testRoom", true, true, 2, 10*time.Minute)
+	c1, banner, _, err := ConnectToTCPServer("127.0.0.1:8385", "pass123", "testRoom", true, true, 2, 10*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, c1)
 	assert.Equal(t, banner, "8382")
 
-	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8383", "pass123", "testRoom", false, true, 1, 10*time.Minute)
+	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8385", "pass123", "testRoom", false, true, 1, 10*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, c2)
 
@@ -188,7 +188,7 @@ func TestTCPMultipleConnectionTransfer(t *testing.T) {
 	c1.Send([]byte("finished"))
 	time.Sleep(100 * time.Millisecond)
 
-	c3, _, _, err := ConnectToTCPServer("127.0.0.1:8383", "pass123", "testRoom", false, true, 1, 5*time.Minute)
+	c3, _, _, err := ConnectToTCPServer("127.0.0.1:8385", "pass123", "testRoom", false, true, 1, 5*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, c3)
 
@@ -201,15 +201,15 @@ func TestTCPMultipleConnectionTransfer(t *testing.T) {
 // to connect when the transfer is finished
 func TestTCPMultipleConnectionWaitingRoom(t *testing.T) {
 	log.SetLevel("error")
-	go Run("debug", "127.0.0.1", "8384", "pass123", "8382")
+	go Run("debug", "127.0.0.1", "8386", "pass123", "8382")
 	time.Sleep(100 * time.Millisecond)
 
-	c1, banner, _, err := ConnectToTCPServer("127.0.0.1:8384", "pass123", "testRoom", true, true, 2, 10*time.Minute)
+	c1, banner, _, err := ConnectToTCPServer("127.0.0.1:8386", "pass123", "testRoom", true, true, 2, 10*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, c1)
 	assert.Equal(t, banner, "8382")
 
-	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8384", "pass123", "testRoom", false, true, 1, 10*time.Minute)
+	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8386", "pass123", "testRoom", false, true, 1, 10*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, c2)
 
@@ -231,7 +231,7 @@ func TestTCPMultipleConnectionWaitingRoom(t *testing.T) {
 		}
 	}()
 
-	c3, _, _, err := ConnectToTCPServer("127.0.0.1:8384", "pass123", "testRoom", false, true, 1, 5*time.Minute)
+	c3, _, _, err := ConnectToTCPServer("127.0.0.1:8386", "pass123", "testRoom", false, true, 1, 5*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, c3)
 
@@ -244,15 +244,15 @@ func TestTCPMultipleConnectionWaitingRoom(t *testing.T) {
 // when the sender the maxTransfers limit is reached
 func TestTCPMultipleConnectionWaitingRoomCloses(t *testing.T) {
 	log.SetLevel("error")
-	go Run("debug", "127.0.0.1", "8380", "pass123", "8382")
+	go Run("debug", "127.0.0.1", "8387", "pass123", "8382")
 	time.Sleep(100 * time.Millisecond)
 
-	c1, banner, _, err := ConnectToTCPServer("127.0.0.1:8380", "pass123", "testRoom", true, true, 2, 10*time.Minute)
+	c1, banner, _, err := ConnectToTCPServer("127.0.0.1:8387", "pass123", "testRoom", true, true, 2, 10*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, c1)
 	assert.Equal(t, banner, "8382")
 
-	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8380", "pass123", "testRoom", false, true, 1, 10*time.Minute)
+	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8387", "pass123", "testRoom", false, true, 1, 10*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, c2)
 
@@ -262,12 +262,12 @@ func TestTCPMultipleConnectionWaitingRoomCloses(t *testing.T) {
 	// tell c1 to close pipe listener
 	c1.Send([]byte("finished"))
 
-	c2, _, _, err = ConnectToTCPServer("127.0.0.1:8380", "pass123", "testRoom", false, true, 1, 10*time.Minute)
+	c2, _, _, err = ConnectToTCPServer("127.0.0.1:8387", "pass123", "testRoom", false, true, 1, 10*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, c2)
 
 	go func() {
-		c3, _, _, err := ConnectToTCPServer("127.0.0.1:8380", "pass123", "testRoom", false, true, 1, 5*time.Minute)
+		c3, _, _, err := ConnectToTCPServer("127.0.0.1:8387", "pass123", "testRoom", false, true, 1, 5*time.Minute)
 		assert.NotNil(t, err)
 		assert.True(t, strings.Contains(err.Error(), "sender is gone"))
 		assert.Nil(t, c3)
