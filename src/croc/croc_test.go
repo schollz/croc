@@ -277,7 +277,7 @@ func TestCrocLocal(t *testing.T) {
 		IsSender:      true,
 		TimeLimit:     30,
 		MaxTransfers:  1,
-		SharedSecret:  "8123-testingthecroc",
+		SharedSecret:  "2813-testingthecroc",
 		Debug:         true,
 		RelayAddress:  "127.0.0.1:8181",
 		RelayPorts:    []string{"8181", "8182"},
@@ -297,7 +297,7 @@ func TestCrocLocal(t *testing.T) {
 	log.Debug("setting up receiver")
 	receiver, err := New(Options{
 		IsSender:      false,
-		SharedSecret:  "8123-testingthecroc",
+		SharedSecret:  "2813-testingthecroc",
 		Debug:         true,
 		RelayAddress:  "127.0.0.1:8181",
 		RelayPassword: "pass123",
@@ -325,7 +325,7 @@ func TestCrocLocal(t *testing.T) {
 		}
 		wg.Done()
 	}()
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	go func() {
 		err := receiver.Receive()
 		if err != nil {

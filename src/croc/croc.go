@@ -606,7 +606,7 @@ func (c *Client) transferOverLocalRelay(errchan chan error) {
 		// not really an error because it will try to connect over the actual relay
 		return
 	}
-	log.Debugf("local connection established: %+v", conn)
+	log.Debugf("local sender connection established: %+v", conn)
 	err = nil
 	for {
 		data, errConn := conn.Receive()
@@ -800,7 +800,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 			errchan <- err
 		} else {
 			log.Debugf("banner: %s", banner)
-			log.Debugf("connection established: %+v", conn)
+			log.Debugf("sender connection established: %+v", conn)
 
 			c.listenToMainConn(conn, ipaddr, banner, errchan)
 		}
@@ -939,6 +939,7 @@ func (c *Client) Receive() (err error) {
 		c.conn[0], banner, c.ExternalIP, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.SharedSecret[:3], c.Options.IsSender, true, 1, time.Duration(c.Options.TimeLimit)*time.Second)
 		if err == nil {
 			c.Options.RelayAddress = address
+			log.Debug("receiver connection established")
 			break
 		}
 		log.Debugf("could not establish '%s'", address)

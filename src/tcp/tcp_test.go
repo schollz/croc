@@ -33,6 +33,22 @@ func TestTCPServerPing(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+func TestOnlyOneSenderPerRoom(t *testing.T) {
+	log.SetLevel("error")
+	go Run("debug", "127.0.0.1", "8381", "pass123", "8382")
+	time.Sleep(100 * time.Millisecond)
+
+	c1, banner, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", true, true, 1, 1*time.Minute)
+	assert.Nil(t, err)
+	assert.NotNil(t, c1)
+	assert.Equal(t, banner, "8382")
+
+	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", true, true, 1, 1*time.Minute)
+	assert.NotNil(t, err)
+	assert.True(t, strings.Contains(err.Error(), "room is full"))
+	assert.Nil(t, c2)
+}
+
 // This is helper function to test that a mocks a transfer
 // between two clients connected to the server,
 // and checks that the data is transferred correctly
