@@ -603,9 +603,7 @@ func (s *server) deleteRoom(room string) {
 		// signal to all waiting that the room will be deleted
 		for {
 			s.rooms.roomLocks[room].Unlock()
-			if s.rooms.rooms[room].queue.Len() == 0 {
-				break
-			}
+			time.Sleep(250 * time.Millisecond)
 			s.rooms.roomLocks[room].Lock()
 			// remove the client from the queue
 			newQueue := s.rooms.rooms[room].queue
@@ -618,6 +616,9 @@ func (s *server) deleteRoom(room string) {
 				maxTransfers:  s.rooms.rooms[room].maxTransfers,
 				doneTransfers: s.rooms.rooms[room].doneTransfers,
 				queue:         newQueue,
+			}
+			if s.rooms.rooms[room].queue.Len() == 0 {
+				break
 			}
 		}
 		delete(s.rooms.roomLocks, room)

@@ -85,15 +85,15 @@ func mockTransfer(c1, c2 *comm.Comm, t *testing.T) {
 // Test that a successful transfer can be made
 func TestTCPServerSingleConnectionTransfer(t *testing.T) {
 	log.SetLevel("error")
-	go Run("debug", "127.0.0.1", "8281", "pass123", "8382")
+	go Run("debug", "127.0.0.1", "8381", "pass123", "8382")
 	time.Sleep(100 * time.Millisecond)
 
-	c1, banner, _, err := ConnectToTCPServer("127.0.0.1:8281", "pass123", "testRoom", true, true, 1, 1*time.Minute)
+	c1, banner, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", true, true, 1, 1*time.Minute)
 	assert.Nil(t, err)
 	assert.NotNil(t, c1)
 	assert.Equal(t, banner, "8382")
 
-	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8281", "pass123", "testRoom", false, true, 1)
+	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8381", "pass123", "testRoom", false, true, 1)
 	assert.Nil(t, err)
 	assert.NotNil(t, c2)
 
@@ -164,6 +164,10 @@ func TestTCPSingleConnectionOnly2Clients(t *testing.T) {
 	assert.True(t, strings.Contains(err.Error(), "room is full"))
 	assert.Nil(t, c3)
 	closeChan <- 1
+
+	c1.Close()
+	c2.Close()
+	time.Sleep(300 * time.Millisecond)
 }
 
 // Test that the server can handle multiple
@@ -193,6 +197,10 @@ func TestTCPMultipleConnectionTransfer(t *testing.T) {
 	assert.NotNil(t, c3)
 
 	mockTransfer(c1, c3, t)
+
+	c1.Close()
+	c3.Close()
+	time.Sleep(300 * time.Millisecond)
 }
 
 // Test that for a room with maxTransfers>=2,
@@ -236,6 +244,11 @@ func TestTCPMultipleConnectionWaitingRoom(t *testing.T) {
 	assert.NotNil(t, c3)
 
 	mockTransfer(c1, c3, t)
+
+	c1.Close()
+	c2.Close()
+	c3.Close()
+	time.Sleep(300 * time.Millisecond)
 }
 
 // Test that for a room with maxTransfers>=2,
@@ -277,4 +290,6 @@ func TestTCPMultipleConnectionWaitingRoomCloses(t *testing.T) {
 	c2.Close()
 	// tell c1 to close pipe listener
 	c1.Send([]byte("finished"))
+	c1.Close()
+	time.Sleep(300 * time.Millisecond)
 }
