@@ -140,13 +140,13 @@ There are a number of configurable options (see `--help`). A set of options (lik
 You can transfer files using only local connections.
 
 ```
-crorc --local send [file(s)-or-folder]
+croc --local send [file(s)-or-folder]
 ```
 
 ### Allow multiple sequential transfers
 
-By default, after a transfer was done the program stops.
-You can allow more than one transfer to happen (one after another) by using the `--multuple` flag which requires a value >= 1.
+By default, after a transfer is done, the program stops.
+You can allow more than one transfer to happen (one after another) by using the `--multiple` flag, which requires a value >= 1.
 
 ```
 croc send --multiple [nr-of-transfers] [file(s)-or-folder]
