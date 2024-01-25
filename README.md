@@ -240,6 +240,13 @@ croc --pass YOURPASSWORD --relay "myreal.example.com:9009" send [filename]
 
 Note: when including `--pass YOURPASSWORD` you can instead pass a file with the password, e.g. `--pass FILEWITHPASSWORD`.
 
+## FAQ
+### Q: How Secure is croc? Is It Resistant To Bruteforcing Codes?
+> If when I send the file, I generate a code and on ANY other computer you can receive the file just by putting in the three word code, isn't it possible that a malicious actor just sits there and bruteforces files by putting in thousand or millions of codes?
+
+A: Answered in (issue #614)[https://github.com/schollz/croc/issues/614] .
+
+
 ## License
 
 MIT
