@@ -1,5 +1,5 @@
-FROM golang:1.19-alpine as builder
-RUN apk add --no-cache git
+FROM golang:1.20-alpine as builder
+RUN apk add --no-cache git gcc musl-dev
 WORKDIR /go/croc
 COPY . .
 RUN go build -v -ldflags="-s -w"
