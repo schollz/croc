@@ -528,7 +528,7 @@ main() {
   local autocomplete_install_rcode
 
   croc_bin_name="croc"
-  croc_version="9.6.6"
+  croc_version="9.6.7"
   croc_dl_ext="tar.gz"
   croc_base_url="https://github.com/schollz/croc/releases/download"
   prefix="${1}"
@@ -593,11 +593,11 @@ main() {
             * ) croc_arch="unknown";;
   esac
 
-  croc_file="${croc_bin_name}_${croc_version}_${croc_os}-${croc_arch}.${croc_dl_ext}"
-  croc_checksum_file="${croc_bin_name}_${croc_version}_checksums.txt"
+  croc_file="${croc_bin_name}_v${croc_version}_${croc_os}-${croc_arch}.${croc_dl_ext}"
+  croc_checksum_file="${croc_bin_name}_v${croc_version}_checksums.txt"
   croc_url="${croc_base_url}/v${croc_version}/${croc_file}"
   croc_checksum_url="${croc_base_url}/v${croc_version}/${croc_checksum_file}"
-
+  echo "${croc_url}" "${tmpdir}" "${croc_file}"
   download_file "${croc_url}" "${tmpdir}" "${croc_file}"
   download_file_rcode="${?}"
   if [[ "${download_file_rcode}" == "0" ]]; then
@@ -713,27 +713,27 @@ main() {
     exit 1
   fi
 
-  case "$(basename ${SHELL})" in
-    "bash" ) install_file_linux "${tmpdir}/${bash_autocomplete_file}" "${bash_autocomplete_prefix}/croc";
-             autocomplete_install_rcode="${?}";;
-     "zsh" ) install_file_linux "${tmpdir}/${zsh_autocomplete_file}" "${zsh_autocomplete_prefix}/zsh_autocomplete_croc";
-             autocomplete_install_rcode="${?}";
-             print_message "== You will need to add the following to your ~/.zshrc to enable autocompletion" "info";
-             print_message "\nPROG=croc\n_CLI_ZSH_AUTOCOMPLETE_HACK=1\nsource /etc/zsh/zsh_autocomplete_croc\n" "info";;
-     *)      autocomplete_install_rcode="1";;
-  esac
+  # case "$(basename ${SHELL})" in
+  #   "bash" ) install_file_linux "${tmpdir}/${bash_autocomplete_file}" "${bash_autocomplete_prefix}/croc";
+  #            autocomplete_install_rcode="${?}";;
+  #    "zsh" ) install_file_linux "${tmpdir}/${zsh_autocomplete_file}" "${zsh_autocomplete_prefix}/zsh_autocomplete_croc";
+  #            autocomplete_install_rcode="${?}";
+  #            print_message "== You will need to add the following to your ~/.zshrc to enable autocompletion" "info";
+  #            print_message "\nPROG=croc\n_CLI_ZSH_AUTOCOMPLETE_HACK=1\nsource /etc/zsh/zsh_autocomplete_croc\n" "info";;
+  #    *)      autocomplete_install_rcode="1";;
+  # esac
 
-  if [[ "${autocomplete_install_rcode}" == "0" ]] ; then
-    print_message "== Installed autocompletions for $(basename "${SHELL}")" "ok"
-  elif [[ "${autocomplete_install_rcode}" == "1" ]]; then
-    print_message "== Failed to install ${bash_autocomplete_file}" "error"
-  elif [[ "${autocomplete_install_rcode}" == "20" ]]; then
-    print_message "== Failed to locate 'install' command" "error"
-  elif [[ "${autocomplete_install_rcode}" == "21" ]]; then
-    print_message "== Failed to locate 'sudo' command" "error"
-  else
-    print_message "== Install attempt returned an unexpected value of ${autocomplete_install_rcode}" "error"
-  fi
+  # if [[ "${autocomplete_install_rcode}" == "0" ]] ; then
+  #   print_message "== Installed autocompletions for $(basename "${SHELL}")" "ok"
+  # elif [[ "${autocomplete_install_rcode}" == "1" ]]; then
+  #   print_message "== Failed to install ${bash_autocomplete_file}" "error"
+  # elif [[ "${autocomplete_install_rcode}" == "20" ]]; then
+  #   print_message "== Failed to locate 'install' command" "error"
+  # elif [[ "${autocomplete_install_rcode}" == "21" ]]; then
+  #   print_message "== Failed to locate 'sudo' command" "error"
+  # else
+  #   print_message "== Install attempt returned an unexpected value of ${autocomplete_install_rcode}" "error"
+  # fi
 
   print_message "== Installation complete" "ok"
   
