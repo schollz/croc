@@ -1,0 +1,73 @@
+name: Make release
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout project
+      uses: actions/checkout@v4
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+    - name: Prepare source tarball
+      run: |
+        git clone -b ${{ github.event.release.name }} --depth 1 https://github.com/schollz/croc croc-${{ github.event.release.name }}
+        cd croc-${{ github.event.release.name }} && go mod tidy && go mod vendor
+        cd .. && tar -czvf croc_${{ github.event.release.name }}_src.tar.gz croc-${{ github.event.release.name }}
+    - name: Build files
+      run: |
+        GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o croc.exe
+        zip croc_${{ github.event.release.name }}_Windows-64bit.zip croc.exe
+        GOOS=windows GOARCH=386 go build -ldflags="-s -w" -o croc.exe
+        zip croc_${{ github.event.release.name }}_Windows-32bit.zip croc.exe
+        GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o croc
+        upx --brute croc
+        tar -czvf croc_${{ github.event.release.name }}_Linux-64bit.tar.gz croc
+        GOOS=linux GOARCH=386 go build -ldflags="-s -w" -o croc
+        tar -czvf croc_${{ github.event.release.name }}_Linux-32bit.tar.gz croc
+        GOOS=linux GOARCH=arm go build -ldflags="-s -w" -o croc
+        upx --brute croc
+        tar -czvf croc_${{ github.event.release.name }}_Linux-ARM.tar.gz croc
+        GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o croc
+        upx --brute croc
+        tar -czvf croc_${{ github.event.release.name }}_Linux-ARM64.tar.gz croc
+        GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o croc
+        tar -czvf croc_${{ github.event.release.name }}_macOS-64bit.tar.gz croc
+        GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o croc
+        tar -czvf croc_${{ github.event.release.name }}_macOS-ARM64.tar.gz croc
+    - name: Create checksums.txt
+      run: |
+        touch croc_${{ github.event.release.name }}_checksums.txt
+        sha256sum croc_${{ github.event.release.name }}_src.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
+        sha256sum croc_${{ github.event.release.name }}_Windows-64bit.zip >> croc_${{ github.event.release.name }}_checksums.txt
+        sha256sum croc_${{ github.event.release.name }}_Windows-32bit.zip >> croc_${{ github.event.release.name }}_checksums.txt
+        sha256sum croc_${{ github.event.release.name }}_Linux-64bit.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
+        sha256sum croc_${{ github.event.release.name }}_Linux-32bit.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
+        sha256sum croc_${{ github.event.release.name }}_Linux-ARM.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
+        sha256sum croc_${{ github.event.release.name }}_Linux-ARM64.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
+        sha256sum croc_${{ github.event.release.name }}_macOS-64bit.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
+        sha256sum croc_${{ github.event.release.name }}_macOS-ARM64.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          croc_${{ github.event.release.name }}_checksums.txt
+          croc_${{ github.event.release.name }}_src.tar.gz
+          croc_${{ github.event.release.name }}_Windows-64bit.zip
+          croc_${{ github.event.release.name }}_Windows-32bit.zip
+          croc_${{ github.event.release.name }}_Linux-64bit.tar.gz
+          croc_${{ github.event.release.name }}_Linux-32bit.tar.gz
+          croc_${{ github.event.release.name }}_Linux-ARM.tar.gz
+          croc_${{ github.event.release.name }}_Linux-ARM64.tar.gz
+          croc_${{ github.event.release.name }}_macOS-64bit.tar.gz
+          croc_${{ github.event.release.name }}_macOS-ARM64.tar.gz 
+
