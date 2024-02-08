@@ -17,6 +17,16 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v4
       with:
+        go-version: '1.20'
+    - name: Build Windows 7
+      run: |
+        GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o croc.exe
+        zip croc_${{ github.event.release.name }}_Windows7-64bit.zip croc.exe
+        GOOS=windows GOARCH=386 go build -ldflags="-s -w" -o croc.exe
+        zip croc_${{ github.event.release.name }}_Windows7-32bit.zip croc.exe
+    - name: Setup Go
+      uses: actions/setup-go@v4
+      with:
         go-version: '1.22'
     - name: Prepare source tarball
       run: |
@@ -50,6 +60,8 @@ jobs:
         sha256sum croc_${{ github.event.release.name }}_src.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
         sha256sum croc_${{ github.event.release.name }}_Windows-64bit.zip >> croc_${{ github.event.release.name }}_checksums.txt
         sha256sum croc_${{ github.event.release.name }}_Windows-32bit.zip >> croc_${{ github.event.release.name }}_checksums.txt
+        sha256sum croc_${{ github.event.release.name }}_Windows7-64bit.zip >> croc_${{ github.event.release.name }}_checksums.txt
+        sha256sum croc_${{ github.event.release.name }}_Windows7-32bit.zip >> croc_${{ github.event.release.name }}_checksums.txt
         sha256sum croc_${{ github.event.release.name }}_Linux-64bit.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
         sha256sum croc_${{ github.event.release.name }}_Linux-32bit.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
         sha256sum croc_${{ github.event.release.name }}_Linux-ARM.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
@@ -64,6 +76,8 @@ jobs:
           croc_${{ github.event.release.name }}_src.tar.gz
           croc_${{ github.event.release.name }}_Windows-64bit.zip
           croc_${{ github.event.release.name }}_Windows-32bit.zip
+          croc_${{ github.event.release.name }}_Windows7-64bit.zip
+          croc_${{ github.event.release.name }}_Windows7-32bit.zip
           croc_${{ github.event.release.name }}_Linux-64bit.tar.gz
           croc_${{ github.event.release.name }}_Linux-32bit.tar.gz
           croc_${{ github.event.release.name }}_Linux-ARM.tar.gz
