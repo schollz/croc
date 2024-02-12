@@ -60,7 +60,8 @@ type Options struct {
 	Debug          bool
 	RelayAddress   string
 	RelayAddress6  string
-	RelayPorts     []string
+	BasePort       int
+	TransferPorts  int
 	RelayPassword  string
 	Stdout         bool
 	NoPrompt       bool
@@ -529,21 +530,26 @@ func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {
 
 func (c *Client) setupLocalRelay() {
 	// setup the relay locally
-	firstPort, _ := strconv.Atoi(c.Options.RelayPorts[0])
-	openPorts := utils.FindOpenPorts("127.0.0.1", firstPort, len(c.Options.RelayPorts))
-	if len(openPorts) < len(c.Options.RelayPorts) {
+	basePort := c.Options.BasePort
+	transferPorts := c.Options.TransferPorts
+	ports := make([]string, transferPorts+1)
+	for i := range ports {
+		ports[i] = strconv.Itoa(basePort + i)
+	}
+	openPorts := utils.FindOpenPorts("127.0.0.1", basePort, transferPorts+1)
+	if len(openPorts) < len(ports) {
 		panic("not enough open ports to run local relay")
 	}
 	for i, port := range openPorts {
-		c.Options.RelayPorts[i] = fmt.Sprint(port)
+		ports[i] = fmt.Sprint(port)
 	}
-	for _, port := range c.Options.RelayPorts {
+	for _, port := range ports {
 		go func(portStr string) {
 			debugString := "warn"
 			if c.Options.Debug {
 				debugString = "debug"
 			}
-			err := tcp.Run(debugString, "127.0.0.1", portStr, c.Options.RelayPassword, strings.Join(c.Options.RelayPorts[1:], ","))
+			err := tcp.Run(debugString, "127.0.0.1", portStr, c.Options.RelayPassword, fmt.Sprintf(strconv.Itoa(basePort)+","+strconv.Itoa(transferPorts)))
 			if err != nil {
 				panic(err)
 			}
@@ -562,7 +568,7 @@ func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 	// look for peers first
 	settings := peerdiscovery.Settings{
 		Limit:     -1,
-		Payload:   []byte("croc" + c.Options.RelayPorts[0]),
+		Payload:   []byte("croc" + strconv.Itoa(c.Options.BasePort)),
 		Delay:     20 * time.Millisecond,
 		TimeLimit: timeLimit,
 	}
@@ -582,10 +588,10 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 	time.Sleep(500 * time.Millisecond)
 	log.Debug("establishing connection")
 	var banner string
-	conn, banner, ipaddr, err := tcp.ConnectToTCPServer("127.0.0.1:"+c.Options.RelayPorts[0], c.Options.RelayPassword, c.Options.SharedSecret[:3])
+	conn, banner, ipaddr, err := tcp.ConnectToTCPServer("127.0.0.1:"+strconv.Itoa(c.Options.BasePort), c.Options.RelayPassword, c.Options.SharedSecret[:3])
 	log.Debugf("banner: %s", banner)
 	if err != nil {
-		err = fmt.Errorf("could not connect to 127.0.0.1:%s: %w", c.Options.RelayPorts[0], err)
+		err = fmt.Errorf("could not connect to 127.0.0.1:%s: %w", c.Options.BasePort, err)
 		log.Debug(err)
 		// not really an error because it will try to connect over the actual relay
 		return
@@ -604,10 +610,26 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 	c.conn[0] = conn
 	log.Debug("exchanged header message")
 	c.Options.RelayAddress = "127.0.0.1"
-	c.Options.RelayPorts = strings.Split(banner, ",")
+	var basePort, transferPorts int
+	banner_split := strings.Split(banner, ",")
+	if len(banner_split) != 2 {
+		panic(fmt.Sprintf("Expected port and number of transfer ports in banner: %v", banner))
+	}
+	basePort, err = strconv.Atoi(banner_split[0])
+	if err == nil {
+		c.Options.BasePort = basePort
+	} else {
+		panic(fmt.Sprintf("could not get transfer ports: %v", err))
+	}
+	transferPorts, err = strconv.Atoi(banner_split[1])
+	if err == nil {
+		c.Options.TransferPorts = transferPorts
+	} else {
+		panic(fmt.Sprintf("could not get transfer ports: %v", err))
+	}
 	if c.Options.NoMultiplexing {
 		log.Debug("no multiplexing")
-		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
+		c.Options.TransferPorts = 1
 	}
 	c.ExternalIP = ipaddr
 	errchan <- c.transfer()
@@ -705,7 +727,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 							log.Debugf("error getting local ips: %v", err)
 						}
 						// prepend the port that is being listened to
-						ips = append([]string{c.Options.RelayPorts[0]}, ips...)
+						ips = append([]string{strconv.Itoa(c.Options.BasePort)}, ips...)
 					}
 					bips, _ := json.Marshal(ips)
 					if err = conn.Send(bips); err != nil {
@@ -725,10 +747,26 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 			}
 
 			c.conn[0] = conn
-			c.Options.RelayPorts = strings.Split(banner, ",")
+			var basePort, transferPorts int
+			banner_split := strings.Split(banner, ",")
+			if len(banner_split) != 2 {
+				panic(fmt.Sprintf("Expected port and number of transfer ports in banner: %v", banner))
+			}
+			basePort, err = strconv.Atoi(banner_split[0])
+			if err == nil {
+				c.Options.BasePort = basePort
+			} else {
+				panic(fmt.Sprintf("could not get transfer ports: %v", err))
+			}
+			transferPorts, err = strconv.Atoi(banner_split[1])
+			if err == nil {
+				c.Options.TransferPorts = transferPorts
+			} else {
+				panic(fmt.Sprintf("could not get transfer ports: %v", err))
+			}
 			if c.Options.NoMultiplexing {
 				log.Debug("no multiplexing")
-				c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
+				c.Options.TransferPorts = 1
 			}
 			c.ExternalIP = ipaddr
 			log.Debug("exchanged header message")
@@ -948,10 +986,26 @@ func (c *Client) Receive() (err error) {
 	if err = c.conn[0].Send(handshakeRequest); err != nil {
 		log.Errorf("handshake send error: %v", err)
 	}
-	c.Options.RelayPorts = strings.Split(banner, ",")
+	var basePort, transferPorts int
+	banner_split := strings.Split(banner, ",")
+	if len(banner_split) != 2 {
+		panic(fmt.Sprintf("Expected port and number of transfer ports in banner: %v", banner))
+	}
+	basePort, err = strconv.Atoi(banner_split[0])
+	if err == nil {
+		c.Options.BasePort = basePort
+	} else {
+		panic(fmt.Sprintf("could not get transfer ports: %v", err))
+	}
+	transferPorts, err = strconv.Atoi(banner_split[1])
+	if err == nil {
+		c.Options.TransferPorts = transferPorts
+	} else {
+		panic(fmt.Sprintf("could not get transfer ports: %v", err))
+	}
 	if c.Options.NoMultiplexing {
 		log.Debug("no multiplexing")
-		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
+		c.Options.TransferPorts = 1
 	}
 	log.Debug("exchanged header message")
 	fmt.Fprintf(os.Stderr, "\rsecuring channel...")
@@ -1255,9 +1309,9 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 
 	// connects to the other ports of the server for transfer
 	var wg sync.WaitGroup
-	wg.Add(len(c.Options.RelayPorts))
-	for i := 0; i < len(c.Options.RelayPorts); i++ {
-		log.Debugf("port: [%s]", c.Options.RelayPorts[i])
+	wg.Add(c.Options.TransferPorts + 1)
+	for i := 0; i <= c.Options.TransferPorts; i++ {
+		log.Debugf("port: [%d]", c.Options.BasePort+i)
 		go func(j int) {
 			defer wg.Done()
 			var host string
@@ -1270,7 +1324,7 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 					return
 				}
 			}
-			server := net.JoinHostPort(host, c.Options.RelayPorts[j])
+			server := net.JoinHostPort(host, strconv.Itoa(c.Options.BasePort+j))
 			log.Debugf("connecting to %s", server)
 			c.conn[j+1], _, _, err = tcp.ConnectToTCPServer(
 				server,
@@ -1748,7 +1802,7 @@ func (c *Client) updateState() (err error) {
 		if err != nil {
 			return
 		}
-		for i := 0; i < len(c.Options.RelayPorts); i++ {
+		for i := 0; i <= c.Options.TransferPorts; i++ {
 			log.Debugf("starting sending over comm %d", i)
 			go c.sendData(i)
 		}
@@ -1861,7 +1915,7 @@ func (c *Client) sendData(i int) {
 	defer func() {
 		log.Debugf("finished with %d", i)
 		c.numfinished++
-		if c.numfinished == len(c.Options.RelayPorts) {
+		if c.numfinished == c.Options.TransferPorts+1 {
 			log.Debug("closing file")
 			if err := c.fread.Close(); err != nil {
 				log.Errorf("error closing file: %v", err)
@@ -1885,7 +1939,7 @@ func (c *Client) sendData(i int) {
 			time.Sleep(r.Delay())
 		}
 
-		if math.Mod(curi, float64(len(c.Options.RelayPorts))) == float64(i) {
+		if math.Mod(curi, float64(c.Options.TransferPorts+1)) == float64(i) {
 			// check to see if this is a chunk that the recipient wants
 			usableChunk := true
 			c.mutex.Lock()
