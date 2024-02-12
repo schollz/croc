@@ -72,7 +72,8 @@ func Run() (err error) {
 				&cli.BoolFlag{Name: "no-local", Usage: "disable local relay when sending"},
 				&cli.BoolFlag{Name: "no-multi", Usage: "disable multiplexing"},
 				&cli.BoolFlag{Name: "git", Usage: "enable .gitignore respect / don't send ignored files"},
-				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the local relay (optional)"},
+				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay"},
+				&cli.IntFlag{Name: "transfers", Value: 4, Usage: "number of ports to use for transfers"},
 			},
 			HelpName: "croc send",
 			Action:   send,
@@ -85,7 +86,8 @@ func Run() (err error) {
 			Action:      relay,
 			Flags: []cli.Flag{
 				&cli.StringFlag{Name: "host", Usage: "host of the relay"},
-				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay"},
+				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay"},
+				&cli.IntFlag{Name: "transfers", Value: 4, Usage: "number of ports to use for transfers"},
 			},
 		},
 	}
@@ -174,10 +176,15 @@ func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
-	portsString := c.String("ports")
-	if portsString == "" {
-		portsString = "9009,9010,9011,9012,9013"
+	portString := c.Int("port")
+	if portString == 0 {
+		portString = 9009
 	}
+	transfersString := c.Int("transfers")
+	if transfersString == 0 {
+		transfersString = 4
+	}
+
 	crocOptions := croc.Options{
 		SharedSecret:   c.String("code"),
 		IsSender:       true,
@@ -189,7 +196,8 @@ func send(c *cli.Context) (err error) {
 		DisableLocal:   c.Bool("no-local"),
 		OnlyLocal:      c.Bool("local"),
 		IgnoreStdin:    c.Bool("ignore-stdin"),
-		RelayPorts:     strings.Split(portsString, ","),
+		BasePort:       portString,
+		TransferPorts:  transfersString,
 		Ask:            c.Bool("ask"),
 		NoMultiplexing: c.Bool("no-multi"),
 		RelayPassword:  determinePass(c),
@@ -222,8 +230,11 @@ func send(c *cli.Context) (err error) {
 		if !c.IsSet("no-local") {
 			crocOptions.DisableLocal = rememberedOptions.DisableLocal
 		}
-		if !c.IsSet("ports") && len(rememberedOptions.RelayPorts) > 0 {
-			crocOptions.RelayPorts = rememberedOptions.RelayPorts
+		if !c.IsSet("port") && rememberedOptions.BasePort > 0 {
+			crocOptions.BasePort = rememberedOptions.BasePort
+		}
+		if !c.IsSet("transfers") && rememberedOptions.TransferPorts > 0 {
+			crocOptions.TransferPorts = rememberedOptions.TransferPorts
 		}
 		if !c.IsSet("code") {
 			crocOptions.SharedSecret = rememberedOptions.SharedSecret
