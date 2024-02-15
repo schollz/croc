@@ -1098,7 +1098,7 @@ func (c *Client) transfer() (err error) {
 		if err = os.Remove(pathToFile); err != nil {
 			log.Warnf("error removing %s: %v", pathToFile, err)
 		}
-		fmt.Print("\n")
+		fmt.Fprint(os.Stderr, "\n")
 	}
 	if err != nil && strings.Contains(err.Error(), "pake not successful") {
 		log.Debugf("pake error: %s", err.Error())
