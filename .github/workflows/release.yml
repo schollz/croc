@@ -27,7 +27,7 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.22'
+        go-version: '1.21'
     - name: Prepare source tarball
       run: |
         git clone -b ${{ github.event.release.name }} --depth 1 https://github.com/schollz/croc croc-${{ github.event.release.name }}
