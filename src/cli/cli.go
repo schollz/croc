@@ -72,7 +72,8 @@ func Run() (err error) {
 				&cli.BoolFlag{Name: "no-local", Usage: "disable local relay when sending"},
 				&cli.BoolFlag{Name: "no-multi", Usage: "disable multiplexing"},
 				&cli.BoolFlag{Name: "git", Usage: "enable .gitignore respect / don't send ignored files"},
-				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the local relay (optional)"},
+				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay"},
+				&cli.IntFlag{Name: "transfers", Value: 4, Usage: "number of ports to use for transfers"},
 			},
 			HelpName: "croc send",
 			Action:   send,
@@ -174,10 +175,21 @@ func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
-	portsString := c.String("ports")
-	if portsString == "" {
-		portsString = "9009,9010,9011,9012,9013"
+
+	portParam := c.Int("port")
+	if portParam == 0 {
+		portParam = 9009
 	}
+	transfersParam := c.Int("transfers")
+	if transfersParam == 0 {
+		transfersParam = 4
+	}
+
+	ports := make([]string, transfersParam+1)
+	for i := 0; i <= transfersParam; i++ {
+		ports[i] = strconv.Itoa(portParam + i)
+	}
+
 	crocOptions := croc.Options{
 		SharedSecret:   c.String("code"),
 		IsSender:       true,
@@ -189,7 +201,7 @@ func send(c *cli.Context) (err error) {
 		DisableLocal:   c.Bool("no-local"),
 		OnlyLocal:      c.Bool("local"),
 		IgnoreStdin:    c.Bool("ignore-stdin"),
-		RelayPorts:     strings.Split(portsString, ","),
+		RelayPorts:     ports,
 		Ask:            c.Bool("ask"),
 		NoMultiplexing: c.Bool("no-multi"),
 		RelayPassword:  determinePass(c),
