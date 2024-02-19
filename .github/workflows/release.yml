@@ -39,6 +39,10 @@ jobs:
         zip croc_${{ github.event.release.name }}_Windows-64bit.zip croc.exe
         GOOS=windows GOARCH=386 go build -ldflags="-s -w" -o croc.exe
         zip croc_${{ github.event.release.name }}_Windows-32bit.zip croc.exe
+        GOOS=windows GOARCH=arm go build -ldflags="-s -w" -o croc.exe
+        zip croc_${{ github.event.release.name }}_Windows-ARM.zip croc.exe
+        GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o croc.exe
+        zip croc_${{ github.event.release.name }}_Windows-ARM64.zip croc.exe
         GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o croc
         upx --brute croc
         tar -czvf croc_${{ github.event.release.name }}_Linux-64bit.tar.gz croc
@@ -60,6 +64,8 @@ jobs:
         sha256sum croc_${{ github.event.release.name }}_src.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
         sha256sum croc_${{ github.event.release.name }}_Windows-64bit.zip >> croc_${{ github.event.release.name }}_checksums.txt
         sha256sum croc_${{ github.event.release.name }}_Windows-32bit.zip >> croc_${{ github.event.release.name }}_checksums.txt
+        sha256sum croc_${{ github.event.release.name }}_Windows-ARM.zip >> croc_${{ github.event.release.name }}_checksums.txt
+        sha256sum croc_${{ github.event.release.name }}_Windows-ARM64.zip >> croc_${{ github.event.release.name }}_checksums.txt
         sha256sum croc_${{ github.event.release.name }}_Windows7-64bit.zip >> croc_${{ github.event.release.name }}_checksums.txt
         sha256sum croc_${{ github.event.release.name }}_Windows7-32bit.zip >> croc_${{ github.event.release.name }}_checksums.txt
         sha256sum croc_${{ github.event.release.name }}_Linux-64bit.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
@@ -76,6 +82,8 @@ jobs:
           croc_${{ github.event.release.name }}_src.tar.gz
           croc_${{ github.event.release.name }}_Windows-64bit.zip
           croc_${{ github.event.release.name }}_Windows-32bit.zip
+          croc_${{ github.event.release.name }}_Windows-ARM.zip
+          croc_${{ github.event.release.name }}_Windows-ARM64.zip
           croc_${{ github.event.release.name }}_Windows7-64bit.zip
           croc_${{ github.event.release.name }}_Windows7-32bit.zip
           croc_${{ github.event.release.name }}_Linux-64bit.tar.gz
