@@ -20,9 +20,9 @@ jobs:
         go-version: '1.20'
     - name: Build Windows 7
       run: |
-        GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o croc.exe
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags netgo -ldflags '-H=windowsgui -extldflags "-static"' -o croc.exe
         zip croc_${{ github.event.release.name }}_Windows7-64bit.zip croc.exe
-        GOOS=windows GOARCH=386 go build -ldflags="-s -w" -o croc.exe
+        CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -tags netgo -ldflags '-H=windowsgui -extldflags "-static"' -o croc.exe
         zip croc_${{ github.event.release.name }}_Windows7-32bit.zip croc.exe
     - name: Setup Go
       uses: actions/setup-go@v4
@@ -35,28 +35,25 @@ jobs:
         cd .. && tar -czvf croc_${{ github.event.release.name }}_src.tar.gz croc-${{ github.event.release.name }}
     - name: Build files
       run: |
-        GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o croc.exe
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags netgo -ldflags '-H=windowsgui -extldflags "-static"' -o croc.exe
         zip croc_${{ github.event.release.name }}_Windows-64bit.zip croc.exe
-        GOOS=windows GOARCH=386 go build -ldflags="-s -w" -o croc.exe
+        CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -tags netgo -ldflags '-H=windowsgui -extldflags "-static"' -o croc.exe
         zip croc_${{ github.event.release.name }}_Windows-32bit.zip croc.exe
-        GOOS=windows GOARCH=arm go build -ldflags="-s -w" -o croc.exe
+        CGO_ENABLED=0 GOOS=windows GOARCH=arm go build -tags netgo -ldflags '-H=windowsgui -extldflags "-static"' -o croc.exe
         zip croc_${{ github.event.release.name }}_Windows-ARM.zip croc.exe
-        GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o croc.exe
+        CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -tags netgo -ldflags '-H=windowsgui -extldflags "-static"' -o croc.exe
         zip croc_${{ github.event.release.name }}_Windows-ARM64.zip croc.exe
-        GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o croc
-        upx --brute croc
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags netgo -ldflags '-extldflags "-static"' -o croc
         tar -czvf croc_${{ github.event.release.name }}_Linux-64bit.tar.gz croc
-        GOOS=linux GOARCH=386 go build -ldflags="-s -w" -o croc
+        CGO_ENABLED=0 GOOS=linux GOARCH=386 go build -tags netgo -ldflags '-extldflags "-static"' -o croc
         tar -czvf croc_${{ github.event.release.name }}_Linux-32bit.tar.gz croc
-        GOOS=linux GOARCH=arm go build -ldflags="-s -w" -o croc
-        upx --brute croc
+        CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -tags netgo -ldflags '-extldflags "-static"' -o croc
         tar -czvf croc_${{ github.event.release.name }}_Linux-ARM.tar.gz croc
-        GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o croc
-        upx --brute croc
+        CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags netgo -ldflags '-extldflags "-static"' -o croc
         tar -czvf croc_${{ github.event.release.name }}_Linux-ARM64.tar.gz croc
-        GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o croc
+        CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"' -o croc
         tar -czvf croc_${{ github.event.release.name }}_macOS-64bit.tar.gz croc
-        GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o croc
+        CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"' -o croc
         tar -czvf croc_${{ github.event.release.name }}_macOS-ARM64.tar.gz croc
     - name: Create checksums.txt
       run: |
