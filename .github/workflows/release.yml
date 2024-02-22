@@ -36,41 +36,41 @@ jobs:
     - name: Build files
       run: |
         CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags netgo -ldflags '-H=windowsgui -extldflags "-static"' -o croc.exe
-        zip croc_${{ github.event.release.name }}_Windows-64bit.zip croc.exe
+        zip croc_${{ github.event.release.name }}_Windows-64bit.zip croc.exe LICENSE
         CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -tags netgo -ldflags '-H=windowsgui -extldflags "-static"' -o croc.exe
-        zip croc_${{ github.event.release.name }}_Windows-32bit.zip croc.exe
+        zip croc_${{ github.event.release.name }}_Windows-32bit.zip croc.exe LICENSE
         CGO_ENABLED=0 GOOS=windows GOARCH=arm go build -tags netgo -ldflags '-H=windowsgui -extldflags "-static"' -o croc.exe
-        zip croc_${{ github.event.release.name }}_Windows-ARM.zip croc.exe
+        zip croc_${{ github.event.release.name }}_Windows-ARM.zip croc.exe LICENSE
         CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -tags netgo -ldflags '-H=windowsgui -extldflags "-static"' -o croc.exe
-        zip croc_${{ github.event.release.name }}_Windows-ARM64.zip croc.exe
+        zip croc_${{ github.event.release.name }}_Windows-ARM64.zip croc.exe LICENSE
         CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags netgo -ldflags '-extldflags "-static"' -o croc
-        tar -czvf croc_${{ github.event.release.name }}_Linux-64bit.tar.gz croc
+        tar -czvf croc_${{ github.event.release.name }}_Linux-64bit.tar.gz croc LICENSE
         CGO_ENABLED=0 GOOS=linux GOARCH=386 go build -tags netgo -ldflags '-extldflags "-static"' -o croc
-        tar -czvf croc_${{ github.event.release.name }}_Linux-32bit.tar.gz croc
+        tar -czvf croc_${{ github.event.release.name }}_Linux-32bit.tar.gz croc LICENSE
         CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -tags netgo -ldflags '-extldflags "-static"' -o croc
-        tar -czvf croc_${{ github.event.release.name }}_Linux-ARM.tar.gz croc
+        tar -czvf croc_${{ github.event.release.name }}_Linux-ARM.tar.gz croc LICENSE
         CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -tags netgo -ldflags '-extldflags "-static"' -o croc
-        tar -czvf croc_${{ github.event.release.name }}_Linux-ARM64.tar.gz croc
+        tar -czvf croc_${{ github.event.release.name }}_Linux-ARM64.tar.gz croc LICENSE
         CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"' -o croc
-        tar -czvf croc_${{ github.event.release.name }}_macOS-64bit.tar.gz croc
+        tar -czvf croc_${{ github.event.release.name }}_macOS-64bit.tar.gz croc LICENSE
         CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"' -o croc
-        tar -czvf croc_${{ github.event.release.name }}_macOS-ARM64.tar.gz croc
+        tar -czvf croc_${{ github.event.release.name }}_macOS-ARM64.tar.gz croc LICENSE
         CGO_ENABLED=0 GOOS=dragonfly GOARCH=amd64 go build -ldflags '' -o croc
-        tar -czvf croc_${{ github.event.release.name }}_DragonFlyBSD-64bit.tar.gz croc
+        tar -czvf croc_${{ github.event.release.name }}_DragonFlyBSD-64bit.tar.gz croc LICENSE
         CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -ldflags '' -o croc
-        tar -czvf croc_${{ github.event.release.name }}_FreeBSD-64bit.tar.gz croc
+        tar -czvf croc_${{ github.event.release.name }}_FreeBSD-64bit.tar.gz croc LICENSE
         CGO_ENABLED=0 GOOS=freebsd GOARCH=arm64 go build -ldflags '' -o croc
-        tar -czvf croc_${{ github.event.release.name }}_FreeBSD-ARM64.tar.gz croc
+        tar -czvf croc_${{ github.event.release.name }}_FreeBSD-ARM64.tar.gz croc LICENSE
         CGO_ENABLED=0 GOOS=netbsd GOARCH=386 go build -ldflags '' -o croc
-        tar -czvf croc_${{ github.event.release.name }}_NetBSD-32bit.tar.gz croc
+        tar -czvf croc_${{ github.event.release.name }}_NetBSD-32bit.tar.gz croc LICENSE
         CGO_ENABLED=0 GOOS=netbsd GOARCH=amd64 go build -ldflags '' -o croc
-        tar -czvf croc_${{ github.event.release.name }}_NetBSD-64bit.tar.gz croc
+        tar -czvf croc_${{ github.event.release.name }}_NetBSD-64bit.tar.gz croc LICENSE
         CGO_ENABLED=0 GOOS=netbsd GOARCH=arm64 go build -ldflags '' -o croc
-        tar -czvf croc_${{ github.event.release.name }}_NetBSD-ARM64.tar.gz croc
+        tar -czvf croc_${{ github.event.release.name }}_NetBSD-ARM64.tar.gz croc LICENSE
         CGO_ENABLED=0 GOOS=openbsd GOARCH=amd64 go build -ldflags '' -o croc
-        tar -czvf croc_${{ github.event.release.name }}_OpenBSD-64bit.tar.gz croc
+        tar -czvf croc_${{ github.event.release.name }}_OpenBSD-64bit.tar.gz croc LICENSE
         CGO_ENABLED=0 GOOS=openbsd GOARCH=arm64 go build -ldflags '' -o croc
-        tar -czvf croc_${{ github.event.release.name }}_OpenBSD-ARM64.tar.gz croc
+        tar -czvf croc_${{ github.event.release.name }}_OpenBSD-ARM64.tar.gz croc LICENSE
     - name: Create checksums.txt
       run: |
         touch croc_${{ github.event.release.name }}_checksums.txt
