@@ -96,7 +96,7 @@ jobs:
         sha256sum croc_${{ github.event.release.name }}_OpenBSD-64bit.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
         sha256sum croc_${{ github.event.release.name }}_OpenBSD-ARM64.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
     - name: Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           croc_${{ github.event.release.name }}_checksums.txt
