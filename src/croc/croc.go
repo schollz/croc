@@ -1052,7 +1052,7 @@ func (c *Client) transfer() (err error) {
 	}
 	if err != nil && strings.Contains(err.Error(), "unexpected end of JSON input") {
 		log.Debugf("error: %s", err.Error())
-		err = fmt.Errorf("room not ready")
+		err = fmt.Errorf("room (secure channel) not ready, maybe peer disconnected")
 	}
 	return
 }
