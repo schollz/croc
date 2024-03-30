@@ -435,6 +435,8 @@ func receive(c *cli.Context) (err error) {
 	case 1:
 		crocOptions.SharedSecret = c.Args().First()
 	case 3:
+		fallthrough
+	case 4:
 		var phrase []string
 		phrase = append(phrase, c.Args().First())
 		phrase = append(phrase, c.Args().Tail()...)
