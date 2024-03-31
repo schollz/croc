@@ -153,13 +153,22 @@ func setDebugLevel(c *cli.Context) {
 	}
 }
 
-func getConfigFile() string {
+func getSendConfigFile() string {
 	configFile, err := utils.GetConfigDir()
 	if err != nil {
 		log.Error(err)
 		return ""
 	}
 	return path.Join(configFile, "send.json")
+}
+
+func getReceiveConfigFile() (string, error) {
+	configFile, err := utils.GetConfigDir()
+	if err != nil {
+		log.Error(err)
+		return "", err
+	}
+	return path.Join(configFile, "receive.json"), nil
 }
 
 func determinePass(c *cli.Context) (pass string) {
@@ -219,7 +228,7 @@ func send(c *cli.Context) (err error) {
 	} else if crocOptions.RelayAddress6 != models.DEFAULT_RELAY6 {
 		crocOptions.RelayAddress = ""
 	}
-	b, errOpen := os.ReadFile(getConfigFile())
+	b, errOpen := os.ReadFile(getSendConfigFile())
 	if errOpen == nil && !c.Bool("remember") {
 		var rememberedOptions croc.Options
 		err = json.Unmarshal(b, &rememberedOptions)
@@ -355,7 +364,7 @@ func makeTempFileWithString(s string) (fnames []string, err error) {
 
 func saveConfig(c *cli.Context, crocOptions croc.Options) {
 	if c.Bool("remember") {
-		configFile := getConfigFile()
+		configFile := getSendConfigFile()
 		log.Debug("saving config file")
 		var bConfig []byte
 		// if the code wasn't set, don't save it
@@ -443,12 +452,11 @@ func receive(c *cli.Context) (err error) {
 
 	// load options here
 	setDebugLevel(c)
-	configFile, err := utils.GetConfigDir()
-	if err != nil {
-		log.Error(err)
+
+	configFile, err := getReceiveConfigFile()
+	if err != nil && c.Bool("remember") {
 		return
 	}
-	configFile = path.Join(configFile, "receive.json")
 	b, errOpen := os.ReadFile(configFile)
 	if errOpen == nil && !c.Bool("remember") {
 		var rememberedOptions croc.Options

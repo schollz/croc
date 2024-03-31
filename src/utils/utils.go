@@ -32,16 +32,15 @@ const NbBytesWords = 4
 
 // Get or create home directory
 func GetConfigDir() (homedir string, err error) {
-	homedir, err = os.UserHomeDir()
-	if err != nil {
-		return
-	}
-
 	if envHomedir, isSet := os.LookupEnv("CROC_CONFIG_DIR"); isSet {
 		homedir = envHomedir
 	} else if xdgConfigHome, isSet := os.LookupEnv("XDG_CONFIG_HOME"); isSet {
 		homedir = path.Join(xdgConfigHome, "croc")
 	} else {
+		homedir, err = os.UserHomeDir()
+		if err != nil {
+			return
+		}
 		homedir = path.Join(homedir, ".config", "croc")
 	}
 
