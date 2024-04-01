@@ -455,12 +455,13 @@ func receive(c *cli.Context) (err error) {
 	// load options here
 	setDebugLevel(c)
 
-	configFile, err := getReceiveConfigFile()
-	if err != nil && c.Bool("remember") {
+	doRemember := c.Bool("remember")
+	configFile, err := getReceiveConfigFile(doRemember)
+	if err != nil && doRemember {
 		return
 	}
 	b, errOpen := os.ReadFile(configFile)
-	if errOpen == nil && !c.Bool("remember") {
+	if errOpen == nil && !doRemember {
 		var rememberedOptions croc.Options
 		err = json.Unmarshal(b, &rememberedOptions)
 		if err != nil {
@@ -519,7 +520,7 @@ func receive(c *cli.Context) (err error) {
 	}
 
 	// save the config
-	if c.Bool("remember") {
+	if doRemember {
 		log.Debug("saving config file")
 		var bConfig []byte
 		bConfig, err = json.MarshalIndent(crocOptions, "", "    ")
