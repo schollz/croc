@@ -44,8 +44,8 @@ var publicDNS = []string{
 	"[2620:119:53::53]",      // Cisco OpenDNS
 }
 
-func getConfigFile() (fname string, err error) {
-	configFile, err := utils.GetConfigDir()
+func getConfigFile(requireValidPath bool) (fname string, err error) {
+	configFile, err := utils.GetConfigDir(requireValidPath)
 	if err != nil {
 		return
 	}
@@ -66,14 +66,14 @@ func init() {
 	}
 	if doRemember {
 		// save in config file
-		fname, err := getConfigFile()
+		fname, err := getConfigFile(true)
 		if err == nil {
 			f, _ := os.Create(fname)
 			f.Close()
 		}
 	}
 	if !INTERNAL_DNS {
-		fname, err := getConfigFile()
+		fname, err := getConfigFile(false)
 		if err == nil {
 			INTERNAL_DNS = utils.Exists(fname)
 		}
