@@ -1102,7 +1102,11 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 		if strings.Contains(c.FilesToTransfer[i].FolderRemote, ".ssh") {
 			return true, fmt.Errorf("invalid path detected: '%s'", fi.FolderRemote)
 		}
+		// Issue #595 - disallow filenames with anything but 0-9a-zA-Z.-_. and / characters
 
+		if !utils.ValidFileName(path.Join(c.FilesToTransfer[i].FolderRemote, fi.Name)) {
+			return true, fmt.Errorf("invalid filename detected: '%s'", fi.Name)
+		}
 	}
 	c.TotalNumberOfContents = 0
 	if c.FilesToTransfer != nil {
