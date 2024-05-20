@@ -3,7 +3,9 @@ package croc
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -57,6 +59,7 @@ func Debug(debug bool) {
 type Options struct {
 	IsSender       bool
 	SharedSecret   string
+	RoomName       string
 	Debug          bool
 	RelayAddress   string
 	RelayAddress6  string
@@ -188,6 +191,12 @@ func New(ops Options) (c *Client, err error) {
 		err = fmt.Errorf("code is too short")
 		return
 	}
+	// Create a hash of part of the shared secret to use as the room name
+	// add the current day and "croc" to the shared secret to make more resistant
+	// to rainbow tables
+	hashExtra := "croc" + time.Now().Format("2006-01-02")
+	roomNameBytes := sha256.Sum256([]byte(c.Options.SharedSecret[:4] + hashExtra))
+	c.Options.RoomName = hex.EncodeToString(roomNameBytes[:])
 
 	c.conn = make([]*comm.Comm, 16)
 
@@ -582,7 +591,7 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 	time.Sleep(500 * time.Millisecond)
 	log.Debug("establishing connection")
 	var banner string
-	conn, banner, ipaddr, err := tcp.ConnectToTCPServer("127.0.0.1:"+c.Options.RelayPorts[0], c.Options.RelayPassword, c.Options.SharedSecret[:3])
+	conn, banner, ipaddr, err := tcp.ConnectToTCPServer("127.0.0.1:"+c.Options.RelayPorts[0], c.Options.RelayPassword, c.Options.RoomName)
 	log.Debugf("banner: %s", banner)
 	if err != nil {
 		err = fmt.Errorf("could not connect to 127.0.0.1:%s: %w", c.Options.RelayPorts[0], err)
@@ -670,7 +679,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 				log.Debugf("got host '%v' and port '%v'", host, port)
 				address = net.JoinHostPort(host, port)
 				log.Debugf("trying connection to %s", address)
-				conn, banner, ipaddr, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.SharedSecret[:3], durations[i])
+				conn, banner, ipaddr, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.RoomName, durations[i])
 				if err == nil {
 					c.Options.RelayAddress = address
 					break
@@ -867,7 +876,7 @@ func (c *Client) Receive() (err error) {
 		log.Debugf("got host '%v' and port '%v'", host, port)
 		address = net.JoinHostPort(host, port)
 		log.Debugf("trying connection to %s", address)
-		c.conn[0], banner, c.ExternalIP, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.SharedSecret[:3], durations[i])
+		c.conn[0], banner, c.ExternalIP, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.RoomName, durations[i])
 		if err == nil {
 			c.Options.RelayAddress = address
 			break
@@ -925,7 +934,7 @@ func (c *Client) Receive() (err error) {
 				}
 
 				serverTry := net.JoinHostPort(ip, port)
-				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.SharedSecret[:3], 500*time.Millisecond)
+				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.RoomName, 500*time.Millisecond)
 				if errConn != nil {
 					log.Debug(errConn)
 					log.Debugf("could not connect to " + serverTry)
@@ -1291,7 +1300,7 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 			c.conn[j+1], _, _, err = tcp.ConnectToTCPServer(
 				server,
 				c.Options.RelayPassword,
-				fmt.Sprintf("%s-%d", utils.SHA256(c.Options.SharedSecret[:5])[:6], j),
+				fmt.Sprintf("%s-%d", c.Options.RoomName, j),
 			)
 			if err != nil {
 				panic(err)
