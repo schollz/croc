@@ -190,7 +190,6 @@ func New(ops Options) (c *Client, err error) {
 	// setup basic info
 	c.Options = ops
 	Debug(c.Options.Debug)
-	log.Debugf("options: %+v", c.Options)
 
 	if len(c.Options.SharedSecret) < 6 {
 		err = fmt.Errorf("code is too short")
@@ -712,9 +711,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 					log.Debugf("[%+v] had error: %s", conn, errConn.Error())
 				}
 				err = json.Unmarshal(data, &dataMessage)
-				if err != nil {
-					log.Debugf("dataMessage error unmarshalling: %v", err)
-				} else {
+				if err == nil {
 					log.Debugf("dataMessage: %s", dataMessage)
 				}
 				// if kB not null, then use it to decrypt
@@ -934,62 +931,68 @@ func (c *Client) Receive() (err error) {
 	if c.Options.TestFlag || (!usingLocal && !c.Options.DisableLocal && !isIPset) {
 		// ask the sender for their local ips and port
 		// and try to connect to them
-		var A *pake.Pake
-		var data []byte
-		A, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, c.Options.Curve)
-		if err != nil {
-			return err
-		}
-		dataMessage := SimpleMessage{
-			Bytes: A.Bytes(),
-			Kind:  "pake1",
-		}
-		data, _ = json.Marshal(dataMessage)
-		if err = c.conn[0].Send(data); err != nil {
-			log.Errorf("dataMessage send error: %v", err)
-			return
-		}
-		data, err = c.conn[0].Receive()
-		if err != nil {
-			return
-		}
-		err = json.Unmarshal(data, &dataMessage)
-		if err != nil || dataMessage.Kind != "pake2" {
-			return fmt.Errorf("dataMessage %s pake failed", ipRequest)
-		}
-		err = A.Update(dataMessage.Bytes)
-		if err != nil {
-			return
-		}
-		var kA []byte
-		kA, err = A.SessionKey()
-		if err != nil {
-			return
-		}
-		log.Debugf("dataMessage kA: %x", kA)
 
-		// secure ipRequest
-		data, err = crypt.Encrypt([]byte(ipRequest), kA)
-		if err != nil {
-			return
-		}
-		log.Debug("sending ips?")
-		if err = c.conn[0].Send(data); err != nil {
-			log.Errorf("ips send error: %v", err)
-		}
-		data, err = c.conn[0].Receive()
-		if err != nil {
-			return
-		}
-		data, err = crypt.Decrypt(data, kA)
-		if err != nil {
-			return
-		}
-		log.Debugf("ips data: %s", data)
 		var ips []string
-		if err = json.Unmarshal(data, &ips); err != nil {
-			log.Debugf("ips unmarshal error: %v", err)
-		}
+		err = func() (err error) {
+			var A *pake.Pake
+			var data []byte
+			A, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, c.Options.Curve)
+			if err != nil {
+				return err
+			}
+			dataMessage := SimpleMessage{
+				Bytes: A.Bytes(),
+				Kind:  "pake1",
+			}
+			data, _ = json.Marshal(dataMessage)
+			if err = c.conn[0].Send(data); err != nil {
+				log.Errorf("dataMessage send error: %v", err)
+				return
+			}
+			data, err = c.conn[0].Receive()
+			if err != nil {
+				return
+			}
+			err = json.Unmarshal(data, &dataMessage)
+			if err != nil || dataMessage.Kind != "pake2" {
+				log.Debugf("data: %s", data)
+				return fmt.Errorf("dataMessage %s pake failed", ipRequest)
+			}
+			err = A.Update(dataMessage.Bytes)
+			if err != nil {
+				return
+			}
+			var kA []byte
+			kA, err = A.SessionKey()
+			if err != nil {
+				return
+			}
+			log.Debugf("dataMessage kA: %x", kA)
+
+			// secure ipRequest
+			data, err = crypt.Encrypt([]byte(ipRequest), kA)
+			if err != nil {
+				return
+			}
+			log.Debug("sending ips?")
+			if err = c.conn[0].Send(data); err != nil {
+				log.Errorf("ips send error: %v", err)
+			}
+			data, err = c.conn[0].Receive()
+			if err != nil {
+				return
+			}
+			data, err = crypt.Decrypt(data, kA)
+			if err != nil {
+				return
+			}
+			log.Debugf("ips data: %s", data)
+			if err = json.Unmarshal(data, &ips); err != nil {
+				log.Debugf("ips unmarshal error: %v", err)
+			}
+			return
+		}()
+
 		if len(ips) > 1 {
 			port := ips[0]
 			ips = ips[1:]
@@ -1085,6 +1088,7 @@ func (c *Client) transfer() (err error) {
 		}
 		done, err = c.processMessage(data)
 		if err != nil {
+			log.Debugf("data: %s", data)
 			log.Debugf("got error processing: %v", err)
 			break
 		}
