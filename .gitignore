@@ -9,3 +9,4 @@ croc-stdin*
 
 .idea/
 .vscode/
+src/utils/bigfile.test
