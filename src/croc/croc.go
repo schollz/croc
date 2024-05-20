@@ -81,6 +81,11 @@ type Options struct {
 	GitIgnore      bool
 }
 
+type SimpleMessage struct {
+	Bytes []byte
+	Kind  string
+}
+
 // Client holds the state of the croc transfer
 type Client struct {
 	Options                         Options
@@ -688,11 +693,27 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 			}
 			log.Debugf("banner: %s", banner)
 			log.Debugf("connection established: %+v", conn)
+			var kB []byte
+			var dataMessage SimpleMessage
+			B, _ := pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, c.Options.Curve)
 			for {
 				log.Debug("waiting for bytes")
 				data, errConn := conn.Receive()
 				if errConn != nil {
 					log.Debugf("[%+v] had error: %s", conn, errConn.Error())
+				}
+				err = json.Unmarshal(data, &dataMessage)
+				if err != nil {
+					log.Debugf("dataMessage error unmarshalling: %v", err)
+				} else {
+					log.Debugf("dataMessage: %s", dataMessage)
+				}
+				// if kB not null, then use it to decrypt
+				if kB != nil {
+					data, err = crypt.Decrypt(data, kB)
+					if err != nil {
+						log.Debugf("error decrypting: %v", err)
+					}
 				}
 				if bytes.Equal(data, ipRequest) {
 					// recipient wants to try to connect to local ips
@@ -708,8 +729,24 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 						ips = append([]string{c.Options.RelayPorts[0]}, ips...)
 					}
 					bips, _ := json.Marshal(ips)
+					bips, _ = crypt.Encrypt(bips, kB)
 					if err = conn.Send(bips); err != nil {
 						log.Errorf("error sending: %v", err)
+					}
+				} else if dataMessage.Kind == "pake1" {
+					err = B.Update(dataMessage.Bytes)
+					if err == nil {
+						kB, err = B.SessionKey()
+						if err == nil {
+							log.Debugf("dataMessage kB: %x", kB)
+							dataMessage.Bytes = B.Bytes()
+							dataMessage.Kind = "pake2"
+							data, _ = json.Marshal(dataMessage)
+							if err = conn.Send(data); err != nil {
+								log.Errorf("dataMessage error sending: %v", err)
+							}
+						}
+
 					}
 				} else if bytes.Equal(data, handshakeRequest) {
 					break
@@ -888,12 +925,54 @@ func (c *Client) Receive() (err error) {
 	if c.Options.TestFlag || (!usingLocal && !c.Options.DisableLocal && !isIPset) {
 		// ask the sender for their local ips and port
 		// and try to connect to them
-		log.Debug("sending ips?")
+		var A *pake.Pake
 		var data []byte
-		if err = c.conn[0].Send(ipRequest); err != nil {
+		A, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, c.Options.Curve)
+		if err != nil {
+			return err
+		}
+		dataMessage := SimpleMessage{
+			Bytes: A.Bytes(),
+			Kind:  "pake1",
+		}
+		data, _ = json.Marshal(dataMessage)
+		if err = c.conn[0].Send(data); err != nil {
+			log.Errorf("dataMessage send error: %v", err)
+			return
+		}
+		data, err = c.conn[0].Receive()
+		if err != nil {
+			return
+		}
+		err = json.Unmarshal(data, &dataMessage)
+		if err != nil || dataMessage.Kind != "pake2" {
+			return fmt.Errorf("dataMessage %s pake failed", ipRequest)
+		}
+		err = A.Update(dataMessage.Bytes)
+		if err != nil {
+			return
+		}
+		var kA []byte
+		kA, err = A.SessionKey()
+		if err != nil {
+			return
+		}
+		log.Debugf("dataMessage kA: %x", kA)
+
+		// secure ipRequest
+		data, err = crypt.Encrypt([]byte(ipRequest), kA)
+		if err != nil {
+			return
+		}
+		log.Debug("sending ips?")
+		if err = c.conn[0].Send(data); err != nil {
 			log.Errorf("ips send error: %v", err)
 		}
 		data, err = c.conn[0].Receive()
+		if err != nil {
+			return
+		}
+		data, err = crypt.Decrypt(data, kA)
 		if err != nil {
 			return
 		}
