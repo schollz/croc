@@ -12,8 +12,8 @@ require (
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/mnemonicode v1.0.2-0.20190421205639-63fa713ece0d
 	github.com/schollz/pake/v3 v3.0.5
-	github.com/schollz/peerdiscovery v1.7.2
-	github.com/schollz/progressbar/v3 v3.14.2
+	github.com/schollz/peerdiscovery v1.7.3
+	github.com/schollz/progressbar/v3 v3.14.3
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/crypto v0.23.0
 	golang.org/x/net v0.25.0
