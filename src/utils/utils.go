@@ -438,6 +438,12 @@ func UnzipDirectory(destination string, source string) error {
 		filePath := filepath.Join(destination, f.Name)
 		fmt.Fprintf(os.Stderr, "\r\033[2K")
 		fmt.Fprintf(os.Stderr, "\rUnzipping file %s", filePath)
+		// Issue #593 conceal path traversal vulnerability
+		// make sure the filepath does not have ".."
+		filePath = filepath.Clean(filePath)
+		if strings.Contains(filePath, "..") {
+			log.Fatalf("Invalid file path %s\n", filePath)
+		}
 		if f.FileInfo().IsDir() {
 			os.MkdirAll(filePath, os.ModePerm)
 			continue

@@ -1092,6 +1092,18 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	c.EmptyFoldersToTransfer = senderInfo.EmptyFoldersToTransfer
 	c.TotalNumberFolders = senderInfo.TotalNumberFolders
 	c.FilesToTransfer = senderInfo.FilesToTransfer
+	for i, fi := range c.FilesToTransfer {
+		// Issues #593 - sanitize the sender paths and prevent ".." from being used
+		c.FilesToTransfer[i].FolderRemote = filepath.Clean(fi.FolderRemote)
+		if strings.Contains(c.FilesToTransfer[i].FolderRemote, "..") {
+			return true, fmt.Errorf("invalid path detected: '%s'", fi.FolderRemote)
+		}
+		// Issues #593 - disallow specific folders like .ssh
+		if strings.Contains(c.FilesToTransfer[i].FolderRemote, ".ssh") {
+			return true, fmt.Errorf("invalid path detected: '%s'", fi.FolderRemote)
+		}
+
+	}
 	c.TotalNumberOfContents = 0
 	if c.FilesToTransfer != nil {
 		c.TotalNumberOfContents += len(c.FilesToTransfer)
