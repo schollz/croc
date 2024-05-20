@@ -473,3 +473,18 @@ func UnzipDirectory(destination string, source string) error {
 	fmt.Fprintf(os.Stderr, "\n")
 	return nil
 }
+
+// ValidFileName checks if a filename is valid
+// and returns true only if it all of the characters are either
+// 0-9, a-z, A-Z, ., _, -, space, or /
+func ValidFileName(fname string) bool {
+	for _, r := range fname {
+		if !((r >= '0' && r <= '9') ||
+			(r >= 'a' && r <= 'z') ||
+			(r >= 'A' && r <= 'Z') ||
+			r == '.' || r == '_' || r == '-' || r == ' ' || r == '/') {
+			return false
+		}
+	}
+	return true
+}
