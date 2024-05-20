@@ -1982,62 +1982,66 @@ func (c *Client) sendData(i int) {
 	curi := float64(0)
 	for {
 		// Read file
-		data := make([]byte, models.TCP_BUFFER_SIZE/2)
-		// log.Debugf("%d trying to read", i)
-		n, errRead := c.fread.ReadAt(data, readingPos)
-		// log.Debugf("%d read %d bytes", i, n)
-		readingPos += int64(n)
-		if c.limiter != nil {
-			r := c.limiter.ReserveN(time.Now(), n)
-			log.Debugf("Limiting Upload for %d", r.Delay())
-			time.Sleep(r.Delay())
-		}
-
+		var n int
+		var errRead error
 		if math.Mod(curi, float64(len(c.Options.RelayPorts))) == float64(i) {
-			// check to see if this is a chunk that the recipient wants
-			usableChunk := true
-			c.mutex.Lock()
-			if len(c.chunkMap) != 0 {
-				if _, ok := c.chunkMap[pos]; !ok {
-					usableChunk = false
-				} else {
-					delete(c.chunkMap, pos)
-				}
+			data := make([]byte, models.TCP_BUFFER_SIZE/2)
+			n, errRead = c.fread.ReadAt(data, readingPos)
+			if c.limiter != nil {
+				r := c.limiter.ReserveN(time.Now(), n)
+				log.Debugf("Limiting Upload for %d", r.Delay())
+				time.Sleep(r.Delay())
 			}
-			c.mutex.Unlock()
-			if usableChunk {
-				// log.Debugf("sending chunk %d", pos)
-				posByte := make([]byte, 8)
-				binary.LittleEndian.PutUint64(posByte, pos)
-				var err error
-				var dataToSend []byte
-				if c.Options.NoCompress {
-					dataToSend, err = crypt.Encrypt(
-						append(posByte, data[:n]...),
-						c.Key,
-					)
-				} else {
-					dataToSend, err = crypt.Encrypt(
-						compress.Compress(
+			if n > 0 {
+				// check to see if this is a chunk that the recipient wants
+				usableChunk := true
+				c.mutex.Lock()
+				if len(c.chunkMap) != 0 {
+					if _, ok := c.chunkMap[pos]; !ok {
+						usableChunk = false
+					} else {
+						delete(c.chunkMap, pos)
+					}
+				}
+				c.mutex.Unlock()
+				if usableChunk {
+					// log.Debugf("sending chunk %d", pos)
+					posByte := make([]byte, 8)
+					binary.LittleEndian.PutUint64(posByte, pos)
+					var err error
+					var dataToSend []byte
+					if c.Options.NoCompress {
+						dataToSend, err = crypt.Encrypt(
 							append(posByte, data[:n]...),
-						),
-						c.Key,
-					)
-				}
-				if err != nil {
-					panic(err)
-				}
+							c.Key,
+						)
+					} else {
+						dataToSend, err = crypt.Encrypt(
+							compress.Compress(
+								append(posByte, data[:n]...),
+							),
+							c.Key,
+						)
+					}
+					if err != nil {
+						panic(err)
+					}
 
-				err = c.conn[i+1].Send(dataToSend)
-				if err != nil {
-					panic(err)
+					err = c.conn[i+1].Send(dataToSend)
+					if err != nil {
+						panic(err)
+					}
+					c.bar.Add(n)
+					c.TotalSent += int64(n)
+					// time.Sleep(100 * time.Millisecond)
 				}
-				c.bar.Add(n)
-				c.TotalSent += int64(n)
-				// time.Sleep(100 * time.Millisecond)
 			}
 		}
 
+		if n == 0 {
+			n = models.TCP_BUFFER_SIZE / 2
+		}
+		readingPos += int64(n)
 		curi++
 		pos += uint64(n)
 
