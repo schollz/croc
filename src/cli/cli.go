@@ -313,18 +313,11 @@ func send(c *cli.Context) (err error) {
 		return
 	}
 
-	cr, err := croc.New(crocOptions)
-	if err != nil {
-		return
-	}
-
-	// save the config
-	saveConfig(c, crocOptions)
-
 	// if operating system is UNIX, then use environmental variable to set the code
 	if runtime.GOOS == "linux" {
-		cr.Options.SharedSecret = os.Getenv("CROC_SECRET")
-		if cr.Options.SharedSecret == "" {
+		log.Debug("forcing code phrase from environmental variable")
+		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
+		if crocOptions.SharedSecret == "" {
 			fmt.Printf(`To use croc you need to set a code phrase using your environmental variables:
 
 export CROC_SECRET="yourcodephrasetouse"
@@ -332,6 +325,14 @@ export CROC_SECRET="yourcodephrasetouse"
 			os.Exit(0)
 		}
 	}
+
+	cr, err := croc.New(crocOptions)
+	if err != nil {
+		return
+	}
+
+	// save the config
+	saveConfig(c, crocOptions)
 
 	err = cr.Send(minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders)
 
@@ -525,6 +526,17 @@ func receive(c *cli.Context) (err error) {
 			return err
 		}
 	}
+	// if operating system is UNIX, then use environmental variable to set the code
+	if runtime.GOOS == "linux" {
+		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
+		if crocOptions.SharedSecret == "" {
+			fmt.Printf(`To use croc you need to set a code phrase using your environmental variables:
+	
+	export CROC_SECRET="yourcodephrasetouse"
+				`)
+			os.Exit(0)
+		}
+	}
 
 	cr, err := croc.New(crocOptions)
 	if err != nil {
@@ -546,18 +558,6 @@ func receive(c *cli.Context) (err error) {
 			return
 		}
 		log.Debugf("wrote %s", configFile)
-	}
-
-	// if operating system is UNIX, then use environmental variable to set the code
-	if runtime.GOOS == "linux" {
-		cr.Options.SharedSecret = os.Getenv("CROC_SECRET")
-		if cr.Options.SharedSecret == "" {
-			fmt.Printf(`To use croc you need to set a code phrase using your environmental variables:
-	
-	export CROC_SECRET="yourcodephrasetouse"
-				`)
-			os.Exit(0)
-		}
 	}
 
 	err = cr.Receive()
