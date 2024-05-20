@@ -447,6 +447,16 @@ func UnzipDirectory(destination string, source string) error {
 			log.Fatalln(err)
 		}
 
+		// check if file exists
+		if _, err := os.Stat(filePath); err == nil {
+			prompt := fmt.Sprintf("\nOverwrite '%s'? (y/N) ", filePath)
+			choice := strings.ToLower(GetInput(prompt))
+			if choice != "y" && choice != "yes" {
+				fmt.Fprintf(os.Stderr, "skipping '%s'", filePath)
+				continue
+			}
+		}
+
 		dstFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
 		if err != nil {
 			log.Fatalln(err)
