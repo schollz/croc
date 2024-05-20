@@ -516,7 +516,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	}
 	banner = strings.Split(string(data), "|||")[0]
 	ipaddr = strings.Split(string(data), "|||")[1]
-	log.Debug("sending room")
+	log.Debugf("sending room; %s", room)
 	bSend, err = crypt.Encrypt([]byte(room), strongKeyForEncryption)
 	if err != nil {
 		log.Debug(err)
