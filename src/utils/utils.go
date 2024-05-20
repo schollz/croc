@@ -438,6 +438,12 @@ func UnzipDirectory(destination string, source string) error {
 		filePath := filepath.Join(destination, f.Name)
 		fmt.Fprintf(os.Stderr, "\r\033[2K")
 		fmt.Fprintf(os.Stderr, "\rUnzipping file %s", filePath)
+		// Issue #593 conceal path traversal vulnerability
+		// make sure the filepath does not have ".."
+		filePath = filepath.Clean(filePath)
+		if strings.Contains(filePath, "..") {
+			log.Fatalf("Invalid file path %s\n", filePath)
+		}
 		if f.FileInfo().IsDir() {
 			os.MkdirAll(filePath, os.ModePerm)
 			continue
@@ -466,4 +472,19 @@ func UnzipDirectory(destination string, source string) error {
 	}
 	fmt.Fprintf(os.Stderr, "\n")
 	return nil
+}
+
+// ValidFileName checks if a filename is valid
+// and returns true only if it all of the characters are either
+// 0-9, a-z, A-Z, ., _, -, space, or /
+func ValidFileName(fname string) bool {
+	for _, r := range fname {
+		if !((r >= '0' && r <= '9') ||
+			(r >= 'a' && r <= 'z') ||
+			(r >= 'A' && r <= 'Z') ||
+			r == '.' || r == '_' || r == '-' || r == ' ' || r == '/') {
+			return false
+		}
+	}
+	return true
 }
