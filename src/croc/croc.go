@@ -1696,6 +1696,9 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	} else {
 		description = " " + description
 	}
+	if len(description) > 20 {
+		description = description[:17] + "..."
+	}
 	c.bar = progressbar.NewOptions64(1,
 		progressbar.OptionOnCompletion(func() {
 			c.fmtPrintUpdate()
@@ -1871,6 +1874,9 @@ func (c *Client) setBar() {
 		description = c.FilesToTransfer[c.FilesToTransferCurrentNum].Name
 	} else if !c.Options.IsSender {
 		description = " " + description
+	}
+	if len(description) > 20 {
+		description = description[:17] + "..."
 	}
 	c.bar = progressbar.NewOptions64(
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
