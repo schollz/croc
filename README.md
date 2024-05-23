@@ -108,7 +108,7 @@ pkg install croc
 Or, you can [install Go](https://golang.org/dl/) and build from source (requires Go 1.17+): 
 
 ```
-go install github.com/schollz/croc/v9@latest
+go install github.com/schollz/croc/v10@latest
 ```
 
 On Android there is a 3rd party F-Droid app [available to download](https://f-droid.org/en/packages/com.github.howeyc.crocgui/).

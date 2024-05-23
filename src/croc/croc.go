@@ -28,13 +28,13 @@ import (
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v3"
 
-	"github.com/schollz/croc/v9/src/comm"
-	"github.com/schollz/croc/v9/src/compress"
-	"github.com/schollz/croc/v9/src/crypt"
-	"github.com/schollz/croc/v9/src/message"
-	"github.com/schollz/croc/v9/src/models"
-	"github.com/schollz/croc/v9/src/tcp"
-	"github.com/schollz/croc/v9/src/utils"
+	"github.com/schollz/croc/v10/src/comm"
+	"github.com/schollz/croc/v10/src/compress"
+	"github.com/schollz/croc/v10/src/crypt"
+	"github.com/schollz/croc/v10/src/message"
+	"github.com/schollz/croc/v10/src/models"
+	"github.com/schollz/croc/v10/src/tcp"
+	"github.com/schollz/croc/v10/src/utils"
 )
 
 var (
