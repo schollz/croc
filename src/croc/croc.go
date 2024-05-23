@@ -702,26 +702,33 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 			log.Debugf("banner: %s", banner)
 			log.Debugf("connection established: %+v", conn)
 			var kB []byte
-			var dataMessage SimpleMessage
 			B, _ := pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, c.Options.Curve)
 			for {
-				log.Debug("waiting for bytes")
+				var dataMessage SimpleMessage
+				log.Trace("waiting for bytes")
 				data, errConn := conn.Receive()
 				if errConn != nil {
-					log.Debugf("[%+v] had error: %s", conn, errConn.Error())
+					log.Tracef("[%+v] had error: %s", conn, errConn.Error())
 				}
 				json.Unmarshal(data, &dataMessage)
-				log.Debugf("dataMessage: %s", dataMessage)
-				log.Debugf("kB: %x", kB)
+				log.Tracef("data: %+v '%s'", data, data)
+				log.Tracef("dataMessage: %s", dataMessage)
+				log.Tracef("kB: %x", kB)
 				// if kB not null, then use it to decrypt
 				if kB != nil {
 					var decryptErr error
-					data, decryptErr = crypt.Decrypt(data, kB)
+					var dataDecrypt []byte
+					dataDecrypt, decryptErr = crypt.Decrypt(data, kB)
 					if decryptErr != nil {
-						log.Debugf("error decrypting: %v", decryptErr)
+						log.Tracef("error decrypting: %v: '%s'", decryptErr, data)
+					} else {
+						// copy dataDecrypt to data
+						data = dataDecrypt
+						log.Tracef("decrypted: %s", data)
 					}
 				}
 				if bytes.Equal(data, ipRequest) {
+					log.Tracef("got ipRequest")
 					// recipient wants to try to connect to local ips
 					var ips []string
 					// only get local ips if the local is enabled
@@ -729,23 +736,31 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 						// get list of local ips
 						ips, err = utils.GetLocalIPs()
 						if err != nil {
-							log.Debugf("error getting local ips: %v", err)
+							log.Tracef("error getting local ips: %v", err)
 						}
 						// prepend the port that is being listened to
 						ips = append([]string{c.Options.RelayPorts[0]}, ips...)
 					}
-					bips, _ := json.Marshal(ips)
-					bips, _ = crypt.Encrypt(bips, kB)
+					log.Tracef("sending ips: %+v", ips)
+					bips, errIps := json.Marshal(ips)
+					if errIps != nil {
+						log.Tracef("error marshalling ips: %v", errIps)
+					}
+					bips, errIps = crypt.Encrypt(bips, kB)
+					if errIps != nil {
+						log.Tracef("error encrypting ips: %v", errIps)
+					}
 					if err = conn.Send(bips); err != nil {
 						log.Errorf("error sending: %v", err)
 					}
 				} else if dataMessage.Kind == "pake1" {
+					log.Trace("got pake1")
 					var pakeError error
 					pakeError = B.Update(dataMessage.Bytes)
 					if pakeError == nil {
 						kB, pakeError = B.SessionKey()
 						if pakeError == nil {
-							log.Debugf("dataMessage kB: %x", kB)
+							log.Tracef("dataMessage kB: %x", kB)
 							dataMessage.Bytes = B.Bytes()
 							dataMessage.Kind = "pake2"
 							data, _ = json.Marshal(dataMessage)
@@ -756,12 +771,13 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 
 					}
 				} else if bytes.Equal(data, handshakeRequest) {
+					log.Trace("got handshake")
 					break
 				} else if bytes.Equal(data, []byte{1}) {
-					log.Debug("got ping")
+					log.Trace("got ping")
 					continue
 				} else {
-					log.Debugf("[%+v] got weird bytes: %+v", conn, data)
+					log.Tracef("[%+v] got weird bytes: %+v", conn, data)
 					// throttle the reading
 					errchan <- fmt.Errorf("gracefully refusing using the public relay")
 					return
@@ -1906,14 +1922,14 @@ func (c *Client) setBar() {
 }
 
 func (c *Client) receiveData(i int) {
-	log.Debugf("%d receiving data", i)
+	log.Tracef("%d receiving data", i)
 	for {
 		data, err := c.conn[i+1].Receive()
 		if err != nil {
 			break
 		}
 		if bytes.Equal(data, []byte{1}) {
-			log.Debug("got ping")
+			log.Trace("got ping")
 			continue
 		}
 
