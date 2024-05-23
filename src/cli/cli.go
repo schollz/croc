@@ -304,6 +304,25 @@ func send(c *cli.Context) (err error) {
 		return errors.New("must specify file: croc send [filename(s) or folder]")
 	}
 
+	// if operating system is UNIX, then use environmental variable to set the code
+	if (runtime.GOOS == "linux" && c.IsSet("code")) || os.Getenv("CROC_SECRET") != "" {
+		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
+		if crocOptions.SharedSecret == "" {
+			fmt.Printf(`On linux, to send with a custom code phrase, 
+you need to set the environmental variable CROC_SECRET:
+
+  export CROC_SECRET="****"
+  croc send file.txt
+
+Or you can have the code phrase automaticlaly generated:
+
+  croc send file.txt
+
+`)
+			os.Exit(0)
+		}
+	}
+
 	if len(crocOptions.SharedSecret) == 0 {
 		// generate code phrase
 		crocOptions.SharedSecret = utils.GetRandomName()
@@ -311,19 +330,6 @@ func send(c *cli.Context) (err error) {
 	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfo(fnames, crocOptions.ZipFolder, crocOptions.GitIgnore)
 	if err != nil {
 		return
-	}
-
-	// if operating system is UNIX, then use environmental variable to set the code
-	if runtime.GOOS == "linux" {
-		log.Debug("forcing code phrase from environmental variable")
-		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
-		if crocOptions.SharedSecret == "" {
-			fmt.Printf(`To use croc you need to set a code phrase using your environmental variables:
-
-export CROC_SECRET="yourcodephrasetouse"
-			`)
-			os.Exit(0)
-		}
 	}
 
 	cr, err := croc.New(crocOptions)
@@ -507,6 +513,7 @@ func receive(c *cli.Context) (err error) {
 			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
 		}
 	}
+
 	if crocOptions.SharedSecret == "" && os.Getenv("CROC_SECRET") != "" {
 		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
 	} else if runtime.GOOS == "linux" && crocOptions.SharedSecret != "" {
