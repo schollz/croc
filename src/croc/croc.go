@@ -710,15 +710,15 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 				if errConn != nil {
 					log.Debugf("[%+v] had error: %s", conn, errConn.Error())
 				}
-				err = json.Unmarshal(data, &dataMessage)
-				if err == nil {
-					log.Debugf("dataMessage: %s", dataMessage)
-				}
+				json.Unmarshal(data, &dataMessage)
+				log.Debugf("dataMessage: %s", dataMessage)
+				log.Debugf("kB: %x", kB)
 				// if kB not null, then use it to decrypt
 				if kB != nil {
-					data, err = crypt.Decrypt(data, kB)
-					if err != nil {
-						log.Debugf("error decrypting: %v", err)
+					var decryptErr error
+					data, decryptErr = crypt.Decrypt(data, kB)
+					if decryptErr != nil {
+						log.Debugf("error decrypting: %v", decryptErr)
 					}
 				}
 				if bytes.Equal(data, ipRequest) {
@@ -740,15 +740,16 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 						log.Errorf("error sending: %v", err)
 					}
 				} else if dataMessage.Kind == "pake1" {
-					err = B.Update(dataMessage.Bytes)
-					if err == nil {
-						kB, err = B.SessionKey()
-						if err == nil {
+					var pakeError error
+					pakeError = B.Update(dataMessage.Bytes)
+					if pakeError == nil {
+						kB, pakeError = B.SessionKey()
+						if pakeError == nil {
 							log.Debugf("dataMessage kB: %x", kB)
 							dataMessage.Bytes = B.Bytes()
 							dataMessage.Kind = "pake2"
 							data, _ = json.Marshal(dataMessage)
-							if err = conn.Send(data); err != nil {
+							if pakeError = conn.Send(data); err != nil {
 								log.Errorf("dataMessage error sending: %v", err)
 							}
 						}
