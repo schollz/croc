@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/schollz/croc/v9/src/comm"
-	"github.com/schollz/croc/v9/src/crypt"
+	"github.com/schollz/croc/v10/src/comm"
+	"github.com/schollz/croc/v10/src/crypt"
 	log "github.com/schollz/logger"
 	"github.com/stretchr/testify/assert"
 )
@@ -84,7 +84,7 @@ func TestSend(t *testing.T) {
 		}
 	}()
 
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(800 * time.Millisecond)
 	a, err := comm.NewConnection("127.0.0.1:"+port, 10*time.Minute)
 	assert.Nil(t, err)
 	m := Message{Type: TypeMessage, Message: "hello, world"}

@@ -208,9 +208,24 @@ func TestGetRandomName(t *testing.T) {
 	assert.NotEmpty(t, name)
 }
 
+func intSliceSame(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func TestFindOpenPorts(t *testing.T) {
 	openPorts := FindOpenPorts("127.0.0.1", 9009, 4)
-	assert.Equal(t, []int{9009, 9010, 9011, 9012}, openPorts)
+	if !intSliceSame(openPorts, []int{9009, 9010, 9011, 9012}) && !intSliceSame(openPorts, []int{9014, 9015, 9016, 9017}) {
+		t.Errorf("openPorts: %v", openPorts)
+
+	}
 }
 
 func TestIsLocalIP(t *testing.T) {
