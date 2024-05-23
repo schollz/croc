@@ -507,7 +507,26 @@ func receive(c *cli.Context) (err error) {
 			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
 		}
 	}
+	if crocOptions.SharedSecret == "" && os.Getenv("CROC_SECRET") != "" {
+		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
+	} else if runtime.GOOS == "linux" && crocOptions.SharedSecret != "" {
+		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
+		if crocOptions.SharedSecret == "" {
+			fmt.Printf(`On linux, to receive with croc you either need 
+to set a code phrase using your environmental variables:
+	
+  export CROC_SECRET="****"
+  croc 
 
+Or you can specify the code phrase when you run croc without
+declaring the secret on the command line:
+
+  croc 
+  Enter receive code: ****
+				`)
+			os.Exit(0)
+		}
+	}
 	if crocOptions.SharedSecret == "" {
 		l, err := readline.NewEx(&readline.Config{
 			Prompt:       "Enter receive code: ",
@@ -524,17 +543,6 @@ func receive(c *cli.Context) (err error) {
 	if c.String("out") != "" {
 		if err = os.Chdir(c.String("out")); err != nil {
 			return err
-		}
-	}
-	// if operating system is UNIX, then use environmental variable to set the code
-	if runtime.GOOS == "linux" {
-		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
-		if crocOptions.SharedSecret == "" {
-			fmt.Printf(`To use croc you need to set a code phrase using your environmental variables:
-	
-	export CROC_SECRET="yourcodephrasetouse"
-				`)
-			os.Exit(0)
 		}
 	}
 
