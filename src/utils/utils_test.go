@@ -231,3 +231,10 @@ func TestFindOpenPorts(t *testing.T) {
 func TestIsLocalIP(t *testing.T) {
 	assert.True(t, IsLocalIP("192.168.0.14:9009"))
 }
+
+func TestValidFileName(t *testing.T) {
+	// contains regular characters
+	assert.True(t, ValidFileName("中文.csl"))
+	// contains invisible character
+	assert.False(t, ValidFileName("D中文.cslouglas​"))
+}
