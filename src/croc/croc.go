@@ -198,7 +198,7 @@ func New(ops Options) (c *Client, err error) {
 	// Create a hash of part of the shared secret to use as the room name
 	// add the current day and "croc" to the shared secret to make more resistant
 	// to rainbow tables
-	hashExtra := "croc" + time.Now().Format("2006-01-02")
+	hashExtra := "croc"
 	roomNameBytes := sha256.Sum256([]byte(c.Options.SharedSecret[:4] + hashExtra))
 	c.Options.RoomName = hex.EncodeToString(roomNameBytes[:])
 
