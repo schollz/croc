@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/cespare/xxhash"
 	"github.com/kalafut/imohash"
@@ -485,16 +486,21 @@ func UnzipDirectory(destination string, source string) error {
 }
 
 // ValidFileName checks if a filename is valid
-// and returns true only if it all of the characters are either
-// 0-9, a-z, A-Z, ., _, -, space, or /
+// by making sure it has no invisible characters
 func ValidFileName(fname string) bool {
-	for _, r := range fname {
-		if !((r >= '0' && r <= '9') ||
-			(r >= 'a' && r <= 'z') ||
-			(r >= 'A' && r <= 'Z') ||
-			r == '.' || r == '_' || r == '-' || r == ' ' || r == '/') {
-			return false
+	clean1 := strings.Map(func(r rune) rune {
+		if unicode.IsGraphic(r) {
+			return r
 		}
-	}
-	return true
+		return -1
+	}, fname)
+
+	clean2 := strings.Map(func(r rune) rune {
+		if unicode.IsPrint(r) {
+			return r
+		}
+		return -1
+	}, fname)
+
+	return (fname == clean1) && (fname == clean2)
 }
