@@ -144,15 +144,14 @@ Do you wish to continue to DISABLE the classic mode? (Y/n) `)
 				choice := strings.ToLower(utils.GetInput(""))
 				if choice == "y" || choice == "yes" {
 					os.Remove(classicFile)
-					fmt.Println("\nClassic mode DISABLED.\n")
-					fmt.Println(`To send and receive, export the CROC_SECRET variable with the code phrase:
+					fmt.Print("\nClassic mode DISABLED.\n\n")
+					fmt.Print(`To send and receive, export the CROC_SECRET variable with the code phrase:
 
-  Send: CROC_SECRET=*** croc send file.txt
+  Send:    CROC_SECRET=*** croc send file.txt
 
-  Receive: CROC_SECRET=*** croc
-`)
+  Receive: CROC_SECRET=*** croc` + "\n\n")
 				} else {
-					fmt.Println("\nClassic mode ENABLED.\n")
+					fmt.Print("\nClassic mode ENABLED.\n")
 
 				}
 			} else {
@@ -168,16 +167,15 @@ shared secret and receive the files instead of the intended recipient.
 Do you wish to continue to enable the classic mode? (Y/n) `)
 				choice := strings.ToLower(utils.GetInput(""))
 				if choice == "y" || choice == "yes" {
-					fmt.Println("\nClassic mode ENABLED.\n")
+					fmt.Print("\nClassic mode ENABLED.\n\n")
 					os.WriteFile(classicFile, []byte("enabled"), 0o644)
-					fmt.Println(`To send and receive, use the code phrase:
+					fmt.Print(`To send and receive, use the code phrase:
 
-  Send: croc send --code *** file.txt
+  Send:    croc send --code *** file.txt
 
-  Receive: croc ***
-`)
+  Receive: croc ***` + "\n\n")
 				} else {
-					fmt.Println("\nClassic mode DISABLED.\n")
+					fmt.Print("\nClassic mode DISABLED.\n")
 				}
 			}
 			os.Exit(0)
