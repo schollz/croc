@@ -27,7 +27,6 @@ import (
 
 // Version specifies the version
 var Version string
-var classicInsecureMode = false
 
 // Run will run the command line program
 func Run() (err error) {
@@ -129,7 +128,7 @@ func Run() (err error) {
 
 		// check if "classic" is set
 		classicFile := getClassicConfigFile(true)
-		classicInsecureMode = utils.Exists(classicFile)
+		classicInsecureMode := utils.Exists(classicFile)
 		if c.Bool("classic") {
 			if classicInsecureMode {
 				// classic mode not enabled
@@ -373,6 +372,7 @@ func send(c *cli.Context) (err error) {
 		return errors.New("must specify file: croc send [filename(s) or folder]")
 	}
 
+	classicInsecureMode := utils.Exists(getClassicConfigFile(true))
 	if !classicInsecureMode {
 		// if operating system is UNIX, then use environmental variable to set the code
 		if (!(runtime.GOOS == "windows") && c.IsSet("code")) || os.Getenv("CROC_SECRET") != "" {
@@ -589,6 +589,7 @@ func receive(c *cli.Context) (err error) {
 		}
 	}
 
+	classicInsecureMode := utils.Exists(getClassicConfigFile(true))
 	if crocOptions.SharedSecret == "" && os.Getenv("CROC_SECRET") != "" {
 		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
 	} else if !(runtime.GOOS == "windows") && crocOptions.SharedSecret != "" && !classicInsecureMode {
