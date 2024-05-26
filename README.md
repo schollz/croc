@@ -6,8 +6,8 @@
 <br>
 <a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/badge/version-v10.0.5-brightgreen.svg?style=flat-square" alt="Version"></a>
 <a href="https://coveralls.io/github/schollz/croc"><img src="https://img.shields.io/badge/coverage-81%25-green.svg?style=flat-square" alt="Coverage"></a>
-<a href="https://travis-ci.org/schollz/croc"><img
-src="https://img.shields.io/travis/schollz/croc.svg?style=flat-square" alt="Build
+<a href="https://github.com/schollz/croc/actions/workflows/ci.yml"><img
+src="https://github.com/schollz/croc/actions/workflows/ci.yml/badge.svg" alt="Build
 Status"></a> 
 <p align="center">This project is supported by <a href="https://github.com/sponsors/schollz">Github sponsors</a>.</p>
 
