@@ -305,7 +305,7 @@ func send(c *cli.Context) (err error) {
 	}
 
 	// if operating system is UNIX, then use environmental variable to set the code
-	if (runtime.GOOS == "linux" && c.IsSet("code")) || os.Getenv("CROC_SECRET") != "" {
+	if (!(runtime.GOOS == "windows") && c.IsSet("code")) || os.Getenv("CROC_SECRET") != "" {
 		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
 		if crocOptions.SharedSecret == "" {
 			fmt.Printf(`On linux, to send with a custom code phrase, 
@@ -516,7 +516,7 @@ func receive(c *cli.Context) (err error) {
 
 	if crocOptions.SharedSecret == "" && os.Getenv("CROC_SECRET") != "" {
 		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
-	} else if runtime.GOOS == "linux" && crocOptions.SharedSecret != "" {
+	} else if !(runtime.GOOS == "windows") && crocOptions.SharedSecret != "" {
 		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
 		if crocOptions.SharedSecret == "" {
 			fmt.Printf(`On linux, to receive with croc you either need 
