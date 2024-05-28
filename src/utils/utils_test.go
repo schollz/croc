@@ -44,6 +44,14 @@ func BenchmarkImoHash(b *testing.B) {
 	}
 }
 
+func BenchmarkHighwayHash(b *testing.B) {
+	bigFile()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		HighwayHashFile("bigfile.test", false)
+	}
+}
+
 func BenchmarkImoHashFull(b *testing.B) {
 	bigFile()
 	b.ResetTimer()
@@ -82,6 +90,16 @@ func TestMD5HashFile(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "8304ff018e02baad0e3555bade29a405", fmt.Sprintf("%x", b))
 	_, err = MD5HashFile("bigfile.test.nofile", false)
+	assert.NotNil(t, err)
+}
+
+func TestHighwayHashFile(t *testing.T) {
+	bigFile()
+	defer os.Remove("bigfile.test")
+	b, err := HighwayHashFile("bigfile.test", false)
+	assert.Nil(t, err)
+	assert.Equal(t, "3c32999529323ed66a67aeac5720c7bf1301dcc5dca87d8d46595e85ff990329", fmt.Sprintf("%x", b))
+	_, err = HighwayHashFile("bigfile.test.nofile", false)
 	assert.NotNil(t, err)
 }
 

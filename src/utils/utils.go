@@ -25,6 +25,7 @@ import (
 
 	"github.com/cespare/xxhash"
 	"github.com/kalafut/imohash"
+	"github.com/minio/highwayhash"
 	"github.com/schollz/mnemonicode"
 	"github.com/schollz/progressbar/v3"
 )
@@ -103,8 +104,51 @@ func HashFile(fname string, algorithm string, showProgress ...bool) (hash256 []b
 		return MD5HashFile(fname, doShowProgress)
 	case "xxhash":
 		return XXHashFile(fname, doShowProgress)
+	case "highway":
+		return HighwayHashFile(fname, doShowProgress)
 	}
 	err = fmt.Errorf("unspecified algorithm")
+	return
+}
+
+// HighwayHashFile returns highwayhash of a file
+func HighwayHashFile(fname string, doShowProgress bool) (hashHighway []byte, err error) {
+	f, err := os.Open(fname)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	key, err := hex.DecodeString("1553c5383fb0b86578c3310da665b4f6e0521acf22eb58a99532ffed02a6b115")
+	if err != nil {
+		return
+	}
+	h, err := highwayhash.New(key)
+	if err != nil {
+		err = fmt.Errorf("could not create highwayhash: %s", err.Error())
+		return
+	}
+	if doShowProgress {
+		stat, _ := f.Stat()
+		fnameShort := path.Base(fname)
+		if len(fnameShort) > 20 {
+			fnameShort = fnameShort[:20] + "..."
+		}
+		bar := progressbar.NewOptions64(stat.Size(),
+			progressbar.OptionSetWriter(os.Stderr),
+			progressbar.OptionShowBytes(true),
+			progressbar.OptionSetDescription(fmt.Sprintf("Hashing %s", fnameShort)),
+			progressbar.OptionClearOnFinish(),
+		)
+		if _, err = io.Copy(io.MultiWriter(h, bar), f); err != nil {
+			return
+		}
+	} else {
+		if _, err = io.Copy(h, f); err != nil {
+			return
+		}
+	}
+
+	hashHighway = h.Sum(nil)
 	return
 }
 
