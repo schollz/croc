@@ -26,6 +26,7 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/kalafut/imohash"
 	"github.com/schollz/mnemonicode"
+	"github.com/schollz/progressbar/v3"
 )
 
 const NbPinNumbers = 4
@@ -77,7 +78,11 @@ func GetInput(prompt string) string {
 
 // HashFile returns the hash of a file or, in case of a symlink, the
 // SHA256 hash of its target. Takes an argument to specify the algorithm to use.
-func HashFile(fname string, algorithm string) (hash256 []byte, err error) {
+func HashFile(fname string, algorithm string, showProgress ...bool) (hash256 []byte, err error) {
+	doShowProgress := false
+	if len(showProgress) > 0 {
+		doShowProgress = showProgress[0]
+	}
 	var fstats os.FileInfo
 	fstats, err = os.Lstat(fname)
 	if err != nil {
@@ -95,16 +100,16 @@ func HashFile(fname string, algorithm string) (hash256 []byte, err error) {
 	case "imohash":
 		return IMOHashFile(fname)
 	case "md5":
-		return MD5HashFile(fname)
+		return MD5HashFile(fname, doShowProgress)
 	case "xxhash":
-		return XXHashFile(fname)
+		return XXHashFile(fname, doShowProgress)
 	}
 	err = fmt.Errorf("unspecified algorithm")
 	return
 }
 
 // MD5HashFile returns MD5 hash
-func MD5HashFile(fname string) (hash256 []byte, err error) {
+func MD5HashFile(fname string, doShowProgress bool) (hash256 []byte, err error) {
 	f, err := os.Open(fname)
 	if err != nil {
 		return
@@ -112,8 +117,25 @@ func MD5HashFile(fname string) (hash256 []byte, err error) {
 	defer f.Close()
 
 	h := md5.New()
-	if _, err = io.Copy(h, f); err != nil {
-		return
+	if doShowProgress {
+		stat, _ := f.Stat()
+		fnameShort := path.Base(fname)
+		if len(fnameShort) > 20 {
+			fnameShort = fnameShort[:20] + "..."
+		}
+		bar := progressbar.NewOptions64(stat.Size(),
+			progressbar.OptionSetWriter(os.Stderr),
+			progressbar.OptionShowBytes(true),
+			progressbar.OptionSetDescription(fmt.Sprintf("Hashing %s", fnameShort)),
+			progressbar.OptionClearOnFinish(),
+		)
+		if _, err = io.Copy(io.MultiWriter(h, bar), f); err != nil {
+			return
+		}
+	} else {
+		if _, err = io.Copy(h, f); err != nil {
+			return
+		}
 	}
 
 	hash256 = h.Sum(nil)
@@ -137,7 +159,7 @@ func IMOHashFileFull(fname string) (hash []byte, err error) {
 }
 
 // XXHashFile returns the xxhash of a file
-func XXHashFile(fname string) (hash256 []byte, err error) {
+func XXHashFile(fname string, doShowProgress bool) (hash256 []byte, err error) {
 	f, err := os.Open(fname)
 	if err != nil {
 		return
@@ -145,8 +167,25 @@ func XXHashFile(fname string) (hash256 []byte, err error) {
 	defer f.Close()
 
 	h := xxhash.New()
-	if _, err = io.Copy(h, f); err != nil {
-		return
+	if doShowProgress {
+		stat, _ := f.Stat()
+		fnameShort := path.Base(fname)
+		if len(fnameShort) > 20 {
+			fnameShort = fnameShort[:20] + "..."
+		}
+		bar := progressbar.NewOptions64(stat.Size(),
+			progressbar.OptionSetWriter(os.Stderr),
+			progressbar.OptionShowBytes(true),
+			progressbar.OptionSetDescription(fmt.Sprintf("Hashing %s", fnameShort)),
+			progressbar.OptionClearOnFinish(),
+		)
+		if _, err = io.Copy(io.MultiWriter(h, bar), f); err != nil {
+			return
+		}
+	} else {
+		if _, err = io.Copy(h, f); err != nil {
+			return
+		}
 	}
 
 	hash256 = h.Sum(nil)
