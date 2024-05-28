@@ -24,7 +24,7 @@ func BenchmarkMD5(b *testing.B) {
 	bigFile()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		MD5HashFile("bigfile.test")
+		MD5HashFile("bigfile.test", false)
 	}
 }
 
@@ -32,7 +32,7 @@ func BenchmarkXXHash(b *testing.B) {
 	bigFile()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		XXHashFile("bigfile.test")
+		XXHashFile("bigfile.test", false)
 	}
 }
 
@@ -78,10 +78,10 @@ func TestExists(t *testing.T) {
 func TestMD5HashFile(t *testing.T) {
 	bigFile()
 	defer os.Remove("bigfile.test")
-	b, err := MD5HashFile("bigfile.test")
+	b, err := MD5HashFile("bigfile.test", false)
 	assert.Nil(t, err)
 	assert.Equal(t, "8304ff018e02baad0e3555bade29a405", fmt.Sprintf("%x", b))
-	_, err = MD5HashFile("bigfile.test.nofile")
+	_, err = MD5HashFile("bigfile.test.nofile", false)
 	assert.NotNil(t, err)
 }
 
@@ -96,10 +96,10 @@ func TestIMOHashFile(t *testing.T) {
 func TestXXHashFile(t *testing.T) {
 	bigFile()
 	defer os.Remove("bigfile.test")
-	b, err := XXHashFile("bigfile.test")
+	b, err := XXHashFile("bigfile.test", false)
 	assert.Nil(t, err)
 	assert.Equal(t, "4918740eb5ccb6f7", fmt.Sprintf("%x", b))
-	_, err = XXHashFile("nofile")
+	_, err = XXHashFile("nofile", false)
 	assert.NotNil(t, err)
 }
 
