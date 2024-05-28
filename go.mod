@@ -20,6 +20,8 @@ require (
 	golang.org/x/time v0.5.0
 )
 
+require github.com/minio/highwayhash v1.0.2
+
 require (
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
