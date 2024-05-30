@@ -253,6 +253,10 @@ func TestIsLocalIP(t *testing.T) {
 func TestValidFileName(t *testing.T) {
 	// contains regular characters
 	assert.True(t, ValidFileName("中文.csl"))
+	// contains regular characters
+	assert.True(t, ValidFileName("[something].csl"))
+	// contains regular characters
+	assert.True(t, ValidFileName("[(something)].csl"))
 	// contains invisible character
 	assert.False(t, ValidFileName("D中文.cslouglas​"))
 }
