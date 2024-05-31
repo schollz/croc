@@ -542,7 +542,7 @@ func UnzipDirectory(destination string, source string) error {
 			prompt := fmt.Sprintf("\nOverwrite '%s'? (y/N) ", filePath)
 			choice := strings.ToLower(GetInput(prompt))
 			if choice != "y" && choice != "yes" {
-				fmt.Fprintf(os.Stderr, "skipping '%s'", filePath)
+				fmt.Fprintf(os.Stderr, "Skipping '%s'\n", filePath)
 				continue
 			}
 		}

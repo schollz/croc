@@ -1064,7 +1064,7 @@ func (c *Client) Receive() (err error) {
 	err = c.transfer()
 	if err == nil {
 		if c.numberOfTransferredFiles+len(c.EmptyFoldersToTransfer) == 0 {
-			fmt.Fprintf(os.Stderr, "\rNo files transferred.")
+			fmt.Fprintf(os.Stderr, "\rNo files transferred.\n")
 		}
 	}
 	return
@@ -1780,7 +1780,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 				}
 				choice := strings.ToLower(utils.GetInput(prompt))
 				if choice != "y" && choice != "yes" {
-					fmt.Fprintf(os.Stderr, "skipping '%s'", path.Join(fileInfo.FolderRemote, fileInfo.Name))
+					fmt.Fprintf(os.Stderr, "Skipping '%s'\n", path.Join(fileInfo.FolderRemote, fileInfo.Name))
 					continue
 				}
 			}
