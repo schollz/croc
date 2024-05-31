@@ -1638,6 +1638,7 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 		}
 		c.SuccessfulTransfer = true
 		c.FilesHasFinished[c.FilesToTransferCurrentNum] = struct{}{}
+		return
 	}
 
 	err = c.recipientInitializeFile()
