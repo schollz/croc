@@ -1064,7 +1064,7 @@ func (c *Client) Receive() (err error) {
 	err = c.transfer()
 	if err == nil {
 		if c.numberOfTransferredFiles+len(c.EmptyFoldersToTransfer) == 0 {
-			fmt.Fprintf(os.Stderr, "\rNo files transferred.")
+			fmt.Fprintf(os.Stderr, "\rNo files transferred.\n")
 		}
 	}
 	return
@@ -1638,6 +1638,7 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 		}
 		c.SuccessfulTransfer = true
 		c.FilesHasFinished[c.FilesToTransferCurrentNum] = struct{}{}
+		return
 	}
 
 	err = c.recipientInitializeFile()
