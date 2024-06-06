@@ -41,7 +41,10 @@ func Run() (err error) {
 	app.Version = Version
 	app.Compiled = time.Now()
 	app.Usage = "easily and securely transfer stuff from one computer to another"
-	app.UsageText = `Send a file:
+	app.UsageText = `croc [GLOBAL OPTIONS] [COMMAND] [COMMAND OPTIONS] [filename(s) or folder]
+
+   USAGE EXAMPLES:
+   Send a file:
       croc send file.txt
 
       -git to respect your .gitignore
