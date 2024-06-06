@@ -104,7 +104,7 @@ func Run() (err error) {
 		&cli.BoolFlag{Name: "ask", Usage: "make sure sender and recipient are prompted"},
 		&cli.BoolFlag{Name: "local", Usage: "force to use only local connections"},
 		&cli.BoolFlag{Name: "ignore-stdin", Usage: "ignore piped stdin"},
-		&cli.BoolFlag{Name: "overwrite", Usage: "do not prompt to overwrite"},
+		&cli.BoolFlag{Name: "overwrite", Usage: "do not prompt to overwrite or resume"},
 		&cli.BoolFlag{Name: "testing", Usage: "flag for testing purposes"},
 		&cli.StringFlag{Name: "curve", Value: "p256", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
 		&cli.StringFlag{Name: "ip", Value: "", Usage: "set sender ip if known e.g. 10.0.0.1:9009, [::1]:9009"},
