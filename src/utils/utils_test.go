@@ -108,7 +108,7 @@ func TestIMOHashFile(t *testing.T) {
 	defer os.Remove("bigfile.test")
 	b, err := IMOHashFile("bigfile.test")
 	assert.Nil(t, err)
-	assert.Equal(t, "c0d1e123ca94148ffea146137684ebb9", fmt.Sprintf("%x", b))
+	assert.Equal(t, "c0d1e12301e6c635f6d4a8ea5c897437", fmt.Sprintf("%x", b))
 }
 
 func TestXXHashFile(t *testing.T) {
