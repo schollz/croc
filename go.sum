@@ -52,8 +52,8 @@ github.com/schollz/pake/v3 v3.0.5 h1:MnZVdI987lkjln9BSx/zUb724TZISa2jbO+dPj6BvgQ
 github.com/schollz/pake/v3 v3.0.5/go.mod h1:OGbG6htRwSKo6V8R5tg61ufpFmZM1b/PrrSp6g2ZLLc=
 github.com/schollz/peerdiscovery v1.7.3 h1:/pt1G0rZ80fSPoI/FgGC5P7MxpkRXD6u0pe6PJbYcIE=
 github.com/schollz/peerdiscovery v1.7.3/go.mod h1:mVlPNJ5DWbMi52VzpXxGbqXKdFANx3qw0Jsp3EQMCrE=
-github.com/schollz/progressbar/v3 v3.14.3 h1:oOuWW19ka12wxYU1XblR4n16wF/2Y1dBLMarMo6p4xU=
-github.com/schollz/progressbar/v3 v3.14.3/go.mod h1:aT3UQ7yGm+2ZjeXPqsjTenwL3ddUiuZ0kfQ/2tHlyNI=
+github.com/schollz/progressbar/v3 v3.14.4 h1:W9ZrDSJk7eqmQhd3uxFNNcTr0QL+xuGNI9dEMrw0r74=
+github.com/schollz/progressbar/v3 v3.14.4/go.mod h1:aT3UQ7yGm+2ZjeXPqsjTenwL3ddUiuZ0kfQ/2tHlyNI=
 github.com/shurcooL/sanitized_anchor_name v1.0.0/go.mod h1:1NzhyTcUVG4SuEtjjoZeVRXNmyL/1OwPU0+IJeTBvfc=
 github.com/spaolacci/murmur3 v0.0.0-20180118202830-f09979ecbc72/go.mod h1:JwIasOWyU6f++ZhiEuf87xNszmSA2myDM2Kzu9HwQUA=
 github.com/spaolacci/murmur3 v1.1.0 h1:7c1g84S4BPRrfL5Xrdp6fOJ206sU9y293DDHaoy0bLI=
