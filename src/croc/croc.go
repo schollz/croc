@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -719,6 +720,11 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 					dataDecrypt, decryptErr = crypt.Decrypt(data, kB)
 					if decryptErr != nil {
 						log.Tracef("error decrypting: %v: '%s'", decryptErr, data)
+						// Wrong password entered by recipient
+						if !c.Step1ChannelSecured {
+							errchan <- ErrInvalidRecipientPassword
+						}
+						return
 					} else {
 						// copy dataDecrypt to data
 						data = dataDecrypt
@@ -800,7 +806,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 		return
 	} else {
 		log.Debugf("error from errchan: %v", err)
-		if strings.Contains(err.Error(), "could not secure channel") {
+		if errors.Is(err, ErrInvalidRecipientPassword) || errors.Is(err, ErrCouldNotSecureChannel) {
 			return err
 		}
 	}
@@ -810,6 +816,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 		}
 		err = <-errchan
 	}
+	fmt.Println("I'm done here")
 	return err
 }
 
@@ -1097,7 +1104,7 @@ func (c *Client) transfer() (err error) {
 		if err != nil {
 			log.Debugf("got error receiving: %v", err)
 			if !c.Step1ChannelSecured {
-				err = fmt.Errorf("could not secure channel")
+				err = ErrCouldNotSecureChannel
 			}
 			break
 		}
