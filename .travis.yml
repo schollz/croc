@@ -1,0 +1,23 @@
+language: go
+
+go:
+  - tip
+
+env:
+  - "PATH=/home/travis/gopath/bin:$PATH"
+
+install: true
+
+script:
+  - env GO111MODULE=on go build -v
+  - env GO111MODULE=on go test -v -cover github.com/schollz/croc/v10/src/compress
+  - env GO111MODULE=on go test -v -cover github.com/schollz/croc/v10/src/croc
+  - env GO111MODULE=on go test -v -cover github.com/schollz/croc/v10/src/crypt
+  - env GO111MODULE=on go test -v -cover github.com/schollz/croc/v10/src/tcp
+  - env GO111MODULE=on go test -v -cover github.com/schollz/croc/v10/src/utils
+  - env GO111MODULE=on go test -v -cover github.com/schollz/croc/v10/src/comm
+  
+branches:
+  except:
+  - dev
+  - win

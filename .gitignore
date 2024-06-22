@@ -1,0 +1,13 @@
+# Binaries
+/croc
+/croc.exe
+zsh_autocomplete
+bash_autocomplete
+dist
+bin
+croc-stdin*
+
+.idea/
+.vscode/
+src/utils/bigfile.test
+test1/
