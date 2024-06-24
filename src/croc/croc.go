@@ -816,7 +816,6 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 		}
 		err = <-errchan
 	}
-	fmt.Println("I'm done here")
 	return err
 }
 
