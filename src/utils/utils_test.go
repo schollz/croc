@@ -257,6 +257,7 @@ func TestValidFileName(t *testing.T) {
 	assert.True(t, ValidFileName("[something].csl"))
 	// contains regular characters
 	assert.True(t, ValidFileName("[(something)].csl"))
+	assert.True(t, ValidFileName("_index_slash_ssl.html"))
 	// contains invisible character
 	assert.False(t, ValidFileName("D中文.cslouglas​"))
 }
