@@ -143,7 +143,7 @@ multi-user system, this will help ensure that other local users cannot
 access the shared secret and receive the files instead of the intended
 recipient.
 
-Do you wish to continue to DISABLE the classic mode? (Y/n) `)
+Do you wish to continue to DISABLE the classic mode? (y/N) `)
 				choice := strings.ToLower(utils.GetInput(""))
 				if choice == "y" || choice == "yes" {
 					os.Remove(classicFile)
