@@ -571,20 +571,16 @@ func UnzipDirectory(destination string, source string) error {
 
 // ValidFileName checks if a filename is valid
 // by making sure it has no invisible characters
-func ValidFileName(fname string) bool {
-	clean1 := strings.Map(func(r rune) rune {
-		if unicode.IsGraphic(r) {
-			return r
+func ValidFileName(fname string) (err error) {
+	for _, r := range fname {
+		if !unicode.IsGraphic(r) {
+			err = fmt.Errorf("non-graphical unicode: %x U+%d in '%s'", string(r), r, fname)
+			return
 		}
-		return -1
-	}, fname)
-
-	clean2 := strings.Map(func(r rune) rune {
-		if unicode.IsPrint(r) {
-			return r
+		if !unicode.IsPrint(r) {
+			err = fmt.Errorf("non-printable unicode: %x U+%d in '%s'", string(r), r, fname)
+			return
 		}
-		return -1
-	}, fname)
-
-	return (fname == clean1) && (fname == clean2)
+	}
+	return
 }

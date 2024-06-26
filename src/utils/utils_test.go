@@ -252,12 +252,13 @@ func TestIsLocalIP(t *testing.T) {
 
 func TestValidFileName(t *testing.T) {
 	// contains regular characters
-	assert.True(t, ValidFileName("中文.csl"))
+	assert.Nil(t, ValidFileName("中文.csl"))
 	// contains regular characters
-	assert.True(t, ValidFileName("[something].csl"))
+	assert.Nil(t, ValidFileName("[something].csl"))
 	// contains regular characters
-	assert.True(t, ValidFileName("[(something)].csl"))
-	assert.True(t, ValidFileName("_index_slash_ssl.html"))
+	assert.Nil(t, ValidFileName("[(something)].csl"))
 	// contains invisible character
-	assert.False(t, ValidFileName("D中文.cslouglas​"))
+	err := ValidFileName("D中文.cslouglas​")
+	assert.NotNil(t, err)
+	assert.Equal(t, "non-graphical unicode: e2808b U+8203 in 'D中文.cslouglas​'", err.Error())
 }
