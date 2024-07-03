@@ -23,6 +23,9 @@ type server struct {
 	banner     string
 	password   string
 	rooms      roomMap
+
+	roomCleanupInterval time.Duration
+	roomTTL             time.Duration
 }
 
 type roomInfo struct {
@@ -39,19 +42,33 @@ type roomMap struct {
 
 const pingRoom = "pinglkasjdlfjsaldjf"
 
-var timeToRoomDeletion = 10 * time.Minute
-
-// Run starts a tcp listener, run async
-func Run(debugLevel, host, port, password string, banner ...string) (err error) {
+// newDefaultServer initializes a new server, with some default configuration options
+func newDefaultServer() *server {
 	s := new(server)
+	s.roomCleanupInterval = DEFAULT_ROOM_CLEANUP_INTERVAL
+	s.roomTTL = DEFAULT_ROOM_TTL
+	s.debugLevel = DEFAULT_LOG_LEVEL
+	return s
+}
+
+// RunWithOptionsAsync asynchronously starts a TCP listener.
+func RunWithOptionsAsync(host, port, password string, opts ...serverOptsFunc) error {
+	s := newDefaultServer()
 	s.host = host
 	s.port = port
 	s.password = password
-	s.debugLevel = debugLevel
-	if len(banner) > 0 {
-		s.banner = banner[0]
+	for _, opt := range opts {
+		err := opt(s)
+		if err != nil {
+			return fmt.Errorf("could not apply optional configurations: %w", err)
+		}
 	}
 	return s.start()
+}
+
+// Run starts a tcp listener, run async
+func Run(debugLevel, host, port, password string, banner ...string) (err error) {
+	return RunWithOptionsAsync(host, port, password, WithBanner(banner...), WithLogLevel(debugLevel))
 }
 
 func (s *server) start() (err error) {
@@ -61,24 +78,7 @@ func (s *server) start() (err error) {
 	s.rooms.rooms = make(map[string]roomInfo)
 	s.rooms.Unlock()
 
-	// delete old rooms
-	go func() {
-		for {
-			time.Sleep(timeToRoomDeletion)
-			var roomsToDelete []string
-			s.rooms.Lock()
-			for room := range s.rooms.rooms {
-				if time.Since(s.rooms.rooms[room].opened) > 3*time.Hour {
-					roomsToDelete = append(roomsToDelete, room)
-				}
-			}
-			s.rooms.Unlock()
-
-			for _, room := range roomsToDelete {
-				s.deleteRoom(room)
-			}
-		}
-	}()
+	go s.deleteOldRooms()
 
 	err = s.run()
 	if err != nil {
@@ -170,6 +170,26 @@ func (s *server) run() (err error) {
 				time.Sleep(1 * time.Second)
 			}
 		}(s.port, connection)
+	}
+}
+
+// deleteOldRooms checks for rooms at a regular interval and removes those that
+// have exceeded their allocated TTL.
+func (s *server) deleteOldRooms() {
+	for {
+		time.Sleep(s.roomCleanupInterval)
+		var roomsToDelete []string
+		s.rooms.Lock()
+		for room := range s.rooms.rooms {
+			if time.Since(s.rooms.rooms[room].opened) > s.roomTTL {
+				roomsToDelete = append(roomsToDelete, room)
+			}
+		}
+		s.rooms.Unlock()
+
+		for _, room := range roomsToDelete {
+			s.deleteRoom(room)
+		}
 	}
 }
 
