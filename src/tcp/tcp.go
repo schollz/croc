@@ -26,6 +26,8 @@ type server struct {
 
 	roomCleanupInterval time.Duration
 	roomTTL             time.Duration
+
+	stopRoomCleanup chan struct{}
 }
 
 type roomInfo struct {
@@ -48,6 +50,7 @@ func newDefaultServer() *server {
 	s.roomCleanupInterval = DEFAULT_ROOM_CLEANUP_INTERVAL
 	s.roomTTL = DEFAULT_ROOM_TTL
 	s.debugLevel = DEFAULT_LOG_LEVEL
+	s.stopRoomCleanup = make(chan struct{})
 	return s
 }
 
@@ -79,6 +82,7 @@ func (s *server) start() (err error) {
 	s.rooms.Unlock()
 
 	go s.deleteOldRooms()
+	defer s.stopRoomDeletion()
 
 	err = s.run()
 	if err != nil {
@@ -176,21 +180,31 @@ func (s *server) run() (err error) {
 // deleteOldRooms checks for rooms at a regular interval and removes those that
 // have exceeded their allocated TTL.
 func (s *server) deleteOldRooms() {
+	ticker := time.NewTicker(s.roomCleanupInterval)
 	for {
-		time.Sleep(s.roomCleanupInterval)
-		var roomsToDelete []string
-		s.rooms.Lock()
-		for room := range s.rooms.rooms {
-			if time.Since(s.rooms.rooms[room].opened) > s.roomTTL {
-				roomsToDelete = append(roomsToDelete, room)
+		select {
+		case <-ticker.C:
+			var roomsToDelete []string
+			s.rooms.Lock()
+			for room := range s.rooms.rooms {
+				if time.Since(s.rooms.rooms[room].opened) > s.roomTTL {
+					roomsToDelete = append(roomsToDelete, room)
+				}
 			}
-		}
-		s.rooms.Unlock()
+			s.rooms.Unlock()
 
-		for _, room := range roomsToDelete {
-			s.deleteRoom(room)
+			for _, room := range roomsToDelete {
+				s.deleteRoom(room)
+			}
+		case <-s.stopRoomCleanup:
+			ticker.Stop()
+			return
 		}
 	}
+}
+
+func (s *server) stopRoomDeletion() {
+	s.stopRoomCleanup <- struct{}{}
 }
 
 var weakKey = []byte{1, 2, 3}
