@@ -421,8 +421,14 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool) (filesInfo []
 					if err != nil {
 						return err
 					}
-					remoteFolder := strings.TrimPrefix(filepath.Dir(pathName),
-						filepath.Dir(absPath)+string(os.PathSeparator))
+					absPathWithSeparator := filepath.Dir(absPath)
+					if !strings.HasSuffix(absPathWithSeparator, string(os.PathSeparator)) {
+						absPathWithSeparator += string(os.PathSeparator)
+					}
+					if strings.HasSuffix(absPathWithSeparator, string(os.PathSeparator)+string(os.PathSeparator)) {
+						absPathWithSeparator = strings.TrimSuffix(absPathWithSeparator, string(os.PathSeparator))
+					}
+					remoteFolder := strings.TrimPrefix(filepath.Dir(pathName), absPathWithSeparator)
 					if !info.IsDir() {
 						fInfo := FileInfo{
 							Name:         info.Name(),
