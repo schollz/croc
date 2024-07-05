@@ -195,15 +195,18 @@ func (s *server) deleteOldRooms() {
 
 			for _, room := range roomsToDelete {
 				s.deleteRoom(room)
+				log.Debugf("room cleaned up: %s", room)
 			}
 		case <-s.stopRoomCleanup:
 			ticker.Stop()
+			log.Debug("room cleanup stopped")
 			return
 		}
 	}
 }
 
 func (s *server) stopRoomDeletion() {
+	log.Debug("stop room cleanup fired")
 	s.stopRoomCleanup <- struct{}{}
 }
 
