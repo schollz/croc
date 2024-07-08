@@ -1,31 +1,9 @@
 ---
-name: Bug report
-about: Create a report to help us improve
+name: Discuss
+about: Start a discussion about this project
 title: ''
 assignees: ''
 
 ---
-<!-- The comments between these brackets won't show up in the submitted issue (as you can see in the Preview). -->
 
-
-<!-- Please try to download latest, https://github.com/schollz/croc/releases/latest of croc before reporting a bug! -->
-
-## Describe the bug
-
-
-## To Reproduce
-Steps to reproduce the behavior:
-
-1.
-2.
-3.
-4. 
-
-## Expected behaviour
-
-
-## Version
-
-
-## Additional context
-
+*Read this and delete before submitting:* Thanks for starting a discussion! Please provide as much context as possible so that others can understand your thoughts. If you have a specific change in mind, consider submitting a pull request instead.
