@@ -23,8 +23,8 @@ func BenchmarkConnection(b *testing.B) {
 
 func TestTCP(t *testing.T) {
 	log.SetLevel("error")
-	timeToRoomDeletion = 100 * time.Millisecond
-	go Run("debug", "127.0.0.1", "8381", "pass123", "8382")
+	timeToRoomDeletion := 100 * time.Millisecond
+	go RunWithOptionsAsync("127.0.0.1", "8381", "pass123", WithBanner("8382"), WithLogLevel("debug"), WithRoomTTL(timeToRoomDeletion))
 	time.Sleep(timeToRoomDeletion)
 	err := PingServer("127.0.0.1:8381")
 	assert.Nil(t, err)
