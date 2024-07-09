@@ -133,7 +133,7 @@ The code phrase is used to establish password-authenticated key agreement ([PAKE
 
 There are a number of configurable options (see `--help`). A set of options (like custom relay, ports, and code phrase) can be set using `--remember`.
 
-### Receiving on Linux or Mac OS
+### Using `croc` on Linux or Mac OS
 
 On Linux and Mac OS, the sending & receiving is slightly different to avoid [leaking the secret via the process name](https://nvd.nist.gov/vuln/detail/CVE-2023-43621). On these systems you will need to run `croc` with the secret as an environment variable. For example, to receive with the secret `***`:
 
