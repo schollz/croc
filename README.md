@@ -129,23 +129,19 @@ Then to receive the file (or folder) on another computer, you can just do
 croc code-phrase
 ```
 
-On Linux this behavior is disabled by default to avoid leaking the [secret via the process name](https://nvd.nist.gov/vuln/detail/CVE-2023-43621) ([see below](README.md#receiving-on-linux)).
-
 The code phrase is used to establish password-authenticated key agreement ([PAKE](https://en.wikipedia.org/wiki/Password-authenticated_key_agreement)) which generates a secret key for the sender and recipient to use for end-to-end encryption.
 
 There are a number of configurable options (see `--help`). A set of options (like custom relay, ports, and code phrase) can be set using `--remember`.
 
-### Receiving on Linux
+### Receiving on Linux or Mac OS
 
-On Linux receiving is slightly different to avoid [leaking the secret via the process name](https://nvd.nist.gov/vuln/detail/CVE-2023-43621).
-Run
+On Linux and Mac OS, the sending & receiving is slightly different to avoid [leaking the secret via the process name](https://nvd.nist.gov/vuln/detail/CVE-2023-43621). On these systems you will need to run `croc` with the secret as an environment variable. For example, to receive with the secret `***`:
 
 ```
 CROC_SECRET=*** croc
 ```
 
-to receive with secret `***`. 
-It will show only `croc` in the process list of a multi-user system.
+This will show only `croc` in the process list of a multi-user system and not leak the secret.
 
 For a single-user system the default behavior can be permanently enabled by running
 
