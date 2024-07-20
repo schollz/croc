@@ -1,6 +1,6 @@
 ---
-name: Discuss
-about: Start a discussion about this project
+name: New issue
+about: Create an issue
 title: ''
 assignees: ''
 
