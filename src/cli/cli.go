@@ -385,11 +385,12 @@ you need to set the environmental variable CROC_SECRET:
   export CROC_SECRET="****"
   croc send file.txt
 
-Or you can have the code phrase automaticlaly generated:
+Or you can have the code phrase automatically generated:
 
   croc send file.txt
-	
-Or you can go back to the classic croc behavior by enabling classic mode:
+
+Or you can go back to the classic croc behavior by enabling classic mode,
+though this can leak the secret via the process name:
 
   croc --classic
 
@@ -597,18 +598,23 @@ func receive(c *cli.Context) (err error) {
 		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
 		if crocOptions.SharedSecret == "" {
 			fmt.Printf(`On UNIX systems, to receive with croc you either need 
-to set a code phrase using your environmental variables:
-	
-  export CROC_SECRET="****"
-  croc 
+to pipe the code phrase to croc:
+
+  echo **** | croc
 
 Or you can specify the code phrase when you run croc without
 declaring the secret on the command line:
 
-  croc 
+  croc
   Enter receive code: ****
 
-Or you can go back to the classic croc behavior by enabling classic mode:
+Or you can set a code phrase using your environmental variables:
+
+  export CROC_SECRET="****"
+  croc
+
+Or you can go back to the classic croc behavior by enabling classic mode,
+though this can leak the secret via the process name:
 
   croc --classic
 
