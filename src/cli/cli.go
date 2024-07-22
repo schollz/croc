@@ -382,10 +382,9 @@ func send(c *cli.Context) (err error) {
 				fmt.Printf(`On UNIX systems, to send with a custom code phrase, 
 you need to set the environmental variable CROC_SECRET:
 
-  export CROC_SECRET="****"
-  croc send file.txt
+  CROC_SECRET=**** croc send file.txt
 
-Or you can have the code phrase automaticlaly generated:
+Or you can have the code phrase automatically generated:
 
   croc send file.txt
 	
@@ -599,8 +598,7 @@ func receive(c *cli.Context) (err error) {
 			fmt.Printf(`On UNIX systems, to receive with croc you either need 
 to set a code phrase using your environmental variables:
 	
-  export CROC_SECRET="****"
-  croc 
+  CROC_SECRET=**** croc 
 
 Or you can specify the code phrase when you run croc without
 declaring the secret on the command line:
