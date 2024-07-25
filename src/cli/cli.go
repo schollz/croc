@@ -167,7 +167,7 @@ on the host's process list when passed via the command line. On a
 multi-user system, this could allow other local users to access the
 shared secret and receive the files instead of the intended recipient.
 
-Do you wish to continue to enable the classic mode? (Y/n) `)
+Do you wish to continue to enable the classic mode? (y/N) `)
 				choice := strings.ToLower(utils.GetInput(""))
 				if choice == "y" || choice == "yes" {
 					fmt.Print("\nClassic mode ENABLED.\n\n")
