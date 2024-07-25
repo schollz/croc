@@ -572,6 +572,7 @@ func UnzipDirectory(destination string, source string) error {
 // ValidFileName checks if a filename is valid
 // by making sure it has no invisible characters
 func ValidFileName(fname string) (err error) {
+	// make sure it doesn't contain unicode or invisible characters
 	for _, r := range fname {
 		if !unicode.IsGraphic(r) {
 			err = fmt.Errorf("non-graphical unicode: %x U+%d in '%s'", string(r), r, fname)
@@ -581,6 +582,21 @@ func ValidFileName(fname string) (err error) {
 			err = fmt.Errorf("non-printable unicode: %x U+%d in '%s'", string(r), r, fname)
 			return
 		}
+	}
+	// make sure basename does not include ".." or path separators
+	_, basename := filepath.Split(fname)
+	if strings.Contains(basename, "..") {
+		err = fmt.Errorf("basename cannot contain '..': '%s'", basename)
+		return
+	}
+	if strings.Contains(basename, string(os.PathSeparator)) {
+		err = fmt.Errorf("basename cannot contain path separators: '%s'", basename)
+		return
+	}
+	// make sure the filename is not an absolute path
+	if filepath.IsAbs(fname) {
+		err = fmt.Errorf("filename cannot be an absolute path: '%s'", fname)
+		return
 	}
 	return
 }

@@ -261,4 +261,6 @@ func TestValidFileName(t *testing.T) {
 	err := ValidFileName("D中文.cslouglas​")
 	assert.NotNil(t, err)
 	assert.Equal(t, "non-graphical unicode: e2808b U+8203 in 'D中文.cslouglas​'", err.Error())
+	assert.NotNil(t, ValidFileName("hi..txt"))
+	assert.NotNil(t, ValidFileName("/hi/something.txt"))
 }
