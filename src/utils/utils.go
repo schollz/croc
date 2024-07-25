@@ -575,11 +575,11 @@ func ValidFileName(fname string) (err error) {
 	// make sure it doesn't contain unicode or invisible characters
 	for _, r := range fname {
 		if !unicode.IsGraphic(r) {
-			err = fmt.Errorf("non-graphical unicode: %x U+%d in '%s'", string(r), r, fname)
+			err = fmt.Errorf("non-graphical unicode: %x U+%d in '%x'", string(r), r, fname)
 			return
 		}
 		if !unicode.IsPrint(r) {
-			err = fmt.Errorf("non-printable unicode: %x U+%d in '%s'", string(r), r, fname)
+			err = fmt.Errorf("non-printable unicode: %x U+%d in '%x'", string(r), r, fname)
 			return
 		}
 	}
