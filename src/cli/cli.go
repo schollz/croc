@@ -385,7 +385,7 @@ you need to set the environmental variable CROC_SECRET:
   export CROC_SECRET="****"
   croc send file.txt
 
-Or you can have the code phrase automaticlaly generated:
+Or you can have the code phrase automatically generated:
 
   croc send file.txt
 	
