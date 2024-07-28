@@ -577,6 +577,9 @@ main() {
 
   case "${croc_os}" in
      "Darwin" ) croc_os="macOS";;
+    *"BusyBox"* )
+        croc_os="Linux"
+        ;;
     "CYGWIN"* ) croc_os="Windows";
                 croc_dl_ext="zip";
                 print_message "== Cygwin is currently unsupported." "error";
