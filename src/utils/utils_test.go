@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"path"
 	"strings"
 	"testing"
 
@@ -260,7 +261,7 @@ func TestValidFileName(t *testing.T) {
 	// contains invisible character
 	err := ValidFileName("D中文.cslouglas​")
 	assert.NotNil(t, err)
-	assert.Equal(t, "non-graphical unicode: e2808b U+8203 in 'D中文.cslouglas​'", err.Error())
+	assert.Equal(t, "non-graphical unicode: e2808b U+8203 in '44e4b8ade696872e63736c6f75676c6173e2808b'", err.Error())
 	assert.NotNil(t, ValidFileName("hi..txt"))
-	assert.NotNil(t, ValidFileName("/hi/something.txt"))
+	assert.NotNil(t, ValidFileName(path.Join(string(os.PathSeparator), "abs", string(os.PathSeparator), "hi.txt")))
 }
