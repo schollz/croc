@@ -90,6 +90,8 @@ func Run() (err error) {
 			Flags: []cli.Flag{
 				&cli.StringFlag{Name: "host", Usage: "host of the relay"},
 				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay"},
+				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay"},
+				&cli.IntFlag{Name: "transfers", Value: 5, Usage: "number of ports to use for relay"},
 			},
 		},
 	}
@@ -668,7 +670,25 @@ func relay(c *cli.Context) (err error) {
 		debugString = "debug"
 	}
 	host := c.String("host")
-	ports := strings.Split(c.String("ports"), ",")
+	var ports []string
+
+	if c.IsSet("ports") {
+		ports = strings.Split(c.String("ports"), ",")
+	} else {
+		portString := c.Int("port")
+		if portString == 0 {
+			portString = 9009
+		}
+		transfersString := c.Int("transfers")
+		if transfersString == 0 {
+			transfersString = 4
+		}
+		ports = make([]string, transfersString)
+		for i := range ports {
+			ports[i] = strconv.Itoa(portString + i)
+		}
+	}
+
 	tcpPorts := strings.Join(ports[1:], ",")
 	for i, port := range ports {
 		if i == 0 {
