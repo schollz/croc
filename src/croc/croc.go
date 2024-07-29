@@ -225,8 +225,8 @@ func New(ops Options) (c *Client, err error) {
 				panic("Could not parse given Upload Limit")
 			}
 		}
-		// Somehow 4* is necessary
-		rt = rate.Every(time.Second / (4 * time.Duration(uploadLimit)))
+
+		rt = rate.Every(time.Second / time.Duration(uploadLimit))
 		if int(uploadLimit) > minBurstSize {
 			minBurstSize = int(uploadLimit)
 		}
