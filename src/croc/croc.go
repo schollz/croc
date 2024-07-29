@@ -585,6 +585,8 @@ func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 	}
 	if useipv6 {
 		settings.IPVersion = peerdiscovery.IPv6
+	} else {
+		settings.MulticastAddress = "255.255.255.255"
 	}
 
 	discoveries, err := peerdiscovery.Discover(settings)
@@ -854,10 +856,11 @@ func (c *Client) Receive() (err error) {
 		go func() {
 			defer wgDiscovery.Done()
 			ipv4discoveries, err1 := peerdiscovery.Discover(peerdiscovery.Settings{
-				Limit:     1,
-				Payload:   []byte("ok"),
-				Delay:     20 * time.Millisecond,
-				TimeLimit: 200 * time.Millisecond,
+				Limit:            1,
+				Payload:          []byte("ok"),
+				Delay:            20 * time.Millisecond,
+				TimeLimit:        200 * time.Millisecond,
+				MulticastAddress: "255.255.255.255",
 			})
 			if err1 == nil && len(ipv4discoveries) > 0 {
 				dmux.Lock()
