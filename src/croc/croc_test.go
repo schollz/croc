@@ -232,7 +232,7 @@ func TestCrocSymlink(t *testing.T) {
 		t.Errorf("symlink transfer failed: %s", err.Error())
 	}
 }
-func testCrocIgnoreGit(t *testing.T) {
+func TestCrocIgnoreGit(t *testing.T) {
 	log.SetLevel("trace")
 	defer os.Remove(".gitignore")
 	time.Sleep(300 * time.Millisecond)
