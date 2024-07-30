@@ -210,6 +210,14 @@ func setDebugLevel(c *cli.Context) {
 	if c.Bool("debug") {
 		log.SetLevel("debug")
 		log.Debug("debug mode on")
+		// print the public IP address
+		ip, err := utils.PublicIP()
+		if err == nil {
+			log.Debugf("public IP address: %s", ip)
+		} else {
+			log.Debug(err)
+		}
+
 	} else {
 		log.SetLevel("info")
 	}
