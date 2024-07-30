@@ -20,7 +20,16 @@ require (
 	golang.org/x/time v0.5.0
 )
 
-require github.com/minio/highwayhash v1.0.3
+require (
+	github.com/minio/highwayhash v1.0.3
+	github.com/pion/stun v0.6.1
+)
+
+require (
+	github.com/pion/dtls/v2 v2.2.7 // indirect
+	github.com/pion/logging v0.2.2 // indirect
+	github.com/pion/transport/v2 v2.2.1 // indirect
+)
 
 require (
 	github.com/OneOfOne/xxhash v1.2.8 // indirect

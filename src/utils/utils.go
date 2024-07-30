@@ -15,7 +15,6 @@ import (
 	"math"
 	"math/big"
 	"net"
-	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -26,6 +25,7 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/kalafut/imohash"
 	"github.com/minio/highwayhash"
+	"github.com/pion/stun"
 	"github.com/schollz/mnemonicode"
 	"github.com/schollz/progressbar/v3"
 )
@@ -246,18 +246,28 @@ func SHA256(s string) string {
 
 // PublicIP returns public ip address
 func PublicIP() (ip string, err error) {
-	resp, err := http.Get("https://canhazip.com")
+	// Create a "connection" to the STUN server
+	conn, err := stun.Dial("udp", "stun.l.google.com:19302")
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusOK {
-		bodyBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return "", err
+	// Build and send a binding request to the STUN server
+	message := stun.MustBuild(stun.TransactionID, stun.BindingRequest)
+	if err = conn.Do(message, func(res stun.Event) {
+		if res.Error != nil {
+			return
 		}
-		ip = strings.TrimSpace(string(bodyBytes))
+
+		// Process the binding response
+		var xorAddr stun.XORMappedAddress
+		if err := xorAddr.GetFrom(res.Message); err != nil {
+			return
+		}
+
+		ip = xorAddr.IP.String()
+	}); err != nil {
+		return
 	}
 	return
 }
