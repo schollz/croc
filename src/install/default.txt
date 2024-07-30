@@ -592,6 +592,8 @@ main() {
     "aarch64" ) croc_arch="ARM64";;
       "arm64" ) croc_arch="ARM64";;
      "armv7l" ) croc_arch="ARM";;
+     "armv8l" ) croc_arch="ARM";;
+     "armv9l" ) croc_arch="ARM";;
        "i686" ) croc_arch="32bit";;
             * ) croc_arch="unknown";;
   esac
