@@ -6,7 +6,7 @@ require (
 	github.com/cespare/xxhash v1.1.0
 	github.com/chzyer/readline v1.5.1
 	github.com/denisbrodbeck/machineid v1.0.1
-	github.com/kalafut/imohash v1.1.0
+	github.com/kalafut/imohash v1.0.4
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/schollz/cli/v2 v2.2.1
 	github.com/schollz/logger v1.2.0
