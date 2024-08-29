@@ -76,7 +76,7 @@ func Run(debugLevel, host, port, password string, banner ...string) (err error) 
 
 func (s *server) start() (err error) {
 	log.SetLevel(s.debugLevel)
-	log.Debugf("starting with password '%s'", s.password)
+	log.Tracef("starting with password '%s'", s.password)
 	s.rooms.Lock()
 	s.rooms.rooms = make(map[string]roomInfo)
 	s.rooms.Unlock()
@@ -126,42 +126,42 @@ func (s *server) run() (err error) {
 		if err != nil {
 			return fmt.Errorf("problem accepting connection: %w", err)
 		}
-		log.Debugf("client %s connected", connection.RemoteAddr().String())
+		log.Tracef("client %s connected", connection.RemoteAddr().String())
 		go func(port string, connection net.Conn) {
 			c := comm.New(connection)
 			room, errCommunication := s.clientCommunication(port, c)
-			log.Debugf("room: %+v", room)
-			log.Debugf("err: %+v", errCommunication)
+			log.Tracef("room: %+v", room)
+			log.Tracef("err: %+v", errCommunication)
 			if errCommunication != nil {
-				log.Debugf("relay-%s: %s", connection.RemoteAddr().String(), errCommunication.Error())
+				log.Tracef("relay-%s: %s", connection.RemoteAddr().String(), errCommunication.Error())
 				connection.Close()
 				return
 			}
 			if room == pingRoom {
-				log.Debugf("got ping")
+				log.Tracef("got ping")
 				connection.Close()
 				return
 			}
 			for {
 				// check connection
-				log.Debugf("checking connection of room %s for %+v", room, c)
+				log.Tracef("checking connection of room %s for %+v", room, c)
 				deleteIt := false
 				s.rooms.Lock()
 				if _, ok := s.rooms.rooms[room]; !ok {
-					log.Debug("room is gone")
+					log.Trace("room is gone")
 					s.rooms.Unlock()
 					return
 				}
-				log.Debugf("room: %+v", s.rooms.rooms[room])
+				log.Tracef("room: %+v", s.rooms.rooms[room])
 				if s.rooms.rooms[room].first != nil && s.rooms.rooms[room].second != nil {
-					log.Debug("rooms ready")
+					log.Trace("rooms ready")
 					s.rooms.Unlock()
 					break
 				} else {
 					if s.rooms.rooms[room].first != nil {
 						errSend := s.rooms.rooms[room].first.Send([]byte{1})
 						if errSend != nil {
-							log.Debug(errSend)
+							log.Trace(errSend)
 							deleteIt = true
 						}
 					}
@@ -195,18 +195,18 @@ func (s *server) deleteOldRooms() {
 
 			for _, room := range roomsToDelete {
 				s.deleteRoom(room)
-				log.Debugf("room cleaned up: %s", room)
+				log.Tracef("room cleaned up: %s", room)
 			}
 		case <-s.stopRoomCleanup:
 			ticker.Stop()
-			log.Debug("room cleanup stopped")
+			log.Trace("room cleanup stopped")
 			return
 		}
 	}
 }
 
 func (s *server) stopRoomDeletion() {
-	log.Debug("stop room cleanup fired")
+	log.Trace("stop room cleanup fired")
 	s.stopRoomCleanup <- struct{}{}
 }
 
@@ -222,10 +222,10 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	if err != nil {
 		return
 	}
-	log.Debugf("Abytes: %s", Abytes)
+	log.Tracef("Abytes: %s", Abytes)
 	if bytes.Equal(Abytes, []byte("ping")) {
 		room = pingRoom
-		log.Debug("sending back pong")
+		log.Trace("sending back pong")
 		c.Send([]byte("pong"))
 		return
 	}
@@ -241,7 +241,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	if err != nil {
 		return
 	}
-	log.Debugf("strongkey: %x", strongKey)
+	log.Tracef("strongkey: %x", strongKey)
 
 	// receive salt
 	salt, err := c.Receive()
@@ -253,7 +253,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		return
 	}
 
-	log.Debugf("waiting for password")
+	log.Tracef("waiting for password")
 	passwordBytesEnc, err := c.Receive()
 	if err != nil {
 		return
@@ -276,7 +276,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	if len(banner) == 0 {
 		banner = "ok"
 	}
-	log.Debugf("sending '%s'", banner)
+	log.Tracef("sending '%s'", banner)
 	bSend, err := crypt.Encrypt([]byte(banner+"|||"+c.Connection().RemoteAddr().String()), strongKeyForEncryption)
 	if err != nil {
 		return
@@ -287,7 +287,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	}
 
 	// wait for client to tell me which room they want
-	log.Debug("waiting for answer")
+	log.Trace("waiting for answer")
 	enc, err := c.Receive()
 	if err != nil {
 		return
@@ -318,7 +318,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 			s.deleteRoom(room)
 			return
 		}
-		log.Debugf("room %s has 1", room)
+		log.Tracef("room %s has 1", room)
 		return
 	}
 	if s.rooms.rooms[room].full {
@@ -334,7 +334,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 		}
 		return
 	}
-	log.Debugf("room %s has 2", room)
+	log.Tracef("room %s has 2", room)
 	s.rooms.rooms[room] = roomInfo{
 		first:  s.rooms.rooms[room].first,
 		second: c,
@@ -350,10 +350,10 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 
 	// start piping
 	go func(com1, com2 *comm.Comm, wg *sync.WaitGroup) {
-		log.Debug("starting pipes")
+		log.Trace("starting pipes")
 		pipe(com1.Connection(), com2.Connection())
 		wg.Done()
-		log.Debug("done piping")
+		log.Trace("done piping")
 	}(otherConnection, c, &wg)
 
 	// tell the sender everything is ready
@@ -379,7 +379,7 @@ func (s *server) deleteRoom(room string) {
 	if _, ok := s.rooms.rooms[room]; !ok {
 		return
 	}
-	log.Debugf("deleting room: %s", room)
+	log.Tracef("deleting room: %s", room)
 	if s.rooms.rooms[room].first != nil {
 		s.rooms.rooms[room].first.Close()
 	}
@@ -410,12 +410,12 @@ func chanFromConn(conn net.Conn) chan []byte {
 				c <- res
 			}
 			if err != nil {
-				log.Debug(err)
+				log.Trace(err)
 				c <- nil
 				break
 			}
 		}
-		log.Debug("exiting")
+		log.Trace("exiting")
 	}()
 
 	return c
@@ -449,20 +449,20 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 }
 
 func PingServer(address string) (err error) {
-	log.Debugf("pinging %s", address)
+	log.Tracef("pinging %s", address)
 	c, err := comm.NewConnection(address, 300*time.Millisecond)
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 	err = c.Send([]byte("ping"))
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 	b, err := c.Receive()
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 	if bytes.Equal(b, []byte("pong")) {
@@ -480,106 +480,106 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		c, err = comm.NewConnection(address)
 	}
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 
 	// get PAKE connection with server to establish strong key to transfer info
 	A, err := pake.InitCurve(weakKey, 0, "siec")
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 	err = c.Send(A.Bytes())
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 	Bbytes, err := c.Receive()
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 	err = A.Update(Bbytes)
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 	strongKey, err := A.SessionKey()
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
-	log.Debugf("strong key: %x", strongKey)
+	log.Tracef("strong key: %x", strongKey)
 
 	strongKeyForEncryption, salt, err := crypt.New(strongKey, nil)
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 	// send salt
 	err = c.Send(salt)
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 
-	log.Debug("sending password")
+	log.Trace("sending password")
 	bSend, err := crypt.Encrypt([]byte(password), strongKeyForEncryption)
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 	err = c.Send(bSend)
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
-	log.Debug("waiting for first ok")
+	log.Trace("waiting for first ok")
 	enc, err := c.Receive()
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 	data, err := crypt.Decrypt(enc, strongKeyForEncryption)
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 	if !strings.Contains(string(data), "|||") {
 		err = fmt.Errorf("bad response: %s", string(data))
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 	banner = strings.Split(string(data), "|||")[0]
 	ipaddr = strings.Split(string(data), "|||")[1]
-	log.Debugf("sending room; %s", room)
+	log.Tracef("sending room; %s", room)
 	bSend, err = crypt.Encrypt([]byte(room), strongKeyForEncryption)
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 	err = c.Send(bSend)
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
-	log.Debug("waiting for room confirmation")
+	log.Trace("waiting for room confirmation")
 	enc, err = c.Receive()
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 	data, err = crypt.Decrypt(enc, strongKeyForEncryption)
 	if err != nil {
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
 	if !bytes.Equal(data, []byte("ok")) {
 		err = fmt.Errorf("got bad response: %s", data)
-		log.Debug(err)
+		log.Trace(err)
 		return
 	}
-	log.Debug("all set")
+	log.Trace("all set")
 	return
 }
