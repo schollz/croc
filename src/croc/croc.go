@@ -1737,6 +1737,9 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 		description = " " + description
 	}
 	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return
+	}
 	if len(description) > width {
 		description = description[:(width-3)] + "..."
 	}
@@ -1916,7 +1919,10 @@ func (c *Client) setBar() {
 	} else if !c.Options.IsSender {
 		description = " " + description
 	}
-	width, _, _ := term.GetSize(int(os.Stdout.Fd()))
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return
+	}
 	description = strings.TrimSpace(description)
 	if len(description) > width {
 		description = description[:(width-3)] + "..."
