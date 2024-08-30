@@ -1999,6 +1999,7 @@ func (c *Client) receiveData(i int) {
 			log.Trace("sending close-sender")
 			c.Step4FileTransferred = false
 			c.Step3RecipientRequestFile = false
+			c.updateState()
 			// err = message.Send(c.conn[0], c.Key, message.Message{
 			// 	Type: message.TypeCloseSender,
 			// })
@@ -2022,6 +2023,7 @@ func (c *Client) sendData(i int) {
 			c.bar.Finish()
 			c.Step4FileTransferred = false
 			c.Step3RecipientRequestFile = false
+			c.updateState()
 		}
 	}()
 
