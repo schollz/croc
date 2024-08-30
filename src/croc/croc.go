@@ -1997,12 +1997,14 @@ func (c *Client) receiveData(i int) {
 				fmt.Print(string(b))
 			}
 			log.Trace("sending close-sender")
-			err = message.Send(c.conn[0], c.Key, message.Message{
-				Type: message.TypeCloseSender,
-			})
-			if err != nil {
-				panic(err)
-			}
+			c.Step4FileTransferred = false
+			c.Step3RecipientRequestFile = false
+			// err = message.Send(c.conn[0], c.Key, message.Message{
+			// 	Type: message.TypeCloseSender,
+			// })
+			// if err != nil {
+			// 	panic(err)
+			// }
 		}
 		c.mutex.Unlock()
 	}
@@ -2017,6 +2019,9 @@ func (c *Client) sendData(i int) {
 			if err := c.fread.Close(); err != nil {
 				log.Errorf("error closing file: %v", err)
 			}
+			c.bar.Finish()
+			c.Step4FileTransferred = false
+			c.Step3RecipientRequestFile = false
 		}
 	}()
 
