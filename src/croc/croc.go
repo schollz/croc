@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/term"
 	"golang.org/x/time/rate"
 
 	"github.com/denisbrodbeck/machineid"
@@ -1697,7 +1698,12 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 	c.Step3RecipientRequestFile = true
 	return
 }
-
+func max(a int, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
 func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) {
 	log.Debugf("touching file with folder / name")
 	if !utils.Exists(fileInfo.FolderRemote) {
@@ -1735,8 +1741,13 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	} else {
 		description = " " + description
 	}
-	if len(description) > 20 {
-		description = description[:17] + "..."
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	width = max(20, width-70)
+	if err != nil {
+		return
+	}
+	if len(description) > width {
+		description = description[:(width-3)] + "..."
 	}
 	c.bar = progressbar.NewOptions64(1,
 		progressbar.OptionOnCompletion(func() {
@@ -1914,8 +1925,14 @@ func (c *Client) setBar() {
 	} else if !c.Options.IsSender {
 		description = " " + description
 	}
-	if len(description) > 20 {
-		description = description[:17] + "..."
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return
+	}
+	width = max(20, width-70)
+	description = strings.TrimSpace(description)
+	if len(description) > width {
+		description = description[:width-3] + "..."
 	}
 	c.bar = progressbar.NewOptions64(
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
