@@ -595,7 +595,7 @@ func ValidFileName(fname string) (err error) {
 	}
 	// make sure basename does not include ".." or path separators
 	_, basename := filepath.Split(fname)
-	if strings.Contains(basename, "..") {
+	if strings.HasPrefix(basename, "..") {
 		err = fmt.Errorf("basename cannot contain '..': '%s'", basename)
 		return
 	}
