@@ -32,7 +32,6 @@ import (
 	"github.com/schollz/croc/v10/src/comm"
 	"github.com/schollz/croc/v10/src/compress"
 	"github.com/schollz/croc/v10/src/crypt"
-	"github.com/schollz/croc/v10/src/diskusage"
 	"github.com/schollz/croc/v10/src/message"
 	"github.com/schollz/croc/v10/src/models"
 	"github.com/schollz/croc/v10/src/tcp"
@@ -1270,11 +1269,11 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 			}
 		}
 	}
-	// check the totalSize does not exceed disk space
-	usage := diskusage.NewDiskUsage(".")
-	if usage.Available() < uint64(totalSize) {
-		return true, fmt.Errorf("not enough disk space")
-	}
+	// // check the totalSize does not exceed disk space
+	// usage := diskusage.NewDiskUsage(".")
+	// if usage.Available() < uint64(totalSize) {
+	// 	return true, fmt.Errorf("not enough disk space")
+	// }
 
 	// c.spinner.Stop()
 	action := "Accept"
