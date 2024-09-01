@@ -1698,7 +1698,12 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 	c.Step3RecipientRequestFile = true
 	return
 }
-
+func max(a int, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
 func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) {
 	log.Debugf("touching file with folder / name")
 	if !utils.Exists(fileInfo.FolderRemote) {
@@ -1737,6 +1742,7 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 		description = " " + description
 	}
 	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	width = max(20, width-70)
 	if err != nil {
 		return
 	}
@@ -1923,9 +1929,10 @@ func (c *Client) setBar() {
 	if err != nil {
 		return
 	}
+	width = max(20, width-70)
 	description = strings.TrimSpace(description)
 	if len(description) > width {
-		description = description[:(width-3)] + "..."
+		description = description[:width-3] + "..."
 	}
 	c.bar = progressbar.NewOptions64(
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
