@@ -1698,12 +1698,26 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 	c.Step3RecipientRequestFile = true
 	return
 }
+
 func max(a int, b int) int {
 	if a > b {
 		return a
 	}
 	return b
 }
+
+func formatDescription(description string) string {
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	width = max(20, width-60)
+	if err != nil {
+		return description
+	}
+	if len(description) > width {
+		description = description[:(width-3)] + "..."
+	}
+	return description
+}
+
 func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) {
 	log.Debugf("touching file with folder / name")
 	if !utils.Exists(fileInfo.FolderRemote) {
@@ -1741,20 +1755,12 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	} else {
 		description = " " + description
 	}
-	width, _, err := term.GetSize(int(os.Stdout.Fd()))
-	width = max(20, width-70)
-	if err != nil {
-		return
-	}
-	if len(description) > width {
-		description = description[:(width-3)] + "..."
-	}
 	c.bar = progressbar.NewOptions64(1,
 		progressbar.OptionOnCompletion(func() {
 			c.fmtPrintUpdate()
 		}),
 		progressbar.OptionSetWidth(20),
-		progressbar.OptionSetDescription(description),
+		progressbar.OptionSetDescription(formatDescription(description)),
 		progressbar.OptionSetRenderBlankState(true),
 		progressbar.OptionShowBytes(true),
 		progressbar.OptionShowCount(),
@@ -1878,12 +1884,13 @@ func (c *Client) updateState() (err error) {
 						description = c.FilesToTransfer[i].Name
 						// description = ""
 					}
+
 					c.bar = progressbar.NewOptions64(1,
 						progressbar.OptionOnCompletion(func() {
 							c.fmtPrintUpdate()
 						}),
 						progressbar.OptionSetWidth(20),
-						progressbar.OptionSetDescription(description),
+						progressbar.OptionSetDescription(formatDescription(description)),
 						progressbar.OptionSetRenderBlankState(true),
 						progressbar.OptionShowBytes(true),
 						progressbar.OptionShowCount(),
@@ -1925,22 +1932,13 @@ func (c *Client) setBar() {
 	} else if !c.Options.IsSender {
 		description = " " + description
 	}
-	width, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
-		return
-	}
-	width = max(20, width-70)
-	description = strings.TrimSpace(description)
-	if len(description) > width {
-		description = description[:width-3] + "..."
-	}
 	c.bar = progressbar.NewOptions64(
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
 		progressbar.OptionOnCompletion(func() {
 			c.fmtPrintUpdate()
 		}),
 		progressbar.OptionSetWidth(20),
-		progressbar.OptionSetDescription(description),
+		progressbar.OptionSetDescription(formatDescription(description)),
 		progressbar.OptionSetRenderBlankState(true),
 		progressbar.OptionShowBytes(true),
 		progressbar.OptionShowCount(),
