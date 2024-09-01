@@ -25,7 +25,7 @@ func NewDiskUsage(volumePath string) *DiskUsage {
 
 // Free returns total free bytes on file system
 func (du *DiskUsage) Free() uint64 {
-	return du.stat.Bfree * uint64(du.stat.Bsize)
+	return uint64(du.stat.Bfree) * uint64(du.stat.Bsize)
 }
 
 // Available return total available bytes on file system to an unprivileged user
