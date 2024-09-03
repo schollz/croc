@@ -14,9 +14,11 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"golang.org/x/term"
@@ -83,6 +85,7 @@ type Options struct {
 	ZipFolder      bool
 	TestFlag       bool
 	GitIgnore      bool
+	Preserve       bool
 }
 
 type SimpleMessage struct {
@@ -156,6 +159,7 @@ type FileInfo struct {
 	Hash         []byte      `json:"h,omitempty"`
 	Size         int64       `json:"s,omitempty"`
 	ModTime      time.Time   `json:"m,omitempty"`
+	AccessTime   time.Time   `json:"a,omitempty"`
 	IsCompressed bool        `json:"c,omitempty"`
 	IsEncrypted  bool        `json:"e,omitempty"`
 	Symlink      string      `json:"sy,omitempty"`
@@ -367,6 +371,7 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool) (filesInfo []
 			}
 		}
 	}
+	var accesstime time.Time
 	for _, fpath := range paths {
 		stat, errStat := os.Lstat(fpath)
 
@@ -374,7 +379,10 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool) (filesInfo []
 			err = errStat
 			return
 		}
-
+		if err != nil {
+			err = errStat
+			return
+		}
 		absPath, errAbs := filepath.Abs(fpath)
 
 		if errAbs != nil {
@@ -399,12 +407,21 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool) (filesInfo []
 				return
 			}
 
+			if runtime.GOOS != "windows" {
+				atime := stat.Sys().(*syscall.Stat_t).Atim
+				accesstime = time.Unix(0, atime.Nano())
+			} else {
+				//	fileTime := stat.Sys().(*syscall.Win32FileAttributeData).LastAccessTime
+				//  accesstime = time.Unix(0, fileTime.Nanoseconds())
+			}
+
 			fInfo := FileInfo{
 				Name:         stat.Name(),
 				FolderRemote: "./",
 				FolderSource: filepath.Dir(absPath),
 				Size:         stat.Size(),
 				ModTime:      stat.ModTime(),
+				AccessTime:   accesstime,
 				Mode:         stat.Mode(),
 				TempFile:     true,
 				IsIgnored:    ignoredPaths[absPath],
@@ -473,6 +490,7 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool) (filesInfo []
 				FolderSource: filepath.Dir(absPath),
 				Size:         stat.Size(),
 				ModTime:      stat.ModTime(),
+				AccessTime:   accesstime,
 				Mode:         stat.Mode(),
 				TempFile:     false,
 				IsIgnored:    ignoredPaths[absPath],
