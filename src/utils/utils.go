@@ -11,7 +11,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"math/big"
 	"net"
@@ -26,6 +25,7 @@ import (
 	"github.com/kalafut/imohash"
 	"github.com/minio/highwayhash"
 	"github.com/pion/stun"
+	log "github.com/schollz/logger"
 	"github.com/schollz/mnemonicode"
 	"github.com/schollz/progressbar/v3"
 )
@@ -276,7 +276,8 @@ func PublicIP() (ip string, err error) {
 func LocalIP() string {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return ""
 	}
 	defer conn.Close()
 
@@ -477,12 +478,12 @@ func IsLocalIP(ipaddress string) bool {
 
 func ZipDirectory(destination string, source string) (err error) {
 	if _, err = os.Stat(destination); err == nil {
-		log.Fatalf("%s file already exists!\n", destination)
+		log.Errorf("%s file already exists!\n", destination)
 	}
 	fmt.Fprintf(os.Stderr, "Zipping %s to %s\n", source, destination)
 	file, err := os.Create(destination)
 	if err != nil {
-		log.Fatalln(err)
+		log.Error(err)
 	}
 	defer file.Close()
 	writer := zip.NewWriter(file)
@@ -493,22 +494,22 @@ func ZipDirectory(destination string, source string) (err error) {
 	defer writer.Close()
 	err = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			log.Fatalln(err)
+			log.Error(err)
 		}
 		if info.Mode().IsRegular() {
 			f1, err := os.Open(path)
 			if err != nil {
-				log.Fatalln(err)
+				log.Error(err)
 			}
 			defer f1.Close()
 			zipPath := strings.ReplaceAll(path, source, strings.TrimSuffix(destination, ".zip"))
 			zipPath = filepath.ToSlash(zipPath)
 			w1, err := writer.Create(zipPath)
 			if err != nil {
-				log.Fatalln(err)
+				log.Error(err)
 			}
 			if _, err := io.Copy(w1, f1); err != nil {
-				log.Fatalln(err)
+				log.Error(err)
 			}
 			fmt.Fprintf(os.Stderr, "\r\033[2K")
 			fmt.Fprintf(os.Stderr, "\rAdding %s", zipPath)
@@ -516,7 +517,7 @@ func ZipDirectory(destination string, source string) (err error) {
 		return nil
 	})
 	if err != nil {
-		log.Fatalln(err)
+		log.Error(err)
 	}
 	fmt.Fprintf(os.Stderr, "\n")
 	return nil
@@ -525,7 +526,7 @@ func ZipDirectory(destination string, source string) (err error) {
 func UnzipDirectory(destination string, source string) error {
 	archive, err := zip.OpenReader(source)
 	if err != nil {
-		log.Fatalln(err)
+		log.Error(err)
 	}
 	defer archive.Close()
 
@@ -537,7 +538,7 @@ func UnzipDirectory(destination string, source string) error {
 		// make sure the filepath does not have ".."
 		filePath = filepath.Clean(filePath)
 		if strings.Contains(filePath, "..") {
-			log.Fatalf("Invalid file path %s\n", filePath)
+			log.Errorf("Invalid file path %s\n", filePath)
 		}
 		if f.FileInfo().IsDir() {
 			os.MkdirAll(filePath, os.ModePerm)
@@ -545,7 +546,7 @@ func UnzipDirectory(destination string, source string) error {
 		}
 
 		if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
-			log.Fatalln(err)
+			log.Error(err)
 		}
 
 		// check if file exists
@@ -560,16 +561,16 @@ func UnzipDirectory(destination string, source string) error {
 
 		dstFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
 		if err != nil {
-			log.Fatalln(err)
+			log.Error(err)
 		}
 
 		fileInArchive, err := f.Open()
 		if err != nil {
-			log.Fatalln(err)
+			log.Error(err)
 		}
 
 		if _, err := io.Copy(dstFile, fileInArchive); err != nil {
-			log.Fatalln(err)
+			log.Error(err)
 		}
 
 		dstFile.Close()
@@ -608,5 +609,37 @@ func ValidFileName(fname string) (err error) {
 		err = fmt.Errorf("filename cannot be an absolute path: '%s'", fname)
 		return
 	}
+	return
+}
+
+const crocRemovalFile = "croc-marked-files.txt"
+
+func MarkFileForRemoval(fname string) {
+	// append the fname to the list of files to remove
+	f, err := os.OpenFile(crocRemovalFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		log.Debug(err)
+		return
+	}
+	defer f.Close()
+	_, err = f.WriteString(fname + "\n")
+}
+
+func RemoveMarkedFiles() (err error) {
+	// read the file and remove all the files
+	f, err := os.Open(crocRemovalFile)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		fname := scanner.Text()
+		err = os.Remove(fname)
+		if err == nil {
+			log.Tracef("Removed %s", fname)
+		}
+	}
+	os.Remove(crocRemovalFile)
 	return
 }
