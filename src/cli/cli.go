@@ -446,9 +446,15 @@ func getStdin() (fnames []string, err error) {
 	fnames = []string{f.Name()}
 	return
 }
-
+func makeTempFolder() {
+	path := "temp"
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		os.Mkdir(path, os.ModePerm)
+	}
+}
 func makeTempFileWithString(s string) (fnames []string, err error) {
-	f, err := os.CreateTemp(".", "croc-stdin-")
+	makeTempFolder()
+	f, err := os.CreateTemp("temp", "croc-stdin-")
 	if err != nil {
 		return
 	}

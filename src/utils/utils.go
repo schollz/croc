@@ -610,3 +610,13 @@ func ValidFileName(fname string) (err error) {
 	}
 	return
 }
+func CleanupTempData() {
+	path := "temp"
+	// Remove the directory and its contents
+	err := os.RemoveAll(path)
+	if err != nil {
+		log.Fatal(err)
+	} else {
+		log.Println("temp directory and its contents deleted successfully")
+	}
+}
