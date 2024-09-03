@@ -5,13 +5,13 @@ package main
 //go:generate git tag -af v$VERSION -m "v$VERSION"
 
 import (
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/schollz/croc/v10/src/cli"
 	"github.com/schollz/croc/v10/src/utils"
+	log "github.com/schollz/logger"
 )
 
 func main() {
@@ -38,17 +38,17 @@ func main() {
 
 	go func() {
 		if err := cli.Run(); err != nil {
-			log.Fatalln(err)
+			log.Error(err)
 		}
+		// Exit the program gracefully
+		utils.RemoveMarkedFiles()
+		os.Exit(0)
 	}()
 
 	// Wait for a termination signal
 	sig := <-sigs
-	log.Println("Received signal:", sig)
-
-	// Perform any necessary cleanup here
-	log.Println("Performing cleanup...")
-	utils.CleanupTempData()
+	log.Debugf("Received signal:", sig)
+	utils.RemoveMarkedFiles()
 
 	// Exit the program gracefully
 	os.Exit(0)

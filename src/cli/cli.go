@@ -358,6 +358,7 @@ func send(c *cli.Context) (err error) {
 		if err != nil {
 			return
 		}
+		utils.MarkFileForRemoval(fnames[0])
 		defer func() {
 			e := os.Remove(fnames[0])
 			if e != nil {
@@ -369,6 +370,7 @@ func send(c *cli.Context) (err error) {
 		if err != nil {
 			return
 		}
+		utils.MarkFileForRemoval(fnames[0])
 		defer func() {
 			e := os.Remove(fnames[0])
 			if e != nil {
@@ -446,15 +448,9 @@ func getStdin() (fnames []string, err error) {
 	fnames = []string{f.Name()}
 	return
 }
-func makeTempFolder() {
-	path := "temp"
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		os.Mkdir(path, os.ModePerm)
-	}
-}
+
 func makeTempFileWithString(s string) (fnames []string, err error) {
-	makeTempFolder()
-	f, err := os.CreateTemp("temp", "croc-stdin-")
+	f, err := os.CreateTemp(".", "croc-stdin-")
 	if err != nil {
 		return
 	}
