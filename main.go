@@ -11,7 +11,6 @@ import (
 	"syscall"
 
 	"github.com/schollz/croc/v10/src/cli"
-	"github.com/schollz/croc/v10/src/utils"
 )
 
 func main() {
@@ -45,10 +44,6 @@ func main() {
 	// Wait for a termination signal
 	sig := <-sigs
 	log.Println("Received signal:", sig)
-
-	// Perform any necessary cleanup here
-	log.Println("Performing cleanup...")
-	utils.CleanupTempData()
 
 	// Exit the program gracefully
 	os.Exit(0)
