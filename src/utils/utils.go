@@ -617,6 +617,6 @@ func CleanupTempData() {
 	if err != nil {
 		log.Fatal(err)
 	} else {
-		log.Println("Directory and its contents deleted successfully")
+		log.Println("temp directory and its contents deleted successfully")
 	}
 }
