@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/schollz/croc/v10/src/cli"
+	"github.com/schollz/croc/v10/src/utils"
 )
 
 func main() {
@@ -47,6 +48,7 @@ func main() {
 
 	// Perform any necessary cleanup here
 	log.Println("Performing cleanup...")
+	utils.CleanupTempData()
 
 	// Exit the program gracefully
 	os.Exit(0)
