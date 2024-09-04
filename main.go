@@ -6,6 +6,9 @@ package main
 
 import (
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/schollz/croc/v10/src/cli"
 )
@@ -27,7 +30,24 @@ func main() {
 	// 		fmt.Println("wrote profile")
 	// 	}
 	// }()
-	if err := cli.Run(); err != nil {
-		log.Fatalln(err)
-	}
+
+	// Create a channel to receive OS signals
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		if err := cli.Run(); err != nil {
+			log.Fatalln(err)
+		}
+	}()
+
+	// Wait for a termination signal
+	sig := <-sigs
+	log.Println("Received signal:", sig)
+
+	// Perform any necessary cleanup here
+	log.Println("Performing cleanup...")
+
+	// Exit the program gracefully
+	os.Exit(0)
 }
