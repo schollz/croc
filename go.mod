@@ -22,15 +22,7 @@ require (
 
 require (
 	github.com/minio/highwayhash v1.0.3
-	github.com/pion/stun v0.6.1
-)
-
-require (
-	github.com/pion/dtls/v2 v2.2.12 // indirect
-	github.com/pion/logging v0.2.2 // indirect
-	github.com/pion/transport/v2 v2.2.10 // indirect
-	github.com/pion/transport/v3 v3.0.6 // indirect
-	github.com/wlynxg/anet v0.0.3 // indirect
+	gortc.io/stun v1.23.0
 )
 
 require (
@@ -46,8 +38,8 @@ require (
 	github.com/tscholl2/siec v0.0.0-20240310163802-c2c6f6198406 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	golang.org/x/sys v0.25.0
-	golang.org/x/term v0.23.0
-	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/term v0.24.0
+	golang.org/x/text v0.18.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
