@@ -24,7 +24,7 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/kalafut/imohash"
 	"github.com/minio/highwayhash"
-	"github.com/pion/stun"
+	"gortc.io/stun"
 	log "github.com/schollz/logger"
 	"github.com/schollz/mnemonicode"
 	"github.com/schollz/progressbar/v3"
