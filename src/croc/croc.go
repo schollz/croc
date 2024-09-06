@@ -396,6 +396,7 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool) (filesInfo []
 			fpath = filepath.Dir(fpath)
 			dest := filepath.Base(fpath) + ".zip"
 			utils.ZipDirectory(dest, fpath)
+			utils.MarkFileForRemoval(dest)
 			stat, errStat = os.Lstat(dest)
 			if errStat != nil {
 				err = errStat

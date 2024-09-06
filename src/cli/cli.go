@@ -363,6 +363,7 @@ func send(c *cli.Context) (err error) {
 		if err != nil {
 			return
 		}
+		utils.MarkFileForRemoval(fnames[0])
 		defer func() {
 			e := os.Remove(fnames[0])
 			if e != nil {
@@ -374,6 +375,7 @@ func send(c *cli.Context) (err error) {
 		if err != nil {
 			return
 		}
+		utils.MarkFileForRemoval(fnames[0])
 		defer func() {
 			e := os.Remove(fnames[0])
 			if e != nil {
