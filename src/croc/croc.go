@@ -455,6 +455,7 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool) (filesInfo []
 							Size:         info.Size(),
 							ModTime:      info.ModTime(),
 							Mode:         info.Mode(),
+							AccessTime:   accesstime,
 							TempFile:     false,
 							IsIgnored:    ignoredPaths[pathName],
 						}
