@@ -24,6 +24,20 @@ func BenchmarkDecrypt(b *testing.B) {
 	}
 }
 
+func BenchmarkNewPbkdf2(b *testing.B) {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		New([]byte("password"), nil)
+	}
+}
+
+func BenchmarkNewArgon2(b *testing.B) {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		NewArgon2([]byte("password"), nil)
+	}
+}
+
 func BenchmarkEncryptChaCha(b *testing.B) {
 	bob, _, _ := NewArgon2([]byte("password"), nil)
 	for i := 0; i < b.N; i++ {
