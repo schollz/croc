@@ -16,19 +16,6 @@ jobs:
         go-version: '1.23'
     - run: go version
     - run: go test -v ./...
-    - name: Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.20'
-    - name: Build Windows 7
-      run: |
-        go version
-        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc.exe
-        CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc.exe
-    - name: Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.23'
     - name: Build files
       run: |
         go version
@@ -51,3 +38,14 @@ jobs:
         CGO_ENABLED=0 GOOS=netbsd GOARCH=arm64 go build -ldflags '' -o croc
         CGO_ENABLED=0 GOOS=openbsd GOARCH=amd64 go build -ldflags '' -o croc
         CGO_ENABLED=0 GOOS=openbsd GOARCH=arm64 go build -ldflags '' -o croc
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.20'
+    - name: Build Windows 7
+      run: |
+        go version
+        rm go.mod go.sum
+        go mod tidy
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc.exe
+        CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc.exe
