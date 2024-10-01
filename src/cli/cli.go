@@ -75,6 +75,7 @@ func Run() (err error) {
 				&cli.BoolFlag{Name: "no-local", Usage: "disable local relay when sending"},
 				&cli.BoolFlag{Name: "no-multi", Usage: "disable multiplexing"},
 				&cli.BoolFlag{Name: "git", Usage: "enable .gitignore respect / don't send ignored files"},
+				&cli.BoolFlag{Name: "preserve", Usage: "preserves modification times, access times, and file mode bits from the source file."},
 				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay"},
 				&cli.IntFlag{Name: "transfers", Value: 4, Usage: "number of ports to use for transfers"},
 			},
@@ -301,6 +302,7 @@ func send(c *cli.Context) (err error) {
 		ThrottleUpload: c.String("throttleUpload"),
 		ZipFolder:      c.Bool("zip"),
 		GitIgnore:      c.Bool("git"),
+		Preserve:       c.Bool("preserve"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -348,6 +350,9 @@ func send(c *cli.Context) (err error) {
 		}
 		if !c.IsSet("git") {
 			crocOptions.GitIgnore = rememberedOptions.GitIgnore
+		}
+		if !c.IsSet("preserve") {
+			crocOptions.Preserve = rememberedOptions.Preserve
 		}
 	}
 
