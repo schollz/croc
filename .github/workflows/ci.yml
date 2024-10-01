@@ -41,7 +41,7 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.20'
+        go-version: '1.20.7' # go1.20.8+ refuses to build go1.22 code...
     - name: Build Windows 7
       run: |
         go version
