@@ -24,10 +24,10 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/kalafut/imohash"
 	"github.com/minio/highwayhash"
-	"gortc.io/stun"
+	"github.com/schollz/croc/v10/src/mnemonicode"
 	log "github.com/schollz/logger"
-	"github.com/schollz/mnemonicode"
 	"github.com/schollz/progressbar/v3"
+	"gortc.io/stun"
 )
 
 const NbPinNumbers = 4
