@@ -15,9 +15,9 @@ jobs:
     - name: Checkout project
       uses: actions/checkout@v4
     - name: Setup Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
-        go-version: '1.20'
+        go-version: '1.20.7' # go1.20.8+ refuses to build go1.22 code...
     - name: Build Windows 7
       run: |
         CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc.exe
@@ -27,7 +27,7 @@ jobs:
     - name: Setup Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.21'
+        go-version: '1.23'
     - name: Prepare source tarball
       run: |
         git clone -b ${{ github.event.release.name }} --depth 1 https://github.com/schollz/croc croc-${{ github.event.release.name }}
