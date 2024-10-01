@@ -15,16 +15,6 @@ jobs:
     - name: Checkout project
       uses: actions/checkout@v4
     - name: Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.20.7' # go1.20.8+ refuses to build go1.22 code...
-    - name: Build Windows 7
-      run: |
-        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc.exe
-        zip croc_${{ github.event.release.name }}_Windows7-64bit.zip croc.exe
-        CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc.exe
-        zip croc_${{ github.event.release.name }}_Windows7-32bit.zip croc.exe
-    - name: Setup Go
       uses: actions/setup-go@v4
       with:
         go-version: '1.23'
@@ -73,6 +63,20 @@ jobs:
         tar -czvf croc_${{ github.event.release.name }}_OpenBSD-64bit.tar.gz croc LICENSE
         CGO_ENABLED=0 GOOS=openbsd GOARCH=arm64 go build -ldflags '' -o croc
         tar -czvf croc_${{ github.event.release.name }}_OpenBSD-ARM64.tar.gz croc LICENSE
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.20.7' # go1.20.8+ refuses to build go1.22 code...
+    - name: Build Windows 7
+      run: |
+        go version
+        rm go.mod go.sum
+        go mod init github.com/schollz/croc/v10
+        go mod tidy
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc.exe
+        zip croc_${{ github.event.release.name }}_Windows7-64bit.zip croc.exe
+        CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc.exe
+        zip croc_${{ github.event.release.name }}_Windows7-32bit.zip croc.exe
     - name: Create checksums.txt
       run: |
         touch croc_${{ github.event.release.name }}_checksums.txt
