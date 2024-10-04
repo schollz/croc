@@ -58,31 +58,32 @@ func Debug(debug bool) {
 
 // Options specifies user specific options
 type Options struct {
-	IsSender       bool
-	SharedSecret   string
-	RoomName       string
-	Debug          bool
-	RelayAddress   string
-	RelayAddress6  string
-	RelayPorts     []string
-	RelayPassword  string
-	Stdout         bool
-	NoPrompt       bool
-	NoMultiplexing bool
-	DisableLocal   bool
-	OnlyLocal      bool
-	IgnoreStdin    bool
-	Ask            bool
-	SendingText    bool
-	NoCompress     bool
-	IP             string
-	Overwrite      bool
-	Curve          string
-	HashAlgorithm  string
-	ThrottleUpload string
-	ZipFolder      bool
-	TestFlag       bool
-	GitIgnore      bool
+	IsSender         bool
+	SharedSecret     string
+	RoomName         string
+	Debug            bool
+	RelayAddress     string
+	RelayAddress6    string
+	RelayPorts       []string
+	RelayPassword    string
+	Stdout           bool
+	NoPrompt         bool
+	NoMultiplexing   bool
+	DisableLocal     bool
+	OnlyLocal        bool
+	IgnoreStdin      bool
+	Ask              bool
+	SendingText      bool
+	NoCompress       bool
+	IP               string
+	Overwrite        bool
+	Curve            string
+	HashAlgorithm    string
+	ThrottleUpload   string
+	ZipFolder        bool
+	TestFlag         bool
+	GitIgnore        bool
+	MulticastAddress string
 }
 
 type SimpleMessage struct {
@@ -588,7 +589,7 @@ func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 	if useipv6 {
 		settings.IPVersion = peerdiscovery.IPv6
 	} else {
-		settings.MulticastAddress = "255.255.255.255"
+		settings.MulticastAddress = c.Options.MulticastAddress
 	}
 
 	discoveries, err := peerdiscovery.Discover(settings)
@@ -869,7 +870,7 @@ func (c *Client) Receive() (err error) {
 				Payload:          []byte("ok"),
 				Delay:            20 * time.Millisecond,
 				TimeLimit:        200 * time.Millisecond,
-				MulticastAddress: "255.255.255.255",
+				MulticastAddress: c.Options.MulticastAddress,
 			})
 			if err1 == nil && len(ipv4discoveries) > 0 {
 				dmux.Lock()
