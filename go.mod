@@ -37,3 +37,5 @@ require (
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace gortc.io/stun => github.com/gortc/stun v1.23.0
