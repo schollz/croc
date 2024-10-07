@@ -12,15 +12,14 @@ import (
 	"math"
 	"net"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/term"
-	"golang.org/x/time/rate"
 
 	"github.com/denisbrodbeck/machineid"
 	ignore "github.com/sabhiram/go-gitignore"
@@ -28,6 +27,8 @@ import (
 	"github.com/schollz/pake/v3"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v3"
+	"golang.org/x/term"
+	"golang.org/x/time/rate"
 
 	"github.com/schollz/croc/v10/src/comm"
 	"github.com/schollz/croc/v10/src/compress"
@@ -307,7 +308,6 @@ func isChild(parentPath, childPath string) bool {
 		return false
 	}
 	return !strings.HasPrefix(relPath, "..")
-
 }
 
 // This function retrieves the important file information
@@ -330,7 +330,7 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool) (filesInfo []
 			paths = append(paths, fname)
 		}
 	}
-	var ignoredPaths = make(map[string]bool)
+	ignoredPaths := make(map[string]bool)
 	if ignoreGit {
 		wd, wdErr := os.Stat(".gitignore")
 		if wdErr == nil {
@@ -659,6 +659,7 @@ On the other computer run:
 (For Linux/OSX)
     CROC_SECRET=%[1]q croc %[2]s
 `, c.Options.SharedSecret, flags.String())
+	copyToClipboard(c.Options.SharedSecret)
 	if c.Options.Ask {
 		machid, _ := machineid.ID()
 		fmt.Fprintf(os.Stderr, "\rYour machine ID is '%s'\n", machid)
@@ -2122,4 +2123,24 @@ func (c *Client) sendData(i int) {
 			panic(errRead)
 		}
 	}
+}
+
+func copyToClipboard(str string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "clip")
+	case "darwin":
+		cmd = exec.Command("pbcopy")
+	case "linux":
+		cmd = exec.Command("xclip", "-selection", "clipboard")
+	default:
+		return
+	}
+	cmd.Stdin = bytes.NewReader([]byte(str))
+	if err := cmd.Run(); err != nil {
+		log.Debugf("error copying to clipboard: %v", err)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "Code copied to clipboard")
 }
