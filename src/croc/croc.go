@@ -2139,7 +2139,7 @@ func copyToClipboard(str string) {
 	}
 	cmd.Stdin = bytes.NewReader([]byte(str))
 	if err := cmd.Run(); err != nil {
-		log.Debugf("error copying to clipboard", err)
+		log.Debugf("error copying to clipboard: %v", err)
 		return
 	}
 	fmt.Fprintf(os.Stderr, "Code copied to clipboard")
