@@ -1496,6 +1496,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 
 	switch m.Type {
 	case message.TypeFinished:
+		log.Tracef("message.TypeFinished")
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type: message.TypeFinished,
 		})
@@ -1503,21 +1504,26 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		c.SuccessfulTransfer = true
 		return
 	case message.TypePAKE:
+		log.Tracef("message.TypePAKE")
 		err = c.processMessagePake(m)
 		if err != nil {
 			err = fmt.Errorf("pake not successful: %w", err)
 			log.Debug(err)
 		}
 	case message.TypeExternalIP:
+		log.Tracef("message.TypeExternalIP")
 		done, err = c.processExternalIP(m)
 	case message.TypeError:
+		log.Tracef("message.TypeError")
 		// c.spinner.Stop()
 		fmt.Print("\r")
 		err = fmt.Errorf("peer error: %s", m.Message)
 		return true, err
 	case message.TypeFileInfo:
+		log.Tracef("message.TypeFileInfo")
 		done, err = c.processMessageFileInfo(m)
 	case message.TypeRecipientReady:
+		log.Tracef("message.TypeRecipientReady")
 		var remoteFile RemoteFileRequest
 		err = json.Unmarshal(m.Bytes, &remoteFile)
 		if err != nil {
@@ -1548,6 +1554,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 			}
 		}
 	case message.TypeCloseSender:
+		log.Tracef("message.TypeCloseSender")
 		c.bar.Finish()
 		log.Debug("close-sender received...")
 		c.Step4FileTransferred = false
@@ -1557,6 +1564,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 			Type: message.TypeCloseRecipient,
 		})
 	case message.TypeCloseRecipient:
+		log.Tracef("message.TypeCloseRecipient")
 		c.Step4FileTransferred = false
 		c.Step3RecipientRequestFile = false
 	}
