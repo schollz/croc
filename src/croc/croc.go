@@ -2133,7 +2133,11 @@ func copyToClipboard(str string) {
 	case "darwin":
 		cmd = exec.Command("pbcopy")
 	case "linux":
-		cmd = exec.Command("xclip", "-selection", "clipboard")
+		if os.Getenv("XDG_SESSION_TYPE") == "wayland" {
+			cmd = exec.Command("wl-copy")
+		} else {
+			cmd = exec.Command("xclip", "-selection", "clipboard")
+		}
 	default:
 		return
 	}
