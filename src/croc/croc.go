@@ -2129,7 +2129,7 @@ func copyToClipboard(str string) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
-		cmd = exec.Command("cmd", "/c", "clip")
+		cmd = exec.Command("clip")
 	case "darwin":
 		cmd = exec.Command("pbcopy")
 	case "linux":
