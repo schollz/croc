@@ -1698,7 +1698,7 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 		FilesToTransferCurrentNum: c.FilesToTransferCurrentNum,
 		MachineID:                 machID,
 	})
-	log.Debug("converting to chunk range")
+	log.Tracef("utils.ChunkRangesToChunks(c.CurrentFileChunkRanges)")
 	c.CurrentFileChunks = utils.ChunkRangesToChunks(c.CurrentFileChunkRanges)
 
 	if !finished {
@@ -1706,8 +1706,7 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 		c.setBar()
 	}
 
-	log.Debugf("sending recipient ready with %d chunks", len(c.CurrentFileChunks))
-	log.Tracef("recipientGetFileReady: sending recipient chunks")
+	log.Tracef("sending recipient ready with %d chunks", len(c.CurrentFileChunks))
 	err = message.Send(c.conn[0], c.Key, message.Message{
 		Type:  message.TypeRecipientReady,
 		Bytes: bRequest,
@@ -1879,11 +1878,13 @@ func (c *Client) fmtPrintUpdate() {
 }
 
 func (c *Client) updateState() (err error) {
+	log.Tracef("c.updateIfSenderChannelSecured()")
 	err = c.updateIfSenderChannelSecured()
 	if err != nil {
 		return
 	}
 
+	log.Tracef("c.updateIfRecipientHasFileInfo()")
 	err = c.updateIfRecipientHasFileInfo()
 	if err != nil {
 		return
