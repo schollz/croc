@@ -1524,6 +1524,8 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		done, err = c.processMessageFileInfo(m)
 	case message.TypeRecipientReady:
 		log.Tracef("message.TypeRecipientReady")
+		c.Step4FileTransferred = false
+		c.Step3RecipientRequestFile = false
 		var remoteFile RemoteFileRequest
 		err = json.Unmarshal(m.Bytes, &remoteFile)
 		if err != nil {
@@ -2034,11 +2036,13 @@ func (c *Client) receiveData(i int) {
 			}
 			log.Trace("sending close-sender")
 			err = message.Send(c.conn[0], c.Key, message.Message{
-				Type: message.TypeCloseSender,
+				Type: message.TypeRecipientReady,
 			})
 			if err != nil {
 				panic(err)
 			}
+			c.Step4FileTransferred = false
+			c.Step3RecipientRequestFile = false
 		}
 		c.mutex.Unlock()
 	}
