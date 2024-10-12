@@ -1684,7 +1684,7 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 		c.FilesHasFinished[c.FilesToTransferCurrentNum] = struct{}{}
 		return
 	}
-
+	log.Tracef("recipientGetFileReady: recipientInitializeFile")
 	err = c.recipientInitializeFile()
 	if err != nil {
 		return
@@ -1707,6 +1707,7 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 	}
 
 	log.Debugf("sending recipient ready with %d chunks", len(c.CurrentFileChunks))
+	log.Tracef("recipientGetFileReady: sending recipient chunks")
 	err = message.Send(c.conn[0], c.Key, message.Message{
 		Type:  message.TypeRecipientReady,
 		Bytes: bRequest,
