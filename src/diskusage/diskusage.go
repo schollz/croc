@@ -12,7 +12,7 @@ type DiskUsage struct {
 	stat *unix.Statfs_t
 }
 
-// NewDiskUsages returns an object holding the disk usage of volumePath
+// NewDiskUsage returns an object holding the disk usage of volumePath
 // or nil in case of error (invalid path, etc)
 func NewDiskUsage(volumePath string) *DiskUsage {
 	stat := unix.Statfs_t{}
