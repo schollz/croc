@@ -16,13 +16,13 @@ require (
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/pake/v3 v3.0.5
 	github.com/schollz/peerdiscovery v1.7.5
-	github.com/schollz/progressbar/v3 v3.16.1
+	github.com/schollz/progressbar/v3 v3.17.1
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/crypto v0.28.0
-	golang.org/x/net v0.30.0
-	golang.org/x/sys v0.26.0
-	golang.org/x/term v0.25.0
-	golang.org/x/time v0.7.0
+	golang.org/x/crypto v0.29.0
+	golang.org/x/net v0.31.0
+	golang.org/x/sys v0.27.0
+	golang.org/x/term v0.26.0
+	golang.org/x/time v0.8.0
 	gortc.io/stun v1.23.0
 )
 
