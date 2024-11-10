@@ -643,7 +643,13 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 		}
 	}
 	if c.String("out") != "" {
-		if err = os.Chdir(c.String("out")); err != nil {
+		// validate the path
+		destPath, err := validateDestPath(c.String("out"))
+		if err != nil {
+			return err
+		}
+
+		if err = os.Chdir(destPath); err != nil {
 			return err
 		}
 	}
@@ -713,4 +719,21 @@ func relay(c *cli.Context) (err error) {
 		}(port)
 	}
 	return tcp.Run(debugString, host, ports[0], determinePass(c), tcpPorts)
+}
+
+func validateDestPath(path string) (string, error) {
+	_, err := os.Stat(path)
+	if err != nil {
+		// Path doesn't exist, fallback to current directory
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("could not get current directory: %w", err)
+		}
+		log.Debugf("Path %s does not exist, falling back to current directory: %s", path, currentDir)
+		fmt.Println("Target directory doesn't exist, receiving in current directory")
+		// flush the stdout buffer
+		os.Stdout.Sync()
+		return currentDir, nil
+	}
+	return path, nil
 }
