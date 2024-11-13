@@ -76,7 +76,17 @@ func Run(debugLevel, host, port, password string, banner ...string) (err error) 
 
 func (s *server) start() (err error) {
 	log.SetLevel(s.debugLevel)
-	log.Debugf("starting with password '%s'", s.password)
+
+	// Mask our password in logs
+	maskedPassword := ""
+	if len(s.password) > 2 {
+		maskedPassword = fmt.Sprintf("%c***%c", s.password[0], s.password[len(s.password)-1])
+	} else {
+		maskedPassword = s.password
+	}
+
+	log.Debugf("starting with password '%s'", maskedPassword)
+
 	s.rooms.Lock()
 	s.rooms.rooms = make(map[string]roomInfo)
 	s.rooms.Unlock()
