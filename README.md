@@ -104,7 +104,19 @@ On FreeBSD you can install with `pkg`:
 pkg install croc
 ```
 
-Or, you can [install Go](https://golang.org/dl/) and build from source (requires Go 1.17+): 
+On Linux, macOS, and Windows you can install from [conda-forge](https://github.com/conda-forge/croc-feedstock/) globally with [`pixi`](https://pixi.sh/):
+
+```
+pixi global install croc
+```
+
+or into a particular environment with [`conda`](https://docs.conda.io/projects/conda/):
+
+```
+conda install --channel conda-forge croc
+```
+
+Or, you can [install Go](https://golang.org/dl/) and build from source (requires Go 1.17+):
 
 ```
 go install github.com/schollz/croc/v10@latest
