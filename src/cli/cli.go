@@ -77,6 +77,7 @@ func Run() (err error) {
 				&cli.BoolFlag{Name: "git", Usage: "enable .gitignore respect / don't send ignored files"},
 				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay"},
 				&cli.IntFlag{Name: "transfers", Value: 4, Usage: "number of ports to use for transfers"},
+				&cli.BoolFlag{Name: "qrcode", Aliases: []string{"qr"}, Usage: "show receive code as a qrcode"},
 			},
 			HelpName: "croc send",
 			Action:   send,
@@ -302,6 +303,7 @@ func send(c *cli.Context) (err error) {
 		ThrottleUpload:   c.String("throttleUpload"),
 		ZipFolder:        c.Bool("zip"),
 		GitIgnore:        c.Bool("git"),
+		ShowQrCode:       c.Bool("qrcode"),
 		MulticastAddress: c.String("multicast"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
