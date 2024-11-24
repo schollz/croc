@@ -27,6 +27,7 @@ import (
 	"github.com/schollz/pake/v3"
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v3"
+	"github.com/skip2/go-qrcode"
 	"golang.org/x/term"
 	"golang.org/x/time/rate"
 
@@ -85,6 +86,7 @@ type Options struct {
 	TestFlag         bool
 	GitIgnore        bool
 	MulticastAddress string
+	ShowQrCode       bool
 }
 
 type SimpleMessage struct {
@@ -660,6 +662,9 @@ On the other computer run:
     CROC_SECRET=%[1]q croc %[2]s
 `, c.Options.SharedSecret, flags.String())
 	copyToClipboard(c.Options.SharedSecret)
+	if c.Options.ShowQrCode {
+		showReceiveCommandQrCode(fmt.Sprintf("%[1]s", c.Options.SharedSecret))
+	}
 	if c.Options.Ask {
 		machid, _ := machineid.ID()
 		fmt.Fprintf(os.Stderr, "\rYour machine ID is '%s'\n", machid)
@@ -830,6 +835,13 @@ On the other computer run:
 		err = <-errchan
 	}
 	return err
+}
+
+func showReceiveCommandQrCode(command string) {
+	qrCode, err := qrcode.New(command, qrcode.Medium)
+	if err == nil {
+		fmt.Println(qrCode.ToSmallString(false))
+	}
 }
 
 // Receive will receive a file
@@ -2146,5 +2158,5 @@ func copyToClipboard(str string) {
 		log.Debugf("error copying to clipboard: %v", err)
 		return
 	}
-	fmt.Fprintf(os.Stderr, "Code copied to clipboard")
+	fmt.Fprintf(os.Stderr, "Code copied to clipboard\n")
 }
