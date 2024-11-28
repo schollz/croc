@@ -14,6 +14,7 @@ import (
 	"math"
 	"math/big"
 	"net"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -27,7 +28,6 @@ import (
 	"github.com/schollz/croc/v10/src/mnemonicode"
 	log "github.com/schollz/logger"
 	"github.com/schollz/progressbar/v3"
-	"gortc.io/stun"
 )
 
 const NbPinNumbers = 4
@@ -246,29 +246,21 @@ func SHA256(s string) string {
 
 // PublicIP returns public ip address
 func PublicIP() (ip string, err error) {
-	// Create a "connection" to the STUN server
-	conn, err := stun.Dial("udp", "stun.l.google.com:19302")
+	// ask ipv4.icanhazip.com for the public ip
+	// by making http request
+	// if the request fails, return nothing
+	resp, err := http.Get("http://ipv4.icanhazip.com")
 	if err != nil {
 		return
 	}
+	defer resp.Body.Close()
 
-	// Build and send a binding request to the STUN server
-	message := stun.MustBuild(stun.TransactionID, stun.BindingRequest)
-	if err = conn.Do(message, func(res stun.Event) {
-		if res.Error != nil {
-			return
-		}
+	// read the body of the response
+	// and return the ip address
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(resp.Body)
+	ip = strings.TrimSpace(buf.String())
 
-		// Process the binding response
-		var xorAddr stun.XORMappedAddress
-		if err := xorAddr.GetFrom(res.Message); err != nil {
-			return
-		}
-
-		ip = xorAddr.IP.String()
-	}); err != nil {
-		return
-	}
 	return
 }
 
