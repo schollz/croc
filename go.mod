@@ -5,7 +5,7 @@ go 1.22
 toolchain go1.23.1
 
 require (
-	github.com/cespare/xxhash v1.1.0
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/chzyer/readline v1.5.1
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/kalafut/imohash v1.1.0
@@ -19,15 +19,15 @@ require (
 	github.com/schollz/progressbar/v3 v3.17.1
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/crypto v0.30.0
-	golang.org/x/net v0.32.0
+	golang.org/x/crypto v0.31.0
+	golang.org/x/net v0.33.0
 	golang.org/x/sys v0.28.0
 	golang.org/x/term v0.27.0
 	golang.org/x/time v0.8.0
 )
 
 require (
-	github.com/cpuguy83/go-md2man/v2 v2.0.5 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.6 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

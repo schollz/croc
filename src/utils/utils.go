@@ -22,7 +22,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/kalafut/imohash"
 	"github.com/minio/highwayhash"
 	"github.com/schollz/croc/v10/src/mnemonicode"
