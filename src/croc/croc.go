@@ -313,6 +313,15 @@ func isChild(parentPath, childPath string) bool {
 	return !strings.HasPrefix(relPath, "..")
 }
 
+func recursiveFiles(path string) (paths []string, err error) {
+	paths = []string{strings.ToLower(path)}
+	err = filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+		paths = append(paths, strings.ToLower(path))
+		return nil
+	})
+	return
+}
+
 // This function retrieves the important file information
 // for every file that will be transferred
 func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool, exclusions []string) (filesInfo []FileInfo, emptyFolders []FileInfo, totalNumberFolders int, err error) {
@@ -380,18 +389,6 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool, exclusions []
 		}
 
 		absPath, errAbs := filepath.Abs(fpath)
-		absPathLower := strings.ToLower(absPath)
-		ignorePath := false
-		for _, exclusion := range exclusions {
-			if strings.Contains(absPathLower, exclusion) {
-				ignorePath = true
-				break
-			}
-		}
-		if ignorePath {
-			log.Debugf("Ignoring %s", absPath)
-			continue
-		}
 
 		if errAbs != nil {
 			err = errAbs
@@ -426,6 +423,21 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool, exclusions []
 				TempFile:     true,
 				IsIgnored:    ignoredPaths[absPath],
 			}
+			// check if exclusions apply to this file
+			if len(exclusions) > 0 && !fInfo.IsIgnored {
+				allFiles, _ := recursiveFiles(absPath)
+				for _, exclusion := range exclusions {
+					for _, file := range allFiles {
+						if strings.Contains(strings.ToLower(file), strings.ToLower(exclusion)) {
+							fInfo.IsIgnored = true
+							break
+						}
+					}
+					if fInfo.IsIgnored {
+						break
+					}
+				}
+			}
 			if fInfo.IsIgnored {
 				continue
 			}
@@ -458,7 +470,23 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool, exclusions []
 							TempFile:     false,
 							IsIgnored:    ignoredPaths[pathName],
 						}
-						if fInfo.IsIgnored && ignoreGit {
+						// check if exclusions apply to this file
+						if len(exclusions) > 0 && !fInfo.IsIgnored {
+							allFiles, _ := recursiveFiles(pathName)
+							for _, exclusion := range exclusions {
+								for _, file := range allFiles {
+									log.Tracef("ignoring test: %s %s %v", strings.ToLower(file), strings.ToLower(exclusion), strings.Contains(strings.ToLower(file), strings.ToLower(exclusion)))
+									if strings.Contains(strings.ToLower(file), strings.ToLower(exclusion)) {
+										fInfo.IsIgnored = true
+										break
+									}
+								}
+								if fInfo.IsIgnored {
+									break
+								}
+							}
+						}
+						if fInfo.IsIgnored && (ignoreGit || len(exclusions) > 0) {
 							return nil
 						} else {
 							filesInfo = append(filesInfo, fInfo)
@@ -494,7 +522,22 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool, exclusions []
 				TempFile:     false,
 				IsIgnored:    ignoredPaths[absPath],
 			}
-			if fInfo.IsIgnored && ignoreGit {
+			if len(exclusions) > 0 && !fInfo.IsIgnored {
+				allFiles, _ := recursiveFiles(absPath)
+				for _, exclusion := range exclusions {
+					for _, file := range allFiles {
+						log.Tracef("ignoring test: %s %s %v", strings.ToLower(file), strings.ToLower(exclusion), strings.Contains(strings.ToLower(file), strings.ToLower(exclusion)))
+						if strings.Contains(strings.ToLower(file), strings.ToLower(exclusion)) {
+							fInfo.IsIgnored = true
+							break
+						}
+					}
+					if fInfo.IsIgnored {
+						break
+					}
+				}
+			}
+			if fInfo.IsIgnored && (ignoreGit || len(exclusions) > 0) {
 				continue
 			} else {
 				filesInfo = append(filesInfo, fInfo)
