@@ -78,6 +78,7 @@ func Run() (err error) {
 				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay"},
 				&cli.IntFlag{Name: "transfers", Value: 4, Usage: "number of ports to use for transfers"},
 				&cli.BoolFlag{Name: "qrcode", Aliases: []string{"qr"}, Usage: "show receive code as a qrcode"},
+				&cli.StringFlag{Name: "exclude", Value: "", Usage: "exclude files if they contain any of the comma separated strings"},
 			},
 			HelpName: "croc send",
 			Action:   send,
@@ -274,6 +275,13 @@ func send(c *cli.Context) (err error) {
 	if transfersParam == 0 {
 		transfersParam = 4
 	}
+	excludeStrings := []string{}
+	for _, v := range strings.Split(c.String("exclude"), ",") {
+		v = strings.ToLower(strings.TrimSpace(v))
+		if v != "" {
+			excludeStrings = append(excludeStrings, v)
+		}
+	}
 
 	ports := make([]string, transfersParam+1)
 	for i := 0; i <= transfersParam; i++ {
@@ -305,6 +313,7 @@ func send(c *cli.Context) (err error) {
 		GitIgnore:        c.Bool("git"),
 		ShowQrCode:       c.Bool("qrcode"),
 		MulticastAddress: c.String("multicast"),
+		Exclude:          excludeStrings,
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -418,7 +427,7 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 		// generate code phrase
 		crocOptions.SharedSecret = utils.GetRandomName()
 	}
-	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfo(fnames, crocOptions.ZipFolder, crocOptions.GitIgnore)
+	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfo(fnames, crocOptions.ZipFolder, crocOptions.GitIgnore, crocOptions.Exclude)
 	if err != nil {
 		return
 	}
