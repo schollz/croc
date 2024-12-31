@@ -423,21 +423,6 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool, exclusions []
 				TempFile:     true,
 				IsIgnored:    ignoredPaths[absPath],
 			}
-			// check if exclusions apply to this file
-			if len(exclusions) > 0 && !fInfo.IsIgnored {
-				allFiles, _ := recursiveFiles(absPath)
-				for _, exclusion := range exclusions {
-					for _, file := range allFiles {
-						if strings.Contains(strings.ToLower(file), strings.ToLower(exclusion)) {
-							fInfo.IsIgnored = true
-							break
-						}
-					}
-					if fInfo.IsIgnored {
-						break
-					}
-				}
-			}
 			if fInfo.IsIgnored {
 				continue
 			}
@@ -470,23 +455,7 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool, exclusions []
 							TempFile:     false,
 							IsIgnored:    ignoredPaths[pathName],
 						}
-						// check if exclusions apply to this file
-						if len(exclusions) > 0 && !fInfo.IsIgnored {
-							allFiles, _ := recursiveFiles(pathName)
-							for _, exclusion := range exclusions {
-								for _, file := range allFiles {
-									log.Tracef("ignoring test: %s %s %v", strings.ToLower(file), strings.ToLower(exclusion), strings.Contains(strings.ToLower(file), strings.ToLower(exclusion)))
-									if strings.Contains(strings.ToLower(file), strings.ToLower(exclusion)) {
-										fInfo.IsIgnored = true
-										break
-									}
-								}
-								if fInfo.IsIgnored {
-									break
-								}
-							}
-						}
-						if fInfo.IsIgnored && (ignoreGit || len(exclusions) > 0) {
+						if fInfo.IsIgnored && ignoreGit {
 							return nil
 						} else {
 							filesInfo = append(filesInfo, fInfo)
@@ -522,22 +491,7 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool, exclusions []
 				TempFile:     false,
 				IsIgnored:    ignoredPaths[absPath],
 			}
-			if len(exclusions) > 0 && !fInfo.IsIgnored {
-				allFiles, _ := recursiveFiles(absPath)
-				for _, exclusion := range exclusions {
-					for _, file := range allFiles {
-						log.Tracef("ignoring test: %s %s %v", strings.ToLower(file), strings.ToLower(exclusion), strings.Contains(strings.ToLower(file), strings.ToLower(exclusion)))
-						if strings.Contains(strings.ToLower(file), strings.ToLower(exclusion)) {
-							fInfo.IsIgnored = true
-							break
-						}
-					}
-					if fInfo.IsIgnored {
-						break
-					}
-				}
-			}
-			if fInfo.IsIgnored && (ignoreGit || len(exclusions) > 0) {
+			if fInfo.IsIgnored && ignoreGit {
 				continue
 			} else {
 				filesInfo = append(filesInfo, fInfo)
