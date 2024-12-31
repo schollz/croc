@@ -431,49 +431,45 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 	if err != nil {
 		return
 	}
-	minimalFileInfosInclude := []croc.FileInfo{}
-	exclusions := []string{}
-	for _, exclude := range crocOptions.Exclude {
-		exclusions = append(exclusions, strings.ToLower(exclude))
-	}
-	for _, f := range minimalFileInfos {
-		exclude := false
-		for _, exclusion := range exclusions {
-			if strings.Contains(path.Join(strings.ToLower(f.FolderRemote), strings.ToLower(f.Name)), exclusion) {
-				exclude = true
-				break
+	if len(crocOptions.Exclude) > 0 {
+		minimalFileInfosInclude := []croc.FileInfo{}
+		emptyFoldersToTransferInclude := []croc.FileInfo{}
+		for _, f := range minimalFileInfos {
+			exclude := false
+			for _, exclusion := range crocOptions.Exclude {
+				if strings.Contains(path.Join(strings.ToLower(f.FolderRemote), strings.ToLower(f.Name)), exclusion) {
+					exclude = true
+					break
+				}
+			}
+			if !exclude {
+				minimalFileInfosInclude = append(minimalFileInfosInclude, f)
 			}
 		}
-		if !exclude {
-			minimalFileInfosInclude = append(minimalFileInfosInclude, f)
-		}
-	}
-	emptyFoldersToTransferInclude := []croc.FileInfo{}
-	for _, f := range emptyFoldersToTransfer {
-		exclude := false
-		for _, exclusion := range exclusions {
-			if strings.Contains(path.Join(strings.ToLower(f.FolderRemote), strings.ToLower(f.Name)), exclusion) {
-				exclude = true
-				break
+		for _, f := range emptyFoldersToTransfer {
+			exclude := false
+			for _, exclusion := range crocOptions.Exclude {
+				if strings.Contains(path.Join(strings.ToLower(f.FolderRemote), strings.ToLower(f.Name)), exclusion) {
+					exclude = true
+					break
+				}
+			}
+			if !exclude {
+				emptyFoldersToTransferInclude = append(emptyFoldersToTransferInclude, f)
 			}
 		}
-		if !exclude {
-			emptyFoldersToTransferInclude = append(emptyFoldersToTransferInclude, f)
+		totalNumberFolders = 0
+		folderMap := make(map[string]bool)
+		for _, f := range minimalFileInfosInclude {
+			folderMap[f.FolderRemote] = true
 		}
+		for _, f := range emptyFoldersToTransferInclude {
+			folderMap[f.FolderRemote] = true
+		}
+		totalNumberFolders = len(folderMap)
+		minimalFileInfos = minimalFileInfosInclude
+		emptyFoldersToTransfer = emptyFoldersToTransferInclude
 	}
-
-	totalNumberFolders = 0
-	folderMap := make(map[string]bool)
-	for _, f := range minimalFileInfosInclude {
-		folderMap[f.FolderRemote] = true
-		log.Tracef("zxvc file: %+v", f)
-		// is folder
-	}
-	for _, f := range emptyFoldersToTransferInclude {
-		log.Tracef("zxvc folder: %+v", f)
-	}
-	totalNumberFolders = len(folderMap)
-	log.Debugf("zxvc total number of folders: %d", totalNumberFolders)
 
 	cr, err := croc.New(crocOptions)
 	if err != nil {
@@ -483,7 +479,7 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 	// save the config
 	saveConfig(c, crocOptions)
 
-	err = cr.Send(minimalFileInfosInclude, emptyFoldersToTransferInclude, totalNumberFolders)
+	err = cr.Send(minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders)
 
 	return
 }
