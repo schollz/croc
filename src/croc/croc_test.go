@@ -68,7 +68,7 @@ func TestCrocReadme(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
-		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{"../../README.md"}, false, false)
+		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{"../../README.md"}, false, false, []string{})
 		if errGet != nil {
 			t.Errorf("failed to get minimal info: %v", errGet)
 		}
@@ -134,7 +134,7 @@ func TestCrocEmptyFolder(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
-		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{pathName}, false, false)
+		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{pathName}, false, false, []string{})
 		if errGet != nil {
 			t.Errorf("failed to get minimal info: %v", errGet)
 		}
@@ -202,7 +202,7 @@ func TestCrocSymlink(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
-		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{pathName}, false, false)
+		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{pathName}, false, false, []string{})
 		if errGet != nil {
 			t.Errorf("failed to get minimal info: %v", errGet)
 		}
@@ -248,7 +248,7 @@ func TestCrocIgnoreGit(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second)
 	// due to how files are ignored in this function, all we have to do to test is make sure LICENSE doesn't get included in FilesInfo.
-	filesInfo, _, _, errGet := GetFilesInfo([]string{"../../LICENSE", ".gitignore", "croc.go"}, false, true)
+	filesInfo, _, _, errGet := GetFilesInfo([]string{"../../LICENSE", ".gitignore", "croc.go"}, false, true, []string{})
 	if errGet != nil {
 		t.Errorf("failed to get minimal info: %v", errGet)
 	}
@@ -306,7 +306,7 @@ func TestCrocLocal(t *testing.T) {
 	os.Create("touched")
 	wg.Add(2)
 	go func() {
-		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{"../../LICENSE", "touched"}, false, false)
+		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{"../../LICENSE", "touched"}, false, false, []string{})
 		if errGet != nil {
 			t.Errorf("failed to get minimal info: %v", errGet)
 		}
@@ -359,7 +359,7 @@ func TestCrocError(t *testing.T) {
 		Curve:         "siec",
 		Overwrite:     true,
 	})
-	filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{tmpfile.Name()}, false, false)
+	filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{tmpfile.Name()}, false, false, []string{})
 	if errGet != nil {
 		t.Errorf("failed to get minimal info: %v", errGet)
 	}
