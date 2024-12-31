@@ -87,6 +87,7 @@ type Options struct {
 	GitIgnore        bool
 	MulticastAddress string
 	ShowQrCode       bool
+	Exclude          []string
 }
 
 type SimpleMessage struct {
@@ -314,7 +315,7 @@ func isChild(parentPath, childPath string) bool {
 
 // This function retrieves the important file information
 // for every file that will be transferred
-func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool) (filesInfo []FileInfo, emptyFolders []FileInfo, totalNumberFolders int, err error) {
+func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool, exclusions []string) (filesInfo []FileInfo, emptyFolders []FileInfo, totalNumberFolders int, err error) {
 	// fnames: the relative/absolute paths of files/folders that will be transferred
 	totalNumberFolders = 0
 	var paths []string
@@ -379,6 +380,18 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool) (filesInfo []
 		}
 
 		absPath, errAbs := filepath.Abs(fpath)
+		absPathLower := strings.ToLower(absPath)
+		ignorePath := false
+		for _, exclusion := range exclusions {
+			if strings.Contains(absPathLower, exclusion) {
+				ignorePath = true
+				break
+			}
+		}
+		if ignorePath {
+			log.Debugf("Ignoring %s", absPath)
+			continue
+		}
 
 		if errAbs != nil {
 			err = errAbs
