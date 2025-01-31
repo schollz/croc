@@ -1,8 +1,8 @@
 module github.com/schollz/croc/v10
 
-go 1.22
+go 1.23
 
-toolchain go1.23.1
+toolchain go1.23.5
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -12,7 +12,7 @@ require (
 	github.com/magisterquis/connectproxy v0.0.0-20200725203833-3582e84f0c9b
 	github.com/minio/highwayhash v1.0.3
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
-	github.com/schollz/cli/v2 v2.2.1
+	github.com/urfave/cli v2.27.5
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/pake/v3 v3.0.5
 	github.com/schollz/peerdiscovery v1.7.6
