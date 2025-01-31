@@ -1,4 +1,5 @@
 project_name: croc
+
 build:
   main: main.go
   binary: croc
@@ -25,9 +26,9 @@ build:
       goarch: arm
   goarm:
     - 7
+
 nfpms:
-  -
-    formats:
+  - formats:
       - deb
     vendor: "schollz.com"
     homepage: "https://schollz.com/software/croc/"
@@ -47,9 +48,9 @@ nfpms:
       netbsd: NetBSD
       freebsd: FreeBSD
       dragonfly: DragonFlyBSD
+
 archives:
-  -
-    format: tar.gz
+  - format: tar.gz
     format_overrides:
       - goos: windows
         format: zip
@@ -73,8 +74,7 @@ archives:
       - bash_autocomplete
 
 brews:
-  -
-    tap:
+  - tap:
       owner: schollz
       name: homebrew-tap
     folder: Formula
@@ -82,7 +82,6 @@ brews:
     homepage: "https://schollz.com/software/croc/"
     install: |
       bin.install "croc"
-
     test: |
       system "#{bin}/croc --version"
 
@@ -93,8 +92,7 @@ scoop:
   homepage: "https://schollz.com/software/croc/"
   description: "croc is a tool that allows any two computers to simply and securely transfer files and folders."
   license: MIT
+
 announce:
   twitter:
-    # Wether its enabled or not.
-    # Defaults to false.
     enabled: false
