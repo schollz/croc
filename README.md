@@ -40,15 +40,15 @@ curl https://getcroc.schollz.com | bash
 ### On macOS
 
 Using [Homebrew](https://brew.sh/):
-  ```bash
-  brew install croc
-  ```
+```bash
+brew install croc
+```
 
 Using [MacPorts](https://www.macports.org/):
-  ```bash
-  sudo port selfupdate
-  sudo port install croc
-  ```
+```bash
+sudo port selfupdate
+sudo port install croc
+```
 
 ### On Windows
 
@@ -139,7 +139,7 @@ conda install --channel conda-forge croc
 
 ### Build from Source
 
-If you prefer, you can [install Go](https://go.dev/dl/) and build from source (requires Go 1.17+):
+If you prefer, you can [install Go](https://go.dev/dl/) and build from source (requires Go 1.22+):
 
 ```bash
 go install github.com/schollz/croc/v10@latest
