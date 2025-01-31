@@ -1,8 +1,8 @@
 module github.com/schollz/croc/v10
 
-go 1.22
+go 1.23
 
-toolchain go1.23.1
+toolchain go1.23.5
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -18,7 +18,7 @@ require (
 	github.com/schollz/peerdiscovery v1.7.6
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	golang.org/x/crypto v0.32.0
 	golang.org/x/net v0.34.0
 	golang.org/x/sys v0.29.0

@@ -1,13 +1,17 @@
 name: Publish to Winget
+
 on:
   release:
     types: [released]
+  workflow_dispatch:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+
     steps:
-      - uses: vedantmgoyal2009/winget-releaser@v2
+      - name: Publish to Winget
+        uses: vedantmgoyal9/winget-releaser@v2
         with:
           identifier: schollz.croc
           installers-regex: '_Windows-\w+\.zip$'

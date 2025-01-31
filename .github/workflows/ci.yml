@@ -1,52 +1,70 @@
 name: CI
+
 on:
   push:
-    branches: [main]
   pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   unit-tests:
     name: Go unit tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
-      with:
-        go-version: '1.23'
-    - run: go version
-    - run: go test -v ./...
-    - name: Build files
-      run: |
-        go version
-        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc.exe
-        CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc.exe
-        CGO_ENABLED=0 GOOS=windows GOARCH=arm go build -ldflags '-extldflags "-static"' -o croc.exe
-        CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -ldflags '-extldflags "-static"' -o croc.exe
-        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc
-        CGO_ENABLED=0 GOOS=linux GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc
-        CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -ldflags '-extldflags "-static"' -o croc
-        GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -ldflags '-extldflags "-static"' -o croc
-        CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags '-extldflags "-static"' -o croc
-        CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"' -o croc
-        CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"' -o croc
-        CGO_ENABLED=0 GOOS=dragonfly GOARCH=amd64 go build -ldflags '' -o croc
-        CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -ldflags '' -o croc
-        CGO_ENABLED=0 GOOS=freebsd GOARCH=arm64 go build -ldflags '' -o croc
-        CGO_ENABLED=0 GOOS=netbsd GOARCH=386 go build -ldflags '' -o croc
-        CGO_ENABLED=0 GOOS=netbsd GOARCH=amd64 go build -ldflags '' -o croc
-        CGO_ENABLED=0 GOOS=netbsd GOARCH=arm64 go build -ldflags '' -o croc
-        CGO_ENABLED=0 GOOS=openbsd GOARCH=amd64 go build -ldflags '' -o croc
-        CGO_ENABLED=0 GOOS=openbsd GOARCH=arm64 go build -ldflags '' -o croc
-    - name: Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.20.7' # go1.20.8+ refuses to build go1.22 code...
-    - name: Build Windows 7
-      run: |
-        go version
-        rm go.mod go.sum
-        go mod init github.com/schollz/croc/v10
-        go mod tidy
-        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc.exe
-        CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc.exe
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '^1.23.5'
+      
+      - name: Display Go version
+        run: go version
+
+      - name: Run unit tests
+        run: go test -v ./...
+
+      - name: Build files
+        run: |
+          go version
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc-windows-amd64.exe
+          CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc-windows-386.exe
+          CGO_ENABLED=0 GOOS=windows GOARCH=arm go build -ldflags '-extldflags "-static"' -o croc-windows-arm.exe
+          CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -ldflags '-extldflags "-static"' -o croc-windows-arm64.exe
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc-linux-amd64
+          CGO_ENABLED=0 GOOS=linux GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc-linux-386
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -ldflags '-extldflags "-static"' -o croc-linux-arm
+          GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -ldflags '-extldflags "-static"' -o croc-linux-arm5
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags '-extldflags "-static"' -o croc-linux-arm64
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"' -o croc-darwin-amd64
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"' -o croc-darwin-arm64
+          CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -ldflags '' -o croc-freebsd-amd64
+          CGO_ENABLED=0 GOOS=freebsd GOARCH=arm64 go build -ldflags '' -o croc-freebsd-arm64
+          CGO_ENABLED=0 GOOS=openbsd GOARCH=amd64 go build -ldflags '' -o croc-openbsd-amd64
+          CGO_ENABLED=0 GOOS=openbsd GOARCH=arm64 go build -ldflags '' -o croc-openbsd-arm64
+
+      - name: Setup Go for Windows 7 Build
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.20.7' # Go 1.20.8+ refuses to build Go 1.23 code
+
+      - name: Build Windows 7 version
+        run: |
+          go version
+          rm go.mod go.sum
+          go mod init github.com/schollz/croc/v10
+          go mod tidy
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc-windows7-amd64.exe
+          CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc-windows7-386.exe
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: croc-build-artifacts
+          path: |
+            croc-windows-*.exe
+            croc-linux-*
+            croc-darwin-*
+            croc-freebsd-*
+            croc-openbsd-*
+            croc-windows7-*.exe
