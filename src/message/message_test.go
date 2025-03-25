@@ -54,7 +54,7 @@ func TestSend(t *testing.T) {
 
 	port := "8801"
 	go func() {
-		log.Debugf("starting TCP server on " + port)
+		log.Debug("starting TCP server on " + port)
 		server, err := net.Listen("tcp", "0.0.0.0:"+port)
 		if err != nil {
 			log.Error(err)
