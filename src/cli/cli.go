@@ -141,7 +141,7 @@ func Run() (err error) {
 			if classicInsecureMode {
 				// classic mode not enabled
 				fmt.Print(`Classic mode is currently ENABLED.
-				
+
 Disabling this mode will prevent the shared secret from being visible
 on the host's process list when passed via the command line. On a
 multi-user system, this will help ensure that other local users cannot
@@ -166,7 +166,7 @@ Do you wish to continue to DISABLE the classic mode? (y/N) `)
 				// enable classic mode
 				// touch the file
 				fmt.Print(`Classic mode is currently DISABLED.
-				
+
 Please note that enabling this mode will make the shared secret visible
 on the host's process list when passed via the command line. On a
 multi-user system, this could allow other local users to access the
@@ -404,7 +404,7 @@ func send(c *cli.Context) (err error) {
 		if (!(runtime.GOOS == "windows") && c.IsSet("code")) || os.Getenv("CROC_SECRET") != "" {
 			crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
 			if crocOptions.SharedSecret == "" {
-				fmt.Printf(`On UNIX systems, to send with a custom code phrase, 
+				fmt.Printf(`On UNIX systems, to send with a custom code phrase,
 you need to set the environmental variable CROC_SECRET:
 
   CROC_SECRET=**** croc send file.txt
@@ -412,7 +412,7 @@ you need to set the environmental variable CROC_SECRET:
 Or you can have the code phrase automatically generated:
 
   croc send file.txt
-	
+
 Or you can go back to the classic croc behavior by enabling classic mode:
 
   croc --classic
@@ -660,15 +660,15 @@ func receive(c *cli.Context) (err error) {
 	} else if !(runtime.GOOS == "windows") && crocOptions.SharedSecret != "" && !classicInsecureMode {
 		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
 		if crocOptions.SharedSecret == "" {
-			fmt.Printf(`On UNIX systems, to receive with croc you either need 
+			fmt.Printf(`On UNIX systems, to receive with croc you either need
 to set a code phrase using your environmental variables:
-	
-  CROC_SECRET=**** croc 
+
+  CROC_SECRET=**** croc
 
 Or you can specify the code phrase when you run croc without
 declaring the secret on the command line:
 
-  croc 
+  croc
   Enter receive code: ****
 
 Or you can go back to the classic croc behavior by enabling classic mode:
