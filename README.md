@@ -40,11 +40,13 @@ curl https://getcroc.schollz.com | bash
 ### On macOS
 
 Using [Homebrew](https://brew.sh/):
+
 ```bash
 brew install croc
 ```
 
 Using [MacPorts](https://www.macports.org/):
+
 ```bash
 sudo port selfupdate
 sudo port install croc
