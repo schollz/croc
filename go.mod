@@ -35,3 +35,5 @@ require (
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace golang.org/x/sys => golang.org/x/sys v0.31.0
