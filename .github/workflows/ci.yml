@@ -51,9 +51,9 @@ jobs:
       - name: Build Windows 7 version
         run: |
           go version
-          rm go.mod go.sum
-          go mod init github.com/schollz/croc/v10
-          go mod tidy
+          # rm go.mod go.sum
+          # go mod init github.com/schollz/croc/v10
+          # go mod tidy
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc-windows7-amd64.exe
           CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc-windows7-386.exe
 
