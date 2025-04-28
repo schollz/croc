@@ -1,8 +1,8 @@
 name: Deploy Docker
 
 on:
-  push:
-  pull_request:
+  release:
+    types: [created]
   workflow_dispatch:
 
 jobs:
