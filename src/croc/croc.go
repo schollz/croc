@@ -668,7 +668,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 On the other computer run:
 (For Windows)
     croc %[2]s%[1]s
-(For Linux/OSX)
+(For Linux/macOS)
     CROC_SECRET=%[1]q croc %[2]s
 `, c.Options.SharedSecret, flags.String())
 	copyToClipboard(c.Options.SharedSecret)
