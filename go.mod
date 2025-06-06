@@ -21,7 +21,7 @@ require (
 	golang.org/x/net v0.39.0
 	golang.org/x/sys v0.32.0
 	golang.org/x/term v0.31.0
-	golang.org/x/time v0.11.0
+	golang.org/x/time v0.12.0
 )
 
 require (
