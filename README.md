@@ -285,6 +285,100 @@ To send files using your custom relay:
 croc --pass YOURPASSWORD --relay "myreal.example.com:9009" send [filename]
 ```
 
+#### Self-host Relay with Docker behind Traefik 3.0
+
+You can also run a relay with Docker behind traefik 3.0. Create a croc.yml as shown:
+
+```bash
+services:
+  croc:
+    # The 'ports' section maps ports directly from the HOST to the container.
+    # If you ONLY want to access croc *through* Traefik, this section is
+    # technically redundant and can be removed or commented out.
+    # Traefik will route traffic via the shared Docker network ('proxy_network').
+    # Keep it if you need direct host access *as well* as Traefik access.
+
+    # ports:
+    #  - 9009-9013:9009-9013
+
+    container_name: croc
+    environment:
+    # Ensure $CROCPASSWORD is set in your environment or a .env file
+    # You may also hard code it if you prefer
+      - CROC_PASS=$CROCPASSWORD 
+    image: schollz/croc
+    networks: 
+    # Connect the croc container to the shared Traefik network
+    # Replace 'proxy_network' if your network name is different.
+      - proxy_network 
+    labels: 
+      # --- Traefik Configuration ---
+      # Enable Traefik for this service
+      - "traefik.enable=true" 
+
+      # --- TCP Router Definition ---
+      # Define how Traefik should handle incoming connections for croc
+
+      # Match any TCP connection on the entrypoint
+      # Use HostSNI(`your.croc.domain`) if clients use SNI
+      - "traefik.tcp.routers.croc-router.rule=HostSNI(`*`)" 
+
+      # Route traffic coming from the 'croc-tcp' entrypoint
+      # ** Replace 'croc-tcp' with your actual entrypoint name **           
+      - "traefik.tcp.routers.croc-router.entrypoints=croc-tcp" 
+
+      # Forward matched traffic to the 'croc-service' backend
+      - "traefik.tcp.routers.croc-router.service=croc-service"
+
+      # Optional: Add TLS if your entrypoint handles it (e.g., via Let's Encrypt)
+      # - "traefik.tcp.routers.croc-router.tls=true"
+
+      # Replace with your certificate resolver name
+      # Note cloudflare may cause issues as seen in https://github.com/schollz/croc/issues/522
+      # - "traefik.tcp.routers.croc-router.tls.certresolver=myresolver" 
+
+      # --- TCP Service Definition ---
+      # Define how Traefik connects to the actual croc container
+      # Forward traffic to port 9009 inside the croc container
+      - "traefik.tcp.services.croc-service.loadbalancer.server.port=9009" 
+                                                                         
+```
+
+To send files using your custom relay:
+
+```bash
+croc --pass YOURPASSWORD --relay "myreal.example.com:9009" send [filename]
+```
+
+Ensure the following is added to your traefik.yml:
+
+```bash
+services:
+  # Traefik 3 - Reverse Proxy
+  traefik:
+    container_name: traefik
+    image: traefik:3.0
+    networks:
+      - proxy_network:
+    command: 
+      # Define croc entry point
+      - --entrypoints.croc.address=:9009
+    ports:
+      #Define TCP entrypoint which will match up with the one in our yml
+      - target: 9009
+        published: 9009
+        protocol: tcp
+        mode: host
+    labels:
+      # Traefik labels for traefik dashboard
+      - "traefik.enable=true"
+      # HTTP Routers
+      - "traefik.http.routers.traefik-rtr.entrypoints=websecure"
+      - "traefik.http.routers.traefik-rtr.rule=Host(`traefik.exampledomain.com`)"
+      # Services - API
+      - "traefik.http.routers.traefik-rtr.service=api@internal"
+```
+
 ## Acknowledgements
 
 `croc` has evolved through many iterations, and I am thankful for the contributions! Special thanks to:
@@ -292,5 +386,4 @@ croc --pass YOURPASSWORD --relay "myreal.example.com:9009" send [filename]
 - [@warner](https://github.com/warner) for the [idea](https://github.com/magic-wormhole/magic-wormhole)
 - [@tscholl2](https://github.com/tscholl2) for the [encryption gists](https://gist.github.com/tscholl2/dc7dc15dc132ea70a98e8542fefffa28)
 - [@skorokithakis](https://github.com/skorokithakis) for [proxying two connections](https://www.stavros.io/posts/proxying-two-connections-go/)
-
 And many more!
