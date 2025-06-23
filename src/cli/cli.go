@@ -328,40 +328,8 @@ func send(c *cli.Context) (err error) {
 			log.Error(err)
 			return
 		}
-		// update anything that isn't explicitly set
-		if !c.IsSet("relay") && rememberedOptions.RelayAddress != "" {
-			crocOptions.RelayAddress = rememberedOptions.RelayAddress
-		}
-		if !c.IsSet("no-local") {
-			crocOptions.DisableLocal = rememberedOptions.DisableLocal
-		}
-		if !c.IsSet("ports") && len(rememberedOptions.RelayPorts) > 0 {
-			crocOptions.RelayPorts = rememberedOptions.RelayPorts
-		}
-		if !c.IsSet("code") {
-			crocOptions.SharedSecret = rememberedOptions.SharedSecret
-		}
-		if !c.IsSet("pass") && rememberedOptions.RelayPassword != "" {
-			crocOptions.RelayPassword = rememberedOptions.RelayPassword
-		}
-		if !c.IsSet("relay6") && rememberedOptions.RelayAddress6 != "" {
-			crocOptions.RelayAddress6 = rememberedOptions.RelayAddress6
-		}
-		if !c.IsSet("overwrite") {
-			crocOptions.Overwrite = rememberedOptions.Overwrite
-		}
-		if !c.IsSet("curve") && rememberedOptions.Curve != "" {
-			crocOptions.Curve = rememberedOptions.Curve
-		}
-		if !c.IsSet("local") {
-			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
-		}
-		if !c.IsSet("hash") {
-			crocOptions.HashAlgorithm = rememberedOptions.HashAlgorithm
-		}
-		if !c.IsSet("git") {
-			crocOptions.GitIgnore = rememberedOptions.GitIgnore
-		}
+		updateUnsetOptionsFromRememberedOptions(c, &crocOptions, rememberedOptions,
+			[]string{"relay", "no-local", "ports", "code", "pass", "relay6", "overwrite", "local", "hash", "git"})
 	}
 
 	var fnames []string
@@ -476,8 +444,9 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 		return
 	}
 
-	// save the config
-	saveConfig(c, crocOptions)
+	if c.Bool("remember") {
+		saveConfig(c, crocOptions)
+	}
 
 	err = cr.Send(minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders)
 
@@ -521,26 +490,24 @@ func makeTempFileWithString(s string) (fnames []string, err error) {
 }
 
 func saveConfig(c *cli.Context, crocOptions croc.Options) {
-	if c.Bool("remember") {
-		configFile := getSendConfigFile(true)
-		log.Debug("saving config file")
-		var bConfig []byte
-		// if the code wasn't set, don't save it
-		if c.String("code") == "" {
-			crocOptions.SharedSecret = ""
-		}
-		bConfig, err := json.MarshalIndent(crocOptions, "", "    ")
-		if err != nil {
-			log.Error(err)
-			return
-		}
-		err = os.WriteFile(configFile, bConfig, 0o644)
-		if err != nil {
-			log.Error(err)
-			return
-		}
-		log.Debugf("wrote %s", configFile)
+	configFile := getSendConfigFile(true)
+	log.Debug("saving config file")
+	var bConfig []byte
+	// if the code wasn't set, don't save it
+	if c.String("code") == "" {
+		crocOptions.SharedSecret = ""
 	}
+	bConfig, err := json.MarshalIndent(crocOptions, "", "    ")
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	err = os.WriteFile(configFile, bConfig, 0o644)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	log.Debugf("wrote %s", configFile)
 }
 
 type TabComplete struct{}
@@ -628,6 +595,8 @@ func receive(c *cli.Context) (err error) {
 			return
 		}
 		// update anything that isn't explicitly Globally set
+		updateUnsetOptionsFromRememberedOptions(c, &crocOptions, rememberedOptions,
+			[]string{"relay", "yes", "sharedSecret", "pass", "relay6", "overwrite", "curve", "local"})
 		if !c.IsSet("relay") && rememberedOptions.RelayAddress != "" {
 			crocOptions.RelayAddress = rememberedOptions.RelayAddress
 		}
@@ -763,4 +732,83 @@ func relay(c *cli.Context) (err error) {
 		}(port)
 	}
 	return tcp.Run(debugString, host, ports[0], determinePass(c), tcpPorts)
+}
+
+func updateUnsetOptionsFromRememberedOptions(c *cli.Context, crocOptions *croc.Options, rememberedOptions croc.Options, optNames []string) {
+	optUpdateFuncs := map[string]func(c *cli.Context, crocOptions *croc.Options, rememberedOptions croc.Options){
+		"code": func(c *cli.Context, crocOptions *croc.Options, rememberedOptions croc.Options) {
+			if !c.IsSet("code") {
+				crocOptions.SharedSecret = rememberedOptions.SharedSecret
+			}
+		},
+		"curve": func(c *cli.Context, crocOptions *croc.Options, rememberedOptions croc.Options) {
+			if !c.IsSet("curve") && rememberedOptions.Curve != "" {
+				crocOptions.Curve = rememberedOptions.Curve
+			}
+		},
+		"git": func(c *cli.Context, crocOptions *croc.Options, rememberedOptions croc.Options) {
+			if !c.IsSet("git") {
+				crocOptions.GitIgnore = rememberedOptions.GitIgnore
+			}
+		},
+		"hash": func(c *cli.Context, crocOptions *croc.Options, rememberedOptions croc.Options) {
+			if !c.IsSet("hash") {
+				crocOptions.HashAlgorithm = rememberedOptions.HashAlgorithm
+			}
+		},
+		"local": func(c *cli.Context, crocOptions *croc.Options, rememberedOptions croc.Options) {
+			if !c.IsSet("local") {
+				crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
+			}
+		},
+		"no-local": func(c *cli.Context, crocOptions *croc.Options, rememberedOptions croc.Options) {
+			if !c.IsSet("no-local") {
+				crocOptions.DisableLocal = rememberedOptions.DisableLocal
+			}
+		},
+		"overwrite": func(c *cli.Context, crocOptions *croc.Options, rememberedOptions croc.Options) {
+			if !c.IsSet("overwrite") {
+				crocOptions.Overwrite = rememberedOptions.Overwrite
+			}
+		},
+		"pass": func(c *cli.Context, crocOptions *croc.Options, rememberedOptions croc.Options) {
+			if !c.IsSet("pass") && rememberedOptions.RelayPassword != "" {
+				crocOptions.RelayPassword = rememberedOptions.RelayPassword
+			}
+		},
+		"ports": func(c *cli.Context, crocOptions *croc.Options, rememberedOptions croc.Options) {
+			if !c.IsSet("ports") && len(rememberedOptions.RelayPorts) > 0 {
+				crocOptions.RelayPorts = rememberedOptions.RelayPorts
+			}
+		},
+		"relay": func(c *cli.Context, crocOptions *croc.Options, rememberedOptions croc.Options) {
+			if !c.IsSet("relay") && rememberedOptions.RelayAddress != "" {
+				crocOptions.RelayAddress = rememberedOptions.RelayAddress
+			}
+		},
+		"relay6": func(c *cli.Context, crocOptions *croc.Options, rememberedOptions croc.Options) {
+			if !c.IsSet("relay6") && rememberedOptions.RelayAddress6 != "" {
+				crocOptions.RelayAddress6 = rememberedOptions.RelayAddress6
+			}
+		},
+		"yes": func(c *cli.Context, crocOptions *croc.Options, rememberedOptions croc.Options) {
+			if !c.IsSet("yes") {
+				crocOptions.NoPrompt = rememberedOptions.NoPrompt
+			}
+		},
+
+		"sharedSecret": func(c *cli.Context, crocOptions *croc.Options, rememberedOptions croc.Options) {
+			if crocOptions.SharedSecret == "" {
+				crocOptions.SharedSecret = rememberedOptions.SharedSecret
+			}
+		},
+	}
+	for _, name := range optNames {
+		if fn, ok := optUpdateFuncs[name]; !ok {
+			log.Debugf("option %s cannot be updated", name)
+		} else {
+			fn(c, crocOptions, rememberedOptions)
+		}
+
+	}
 }
