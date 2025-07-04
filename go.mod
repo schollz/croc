@@ -12,7 +12,7 @@ require (
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/schollz/cli/v2 v2.2.1
 	github.com/schollz/logger v1.2.0
-	github.com/schollz/pake/v3 v3.0.5
+	github.com/schollz/pake/v3 v3.1.0
 	github.com/schollz/peerdiscovery v1.7.6
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
@@ -25,6 +25,7 @@ require (
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
