@@ -108,9 +108,9 @@ func EncryptChaCha(plaintext []byte, aead cipher.AEAD) (encrypted []byte, err er
 	return
 }
 
-// DecryptChaCha will encrypt ChaCha20-Poly1305 using the pre-generated key
+// DecryptChaCha will decrypt ChaCha20-Poly1305 using the pre-generated key
 // https://pkg.go.dev/golang.org/x/crypto/chacha20poly1305
-func DecryptChaCha(encryptedMsg []byte, aead cipher.AEAD) (encrypted []byte, err error) {
+func DecryptChaCha(encryptedMsg []byte, aead cipher.AEAD) (plaintext []byte, err error) {
 	if len(encryptedMsg) < aead.NonceSize() {
 		err = fmt.Errorf("ciphertext too short")
 		return
@@ -120,6 +120,6 @@ func DecryptChaCha(encryptedMsg []byte, aead cipher.AEAD) (encrypted []byte, err
 	nonce, ciphertext := encryptedMsg[:aead.NonceSize()], encryptedMsg[aead.NonceSize():]
 
 	// Decrypt the message and check it wasn't tampered with.
-	encrypted, err = aead.Open(nil, nonce, ciphertext, nil)
+	plaintext, err = aead.Open(nil, nonce, ciphertext, nil)
 	return
 }
