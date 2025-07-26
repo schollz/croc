@@ -276,7 +276,7 @@ func TestCrocLocal(t *testing.T) {
 		Stdout:        true,
 		NoPrompt:      true,
 		DisableLocal:  false,
-		Curve:         "siec",
+		Curve:         "ed25519",
 		Overwrite:     true,
 		GitIgnore:     false,
 	})
@@ -295,7 +295,7 @@ func TestCrocLocal(t *testing.T) {
 		Stdout:        true,
 		NoPrompt:      true,
 		DisableLocal:  false,
-		Curve:         "siec",
+		Curve:         "ed25519",
 		Overwrite:     true,
 	})
 	if err != nil {
