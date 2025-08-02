@@ -68,12 +68,22 @@ choco install croc
 winget install schollz.croc
 ```
 
-### On Unix
+### Using nix-env
 
 You can install the latest release with [Nix](https://nixos.org/):
 
 ```bash
 nix-env -i croc
+```
+
+### On NixOS
+
+You can add this to your [configuration.nix](https://nixos.org/manual/nixos/stable/#ch-configuration):
+
+```nix
+environment.systemPackages = [
+  pkgs.croc
+];
 ```
 
 ### On Alpine Linux
