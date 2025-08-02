@@ -18,7 +18,7 @@ func CompressWithOption(src []byte, level int) []byte {
 // Compress returns a compressed byte slice.
 func Compress(src []byte) []byte {
 	compressedData := new(bytes.Buffer)
-	compress(src, compressedData, -2)
+	compress(src, compressedData, flate.HuffmanOnly)
 	return compressedData.Bytes()
 }
 
