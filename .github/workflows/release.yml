@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  prepare-source:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -25,87 +25,172 @@ jobs:
           git clone -b ${{ github.event.release.name }} --depth 1 https://github.com/schollz/croc croc-${{ github.event.release.name }}
           cd croc-${{ github.event.release.name }} && go mod tidy && go mod vendor
           cd .. && tar -czvf croc_${{ github.event.release.name }}_src.tar.gz croc-${{ github.event.release.name }}
-          
-      - name: Build files
-        run: |
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc.exe
-          zip croc_${{ github.event.release.name }}_Windows-64bit.zip croc.exe LICENSE
-          CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc.exe
-          zip croc_${{ github.event.release.name }}_Windows-32bit.zip croc.exe LICENSE
-          CGO_ENABLED=0 GOOS=windows GOARCH=arm go build -ldflags '-extldflags "-static"' -o croc.exe
-          zip croc_${{ github.event.release.name }}_Windows-ARM.zip croc.exe LICENSE
-          CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -ldflags '-extldflags "-static"' -o croc.exe
-          zip croc_${{ github.event.release.name }}_Windows-ARM64.zip croc.exe LICENSE
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc
-          tar -czvf croc_${{ github.event.release.name }}_Linux-64bit.tar.gz croc LICENSE
-          CGO_ENABLED=0 GOOS=linux GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc
-          tar -czvf croc_${{ github.event.release.name }}_Linux-32bit.tar.gz croc LICENSE
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -ldflags '-extldflags "-static"' -o croc
-          tar -czvf croc_${{ github.event.release.name }}_Linux-ARM.tar.gz croc LICENSE
-          GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -ldflags '-extldflags "-static"' -o croc
-          tar -czvf croc_${{ github.event.release.name }}_Linux-ARMv5.tar.gz croc LICENSE
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags '-extldflags "-static"' -o croc
-          tar -czvf croc_${{ github.event.release.name }}_Linux-ARM64.tar.gz croc LICENSE
-          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"' -o croc
-          tar -czvf croc_${{ github.event.release.name }}_macOS-64bit.tar.gz croc LICENSE
-          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"' -o croc
-          tar -czvf croc_${{ github.event.release.name }}_macOS-ARM64.tar.gz croc LICENSE
-          CGO_ENABLED=0 GOOS=dragonfly GOARCH=amd64 go build -ldflags '' -o croc
-          tar -czvf croc_${{ github.event.release.name }}_DragonFlyBSD-64bit.tar.gz croc LICENSE
-          CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -ldflags '' -o croc
-          tar -czvf croc_${{ github.event.release.name }}_FreeBSD-64bit.tar.gz croc LICENSE
-          CGO_ENABLED=0 GOOS=freebsd GOARCH=arm64 go build -ldflags '' -o croc
-          tar -czvf croc_${{ github.event.release.name }}_FreeBSD-ARM64.tar.gz croc LICENSE
-          CGO_ENABLED=0 GOOS=netbsd GOARCH=386 go build -ldflags '' -o croc
-          tar -czvf croc_${{ github.event.release.name }}_NetBSD-32bit.tar.gz croc LICENSE
-          CGO_ENABLED=0 GOOS=netbsd GOARCH=amd64 go build -ldflags '' -o croc
-          tar -czvf croc_${{ github.event.release.name }}_NetBSD-64bit.tar.gz croc LICENSE
-          CGO_ENABLED=0 GOOS=netbsd GOARCH=arm64 go build -ldflags '' -o croc
-          tar -czvf croc_${{ github.event.release.name }}_NetBSD-ARM64.tar.gz croc LICENSE
-          CGO_ENABLED=0 GOOS=openbsd GOARCH=amd64 go build -ldflags '' -o croc
-          tar -czvf croc_${{ github.event.release.name }}_OpenBSD-64bit.tar.gz croc LICENSE
-          CGO_ENABLED=0 GOOS=openbsd GOARCH=arm64 go build -ldflags '' -o croc
-          tar -czvf croc_${{ github.event.release.name }}_OpenBSD-ARM64.tar.gz croc LICENSE
 
-      - name: Upload artifacts
+      - name: Upload source artifact
         uses: actions/upload-artifact@v4
         with:
-          name: main-builds
-          path: |
-            *.zip
-            *.tar.gz
+          name: source-tarball
+          path: "*.tar.gz"
 
-  build-windows7:
+  build:
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          # Windows builds
+          - goos: windows
+            goarch: amd64
+            name: Windows-64bit
+            ext: .exe
+            archive: zip
+          - goos: windows
+            goarch: "386"
+            name: Windows-32bit
+            ext: .exe
+            archive: zip
+          - goos: windows
+            goarch: arm
+            name: Windows-ARM
+            ext: .exe
+            archive: zip
+          - goos: windows
+            goarch: arm64
+            name: Windows-ARM64
+            ext: .exe
+            archive: zip
+          
+          # Linux builds
+          - goos: linux
+            goarch: amd64
+            name: Linux-64bit
+            ext: ""
+            archive: tar.gz
+          - goos: linux
+            goarch: "386"
+            name: Linux-32bit
+            ext: ""
+            archive: tar.gz
+          - goos: linux
+            goarch: arm
+            name: Linux-ARM
+            ext: ""
+            archive: tar.gz
+          - goos: linux
+            goarch: arm
+            goarm: "5"
+            name: Linux-ARMv5
+            ext: ""
+            archive: tar.gz
+          - goos: linux
+            goarch: arm64
+            name: Linux-ARM64
+            ext: ""
+            archive: tar.gz
+          
+          # macOS builds
+          - goos: darwin
+            goarch: amd64
+            name: macOS-64bit
+            ext: ""
+            archive: tar.gz
+            ldflags: '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"'
+          - goos: darwin
+            goarch: arm64
+            name: macOS-ARM64
+            ext: ""
+            archive: tar.gz
+            ldflags: '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"'
+          
+          # BSD builds
+          - goos: dragonfly
+            goarch: amd64
+            name: DragonFlyBSD-64bit
+            ext: ""
+            archive: tar.gz
+            ldflags: ""
+          - goos: freebsd
+            goarch: amd64
+            name: FreeBSD-64bit
+            ext: ""
+            archive: tar.gz
+            ldflags: ""
+          - goos: freebsd
+            goarch: arm64
+            name: FreeBSD-ARM64
+            ext: ""
+            archive: tar.gz
+            ldflags: ""
+          - goos: netbsd
+            goarch: "386"
+            name: NetBSD-32bit
+            ext: ""
+            archive: tar.gz
+            ldflags: ""
+          - goos: netbsd
+            goarch: amd64
+            name: NetBSD-64bit
+            ext: ""
+            archive: tar.gz
+            ldflags: ""
+          - goos: netbsd
+            goarch: arm64
+            name: NetBSD-ARM64
+            ext: ""
+            archive: tar.gz
+            ldflags: ""
+          - goos: openbsd
+            goarch: amd64
+            name: OpenBSD-64bit
+            ext: ""
+            archive: tar.gz
+            ldflags: ""
+          - goos: openbsd
+            goarch: arm64
+            name: OpenBSD-ARM64
+            ext: ""
+            archive: tar.gz
+            ldflags: ""
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Go for Windows 7
+      - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.20.7'
+          go-version: '^1.24.0'
 
-      - name: Build Windows 7 version
+      - name: Build binary
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
         run: |
-          go version
-          rm -rf go.mod go.sum
-          go mod init github.com/schollz/croc/v10
-          go mod tidy
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc.exe
-          zip croc_${{ github.event.release.name }}_Windows7-64bit.zip croc.exe
-          CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc.exe
-          zip croc_${{ github.event.release.name }}_Windows7-32bit.zip croc.exe
+          LDFLAGS="${{ matrix.ldflags }}"
+          if [ -z "$LDFLAGS" ] && [ "${{ matrix.goos }}" != "darwin" ] && [ "${{ matrix.goos }}" != "dragonfly" ] && [ "${{ matrix.goos }}" != "freebsd" ] && [ "${{ matrix.goos }}" != "netbsd" ] && [ "${{ matrix.goos }}" != "openbsd" ]; then
+            LDFLAGS='-extldflags "-static"'
+          fi
+          go build -ldflags "$LDFLAGS" -o croc${{ matrix.ext }}
 
-      - name: Upload Windows 7 artifacts
+      - name: Create archive
+        run: |
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            zip croc_${{ github.event.release.name }}_${{ matrix.name }}.zip croc${{ matrix.ext }} LICENSE
+          else
+            tar -czvf croc_${{ github.event.release.name }}_${{ matrix.name }}.tar.gz croc${{ matrix.ext }} LICENSE
+          fi
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows7-builds
+          name: build-${{ matrix.name }}
           path: |
-            *Windows7*.zip
+            *.zip
+            *.tar.gz
 
   release:
-    needs: [build, build-windows7]
+    needs: [prepare-source, build]
     runs-on: ubuntu-24.04
     if: github.event_name == 'release'
     steps:

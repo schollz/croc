@@ -42,19 +42,3 @@ jobs:
           CGO_ENABLED=0 GOOS=freebsd GOARCH=arm64 go build -ldflags '' -o croc-freebsd-arm64
           CGO_ENABLED=0 GOOS=openbsd GOARCH=amd64 go build -ldflags '' -o croc-openbsd-amd64
           CGO_ENABLED=0 GOOS=openbsd GOARCH=arm64 go build -ldflags '' -o croc-openbsd-arm64
-
-      - name: Setup Go for Windows 7 Build
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.20.7' # Go 1.20.8+ refuses to build Go 1.23 code
-
-      - name: Build Windows 7 version
-        run: |
-          go version
-          # rm go.mod go.sum
-          # go mod init github.com/schollz/croc/v10
-          # go mod tidy
-          go get golang.org/x/sys@v0.33.0
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc-windows7-amd64.exe
-          CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc-windows7-386.exe
-
