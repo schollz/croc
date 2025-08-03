@@ -54,6 +54,7 @@ jobs:
           # rm go.mod go.sum
           # go mod init github.com/schollz/croc/v10
           # go mod tidy
+          go get golang.org/x/sys@v0.33.0
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc-windows7-amd64.exe
           CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc-windows7-386.exe
 
