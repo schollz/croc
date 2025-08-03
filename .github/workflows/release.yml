@@ -93,13 +93,11 @@ jobs:
             name: macOS-64bit
             ext: ""
             archive: tar.gz
-            ldflags: '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"'
           - goos: darwin
             goarch: arm64
             name: macOS-ARM64
             ext: ""
             archive: tar.gz
-            ldflags: '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"'
           
           # BSD builds
           - goos: dragonfly
@@ -107,49 +105,41 @@ jobs:
             name: DragonFlyBSD-64bit
             ext: ""
             archive: tar.gz
-            ldflags: ""
           - goos: freebsd
             goarch: amd64
             name: FreeBSD-64bit
             ext: ""
             archive: tar.gz
-            ldflags: ""
           - goos: freebsd
             goarch: arm64
             name: FreeBSD-ARM64
             ext: ""
             archive: tar.gz
-            ldflags: ""
           - goos: netbsd
             goarch: "386"
             name: NetBSD-32bit
             ext: ""
             archive: tar.gz
-            ldflags: ""
           - goos: netbsd
             goarch: amd64
             name: NetBSD-64bit
             ext: ""
             archive: tar.gz
-            ldflags: ""
           - goos: netbsd
             goarch: arm64
             name: NetBSD-ARM64
             ext: ""
             archive: tar.gz
-            ldflags: ""
           - goos: openbsd
             goarch: amd64
             name: OpenBSD-64bit
             ext: ""
             archive: tar.gz
-            ldflags: ""
           - goos: openbsd
             goarch: arm64
             name: OpenBSD-ARM64
             ext: ""
             archive: tar.gz
-            ldflags: ""
 
     steps:
       - name: Checkout repository
@@ -167,10 +157,20 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           GOARM: ${{ matrix.goarm }}
         run: |
-          LDFLAGS="${{ matrix.ldflags }}"
-          if [ -z "$LDFLAGS" ] && [ "${{ matrix.goos }}" != "darwin" ] && [ "${{ matrix.goos }}" != "dragonfly" ] && [ "${{ matrix.goos }}" != "freebsd" ] && [ "${{ matrix.goos }}" != "netbsd" ] && [ "${{ matrix.goos }}" != "openbsd" ]; then
-            LDFLAGS='-extldflags "-static"'
-          fi
+          # Set LDFLAGS based on platform
+          case "${{ matrix.goos }}" in
+            "darwin")
+              LDFLAGS='-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"'
+              ;;
+            "dragonfly"|"freebsd"|"netbsd"|"openbsd")
+              LDFLAGS=""
+              ;;
+            *)
+              LDFLAGS='-extldflags "-static"'
+              ;;
+          esac
+          
+          echo "Building for ${{ matrix.goos }}/${{ matrix.goarch }} with LDFLAGS: $LDFLAGS"
           go build -ldflags "$LDFLAGS" -o croc${{ matrix.ext }}
 
       - name: Create archive
