@@ -199,9 +199,19 @@ jobs:
         with:
           merge-multiple: true
 
+      - name: Generate checksums
+        run: |
+          # Generate SHA256 checksums for all archives
+          sha256sum *.zip *.tar.gz > croc_${{ github.event.release.name }}_checksums.txt
+          
+          # Display the checksums file for verification
+          echo "Generated checksums:"
+          cat croc_${{ github.event.release.name }}_checksums.txt
+
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
             *.zip
             *.tar.gz
+            *_checksums.txt
