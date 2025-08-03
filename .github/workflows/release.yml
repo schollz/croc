@@ -75,9 +75,10 @@ jobs:
       - name: Build Windows 7
         run: |
           go version
-          rm go.mod go.sum
-          go mod init github.com/schollz/croc/v10
-          go mod tidy
+          # rm go.mod go.sum
+          # go mod init github.com/schollz/croc/v10
+          # go mod tidy
+          go get golang.org/x/sys@v0.33.0
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc.exe
           zip croc_${{ github.event.release.name }}_Windows7-64bit.zip croc.exe
           CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc.exe
