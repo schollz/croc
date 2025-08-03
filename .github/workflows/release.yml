@@ -25,7 +25,7 @@ jobs:
           git clone -b ${{ github.event.release.name }} --depth 1 https://github.com/schollz/croc croc-${{ github.event.release.name }}
           cd croc-${{ github.event.release.name }} && go mod tidy && go mod vendor
           cd .. && tar -czvf croc_${{ github.event.release.name }}_src.tar.gz croc-${{ github.event.release.name }}
-
+          
       - name: Build files
         run: |
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc.exe
@@ -67,73 +67,54 @@ jobs:
           CGO_ENABLED=0 GOOS=openbsd GOARCH=arm64 go build -ldflags '' -o croc
           tar -czvf croc_${{ github.event.release.name }}_OpenBSD-ARM64.tar.gz croc LICENSE
 
-      - name: Setup Go
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-builds
+          path: |
+            *.zip
+            *.tar.gz
+
+  build-windows7:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go for Windows 7
         uses: actions/setup-go@v5
         with:
           go-version: '1.20.7'
 
-      - name: Build Windows 7
+      - name: Build Windows 7 version
         run: |
           go version
-          # rm go.mod go.sum
-          # go mod init github.com/schollz/croc/v10
-          # go mod tidy
           go get golang.org/x/sys@v0.33.0
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '-extldflags "-static"' -o croc.exe
           zip croc_${{ github.event.release.name }}_Windows7-64bit.zip croc.exe
           CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -ldflags '-extldflags "-static"' -o croc.exe
           zip croc_${{ github.event.release.name }}_Windows7-32bit.zip croc.exe
 
-      - name: Create checksums.txt
-        run: |
-          touch croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_src.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_Windows-64bit.zip >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_Windows-32bit.zip >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_Windows-ARM.zip >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_Windows-ARM64.zip >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_Windows7-64bit.zip >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_Windows7-32bit.zip >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_Linux-64bit.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_Linux-32bit.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_Linux-ARM.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_Linux-ARMv5.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_Linux-ARM64.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_macOS-64bit.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_macOS-ARM64.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_DragonFlyBSD-64bit.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_FreeBSD-64bit.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_FreeBSD-ARM64.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_NetBSD-32bit.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_NetBSD-64bit.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_NetBSD-ARM64.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_OpenBSD-64bit.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
-          sha256sum croc_${{ github.event.release.name }}_OpenBSD-ARM64.tar.gz >> croc_${{ github.event.release.name }}_checksums.txt
+      - name: Upload Windows 7 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows7-builds
+          path: |
+            *Windows7*.zip
 
-      - name: Release
+  release:
+    needs: [build, build-windows7]
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'release'
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            croc_${{ github.event.release.name }}_checksums.txt
-            croc_${{ github.event.release.name }}_src.tar.gz
-            croc_${{ github.event.release.name }}_Windows-64bit.zip
-            croc_${{ github.event.release.name }}_Windows-32bit.zip
-            croc_${{ github.event.release.name }}_Windows-ARM.zip
-            croc_${{ github.event.release.name }}_Windows-ARM64.zip
-            croc_${{ github.event.release.name }}_Windows7-64bit.zip
-            croc_${{ github.event.release.name }}_Windows7-32bit.zip
-            croc_${{ github.event.release.name }}_Linux-64bit.tar.gz
-            croc_${{ github.event.release.name }}_Linux-32bit.tar.gz
-            croc_${{ github.event.release.name }}_Linux-ARM.tar.gz
-            croc_${{ github.event.release.name }}_Linux-ARMv5.tar.gz
-            croc_${{ github.event.release.name }}_Linux-ARM64.tar.gz
-            croc_${{ github.event.release.name }}_macOS-64bit.tar.gz
-            croc_${{ github.event.release.name }}_macOS-ARM64.tar.gz 
-            croc_${{ github.event.release.name }}_DragonFlyBSD-64bit.tar.gz
-            croc_${{ github.event.release.name }}_FreeBSD-64bit.tar.gz
-            croc_${{ github.event.release.name }}_FreeBSD-ARM64.tar.gz
-            croc_${{ github.event.release.name }}_NetBSD-32bit.tar.gz
-            croc_${{ github.event.release.name }}_NetBSD-64bit.tar.gz
-            croc_${{ github.event.release.name }}_NetBSD-ARM64.tar.gz
-            croc_${{ github.event.release.name }}_OpenBSD-64bit.tar.gz
-            croc_${{ github.event.release.name }}_OpenBSD-ARM64.tar.gz
+            *.zip
+            *.tar.gz
