@@ -273,7 +273,7 @@ func TestValidFileName(t *testing.T) {
 	assert.NotNil(t, ValidFileName("hi"+string(os.PathSeparator)+".."+string(os.PathSeparator)+".."+string(os.PathSeparator)+"txt"))
 	// contains ".." between a path separator and the beginning or end of the path
 	assert.NotNil(t, ValidFileName(".."+string(os.PathSeparator)+"hi.txt"))
-	assert.NotNil(t, ValidFileName("hi"+string(os.PathSeparator)+".."))
+	assert.NotNil(t, ValidFileName("hi"+string(os.PathSeparator)+".."+string(os.PathSeparator)+".."+string(os.PathSeparator)+"hi.txt"))
 	assert.NotNil(t, ValidFileName(".."))
 	// is an absolute path
 	assert.NotNil(t, ValidFileName(path.Join(string(os.PathSeparator), "abs", string(os.PathSeparator), "hi.txt")))
