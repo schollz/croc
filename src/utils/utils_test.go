@@ -262,6 +262,19 @@ func TestValidFileName(t *testing.T) {
 	err := ValidFileName("D中文.cslouglas​")
 	assert.NotNil(t, err)
 	assert.Equal(t, "non-graphical unicode: e2808b U+8203 in '44e4b8ade696872e63736c6f75676c6173e2808b'", err.Error())
-	assert.NotNil(t, ValidFileName("hi..txt"))
+	// contains "..", but not next to a path separator
+	assert.Nil(t, ValidFileName("hi..txt"))
+	// contains "..", but only next to a path separator on one side
+	assert.Nil(t, ValidFileName("rel"+string(os.PathSeparator)+"..txt"))
+	assert.Nil(t, ValidFileName("rel.."+string(os.PathSeparator)+"txt"))
+	// contains ".." between two path separators, but does not break out of the base directory
+	assert.Nil(t, ValidFileName("hi"+string(os.PathSeparator)+".."+string(os.PathSeparator)+"txt"))
+	// contains ".." between two path separators, and breaks out of the base directory
+	assert.NotNil(t, ValidFileName("hi"+string(os.PathSeparator)+".."+string(os.PathSeparator)+".."+string(os.PathSeparator)+"txt"))
+	// contains ".." between a path separator and the beginning or end of the path
+	assert.NotNil(t, ValidFileName(".."+string(os.PathSeparator)+"hi.txt"))
+	assert.NotNil(t, ValidFileName("hi"+string(os.PathSeparator)+".."+string(os.PathSeparator)+".."+string(os.PathSeparator)+"hi.txt"))
+	assert.NotNil(t, ValidFileName(".."))
+	// is an absolute path
 	assert.NotNil(t, ValidFileName(path.Join(string(os.PathSeparator), "abs", string(os.PathSeparator), "hi.txt")))
 }
