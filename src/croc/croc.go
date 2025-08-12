@@ -1244,18 +1244,6 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	for i, fi := range c.FilesToTransfer {
 		// Issues #593 - sanitize the sender paths and prevent ".." from being used
 		c.FilesToTransfer[i].FolderRemote = filepath.Clean(fi.FolderRemote)
-		if strings.Contains(c.FilesToTransfer[i].FolderRemote, "../") {
-			return true, fmt.Errorf("invalid path detected: '%s'", fi.FolderRemote)
-		}
-		if strings.Contains(c.FilesToTransfer[i].FolderRemote, "/..") {
-			return true, fmt.Errorf("invalid path detected: '%s'", fi.FolderRemote)
-		}
-		if strings.Contains(c.FilesToTransfer[i].FolderRemote, "\\..") {
-			return true, fmt.Errorf("invalid path detected: '%s'", fi.FolderRemote)
-		}
-		if strings.Contains(c.FilesToTransfer[i].FolderRemote, "..\\") {
-			return true, fmt.Errorf("invalid path detected: '%s'", fi.FolderRemote)
-		}
 		// Issues #593 - disallow specific folders like .ssh
 		if strings.Contains(c.FilesToTransfer[i].FolderRemote, ".ssh") {
 			return true, fmt.Errorf("invalid path detected: '%s'", fi.FolderRemote)

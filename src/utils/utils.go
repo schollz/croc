@@ -589,12 +589,8 @@ func ValidFileName(fname string) (err error) {
 			return
 		}
 	}
-	// make sure basename does not include ".." or path separators
+	// make sure basename does not include path separators
 	_, basename := filepath.Split(fname)
-	if strings.Contains(basename, "..") {
-		err = fmt.Errorf("basename cannot contain '..': '%s'", basename)
-		return
-	}
 	if strings.Contains(basename, string(os.PathSeparator)) {
 		err = fmt.Errorf("basename cannot contain path separators: '%s'", basename)
 		return
@@ -602,6 +598,10 @@ func ValidFileName(fname string) (err error) {
 	// make sure the filename is not an absolute path
 	if filepath.IsAbs(fname) {
 		err = fmt.Errorf("filename cannot be an absolute path: '%s'", fname)
+		return
+	}
+	if !filepath.IsLocal(fname) {
+		err = fmt.Errorf("filename must be a local path: '%s'", fname)
 		return
 	}
 	return
