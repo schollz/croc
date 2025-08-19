@@ -29,7 +29,8 @@ func New(passphrase []byte, usersalt []byte) (key []byte, salt []byte, err error
 	} else {
 		salt = usersalt
 	}
-	key = pbkdf2.Key(passphrase, salt, 100, 32, sha256.New)
+	// Use modern PBKDF2 iteration count (2025 standard: 100,000+ iterations)
+	key = pbkdf2.Key(passphrase, salt, 100000, 32, sha256.New)
 	return
 }
 
@@ -82,7 +83,7 @@ func NewArgon2(passphrase []byte, usersalt []byte) (aead cipher.AEAD, salt []byt
 		return
 	}
 	if usersalt == nil {
-		salt = make([]byte, 8)
+		salt = make([]byte, 16) // Increased salt size for 2025 standards
 		// http://www.ietf.org/rfc/rfc2898.txt
 		// Salt.
 		if _, err = rand.Read(salt); err != nil {
@@ -91,7 +92,8 @@ func NewArgon2(passphrase []byte, usersalt []byte) (aead cipher.AEAD, salt []byt
 	} else {
 		salt = usersalt
 	}
-	aead, err = chacha20poly1305.NewX(argon2.IDKey(passphrase, salt, 1, 64*1024, 4, 32))
+	// Modern Argon2id parameters for 2025: time=3, memory=64MB, threads=4
+	aead, err = chacha20poly1305.NewX(argon2.IDKey(passphrase, salt, 3, 64*1024, 4, 32))
 	return
 }
 
