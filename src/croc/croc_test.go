@@ -157,6 +157,9 @@ func TestCrocEmptyFolder(t *testing.T) {
 }
 
 func TestCrocSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping symlink test on Windows due to OS limitations requiring admin privileges")
+	}
 	pathName := "../link-in-folder"
 	defer os.RemoveAll(pathName)
 	defer os.RemoveAll("./link-in-folder")

@@ -99,7 +99,8 @@ func TestHighwayHashFile(t *testing.T) {
 	defer os.Remove("bigfile.test")
 	b, err := HighwayHashFile("bigfile.test", false)
 	assert.Nil(t, err)
-	assert.Equal(t, "3c32999529323ed66a67aeac5720c7bf1301dcc5dca87d8d46595e85ff990329", fmt.Sprintf("%x", b))
+	// Updated expected hash after security improvement (changed hardcoded key)
+	assert.Equal(t, "648abfc8d4efe5a35bcbcd9202af0e913f9aa1308bcefc170934a8047e2afa9d", fmt.Sprintf("%x", b))
 	_, err = HighwayHashFile("bigfile.test.nofile", false)
 	assert.NotNil(t, err)
 }

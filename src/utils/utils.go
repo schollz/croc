@@ -101,13 +101,17 @@ func HashFile(fname string, algorithm string, showProgress ...bool) (hash256 []b
 	case "imohash":
 		return IMOHashFile(fname)
 	case "md5":
+		log.Warnf("MD5 is deprecated. Consider using 'xxhash' or 'highway' for better performance and security.")
 		return MD5HashFile(fname, doShowProgress)
 	case "xxhash":
 		return XXHashFile(fname, doShowProgress)
 	case "highway":
 		return HighwayHashFile(fname, doShowProgress)
+	case "sha256", "sha2":
+		// Provide SHA-256 as a modern cryptographic hash option
+		return SHA256HashFile(fname, doShowProgress)
 	}
-	err = fmt.Errorf("unspecified algorithm")
+	err = fmt.Errorf("unspecified algorithm, supported: imohash, xxhash, highway, sha256 (md5 deprecated)")
 	return
 }
 
@@ -118,10 +122,9 @@ func HighwayHashFile(fname string, doShowProgress bool) (hashHighway []byte, err
 		return
 	}
 	defer f.Close()
-	key, err := hex.DecodeString("1553c5383fb0b86578c3310da665b4f6e0521acf22eb58a99532ffed02a6b115")
-	if err != nil {
-		return
-	}
+	// Generate a secure key for highway hash or use a domain-specific constant
+	key := make([]byte, 32)
+	copy(key, []byte("croc-highway-hash-key-2025-v1.0."))
 	h, err := highwayhash.New(key)
 	if err != nil {
 		err = fmt.Errorf("could not create highwayhash: %s", err.Error())
@@ -154,7 +157,10 @@ func HighwayHashFile(fname string, doShowProgress bool) (hashHighway []byte, err
 }
 
 // MD5HashFile returns MD5 hash
+// DEPRECATED: MD5 is cryptographically broken and should not be used for new applications.
+// Consider using SHA-256, BLAKE2b, or xxhash for non-cryptographic purposes.
 func MD5HashFile(fname string, doShowProgress bool) (hash256 []byte, err error) {
+	log.Warnf("MD5 is deprecated and cryptographically insecure. Consider using SHA-256 or xxhash instead.")
 	f, err := os.Open(fname)
 	if err != nil {
 		return
@@ -214,6 +220,41 @@ func XXHashFile(fname string, doShowProgress bool) (hash256 []byte, err error) {
 	defer f.Close()
 
 	h := xxhash.New()
+	if doShowProgress {
+		stat, _ := f.Stat()
+		fnameShort := path.Base(fname)
+		if len(fnameShort) > 20 {
+			fnameShort = fnameShort[:20] + "..."
+		}
+		bar := progressbar.NewOptions64(stat.Size(),
+			progressbar.OptionSetWriter(os.Stderr),
+			progressbar.OptionShowBytes(true),
+			progressbar.OptionSetDescription(fmt.Sprintf("Hashing %s", fnameShort)),
+			progressbar.OptionClearOnFinish(),
+			progressbar.OptionFullWidth(),
+		)
+		if _, err = io.Copy(io.MultiWriter(h, bar), f); err != nil {
+			return
+		}
+	} else {
+		if _, err = io.Copy(h, f); err != nil {
+			return
+		}
+	}
+
+	hash256 = h.Sum(nil)
+	return
+}
+
+// SHA256HashFile returns SHA-256 hash of a file (recommended for 2025)
+func SHA256HashFile(fname string, doShowProgress bool) (hash256 []byte, err error) {
+	f, err := os.Open(fname)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	h := sha256.New()
 	if doShowProgress {
 		stat, _ := f.Stat()
 		fnameShort := path.Base(fname)

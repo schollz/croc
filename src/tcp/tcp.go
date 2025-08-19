@@ -2,6 +2,7 @@ package tcp
 
 import (
 	"bytes"
+	"crypto/rand"
 	"fmt"
 	"net"
 	"strings"
@@ -220,11 +221,21 @@ func (s *server) stopRoomDeletion() {
 	s.stopRoomCleanup <- struct{}{}
 }
 
-var weakKey = []byte{1, 2, 3}
+// generateSecureKey generates a cryptographically secure key for PAKE initialization
+func generateSecureKey() []byte {
+	key := make([]byte, 32) // 256-bit key
+	if _, err := rand.Read(key); err != nil {
+		// Fallback to a more secure default than {1,2,3}
+		return []byte("croc-secure-default-key-2025-v1.0")
+	}
+	return key
+}
+
+var secureKey = generateSecureKey()
 
 func (s *server) clientCommunication(port string, c *comm.Comm) (room string, err error) {
 	// establish secure password with PAKE for communication with relay
-	B, err := pake.InitCurve(weakKey, 1, "siec")
+	B, err := pake.InitCurve(secureKey, 1, "siec")
 	if err != nil {
 		return
 	}
@@ -495,7 +506,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	}
 
 	// get PAKE connection with server to establish strong key to transfer info
-	A, err := pake.InitCurve(weakKey, 0, "siec")
+	A, err := pake.InitCurve(secureKey, 0, "siec")
 	if err != nil {
 		log.Debug(err)
 		return
