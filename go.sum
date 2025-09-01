@@ -20,8 +20,8 @@ github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/denisbrodbeck/machineid v1.0.1 h1:geKr9qtkB876mXguW2X6TU4ZynleN6ezuMSRhl4D7AQ=
 github.com/denisbrodbeck/machineid v1.0.1/go.mod h1:dJUwb7PTidGDeYyUBmXZ2GphQBbjJCrnectwCyxcUSI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
-github.com/kalafut/imohash v1.1.0 h1:Lldcmx0SXgMSoABB2WBD8mTgf0OlVnISn2Dyrfg2Ep8=
-github.com/kalafut/imohash v1.1.0/go.mod h1:6cn9lU0Sj8M4eu9UaQm1kR/5y3k/ayB68yntRhGloL4=
+github.com/kalafut/imohash v1.1.1 h1:G/HYtKgteQSVU96LidSJEbUGoZOMiBcuXYxbeb2W9e4=
+github.com/kalafut/imohash v1.1.1/go.mod h1:6cn9lU0Sj8M4eu9UaQm1kR/5y3k/ayB68yntRhGloL4=
 github.com/magisterquis/connectproxy v0.0.0-20200725203833-3582e84f0c9b h1:xZ59n7Frzh8CwyfAapUZLSg+gXH5m63YEaFCMpDHhpI=
 github.com/magisterquis/connectproxy v0.0.0-20200725203833-3582e84f0c9b/go.mod h1:uDd4sYVYsqcxAB8j+Q7uhL6IJCs/r1kxib1HV4bgOMg=
 github.com/mattn/go-runewidth v0.0.16 h1:E5ScNMtiwvlvB5paMFdw9p4kSQzbXFikJ5SQO6TULQc=
