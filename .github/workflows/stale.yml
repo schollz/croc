@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Stale
-        uses: actions/stale@v9
+        uses: actions/stale@v10
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           stale-issue-message: 'This issue has been marked stale because it has been open for 60 days with no activity.'
