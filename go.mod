@@ -1,6 +1,6 @@
 module github.com/schollz/croc/v10
 
-go 1.24
+go 1.24.0
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -21,7 +21,7 @@ require (
 	golang.org/x/net v0.43.0
 	golang.org/x/sys v0.35.0
 	golang.org/x/term v0.34.0
-	golang.org/x/time v0.12.0
+	golang.org/x/time v0.13.0
 )
 
 require (
