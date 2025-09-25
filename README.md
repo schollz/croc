@@ -152,6 +152,16 @@ Or install into a particular environment with [`conda`](https://docs.conda.io/pr
 conda install --channel conda-forge croc
 ```
 
+### On Linux, macOS via Docker 
+
+Add the following one-liner function to your ~/.profile (works with any POSIX-compliant shell):
+
+```bash
+croc() { [ $# -eq 0 ] && set -- ""; docker run --rm -it --user "$(id -u):$(id -g)" -v "$(pwd):/c" -v "$HOME/.config/croc:/.config/croc" -w /c -e CROC_SECRET schollz/croc "$@"; }
+```
+
+You can also just paste it in the terminal for current session. On first run Docker will pull the image. `croc` via Docker will only work within the current directory and its subdirectories.
+
 ### Build from Source
 
 If you prefer, you can [install Go](https://go.dev/dl/) and build from source (requires Go 1.22+):
