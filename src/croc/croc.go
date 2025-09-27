@@ -12,10 +12,8 @@ import (
 	"math"
 	"net"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +26,7 @@ import (
 	"github.com/schollz/peerdiscovery"
 	"github.com/schollz/progressbar/v3"
 	"github.com/skip2/go-qrcode"
+	"golang.design/x/clipboard"
 	"golang.org/x/term"
 	"golang.org/x/time/rate"
 
@@ -47,6 +46,11 @@ var (
 
 func init() {
 	log.SetLevel("debug")
+	// Initializing clipboard
+	err := clipboard.Init()
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Debug toggles debug mode
@@ -58,7 +62,7 @@ func Debug(debug bool) {
 	}
 }
 
-// Options specifies user specific options
+// Options specifies user options
 type Options struct {
 	IsSender         bool
 	SharedSecret     string
@@ -671,7 +675,8 @@ On the other computer run:
 (For Linux/macOS)
     CROC_SECRET=%[1]q croc %[2]s
 `, c.Options.SharedSecret, flags.String())
-	copyToClipboard(c.Options.SharedSecret)
+	// Copying to clipboard
+	clipboard.Write(clipboard.FmtText, []byte(c.Options.SharedSecret))
 	if c.Options.ShowQrCode {
 		showReceiveCommandQrCode(fmt.Sprintf("%[1]s", c.Options.SharedSecret))
 	}
@@ -1828,7 +1833,6 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			log.Debugf("hashed %s to %x using %s", fileInfo.Name, fileHash, c.Options.HashAlgorithm)
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
 			if errHash == nil && !c.Options.Overwrite && errRecipientFile == nil && !strings.HasPrefix(fileInfo.Name, "croc-stdin-") && !c.Options.SendingText {
-
 				missingChunks := utils.ChunkRangesToChunks(utils.MissingChunks(
 					path.Join(fileInfo.FolderRemote, fileInfo.Name),
 					fileInfo.Size,
@@ -2133,28 +2137,4 @@ func (c *Client) sendData(i int) {
 			panic(errRead)
 		}
 	}
-}
-
-func copyToClipboard(str string) {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("clip")
-	case "darwin":
-		cmd = exec.Command("pbcopy")
-	case "linux":
-		if os.Getenv("XDG_SESSION_TYPE") == "wayland" {
-			cmd = exec.Command("wl-copy")
-		} else {
-			cmd = exec.Command("xclip", "-selection", "clipboard")
-		}
-	default:
-		return
-	}
-	cmd.Stdin = bytes.NewReader([]byte(str))
-	if err := cmd.Run(); err != nil {
-		log.Debugf("error copying to clipboard: %v", err)
-		return
-	}
-	fmt.Fprintf(os.Stderr, "Code copied to clipboard\n")
 }

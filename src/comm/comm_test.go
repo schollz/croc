@@ -32,7 +32,11 @@ func TestComm(t *testing.T) {
 			log.Error(err)
 			return
 		}
-		defer server.Close()
+		defer func() {
+			if err := server.Close(); err != nil {
+				log.Error(err)
+			}
+		}()
 		// spawn a new goroutine whenever a client connects
 		for {
 			connection, err := server.Accept()
