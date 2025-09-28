@@ -119,7 +119,7 @@ func Run() (err error) {
 		&cli.StringFlag{Name: "pass", Value: models.DEFAULT_PASSPHRASE, Usage: "password for the relay", EnvVars: []string{"CROC_PASS"}},
 		&cli.StringFlag{Name: "socks5", Value: "", Usage: "add a socks5 proxy", EnvVars: []string{"SOCKS5_PROXY"}},
 		&cli.StringFlag{Name: "connect", Value: "", Usage: "add a http proxy", EnvVars: []string{"HTTP_PROXY"}},
-		&cli.StringFlag{Name: "throttleUpload", Value: "", Usage: "Throttle the upload speed e.g. 500k"},
+		&cli.StringFlag{Name: "throttleUpload", Value: "", Usage: "throttle the upload speed e.g. 500k"},
 	}
 	app.EnableBashCompletion = true
 	app.HideHelp = false
@@ -478,9 +478,7 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 
 	// save the config
 	saveConfig(c, crocOptions)
-
 	err = cr.Send(minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders)
-
 	return
 }
 

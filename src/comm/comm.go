@@ -142,7 +142,9 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 		log.Warnf("error setting read deadline: %v", err)
 	}
 	// must clear the timeout setting
-	defer c.connection.SetDeadline(time.Time{})
+	if err := c.connection.SetDeadline(time.Time{}); err != nil {
+		log.Warnf("failed to clear deadline: %v", err)
+	}
 
 	// read until we get 4 bytes for the magic
 	header := make([]byte, 4)

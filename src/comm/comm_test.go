@@ -16,14 +16,27 @@ func TestComm(t *testing.T) {
 		t.Error(err)
 	}
 
-	port := "8001"
+	// Use dynamic port allocation to avoid conflicts
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	portStr := listener.Addr().String()
+	listener.Close() // Close the listener so we can reopen it in the goroutine
+
 	go func() {
-		log.Debug("starting TCP server on " + port)
-		server, err := net.Listen("tcp", "0.0.0.0:"+port)
+		log.Debug("starting TCP server on " + portStr)
+		server, err := net.Listen("tcp", portStr)
 		if err != nil {
 			log.Error(err)
+			return
 		}
-		defer server.Close()
+		defer func() {
+			if err := server.Close(); err != nil {
+				log.Error(err)
+			}
+		}()
 		// spawn a new goroutine whenever a client connects
 		for {
 			connection, err := server.Accept()
@@ -31,7 +44,7 @@ func TestComm(t *testing.T) {
 				log.Error(err)
 			}
 			log.Debugf("client %s connected", connection.RemoteAddr().String())
-			go func(_ string, connection net.Conn) {
+			go func(_ int, connection net.Conn) {
 				c := New(connection)
 				err = c.Send([]byte("hello, world"))
 				assert.Nil(t, err)
@@ -49,7 +62,7 @@ func TestComm(t *testing.T) {
 	}()
 
 	time.Sleep(300 * time.Millisecond)
-	a, err := NewConnection("127.0.0.1:"+port, 10*time.Minute)
+	a, err := NewConnection(portStr, 10*time.Minute)
 	assert.Nil(t, err)
 	data, err := a.Receive()
 	assert.Equal(t, []byte("hello, world"), data)

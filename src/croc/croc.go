@@ -258,6 +258,7 @@ type TransferOptions struct {
 	KeepPathInRemote bool
 }
 
+// helper function checking for an empty folder
 func isEmptyFolder(folderPath string) (bool, error) {
 	f, err := os.Open(folderPath)
 	if err != nil {
@@ -311,15 +312,6 @@ func isChild(parentPath, childPath string) bool {
 		return false
 	}
 	return !strings.HasPrefix(relPath, "..")
-}
-
-func recursiveFiles(path string) (paths []string, err error) {
-	paths = []string{strings.ToLower(path)}
-	err = filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
-		paths = append(paths, strings.ToLower(path))
-		return nil
-	})
-	return
 }
 
 // This function retrieves the important file information
@@ -679,7 +671,7 @@ On the other computer run:
 		machid, _ := machineid.ID()
 		fmt.Fprintf(os.Stderr, "\rYour machine ID is '%s'\n", machid)
 	}
-	// // c.spinner.Suffix = " waiting for recipient..."
+	// c.spinner.Suffix = " waiting for recipient..."
 	// c.spinner.Start()
 	// create channel for quitting
 	// connect to the relay for messaging
@@ -830,8 +822,7 @@ On the other computer run:
 
 	err = <-errchan
 	if err == nil {
-		// return if no error
-		return
+		return // no error
 	} else {
 		log.Debugf("error from errchan: %v", err)
 		if strings.Contains(err.Error(), "could not secure channel") {
@@ -988,7 +979,6 @@ func (c *Client) Receive() (err error) {
 	if c.Options.TestFlag || (!usingLocal && !c.Options.DisableLocal && !isIPset) {
 		// ask the sender for their local ips and port
 		// and try to connect to them
-
 		var ips []string
 		err = func() (err error) {
 			var A *pake.Pake
@@ -1291,7 +1281,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 			}
 		}
 	}
-	// // check the totalSize does not exceed disk space
+	// check the totalSize does not exceed disk space
 	// usage := diskusage.NewDiskUsage(".")
 	// if usage.Available() < uint64(totalSize) {
 	// 	return true, fmt.Errorf("not enough disk space")
@@ -1455,7 +1445,6 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 		}(i)
 	}
 	wg.Wait()
-
 	if !c.Options.IsSender {
 		log.Debug("sending external IP")
 		err = message.Send(c.conn[0], c.Key, message.Message{
@@ -2135,26 +2124,48 @@ func (c *Client) sendData(i int) {
 	}
 }
 
+// isExecutableInPath checks for the availability of an executable
+func isExecutableInPath(executableName string) bool {
+	_, err := exec.LookPath(executableName)
+	return err == nil
+}
+
+// copyToClipboard tries to send the code to the operating system clipboard
 func copyToClipboard(str string) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
+	// Windows should always have clip.exe in PATH by default
 	case "windows":
 		cmd = exec.Command("clip")
+	// MacOS uses pbcopy
 	case "darwin":
 		cmd = exec.Command("pbcopy")
-	case "linux":
-		if os.Getenv("XDG_SESSION_TYPE") == "wayland" {
+	// These Unix-like systems are likely using Xorg(with xclip or xsel) or Wayland(with wl-copy)
+	case "linux", "hurd", "freebsd", "openbsd", "netbsd", "dragonfly", "solaris", "illumos", "plan9":
+		if os.Getenv("XDG_SESSION_TYPE") == "wayland" { // Wayland running
 			cmd = exec.Command("wl-copy")
+		} else if os.Getenv("XDG_SESSION_TYPE") == "x11" || os.Getenv("XDG_SESSION_TYPE") == "xorg" { // Xorg running
+			if isExecutableInPath("xclip") {
+				cmd = exec.Command("xclip", "-selection", "clipboard")
+			}
 		} else {
-			cmd = exec.Command("xclip", "-selection", "clipboard")
+			if isExecutableInPath("xsel") {
+				cmd = exec.Command("xsel", "-b")
+			}
 		}
 	default:
 		return
 	}
+	// Nothing has been found
+	if cmd == nil {
+		log.Warn("system not supported, display server not supported or supported clipboard tool missing!")
+		return
+	}
+	// Sending stdin into the available clipboard program
 	cmd.Stdin = bytes.NewReader([]byte(str))
 	if err := cmd.Run(); err != nil {
 		log.Debugf("error copying to clipboard: %v", err)
 		return
 	}
-	fmt.Fprintf(os.Stderr, "Code copied to clipboard\n")
+	fmt.Fprintf(os.Stderr, "Code copied to clipboard!\n")
 }
