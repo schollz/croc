@@ -42,3 +42,11 @@ jobs:
           CGO_ENABLED=0 GOOS=freebsd GOARCH=arm64 go build -ldflags '' -o croc-freebsd-arm64
           CGO_ENABLED=0 GOOS=openbsd GOARCH=amd64 go build -ldflags '' -o croc-openbsd-amd64
           CGO_ENABLED=0 GOOS=openbsd GOARCH=arm64 go build -ldflags '' -o croc-openbsd-arm64
+      - name: Check static build of the linux version
+        run: |
+          if ldd croc-linux-amd64 2>&1 | grep -q "not a dynamic executable"; then
+        echo "Static build confirmed."
+          else
+        echo "Error: croc-linux-amd64 is a dynamic executable."
+        exit 1
+          fi
