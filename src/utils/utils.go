@@ -281,11 +281,12 @@ func LocalIP() string {
 	return localAddr.IP.String()
 }
 
+// GenerateRandomPin returns a randomly generated pin with set lenght
 func GenerateRandomPin() string {
 	s := ""
 	max := new(big.Int)
 	max.SetInt64(9)
-	for i := 0; i < NbPinNumbers; i++ {
+	for range NbPinNumbers {
 		v, err := rand.Int(rand.Reader, max)
 		if err != nil {
 			panic(err)
