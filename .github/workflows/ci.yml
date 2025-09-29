@@ -45,8 +45,8 @@ jobs:
       - name: Check static build of the linux version
         run: |
           if ldd croc-linux-amd64 2>&1 | grep -q "not a dynamic executable"; then
-        echo "Static build confirmed."
+            echo "Static build confirmed."
           else
-        echo "Error: croc-linux-amd64 is a dynamic executable."
-        exit 1
+            echo "Error: croc-linux-amd64 is a dynamic executable."
+            exit 1
           fi
