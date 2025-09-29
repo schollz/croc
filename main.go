@@ -47,7 +47,7 @@ func main() {
 	}()
 
 	// Wait for a termination signal
-	_ = <-sigs
+	<-sigs
 	utils.RemoveMarkedFiles()
 
 	// Exit the program gracefully

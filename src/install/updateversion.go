@@ -46,7 +46,7 @@ func replaceInFile(fname, start, end, replacement string) (err error) {
 	if err != nil {
 		return
 	}
-	oldVersion := GetStringInBetween(string(b), start, end)
+	oldVersion := getStringInBetween(string(b), start, end)
 	if oldVersion == "" {
 		err = fmt.Errorf("nothing")
 		return
@@ -61,8 +61,8 @@ func replaceInFile(fname, start, end, replacement string) (err error) {
 	return
 }
 
-// GetStringInBetween Returns empty string if no start string found
-func GetStringInBetween(str string, start string, end string) (result string) {
+// getStringInBetween Returns empty string if no start string found
+func getStringInBetween(str, start, end string) (result string) {
 	s := strings.Index(str, start)
 	if s == -1 {
 		return
