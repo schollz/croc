@@ -329,9 +329,6 @@ func send(c *cli.Context) (err error) {
 			return
 		}
 		// update anything that isn't explicitly set
-		if !c.IsSet("relay") && rememberedOptions.RelayAddress != "" {
-			crocOptions.RelayAddress = rememberedOptions.RelayAddress
-		}
 		if !c.IsSet("no-local") {
 			crocOptions.DisableLocal = rememberedOptions.DisableLocal
 		}
@@ -343,9 +340,6 @@ func send(c *cli.Context) (err error) {
 		}
 		if !c.IsSet("pass") && rememberedOptions.RelayPassword != "" {
 			crocOptions.RelayPassword = rememberedOptions.RelayPassword
-		}
-		if !c.IsSet("relay6") && rememberedOptions.RelayAddress6 != "" {
-			crocOptions.RelayAddress6 = rememberedOptions.RelayAddress6
 		}
 		if !c.IsSet("overwrite") {
 			crocOptions.Overwrite = rememberedOptions.Overwrite
@@ -626,9 +620,6 @@ func receive(c *cli.Context) (err error) {
 			return
 		}
 		// update anything that isn't explicitly Globally set
-		if !c.IsSet("relay") && rememberedOptions.RelayAddress != "" {
-			crocOptions.RelayAddress = rememberedOptions.RelayAddress
-		}
 		if !c.IsSet("yes") {
 			crocOptions.NoPrompt = rememberedOptions.NoPrompt
 		}
@@ -637,9 +628,6 @@ func receive(c *cli.Context) (err error) {
 		}
 		if !c.IsSet("pass") && rememberedOptions.RelayPassword != "" {
 			crocOptions.RelayPassword = rememberedOptions.RelayPassword
-		}
-		if !c.IsSet("relay6") && rememberedOptions.RelayAddress6 != "" {
-			crocOptions.RelayAddress6 = rememberedOptions.RelayAddress6
 		}
 		if !c.IsSet("overwrite") {
 			crocOptions.Overwrite = rememberedOptions.Overwrite
