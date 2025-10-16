@@ -745,6 +745,12 @@ On the other computer run:
 					dataDecrypt, decryptErr = crypt.Decrypt(data, kB)
 					if decryptErr != nil {
 						log.Tracef("error decrypting: %v: '%s'", decryptErr, data)
+						// relay sent a messag encrypted with an invalid key.
+						// consider this a security issue and abort
+						if strings.Contains(decryptErr.Error(), "message authentication failed") {
+							errchan <- decryptErr
+							return
+						}
 					} else {
 						// copy dataDecrypt to data
 						data = dataDecrypt
@@ -830,7 +836,7 @@ On the other computer run:
 		}
 	}
 	if !c.Options.DisableLocal {
-		if strings.Contains(err.Error(), "refusing files") || strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "bad password") {
+		if strings.Contains(err.Error(), "refusing files") || strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "bad password") || strings.Contains(err.Error(), "message authentication failed") {
 			errchan <- err
 		}
 		err = <-errchan
