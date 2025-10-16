@@ -2164,7 +2164,6 @@ func copyToClipboard(str string) {
 	}
 	// Nothing has been found
 	if cmd == nil {
-		log.Warn("system not supported, display server not supported or supported clipboard tool missing!")
 		return
 	}
 	// Sending stdin into the available clipboard program
