@@ -94,7 +94,6 @@ func Run() (err error) {
 				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay"},
 				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay"},
 				&cli.IntFlag{Name: "transfers", Value: 5, Usage: "number of ports to use for relay"},
-				&cli.Int64Flag{Name: "bandwidth", Value: 0, Usage: "maximum bandwidth per transfer in megabytes (0 = unlimited)"},
 			},
 		},
 	}
@@ -737,27 +736,17 @@ func relay(c *cli.Context) (err error) {
 		}
 	}
 
-	// Get bandwidth limit in megabytes and convert to bytes
-	bandwidthMB := c.Int64("bandwidth")
-	var bandwidthBytes int64
-	if bandwidthMB > 0 {
-		bandwidthBytes = bandwidthMB * 1024 * 1024
-		log.Infof("bandwidth limit set to %d MB (%d bytes) per transfer", bandwidthMB, bandwidthBytes)
-	} else {
-		log.Info("no bandwidth limit set")
-	}
-
 	tcpPorts := strings.Join(ports[1:], ",")
 	for i, port := range ports {
 		if i == 0 {
 			continue
 		}
 		go func(portStr string) {
-			err := tcp.RunWithBandwidthLimit(debugString, host, portStr, determinePass(c), bandwidthBytes)
+			err := tcp.Run(debugString, host, portStr, determinePass(c))
 			if err != nil {
 				panic(err)
 			}
 		}(port)
 	}
-	return tcp.RunWithBandwidthLimit(debugString, host, ports[0], determinePass(c), bandwidthBytes, tcpPorts)
+	return tcp.Run(debugString, host, ports[0], determinePass(c), tcpPorts)
 }
