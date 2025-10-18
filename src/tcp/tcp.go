@@ -26,15 +26,18 @@ type server struct {
 
 	roomCleanupInterval time.Duration
 	roomTTL             time.Duration
+	maxBandwidth        int64 // maximum bytes allowed per transfer (0 = unlimited)
 
 	stopRoomCleanup chan struct{}
 }
 
 type roomInfo struct {
-	first  *comm.Comm
-	second *comm.Comm
-	opened time.Time
-	full   bool
+	first            *comm.Comm
+	second           *comm.Comm
+	opened           time.Time
+	full             bool
+	bytesTransferred int64      // total bytes transferred in this room
+	transferMutex    sync.Mutex // protects bytesTransferred
 }
 
 type roomMap struct {
@@ -72,6 +75,11 @@ func RunWithOptionsAsync(host, port, password string, opts ...serverOptsFunc) er
 // Run starts a tcp listener, run async
 func Run(debugLevel, host, port, password string, banner ...string) (err error) {
 	return RunWithOptionsAsync(host, port, password, WithBanner(banner...), WithLogLevel(debugLevel))
+}
+
+// RunWithBandwidthLimit starts a tcp listener with bandwidth limiting, run async
+func RunWithBandwidthLimit(debugLevel, host, port, password string, maxBandwidthBytes int64, banner ...string) (err error) {
+	return RunWithOptionsAsync(host, port, password, WithBanner(banner...), WithLogLevel(debugLevel), WithMaxBandwidth(maxBandwidthBytes))
 }
 
 func (s *server) start() (err error) {
@@ -361,7 +369,7 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 	// start piping
 	go func(com1, com2 *comm.Comm, wg *sync.WaitGroup) {
 		log.Debug("starting pipes")
-		pipe(com1.Connection(), com2.Connection())
+		s.pipe(com1.Connection(), com2.Connection(), room)
 		wg.Done()
 		log.Debug("done piping")
 	}(otherConnection, c, &wg)
@@ -432,8 +440,9 @@ func chanFromConn(conn net.Conn) chan []byte {
 }
 
 // pipe creates a full-duplex pipe between the two sockets and
-// transfers data from one to the other.
-func pipe(conn1 net.Conn, conn2 net.Conn) {
+// transfers data from one to the other. It tracks bandwidth usage
+// and enforces limits if configured.
+func (s *server) pipe(conn1 net.Conn, conn2 net.Conn, room string) {
 	chan1 := chanFromConn(conn1)
 	chan2 := chanFromConn(conn2)
 
@@ -443,16 +452,80 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 			if b1 == nil {
 				return
 			}
+
+			// Check bandwidth limit before writing
+			if s.maxBandwidth > 0 {
+				s.rooms.Lock()
+				roomInfo, exists := s.rooms.rooms[room]
+				s.rooms.Unlock()
+
+				if exists {
+					roomInfo.transferMutex.Lock()
+					newTotal := roomInfo.bytesTransferred + int64(len(b1))
+
+					if newTotal > s.maxBandwidth {
+						roomInfo.transferMutex.Unlock()
+						log.Warnf("bandwidth limit exceeded for room %s: %d bytes (limit: %d bytes)",
+							room, newTotal, s.maxBandwidth)
+						// Close both connections immediately
+						conn1.Close()
+						conn2.Close()
+						// Delete the room
+						s.deleteRoom(room)
+						return
+					}
+
+					roomInfo.bytesTransferred = newTotal
+					s.rooms.Lock()
+					s.rooms.rooms[room] = roomInfo
+					s.rooms.Unlock()
+					roomInfo.transferMutex.Unlock()
+				}
+			}
+
 			if _, err := conn2.Write(b1); err != nil {
 				log.Errorf("write error on channel 1: %v", err)
+				return
 			}
 
 		case b2 := <-chan2:
 			if b2 == nil {
 				return
 			}
+
+			// Check bandwidth limit before writing
+			if s.maxBandwidth > 0 {
+				s.rooms.Lock()
+				roomInfo, exists := s.rooms.rooms[room]
+				s.rooms.Unlock()
+
+				if exists {
+					roomInfo.transferMutex.Lock()
+					newTotal := roomInfo.bytesTransferred + int64(len(b2))
+
+					if newTotal > s.maxBandwidth {
+						roomInfo.transferMutex.Unlock()
+						log.Warnf("bandwidth limit exceeded for room %s: %d bytes (limit: %d bytes)",
+							room, newTotal, s.maxBandwidth)
+						// Close both connections immediately
+						conn1.Close()
+						conn2.Close()
+						// Delete the room
+						s.deleteRoom(room)
+						return
+					}
+
+					roomInfo.bytesTransferred = newTotal
+					s.rooms.Lock()
+					s.rooms.rooms[room] = roomInfo
+					s.rooms.Unlock()
+					roomInfo.transferMutex.Unlock()
+				}
+			}
+
 			if _, err := conn1.Write(b2); err != nil {
 				log.Errorf("write error on channel 2: %v", err)
+				return
 			}
 		}
 	}
