@@ -43,13 +43,6 @@ func WithRoomTTL(ttl time.Duration) serverOptsFunc {
 	}
 }
 
-func WithMaxBandwidth(maxBytes int64) serverOptsFunc {
-	return func(s *server) error {
-		s.maxBandwidth = maxBytes
-		return nil
-	}
-}
-
 func containsSlice(s []string, e string) bool {
 	for _, ss := range s {
 		if e == ss {
