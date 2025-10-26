@@ -2146,10 +2146,14 @@ func copyToClipboard(str string) {
 	// MacOS uses pbcopy
 	case "darwin":
 		cmd = exec.Command("pbcopy")
-	// These Unix-like systems are likely using Xorg(with xclip or xsel) or Wayland(with wl-copy)
+	// These Unix-like systems are likely using Xorg(with xclip or xsel) or Wayland(with wl-copy or waycopy)
 	case "linux", "hurd", "freebsd", "openbsd", "netbsd", "dragonfly", "solaris", "illumos", "plan9":
 		if os.Getenv("XDG_SESSION_TYPE") == "wayland" { // Wayland running
-			cmd = exec.Command("wl-copy")
+			if isExecutableInPath("wl-copy") {
+				cmd = exec.Command("wl-copy")
+			} else if isExecutableInPath("waycopy") {
+				cmd = exec.Command("waycopy")
+			}
 		} else if os.Getenv("XDG_SESSION_TYPE") == "x11" || os.Getenv("XDG_SESSION_TYPE") == "xorg" { // Xorg running
 			if isExecutableInPath("xclip") {
 				cmd = exec.Command("xclip", "-selection", "clipboard")
