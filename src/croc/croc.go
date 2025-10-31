@@ -1175,7 +1175,7 @@ func (c *Client) transfer() (err error) {
 		}
 	}
 
-	if c.Options.Stdout && !c.Options.IsSender {
+	if c.Options.Stdout && !c.Options.IsSender && len(c.FilesToTransfer) > 0 && c.FilesToTransferCurrentNum < len(c.FilesToTransfer) {
 		pathToFile := path.Join(
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,

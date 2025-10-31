@@ -368,6 +368,34 @@ func TestCrocError(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+func TestReceiverStdoutWithInvalidSecret(t *testing.T) {
+	// Test for issue: panic when receiving with --stdout and invalid CROC_SECRET
+	// This should fail gracefully without panicking
+	log.SetLevel("warn")
+	receiver, err := New(Options{
+		IsSender:      false,
+		SharedSecret:  "invalid-secret-12345",
+		Debug:         true,
+		RelayAddress:  "127.0.0.1:8281",
+		RelayPassword: "pass123",
+		Stdout:        true, // This is the key flag that triggered the panic
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+	})
+	if err != nil {
+		t.Errorf("failed to create receiver: %v", err)
+		return
+	}
+
+	// This should fail but not panic
+	err = receiver.Receive()
+	// We expect an error since the secret is invalid and no sender is present
+	assert.NotNil(t, err)
+	log.Debugf("Expected error occurred: %v", err)
+}
+
 func TestCleanUp(t *testing.T) {
 	// windows allows files to be deleted only if they
 	// are not open by another program so the remove actions
