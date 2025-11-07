@@ -396,6 +396,115 @@ func TestReceiverStdoutWithInvalidSecret(t *testing.T) {
 	log.Debugf("Expected error occurred: %v", err)
 }
 
+func TestCrocTimestampPreservation(t *testing.T) {
+	log.SetLevel("trace")
+	testFileName := "timestamp_test.txt"
+	defer os.Remove(testFileName)
+	time.Sleep(300 * time.Millisecond)
+
+	// Create a test file with specific content and timestamp
+	content := []byte("test content for timestamp preservation")
+	err := os.WriteFile(testFileName, content, 0o644)
+	if err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Set a specific modification time (January 15, 2023 12:30:00)
+	testTime := time.Date(2023, 1, 15, 12, 30, 0, 0, time.UTC)
+	err = os.Chtimes(testFileName, time.Now(), testTime)
+	if err != nil {
+		t.Fatalf("failed to set test file timestamp: %v", err)
+	}
+
+	// Verify the timestamp was set correctly
+	fileInfo, err := os.Stat(testFileName)
+	if err != nil {
+		t.Fatalf("failed to stat test file: %v", err)
+	}
+	originalModTime := fileInfo.ModTime()
+	log.Debugf("Original file modification time: %v", originalModTime)
+
+	log.Debug("setting up sender")
+	sender, err := New(Options{
+		IsSender:      true,
+		SharedSecret:  "8125-timestamp-test",
+		Debug:         true,
+		RelayAddress:  "127.0.0.1:8281",
+		RelayPorts:    []string{"8281"},
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+		GitIgnore:     false,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	log.Debug("setting up receiver")
+	receiver, err := New(Options{
+		IsSender:      false,
+		SharedSecret:  "8125-timestamp-test",
+		Debug:         true,
+		RelayAddress:  "127.0.0.1:8281",
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{testFileName}, false, false, []string{})
+		if errGet != nil {
+			t.Errorf("failed to get file info: %v", errGet)
+		}
+		err := sender.Send(filesInfo, emptyFolders, totalNumberFolders)
+		if err != nil {
+			t.Errorf("send failed: %v", err)
+		}
+		wg.Done()
+	}()
+	time.Sleep(100 * time.Millisecond)
+	go func() {
+		err := receiver.Receive()
+		if err != nil {
+			t.Errorf("receive failed: %v", err)
+		}
+		wg.Done()
+	}()
+
+	wg.Wait()
+
+	// Verify the received file has the same timestamp
+	receivedFileInfo, err := os.Stat(testFileName)
+	if err != nil {
+		t.Fatalf("failed to stat received file: %v", err)
+	}
+	receivedModTime := receivedFileInfo.ModTime()
+	log.Debugf("Received file modification time: %v", receivedModTime)
+
+	// Allow for small time differences due to filesystem precision (up to 2 seconds)
+	timeDiff := receivedModTime.Sub(originalModTime)
+	if timeDiff < 0 {
+		timeDiff = -timeDiff
+	}
+	if timeDiff > 2*time.Second {
+		t.Errorf("timestamp not preserved: original=%v, received=%v, diff=%v",
+			originalModTime, receivedModTime, timeDiff)
+	} else {
+		log.Debugf("Timestamp preserved successfully (diff=%v)", timeDiff)
+	}
+}
+
 func TestCleanUp(t *testing.T) {
 	// windows allows files to be deleted only if they
 	// are not open by another program so the remove actions

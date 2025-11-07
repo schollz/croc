@@ -1654,6 +1654,14 @@ func (c *Client) recipientInitializeFile() (err error) {
 		if errChmod != nil {
 			log.Error(errChmod)
 		}
+		// Preserve file modification time when creating file
+		modTime := c.FilesToTransfer[c.FilesToTransferCurrentNum].ModTime
+		if !modTime.IsZero() {
+			errChtimes := os.Chtimes(pathToFile, time.Now(), modTime)
+			if errChtimes != nil {
+				log.Debugf("error setting modification time for %s: %v", pathToFile, errChtimes)
+			}
+		}
 		truncate = true
 	}
 	if truncate {
@@ -1754,6 +1762,14 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 		if err != nil {
 			return
 		}
+		// Preserve file modification time for symlinks
+		// Note: os.Chtimes follows symlinks on most systems, changing the target's time
+		if !fileInfo.ModTime.IsZero() {
+			errChtimes := os.Chtimes(pathToFile, time.Now(), fileInfo.ModTime)
+			if errChtimes != nil {
+				log.Debugf("error setting modification time for symlink %s: %v", pathToFile, errChtimes)
+			}
+		}
 	} else {
 		emptyFile, errCreate := os.Create(pathToFile)
 		if errCreate != nil {
@@ -1762,6 +1778,13 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 			return
 		}
 		emptyFile.Close()
+		// Preserve file modification time for empty files
+		if !fileInfo.ModTime.IsZero() {
+			errChtimes := os.Chtimes(pathToFile, time.Now(), fileInfo.ModTime)
+			if errChtimes != nil {
+				log.Debugf("error setting modification time for %s: %v", pathToFile, errChtimes)
+			}
+		}
 	}
 	// setup the progressbar
 	description := fmt.Sprintf("%-*s", c.longestFilename, c.FilesToTransfer[i].Name)
@@ -2021,11 +2044,19 @@ func (c *Client) receiveData(i int) {
 			} else {
 				log.Debugf("Successful closing %s", c.CurrentFile.Name())
 			}
+			// Preserve file modification time
+			pathToFile := path.Join(
+				c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
+				c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
+			)
+			modTime := c.FilesToTransfer[c.FilesToTransferCurrentNum].ModTime
+			if !modTime.IsZero() {
+				errChtimes := os.Chtimes(pathToFile, time.Now(), modTime)
+				if errChtimes != nil {
+					log.Debugf("error setting modification time for %s: %v", pathToFile, errChtimes)
+				}
+			}
 			if c.Options.Stdout || c.Options.SendingText {
-				pathToFile := path.Join(
-					c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
-					c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
-				)
 				b, _ := os.ReadFile(pathToFile)
 				fmt.Print(string(b))
 			}
