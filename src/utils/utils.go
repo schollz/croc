@@ -475,11 +475,20 @@ func IsLocalIP(ipaddress string) bool {
 func ZipDirectory(destination string, source string) (err error) {
 	if _, err = os.Stat(destination); err == nil {
 		log.Errorf("%s file already exists!\n", destination)
+		return fmt.Errorf("file already exists: %s", destination)
 	}
+
+	// Check if source directory exists
+	if _, err := os.Stat(source); os.IsNotExist(err) {
+		log.Errorf("Source directory does not exist: %s", source)
+		return fmt.Errorf("source directory does not exist: %s", source)
+	}
+
 	fmt.Fprintf(os.Stderr, "Zipping %s to %s\n", source, destination)
 	file, err := os.Create(destination)
 	if err != nil {
 		log.Error(err)
+		return fmt.Errorf("failed to create zip file: %w", err)
 	}
 	defer file.Close()
 	writer := zip.NewWriter(file)
@@ -488,25 +497,59 @@ func ZipDirectory(destination string, source string) (err error) {
 		return flate.NewWriter(out, flate.NoCompression)
 	})
 	defer writer.Close()
+
+	// Get base name for zip structure
+	baseName := strings.TrimSuffix(filepath.Base(destination), ".zip")
+
 	err = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Error(err)
+			return nil
 		}
 		if info.Mode().IsRegular() {
 			f1, err := os.Open(path)
 			if err != nil {
 				log.Error(err)
+				return nil
 			}
-			defer f1.Close()
-			zipPath := strings.ReplaceAll(path, source, strings.TrimSuffix(destination, ".zip"))
-			zipPath = filepath.ToSlash(zipPath)
-			w1, err := writer.Create(zipPath)
+
+			// Calculate relative path from source directory
+			relPath, err := filepath.Rel(source, path)
 			if err != nil {
 				log.Error(err)
+				f1.Close()
+				return nil
 			}
+
+			// Create zip path with base name structure
+			zipPath := filepath.Join(baseName, relPath)
+			zipPath = filepath.ToSlash(zipPath)
+
+			// Create file header with modified time
+			header, err := zip.FileInfoHeader(info)
+			if err != nil {
+				log.Error(err)
+				f1.Close()
+				return nil
+			}
+			header.Name = zipPath
+			header.Method = zip.Deflate
+
+			w1, err := writer.CreateHeader(header)
+			if err != nil {
+				log.Error(err)
+				f1.Close()
+				return nil
+			}
+
 			if _, err := io.Copy(w1, f1); err != nil {
 				log.Error(err)
+				f1.Close()
+				return nil
 			}
+
+			f1.Close()
+
 			fmt.Fprintf(os.Stderr, "\r\033[2K")
 			fmt.Fprintf(os.Stderr, "\rAdding %s", zipPath)
 		}
@@ -514,6 +557,7 @@ func ZipDirectory(destination string, source string) (err error) {
 	})
 	if err != nil {
 		log.Error(err)
+		return fmt.Errorf("error during directory walk: %w", err)
 	}
 	fmt.Fprintf(os.Stderr, "\n")
 	return nil
@@ -523,6 +567,7 @@ func UnzipDirectory(destination string, source string) error {
 	archive, err := zip.OpenReader(source)
 	if err != nil {
 		log.Error(err)
+		return fmt.Errorf("failed to open zip file: %w", err)
 	}
 	defer archive.Close()
 
@@ -535,14 +580,18 @@ func UnzipDirectory(destination string, source string) error {
 		filePath = filepath.Clean(filePath)
 		if strings.Contains(filePath, "..") {
 			log.Errorf("Invalid file path %s\n", filePath)
+			continue // Skip file but continue extraction
 		}
 		if f.FileInfo().IsDir() {
-			os.MkdirAll(filePath, os.ModePerm)
+			if err := os.MkdirAll(filePath, os.ModePerm); err != nil {
+				log.Error(err)
+			}
 			continue
 		}
 
 		if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
 			log.Error(err)
+			continue
 		}
 
 		// check if file exists
@@ -558,11 +607,14 @@ func UnzipDirectory(destination string, source string) error {
 		dstFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
 		if err != nil {
 			log.Error(err)
+			continue
 		}
 
 		fileInArchive, err := f.Open()
 		if err != nil {
 			log.Error(err)
+			dstFile.Close()
+			continue
 		}
 
 		if _, err := io.Copy(dstFile, fileInArchive); err != nil {
@@ -571,7 +623,19 @@ func UnzipDirectory(destination string, source string) error {
 
 		dstFile.Close()
 		fileInArchive.Close()
+
+		// Set modified time from zip file header
+		modifiedTime := f.Modified
+		if modifiedTime.IsZero() {
+			modifiedTime = f.FileHeader.Modified
+		}
+		if !modifiedTime.IsZero() {
+			if err := os.Chtimes(filePath, modifiedTime, modifiedTime); err != nil {
+				log.Error(err)
+			}
+		}
 	}
+
 	fmt.Fprintf(os.Stderr, "\n")
 	return nil
 }
@@ -627,7 +691,6 @@ func RemoveMarkedFiles() (err error) {
 	if err != nil {
 		return
 	}
-	defer f.Close()
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		fname := scanner.Text()
@@ -636,6 +699,7 @@ func RemoveMarkedFiles() (err error) {
 			log.Tracef("Removed %s", fname)
 		}
 	}
+	f.Close()
 	os.Remove(crocRemovalFile)
 	return
 }
