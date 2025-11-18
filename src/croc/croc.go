@@ -2164,7 +2164,7 @@ func copyToClipboard(str string, quiet bool, extendedClipboard bool) {
 	case "darwin":
 		cmd = exec.Command("pbcopy")
 	// These Unix-like systems are likely using Xorg(with xclip or xsel) or Wayland(with wl-copy or waycopy)
-	case "linux", "hurd", "freebsd", "openbsd", "netbsd", "dragonfly", "solaris", "illumos", "plan9":
+	case "linux", "android", "hurd", "freebsd", "openbsd", "netbsd", "dragonfly", "solaris", "illumos", "plan9":
 		if os.Getenv("XDG_SESSION_TYPE") == "wayland" { // Wayland running
 			if isExecutableInPath("wl-copy") {
 				cmd = exec.Command("wl-copy")
@@ -2175,13 +2175,9 @@ func copyToClipboard(str string, quiet bool, extendedClipboard bool) {
 			if isExecutableInPath("xclip") {
 				cmd = exec.Command("xclip", "-selection", "clipboard")
 			}
-		} else {
-			if isExecutableInPath("xsel") {
-				cmd = exec.Command("xsel", "-b")
-			}
-		}
-		// Termux (Android) fallback
-		if cmd == nil && isExecutableInPath("termux-clipboard-set") {
+		} else if isExecutableInPath("xsel") {
+			cmd = exec.Command("xsel", "-b")
+		} else if isExecutableInPath("termux-clipboard-set") {
 			cmd = exec.Command("termux-clipboard-set")
 		}
 	default:
