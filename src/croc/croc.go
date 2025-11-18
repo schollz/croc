@@ -677,9 +677,9 @@ On the other computer run:
 	if !c.Options.DisableClipboard {
 		clipboardText := c.Options.SharedSecret
 		if c.Options.ExtendedClipboard {
-			clipboardText = fmt.Sprintf("CROC_SECRET=%q croc %s", c.Options.SharedSecret, flags.String())
+			clipboardText = fmt.Sprintf("CROC_SECRET=%q croc %s", c.Options.SharedSecret, strings.TrimSpace(flags.String()))
 		}
-		copyToClipboard(clipboardText, c.Options.Quiet)
+		copyToClipboard(clipboardText, c.Options.Quiet, c.Options.ExtendedClipboard)
 	}
 	if c.Options.ShowQrCode {
 		showReceiveCommandQrCode(fmt.Sprintf("%[1]s", c.Options.SharedSecret))
@@ -2154,7 +2154,7 @@ func isExecutableInPath(executableName string) bool {
 }
 
 // copyToClipboard tries to send the code to the operating system clipboard
-func copyToClipboard(str string, quiet bool) {
+func copyToClipboard(str string, quiet bool, extendedClipboard bool) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	// Windows should always have clip.exe in PATH by default
@@ -2198,6 +2198,10 @@ func copyToClipboard(str string, quiet bool) {
 		return
 	}
 	if !quiet {
-		fmt.Fprintf(os.Stderr, "Code copied to clipboard!\n")
+		if extendedClipboard {
+			fmt.Fprintf(os.Stderr, "Command copied to clipboard!\n")
+		} else {
+			fmt.Fprintf(os.Stderr, "Code copied to clipboard!\n")
+		}
 	}
 }
