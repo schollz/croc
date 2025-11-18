@@ -278,6 +278,30 @@ For faster hashing, use the `imohash` algorithm:
 croc send --hash imohash SOMEFILE
 ```
 
+#### Clipboard Options
+
+By default, the code phrase is copied to your clipboard. To disable this:
+
+```bash
+croc send --disable-clipboard [filename]
+```
+
+To copy the full command with the secret as an environment variable (useful on Linux/macOS):
+
+```bash
+croc send --extended-clipboard [filename]
+```
+
+This copies the full command like `CROC_SECRET="code-phrase" croc` (including any relay/pass flags).
+
+#### Quiet Mode
+
+To suppress all output (useful for scripts and automation):
+
+```bash
+croc --quiet send [filename]
+```
+
 #### Self-host Relay
 
 You can run your own relay:
