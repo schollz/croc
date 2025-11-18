@@ -356,6 +356,12 @@ func send(c *cli.Context) (err error) {
 		if !c.IsSet("git") {
 			crocOptions.GitIgnore = rememberedOptions.GitIgnore
 		}
+		if !c.IsSet("relay") && rememberedOptions.RelayAddress != models.DEFAULT_RELAY {
+			crocOptions.RelayAddress = rememberedOptions.RelayAddress
+		}
+		if !c.IsSet("relay6") && rememberedOptions.RelayAddress6 != models.DEFAULT_RELAY6 {
+			crocOptions.RelayAddress6 = rememberedOptions.RelayAddress6
+		}
 	}
 
 	var fnames []string
@@ -521,6 +527,13 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 		if c.String("code") == "" {
 			crocOptions.SharedSecret = ""
 		}
+		// if the relay is the default, don't save it
+		if c.String("relay") == models.DEFAULT_RELAY {
+			crocOptions.RelayAddress = ""
+		}
+		if c.String("relay6") == models.DEFAULT_RELAY6 {
+			crocOptions.RelayAddress6 = ""
+		}
 		bConfig, err := json.MarshalIndent(crocOptions, "", "    ")
 		if err != nil {
 			log.Error(err)
@@ -638,6 +651,12 @@ func receive(c *cli.Context) (err error) {
 		if !c.IsSet("local") {
 			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
 		}
+		if !c.IsSet("relay") && rememberedOptions.RelayAddress != models.DEFAULT_RELAY {
+			crocOptions.RelayAddress = rememberedOptions.RelayAddress
+		}
+		if !c.IsSet("relay6") && rememberedOptions.RelayAddress6 != models.DEFAULT_RELAY6 {
+			crocOptions.RelayAddress6 = rememberedOptions.RelayAddress6
+		}
 	}
 
 	classicInsecureMode := utils.Exists(getClassicConfigFile(true))
@@ -693,6 +712,13 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 	if doRemember {
 		log.Debug("saving config file")
 		var bConfig []byte
+		// if the relay is the default, don't save it
+		if c.String("relay") == models.DEFAULT_RELAY {
+			crocOptions.RelayAddress = ""
+		}
+		if c.String("relay6") == models.DEFAULT_RELAY6 {
+			crocOptions.RelayAddress6 = ""
+		}
 		bConfig, err = json.MarshalIndent(crocOptions, "", "    ")
 		if err != nil {
 			log.Error(err)
