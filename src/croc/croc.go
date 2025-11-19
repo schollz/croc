@@ -88,6 +88,9 @@ type Options struct {
 	MulticastAddress string
 	ShowQrCode       bool
 	Exclude          []string
+	Quiet            bool
+	DisableClipboard bool
+	ExtendedClipboard bool
 }
 
 type SimpleMessage struct {
@@ -196,6 +199,14 @@ func New(ops Options) (c *Client, err error) {
 	// setup basic info
 	c.Options = ops
 	Debug(c.Options.Debug)
+
+	// redirect stderr to null if quiet mode is enabled
+	if c.Options.Quiet {
+		devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+		if err == nil {
+			os.Stderr = devNull
+		}
+	}
 
 	if len(c.Options.SharedSecret) < 6 {
 		err = fmt.Errorf("code is too short")
@@ -663,7 +674,13 @@ On the other computer run:
 (For Linux/macOS)
     CROC_SECRET=%[1]q croc %[2]s
 `, c.Options.SharedSecret, flags.String())
-	copyToClipboard(c.Options.SharedSecret)
+	if !c.Options.DisableClipboard {
+		clipboardText := c.Options.SharedSecret
+		if c.Options.ExtendedClipboard {
+			clipboardText = fmt.Sprintf("CROC_SECRET=%q croc %s", c.Options.SharedSecret, strings.TrimSpace(flags.String()))
+		}
+		copyToClipboard(clipboardText, c.Options.Quiet, c.Options.ExtendedClipboard)
+	}
 	if c.Options.ShowQrCode {
 		showReceiveCommandQrCode(fmt.Sprintf("%[1]s", c.Options.SharedSecret))
 	}
@@ -2137,7 +2154,7 @@ func isExecutableInPath(executableName string) bool {
 }
 
 // copyToClipboard tries to send the code to the operating system clipboard
-func copyToClipboard(str string) {
+func copyToClipboard(str string, quiet bool, extendedClipboard bool) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	// Windows should always have clip.exe in PATH by default
@@ -2147,7 +2164,7 @@ func copyToClipboard(str string) {
 	case "darwin":
 		cmd = exec.Command("pbcopy")
 	// These Unix-like systems are likely using Xorg(with xclip or xsel) or Wayland(with wl-copy or waycopy)
-	case "linux", "hurd", "freebsd", "openbsd", "netbsd", "dragonfly", "solaris", "illumos", "plan9":
+	case "linux", "android", "hurd", "freebsd", "openbsd", "netbsd", "dragonfly", "solaris", "illumos", "plan9":
 		if os.Getenv("XDG_SESSION_TYPE") == "wayland" { // Wayland running
 			if isExecutableInPath("wl-copy") {
 				cmd = exec.Command("wl-copy")
@@ -2158,10 +2175,10 @@ func copyToClipboard(str string) {
 			if isExecutableInPath("xclip") {
 				cmd = exec.Command("xclip", "-selection", "clipboard")
 			}
-		} else {
-			if isExecutableInPath("xsel") {
-				cmd = exec.Command("xsel", "-b")
-			}
+		} else if isExecutableInPath("xsel") {
+			cmd = exec.Command("xsel", "-b")
+		} else if isExecutableInPath("termux-clipboard-set") {
+			cmd = exec.Command("termux-clipboard-set")
 		}
 	default:
 		return
@@ -2176,5 +2193,11 @@ func copyToClipboard(str string) {
 		log.Debugf("error copying to clipboard: %v", err)
 		return
 	}
-	fmt.Fprintf(os.Stderr, "Code copied to clipboard!\n")
+	if !quiet {
+		if extendedClipboard {
+			fmt.Fprintf(os.Stderr, "Command copied to clipboard!\n")
+		} else {
+			fmt.Fprintf(os.Stderr, "Code copied to clipboard!\n")
+		}
+	}
 }
