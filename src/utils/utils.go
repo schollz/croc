@@ -475,11 +475,20 @@ func IsLocalIP(ipaddress string) bool {
 func ZipDirectory(destination string, source string) (err error) {
 	if _, err = os.Stat(destination); err == nil {
 		log.Errorf("%s file already exists!\n", destination)
+		return fmt.Errorf("file already exists: %s", destination)
 	}
+
+	// Check if source directory exists
+	if _, err := os.Stat(source); os.IsNotExist(err) {
+		log.Errorf("Source directory does not exist: %s", source)
+		return fmt.Errorf("source directory does not exist: %s", source)
+	}
+
 	fmt.Fprintf(os.Stderr, "Zipping %s to %s\n", source, destination)
 	file, err := os.Create(destination)
 	if err != nil {
 		log.Error(err)
+		return fmt.Errorf("failed to create zip file: %w", err)
 	}
 	defer file.Close()
 	writer := zip.NewWriter(file)
@@ -488,32 +497,114 @@ func ZipDirectory(destination string, source string) (err error) {
 		return flate.NewWriter(out, flate.NoCompression)
 	})
 	defer writer.Close()
+
+	// Get base name for zip structure
+	baseName := strings.TrimSuffix(filepath.Base(destination), ".zip")
+
+	// First pass: add the root directory with its modification time
+	rootInfo, err := os.Stat(source)
+	if err == nil && rootInfo.IsDir() {
+		header, err := zip.FileInfoHeader(rootInfo)
+		if err != nil {
+			log.Error(err)
+		} else {
+			header.Name = baseName + "/" // Trailing slash indicates directory
+			header.Method = zip.Store
+			header.Modified = rootInfo.ModTime()
+
+			_, err = writer.CreateHeader(header)
+			if err != nil {
+				log.Error(err)
+			} else {
+				fmt.Fprintf(os.Stderr, "\r\033[2K")
+				fmt.Fprintf(os.Stderr, "\rAdding %s", baseName+"/")
+			}
+		}
+	}
+
+	// Second pass: add all other directories and files
 	err = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Error(err)
+			return nil
 		}
+
+		// Skip root directory (we already added it)
+		if path == source {
+			return nil
+		}
+
+		// Calculate relative path from source directory
+		relPath, err := filepath.Rel(source, path)
+		if err != nil {
+			log.Error(err)
+			return nil
+		}
+
+		// Create zip path with base name structure
+		zipPath := filepath.Join(baseName, relPath)
+		zipPath = filepath.ToSlash(zipPath)
+
+		if info.IsDir() {
+			// Add directory entry to zip with original modification time
+			header, err := zip.FileInfoHeader(info)
+			if err != nil {
+				log.Error(err)
+				return nil
+			}
+			header.Name = zipPath + "/" // Trailing slash indicates directory
+			header.Method = zip.Store
+			// Preserve the original modification time
+			header.Modified = info.ModTime()
+
+			_, err = writer.CreateHeader(header)
+			if err != nil {
+				log.Error(err)
+				return nil
+			}
+
+			fmt.Fprintf(os.Stderr, "\r\033[2K")
+			fmt.Fprintf(os.Stderr, "\rAdding %s", zipPath+"/")
+			return nil
+		}
+
 		if info.Mode().IsRegular() {
 			f1, err := os.Open(path)
 			if err != nil {
 				log.Error(err)
+				return nil
 			}
 			defer f1.Close()
-			zipPath := strings.ReplaceAll(path, source, strings.TrimSuffix(destination, ".zip"))
-			zipPath = filepath.ToSlash(zipPath)
-			w1, err := writer.Create(zipPath)
+
+			// Create file header with modified time
+			header, err := zip.FileInfoHeader(info)
 			if err != nil {
 				log.Error(err)
+				return nil
 			}
+			header.Name = zipPath
+			header.Method = zip.Deflate
+
+			w1, err := writer.CreateHeader(header)
+			if err != nil {
+				log.Error(err)
+				return nil
+			}
+
 			if _, err := io.Copy(w1, f1); err != nil {
 				log.Error(err)
+				return nil
 			}
+
 			fmt.Fprintf(os.Stderr, "\r\033[2K")
 			fmt.Fprintf(os.Stderr, "\rAdding %s", zipPath)
 		}
 		return nil
 	})
+
 	if err != nil {
 		log.Error(err)
+		return fmt.Errorf("error during directory walk: %w", err)
 	}
 	fmt.Fprintf(os.Stderr, "\n")
 	return nil
@@ -523,26 +614,46 @@ func UnzipDirectory(destination string, source string) error {
 	archive, err := zip.OpenReader(source)
 	if err != nil {
 		log.Error(err)
+		return fmt.Errorf("failed to open zip file: %w", err)
 	}
 	defer archive.Close()
 
+	// Store modification times for all files and directories
+	modTimes := make(map[string]time.Time)
+
+	// First pass: extract all files and directories, store modification times
 	for _, f := range archive.File {
 		filePath := filepath.Join(destination, f.Name)
 		fmt.Fprintf(os.Stderr, "\r\033[2K")
 		fmt.Fprintf(os.Stderr, "\rUnzipping file %s", filePath)
+
 		// Issue #593 conceal path traversal vulnerability
 		// make sure the filepath does not have ".."
 		filePath = filepath.Clean(filePath)
 		if strings.Contains(filePath, "..") {
 			log.Errorf("Invalid file path %s\n", filePath)
+			continue
 		}
+
+		// Store modification time for this entry (BOTH files and directories)
+		modifiedTime := f.Modified
+		if modifiedTime.IsZero() {
+			modifiedTime = f.FileHeader.Modified
+		}
+		if !modifiedTime.IsZero() {
+			modTimes[filePath] = modifiedTime
+		}
+
 		if f.FileInfo().IsDir() {
-			os.MkdirAll(filePath, os.ModePerm)
+			if err := os.MkdirAll(filePath, os.ModePerm); err != nil {
+				log.Error(err)
+			}
 			continue
 		}
 
 		if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
 			log.Error(err)
+			continue
 		}
 
 		// check if file exists
@@ -558,11 +669,14 @@ func UnzipDirectory(destination string, source string) error {
 		dstFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
 		if err != nil {
 			log.Error(err)
+			continue
 		}
 
 		fileInArchive, err := f.Open()
 		if err != nil {
 			log.Error(err)
+			dstFile.Close()
+			continue
 		}
 
 		if _, err := io.Copy(dstFile, fileInArchive); err != nil {
@@ -572,6 +686,21 @@ func UnzipDirectory(destination string, source string) error {
 		dstFile.Close()
 		fileInArchive.Close()
 	}
+
+	// Second pass: restore modification times for ALL files and directories
+	for path, modTime := range modTimes {
+		if err := os.Chtimes(path, modTime, modTime); err != nil {
+			log.Errorf("Failed to set modification time for %s: %v", path, err)
+		} else {
+			fi, err := os.Lstat(path)
+			if err != nil ||
+				!modTime.UTC().Equal(fi.ModTime().UTC()) {
+				log.Errorf("Failed to set modification time for %s: %v", path, err)
+				fmt.Fprintf(os.Stderr, "Failed to set modification time %s %v: %v\n", path, modTime, err)
+			}
+		}
+	}
+
 	fmt.Fprintf(os.Stderr, "\n")
 	return nil
 }
@@ -627,7 +756,6 @@ func RemoveMarkedFiles() (err error) {
 	if err != nil {
 		return
 	}
-	defer f.Close()
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		fname := scanner.Text()
@@ -636,6 +764,7 @@ func RemoveMarkedFiles() (err error) {
 			log.Tracef("Removed %s", fname)
 		}
 	}
+	f.Close()
 	os.Remove(crocRemovalFile)
 	return
 }
