@@ -501,35 +501,85 @@ func ZipDirectory(destination string, source string) (err error) {
 	// Get base name for zip structure
 	baseName := strings.TrimSuffix(filepath.Base(destination), ".zip")
 
+	// First pass: add the root directory with its modification time
+	rootInfo, err := os.Stat(source)
+	if err == nil && rootInfo.IsDir() {
+		header, err := zip.FileInfoHeader(rootInfo)
+		if err != nil {
+			log.Error(err)
+		} else {
+			header.Name = baseName + "/" // Trailing slash indicates directory
+			header.Method = zip.Store
+			header.Modified = rootInfo.ModTime()
+
+			_, err = writer.CreateHeader(header)
+			if err != nil {
+				log.Error(err)
+			} else {
+				fmt.Fprintf(os.Stderr, "\r\033[2K")
+				fmt.Fprintf(os.Stderr, "\rAdding %s", baseName+"/")
+			}
+		}
+	}
+
+	// Second pass: add all other directories and files
 	err = filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Error(err)
 			return nil
 		}
+
+		// Skip root directory (we already added it)
+		if path == source {
+			return nil
+		}
+
+		// Calculate relative path from source directory
+		relPath, err := filepath.Rel(source, path)
+		if err != nil {
+			log.Error(err)
+			return nil
+		}
+
+		// Create zip path with base name structure
+		zipPath := filepath.Join(baseName, relPath)
+		zipPath = filepath.ToSlash(zipPath)
+
+		if info.IsDir() {
+			// Add directory entry to zip with original modification time
+			header, err := zip.FileInfoHeader(info)
+			if err != nil {
+				log.Error(err)
+				return nil
+			}
+			header.Name = zipPath + "/" // Trailing slash indicates directory
+			header.Method = zip.Store
+			// Preserve the original modification time
+			header.Modified = info.ModTime()
+
+			_, err = writer.CreateHeader(header)
+			if err != nil {
+				log.Error(err)
+				return nil
+			}
+
+			fmt.Fprintf(os.Stderr, "\r\033[2K")
+			fmt.Fprintf(os.Stderr, "\rAdding %s", zipPath+"/")
+			return nil
+		}
+
 		if info.Mode().IsRegular() {
 			f1, err := os.Open(path)
 			if err != nil {
 				log.Error(err)
 				return nil
 			}
-
-			// Calculate relative path from source directory
-			relPath, err := filepath.Rel(source, path)
-			if err != nil {
-				log.Error(err)
-				f1.Close()
-				return nil
-			}
-
-			// Create zip path with base name structure
-			zipPath := filepath.Join(baseName, relPath)
-			zipPath = filepath.ToSlash(zipPath)
+			defer f1.Close()
 
 			// Create file header with modified time
 			header, err := zip.FileInfoHeader(info)
 			if err != nil {
 				log.Error(err)
-				f1.Close()
 				return nil
 			}
 			header.Name = zipPath
@@ -538,23 +588,20 @@ func ZipDirectory(destination string, source string) (err error) {
 			w1, err := writer.CreateHeader(header)
 			if err != nil {
 				log.Error(err)
-				f1.Close()
 				return nil
 			}
 
 			if _, err := io.Copy(w1, f1); err != nil {
 				log.Error(err)
-				f1.Close()
 				return nil
 			}
-
-			f1.Close()
 
 			fmt.Fprintf(os.Stderr, "\r\033[2K")
 			fmt.Fprintf(os.Stderr, "\rAdding %s", zipPath)
 		}
 		return nil
 	})
+
 	if err != nil {
 		log.Error(err)
 		return fmt.Errorf("error during directory walk: %w", err)
@@ -571,17 +618,32 @@ func UnzipDirectory(destination string, source string) error {
 	}
 	defer archive.Close()
 
+	// Store modification times for all files and directories
+	modTimes := make(map[string]time.Time)
+
+	// First pass: extract all files and directories, store modification times
 	for _, f := range archive.File {
 		filePath := filepath.Join(destination, f.Name)
 		fmt.Fprintf(os.Stderr, "\r\033[2K")
 		fmt.Fprintf(os.Stderr, "\rUnzipping file %s", filePath)
+
 		// Issue #593 conceal path traversal vulnerability
 		// make sure the filepath does not have ".."
 		filePath = filepath.Clean(filePath)
 		if strings.Contains(filePath, "..") {
 			log.Errorf("Invalid file path %s\n", filePath)
-			continue // Skip file but continue extraction
+			continue
 		}
+
+		// Store modification time for this entry (BOTH files and directories)
+		modifiedTime := f.Modified
+		if modifiedTime.IsZero() {
+			modifiedTime = f.FileHeader.Modified
+		}
+		if !modifiedTime.IsZero() {
+			modTimes[filePath] = modifiedTime
+		}
+
 		if f.FileInfo().IsDir() {
 			if err := os.MkdirAll(filePath, os.ModePerm); err != nil {
 				log.Error(err)
@@ -623,15 +685,18 @@ func UnzipDirectory(destination string, source string) error {
 
 		dstFile.Close()
 		fileInArchive.Close()
+	}
 
-		// Set modified time from zip file header
-		modifiedTime := f.Modified
-		if modifiedTime.IsZero() {
-			modifiedTime = f.FileHeader.Modified
-		}
-		if !modifiedTime.IsZero() {
-			if err := os.Chtimes(filePath, modifiedTime, modifiedTime); err != nil {
-				log.Error(err)
+	// Second pass: restore modification times for ALL files and directories
+	for path, modTime := range modTimes {
+		if err := os.Chtimes(path, modTime, modTime); err != nil {
+			log.Errorf("Failed to set modification time for %s: %v", path, err)
+		} else {
+			fi, err := os.Lstat(path)
+			if err != nil ||
+				!modTime.UTC().Equal(fi.ModTime().UTC()) {
+				log.Errorf("Failed to set modification time for %s: %v", path, err)
+				fmt.Fprintf(os.Stderr, "Failed to set modification time %s %v: %v\n", path, modTime, err)
 			}
 		}
 	}
