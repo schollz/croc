@@ -60,36 +60,36 @@ func Debug(debug bool) {
 
 // Options specifies user specific options
 type Options struct {
-	IsSender          bool
-	SharedSecret      string
-	RoomName          string
-	Debug             bool
-	RelayAddress      string
-	RelayAddress6     string
-	RelayPorts        []string
-	RelayPassword     string
-	Stdout            bool
-	NoPrompt          bool
-	NoMultiplexing    bool
-	DisableLocal      bool
-	OnlyLocal         bool
-	IgnoreStdin       bool
-	Ask               bool
-	SendingText       bool
-	NoCompress        bool
-	IP                string
-	Overwrite         bool
-	Curve             string
-	HashAlgorithm     string
-	ThrottleUpload    string
-	ZipFolder         bool
-	TestFlag          bool
-	GitIgnore         bool
-	MulticastAddress  string
-	ShowQrCode        bool
-	Exclude           []string
-	Quiet             bool
-	DisableClipboard  bool
+	IsSender         bool
+	SharedSecret     string
+	RoomName         string
+	Debug            bool
+	RelayAddress     string
+	RelayAddress6    string
+	RelayPorts       []string
+	RelayPassword    string
+	Stdout           bool
+	NoPrompt         bool
+	NoMultiplexing   bool
+	DisableLocal     bool
+	OnlyLocal        bool
+	IgnoreStdin      bool
+	Ask              bool
+	SendingText      bool
+	NoCompress       bool
+	IP               string
+	Overwrite        bool
+	Curve            string
+	HashAlgorithm    string
+	ThrottleUpload   string
+	ZipFolder        bool
+	TestFlag         bool
+	GitIgnore        bool
+	MulticastAddress string
+	ShowQrCode       bool
+	Exclude          []string
+	Quiet            bool
+	DisableClipboard bool
 	ExtendedClipboard bool
 }
 
