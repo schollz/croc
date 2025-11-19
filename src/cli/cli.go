@@ -110,6 +110,9 @@ func Run() (err error) {
 		&cli.BoolFlag{Name: "ignore-stdin", Usage: "ignore piped stdin"},
 		&cli.BoolFlag{Name: "overwrite", Usage: "do not prompt to overwrite or resume"},
 		&cli.BoolFlag{Name: "testing", Usage: "flag for testing purposes"},
+		&cli.BoolFlag{Name: "quiet", Usage: "disable all output"},
+		&cli.BoolFlag{Name: "disable-clipboard", Usage: "disable copy to clipboard"},
+		&cli.BoolFlag{Name: "extended-clipboard", Usage: "copy full command with secret as env variable to clipboard"},
 		&cli.StringFlag{Name: "multicast", Value: "239.255.255.250", Usage: "multicast address to use for local discovery"},
 		&cli.StringFlag{Name: "curve", Value: "p256", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
 		&cli.StringFlag{Name: "ip", Value: "", Usage: "set sender ip if known e.g. 10.0.0.1:9009, [::1]:9009"},
@@ -210,7 +213,9 @@ Do you wish to continue to enable the classic mode? (y/N) `)
 }
 
 func setDebugLevel(c *cli.Context) {
-	if c.Bool("debug") {
+	if c.Bool("quiet") {
+		log.SetLevel("error")
+	} else if c.Bool("debug") {
 		log.SetLevel("debug")
 		log.Debug("debug mode on")
 		// print the public IP address
@@ -314,6 +319,9 @@ func send(c *cli.Context) (err error) {
 		ShowQrCode:       c.Bool("qrcode"),
 		MulticastAddress: c.String("multicast"),
 		Exclude:          excludeStrings,
+		Quiet:            c.Bool("quiet"),
+		DisableClipboard: c.Bool("disable-clipboard"),
+		ExtendedClipboard: c.Bool("extended-clipboard"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -584,6 +592,9 @@ func receive(c *cli.Context) (err error) {
 		Curve:            c.String("curve"),
 		TestFlag:         c.Bool("testing"),
 		MulticastAddress: c.String("multicast"),
+		Quiet:            c.Bool("quiet"),
+		DisableClipboard: c.Bool("disable-clipboard"),
+		ExtendedClipboard: c.Bool("extended-clipboard"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
