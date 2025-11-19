@@ -60,36 +60,36 @@ func Debug(debug bool) {
 
 // Options specifies user specific options
 type Options struct {
-	IsSender         bool
-	SharedSecret     string
-	RoomName         string
-	Debug            bool
-	RelayAddress     string
-	RelayAddress6    string
-	RelayPorts       []string
-	RelayPassword    string
-	Stdout           bool
-	NoPrompt         bool
-	NoMultiplexing   bool
-	DisableLocal     bool
-	OnlyLocal        bool
-	IgnoreStdin      bool
-	Ask              bool
-	SendingText      bool
-	NoCompress       bool
-	IP               string
-	Overwrite        bool
-	Curve            string
-	HashAlgorithm    string
-	ThrottleUpload   string
-	ZipFolder        bool
-	TestFlag         bool
-	GitIgnore        bool
-	MulticastAddress string
-	ShowQrCode       bool
-	Exclude          []string
-	Quiet            bool
-	DisableClipboard bool
+	IsSender          bool
+	SharedSecret      string
+	RoomName          string
+	Debug             bool
+	RelayAddress      string
+	RelayAddress6     string
+	RelayPorts        []string
+	RelayPassword     string
+	Stdout            bool
+	NoPrompt          bool
+	NoMultiplexing    bool
+	DisableLocal      bool
+	OnlyLocal         bool
+	IgnoreStdin       bool
+	Ask               bool
+	SendingText       bool
+	NoCompress        bool
+	IP                string
+	Overwrite         bool
+	Curve             string
+	HashAlgorithm     string
+	ThrottleUpload    string
+	ZipFolder         bool
+	TestFlag          bool
+	GitIgnore         bool
+	MulticastAddress  string
+	ShowQrCode        bool
+	Exclude           []string
+	Quiet             bool
+	DisableClipboard  bool
 	ExtendedClipboard bool
 }
 
@@ -1861,6 +1861,14 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			}
 		} else {
 			log.Debugf("hashes are equal %x == %x", fileHash, fileInfo.Hash)
+
+			if !fileInfo.ModTime.IsZero() {
+				if err := os.Chtimes(path.Join(fileInfo.FolderRemote, fileInfo.Name), fileInfo.ModTime, fileInfo.ModTime); err != nil {
+					log.Warnf("chtimes %v: %v", fileInfo.ModTime, err)
+				} else {
+					log.Debugf("chtimes %v", fileInfo.ModTime)
+				}
+			}
 		}
 		if errHash != nil {
 			// probably can't find, its okay
