@@ -356,11 +356,15 @@ func send(c *cli.Context) (err error) {
 		if !c.IsSet("git") {
 			crocOptions.GitIgnore = rememberedOptions.GitIgnore
 		}
-		if !c.IsSet("relay") && rememberedOptions.RelayAddress != models.DEFAULT_RELAY {
-			crocOptions.RelayAddress = rememberedOptions.RelayAddress
+		if !c.IsSet("relay") && strings.HasPrefix(rememberedOptions.RelayAddress, "non-default:") {
+			var rememberedAddr = strings.TrimPrefix(rememberedOptions.RelayAddress, "non-default:")
+			rememberedAddr = strings.TrimSpace(rememberedAddr)
+			crocOptions.RelayAddress = rememberedAddr
 		}
-		if !c.IsSet("relay6") && rememberedOptions.RelayAddress6 != models.DEFAULT_RELAY6 {
-			crocOptions.RelayAddress6 = rememberedOptions.RelayAddress6
+		if !c.IsSet("relay6") && strings.HasPrefix(rememberedOptions.RelayAddress6, "non-default:") {
+			var rememberedAddr = strings.TrimPrefix(rememberedOptions.RelayAddress6, "non-default:")
+			rememberedAddr = strings.TrimSpace(rememberedAddr)
+			crocOptions.RelayAddress6 = rememberedAddr
 		}
 	}
 
@@ -527,12 +531,15 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 		if c.String("code") == "" {
 			crocOptions.SharedSecret = ""
 		}
-		// if the relay is the default, don't save it
-		if c.String("relay") == models.DEFAULT_RELAY {
-			crocOptions.RelayAddress = ""
+		if c.String("relay") != models.DEFAULT_RELAY {
+			crocOptions.RelayAddress = "non-default: " + c.String("relay")
+		} else {
+			crocOptions.RelayAddress = "default"
 		}
-		if c.String("relay6") == models.DEFAULT_RELAY6 {
-			crocOptions.RelayAddress6 = ""
+		if c.String("relay6") != models.DEFAULT_RELAY6 {
+			crocOptions.RelayAddress6 = "non-default: " + c.String("relay6")
+		} else {
+			crocOptions.RelayAddress6 = "default"
 		}
 		bConfig, err := json.MarshalIndent(crocOptions, "", "    ")
 		if err != nil {
@@ -651,11 +658,15 @@ func receive(c *cli.Context) (err error) {
 		if !c.IsSet("local") {
 			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
 		}
-		if !c.IsSet("relay") && rememberedOptions.RelayAddress != models.DEFAULT_RELAY {
-			crocOptions.RelayAddress = rememberedOptions.RelayAddress
+		if !c.IsSet("relay") && strings.HasPrefix(rememberedOptions.RelayAddress, "non-default:") {
+			var rememberedAddr = strings.TrimPrefix(rememberedOptions.RelayAddress, "non-default:")
+			rememberedAddr = strings.TrimSpace(rememberedAddr)
+			crocOptions.RelayAddress = rememberedAddr
 		}
-		if !c.IsSet("relay6") && rememberedOptions.RelayAddress6 != models.DEFAULT_RELAY6 {
-			crocOptions.RelayAddress6 = rememberedOptions.RelayAddress6
+		if !c.IsSet("relay6") && strings.HasPrefix(rememberedOptions.RelayAddress6, "non-default:") {
+			var rememberedAddr = strings.TrimPrefix(rememberedOptions.RelayAddress6, "non-default:")
+			rememberedAddr = strings.TrimSpace(rememberedAddr)
+			crocOptions.RelayAddress6 = rememberedAddr
 		}
 	}
 
@@ -712,12 +723,15 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 	if doRemember {
 		log.Debug("saving config file")
 		var bConfig []byte
-		// if the relay is the default, don't save it
-		if c.String("relay") == models.DEFAULT_RELAY {
-			crocOptions.RelayAddress = ""
+		if c.String("relay") != models.DEFAULT_RELAY {
+			crocOptions.RelayAddress = "non-default: " + c.String("relay")
+		} else {
+			crocOptions.RelayAddress = "default"
 		}
-		if c.String("relay6") == models.DEFAULT_RELAY6 {
-			crocOptions.RelayAddress6 = ""
+		if c.String("relay6") != models.DEFAULT_RELAY6 {
+			crocOptions.RelayAddress6 = "non-default: " + c.String("relay6")
+		} else {
+			crocOptions.RelayAddress6 = "default"
 		}
 		bConfig, err = json.MarshalIndent(crocOptions, "", "    ")
 		if err != nil {
