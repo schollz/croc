@@ -1861,6 +1861,14 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			}
 		} else {
 			log.Debugf("hashes are equal %x == %x", fileHash, fileInfo.Hash)
+
+			if !fileInfo.ModTime.IsZero() {
+				if err := os.Chtimes(path.Join(fileInfo.FolderRemote, fileInfo.Name), fileInfo.ModTime, fileInfo.ModTime); err != nil {
+					log.Warnf("chtimes %v: %v", fileInfo.ModTime, err)
+				} else {
+					log.Debugf("chtimes %v", fileInfo.ModTime)
+				}
+			}
 		}
 		if errHash != nil {
 			// probably can't find, its okay
