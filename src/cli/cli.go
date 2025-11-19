@@ -364,6 +364,16 @@ func send(c *cli.Context) (err error) {
 		if !c.IsSet("git") {
 			crocOptions.GitIgnore = rememberedOptions.GitIgnore
 		}
+		if !c.IsSet("relay") && strings.HasPrefix(rememberedOptions.RelayAddress, "non-default:") {
+			var rememberedAddr = strings.TrimPrefix(rememberedOptions.RelayAddress, "non-default:")
+			rememberedAddr = strings.TrimSpace(rememberedAddr)
+			crocOptions.RelayAddress = rememberedAddr
+		}
+		if !c.IsSet("relay6") && strings.HasPrefix(rememberedOptions.RelayAddress6, "non-default:") {
+			var rememberedAddr = strings.TrimPrefix(rememberedOptions.RelayAddress6, "non-default:")
+			rememberedAddr = strings.TrimSpace(rememberedAddr)
+			crocOptions.RelayAddress6 = rememberedAddr
+		}
 	}
 
 	var fnames []string
@@ -529,6 +539,16 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 		if c.String("code") == "" {
 			crocOptions.SharedSecret = ""
 		}
+		if c.String("relay") != models.DEFAULT_RELAY {
+			crocOptions.RelayAddress = "non-default: " + c.String("relay")
+		} else {
+			crocOptions.RelayAddress = "default"
+		}
+		if c.String("relay6") != models.DEFAULT_RELAY6 {
+			crocOptions.RelayAddress6 = "non-default: " + c.String("relay6")
+		} else {
+			crocOptions.RelayAddress6 = "default"
+		}
 		bConfig, err := json.MarshalIndent(crocOptions, "", "    ")
 		if err != nil {
 			log.Error(err)
@@ -649,6 +669,16 @@ func receive(c *cli.Context) (err error) {
 		if !c.IsSet("local") {
 			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
 		}
+		if !c.IsSet("relay") && strings.HasPrefix(rememberedOptions.RelayAddress, "non-default:") {
+			var rememberedAddr = strings.TrimPrefix(rememberedOptions.RelayAddress, "non-default:")
+			rememberedAddr = strings.TrimSpace(rememberedAddr)
+			crocOptions.RelayAddress = rememberedAddr
+		}
+		if !c.IsSet("relay6") && strings.HasPrefix(rememberedOptions.RelayAddress6, "non-default:") {
+			var rememberedAddr = strings.TrimPrefix(rememberedOptions.RelayAddress6, "non-default:")
+			rememberedAddr = strings.TrimSpace(rememberedAddr)
+			crocOptions.RelayAddress6 = rememberedAddr
+		}
 	}
 
 	classicInsecureMode := utils.Exists(getClassicConfigFile(true))
@@ -704,6 +734,16 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 	if doRemember {
 		log.Debug("saving config file")
 		var bConfig []byte
+		if c.String("relay") != models.DEFAULT_RELAY {
+			crocOptions.RelayAddress = "non-default: " + c.String("relay")
+		} else {
+			crocOptions.RelayAddress = "default"
+		}
+		if c.String("relay6") != models.DEFAULT_RELAY6 {
+			crocOptions.RelayAddress6 = "non-default: " + c.String("relay6")
+		} else {
+			crocOptions.RelayAddress6 = "default"
+		}
 		bConfig, err = json.MarshalIndent(crocOptions, "", "    ")
 		if err != nil {
 			log.Error(err)
