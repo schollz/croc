@@ -1,14 +1,17 @@
 package utils
 
 import (
+	"archive/zip"
 	"bytes"
 	"fmt"
 	"log"
 	"math/rand"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -277,4 +280,381 @@ func TestValidFileName(t *testing.T) {
 	assert.NotNil(t, ValidFileName(".."))
 	// is an absolute path
 	assert.NotNil(t, ValidFileName(path.Join(string(os.PathSeparator), "abs", string(os.PathSeparator), "hi.txt")))
+}
+
+// zip
+
+// TestUnzipDirectory tests the unzip directory functionality
+func TestUnzipDirectory(t *testing.T) {
+	// Create temporary directory for tests
+	tmpDir, err := os.MkdirTemp("", "unzip_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create test zip and extraction directory
+	zipPath := filepath.Join(tmpDir, "test.zip")
+	extractDir := filepath.Join(tmpDir, "extracted")
+
+	// Create test zip file with proper structure and known mod times
+	expectedModTime := time.Date(2023, 2, 1, 10, 30, 0, 0, time.UTC)
+	if err := createTestZipWithModTime(zipPath, expectedModTime); err != nil {
+		t.Fatalf("Failed to create test zip: %v", err)
+	}
+
+	// Test extraction
+	err = UnzipDirectory(extractDir, zipPath)
+	if err != nil {
+		t.Fatalf("UnzipDirectory failed: %v", err)
+	}
+
+	// Update expected files to match the actual structure from createTestZipWithModTime
+	baseName := "test"
+	expectedFiles := []string{
+		baseName + "/file1.txt",
+		baseName + "/subdir/file2.txt",
+		baseName + "/subdir2/file3.txt",
+		baseName + "/file4.txt",
+	}
+
+	// Also check directories
+	expectedDirs := []string{
+		baseName + "/",
+		baseName + "/subdir/",
+		baseName + "/subdir2/",
+	}
+
+	// Verify files
+	for _, expectedFile := range expectedFiles {
+		fullPath := filepath.Join(extractDir, expectedFile)
+		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+			t.Errorf("File was not extracted: %s", expectedFile)
+		} else {
+			// Verify modification time is preserved after extraction
+			verifyFileModTime(t, fullPath, expectedModTime)
+		}
+	}
+
+	// Verify directories
+	for _, expectedDir := range expectedDirs {
+		fullPath := filepath.Join(extractDir, expectedDir)
+		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+			t.Errorf("Directory was not extracted: %s", expectedDir)
+		} else {
+			// Verify modification time is preserved after extraction
+			verifyFileModTime(t, fullPath, expectedModTime)
+		}
+	}
+
+	// Verify file contents after extraction
+	verifyFileContent(t, filepath.Join(extractDir, baseName+"/file1.txt"), "Test content 1")
+	verifyFileContent(t, filepath.Join(extractDir, baseName+"/subdir/file2.txt"), "Test content 2")
+	verifyFileContent(t, filepath.Join(extractDir, baseName+"/subdir2/file3.txt"), "Test content 3")
+	verifyFileContent(t, filepath.Join(extractDir, baseName+"/file4.txt"), "Test content 4")
+}
+
+// TestUnzipToNonExistentDirectory tests unzip to non-existent destination
+func TestUnzipToNonExistentDirectory(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "unzip_nonexistent_dest_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create test zip
+	zipPath := filepath.Join(tmpDir, "test.zip")
+	expectedModTime := time.Date(2023, 4, 1, 9, 0, 0, 0, time.UTC)
+	if err := createTestZipWithModTime(zipPath, expectedModTime); err != nil {
+		t.Fatalf("Failed to create test zip: %v", err)
+	}
+
+	// Extract to non-existent directory
+	extractDir := filepath.Join(tmpDir, "nonexistent", "deep", "path")
+
+	err = UnzipDirectory(extractDir, zipPath)
+	if err != nil {
+		t.Fatalf("UnzipDirectory failed to create destination directory: %v", err)
+	}
+
+	// Update expected files to match the actual structure
+	baseName := "test"
+	expectedFiles := []string{
+		baseName + "/file1.txt",
+		baseName + "/subdir/file2.txt",
+		baseName + "/subdir2/file3.txt",
+		baseName + "/file4.txt",
+	}
+
+	// Also check directories
+	expectedDirs := []string{
+		baseName + "/",
+		baseName + "/subdir/",
+		baseName + "/subdir2/",
+	}
+
+	// Verify files
+	for _, expectedFile := range expectedFiles {
+		fullPath := filepath.Join(extractDir, expectedFile)
+		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+			t.Errorf("File was not extracted to non-existent destination: %s", expectedFile)
+		} else {
+			// Verify modification time is preserved
+			verifyFileModTime(t, fullPath, expectedModTime)
+		}
+	}
+
+	// Verify directories
+	for _, expectedDir := range expectedDirs {
+		fullPath := filepath.Join(extractDir, expectedDir)
+		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+			t.Errorf("Directory was not extracted to non-existent destination: %s", expectedDir)
+		} else {
+			// Verify modification time is preserved
+			verifyFileModTime(t, fullPath, expectedModTime)
+		}
+	}
+}
+
+// TestZipAndUnzipRoundTrip tests complete zip/unzip cycle with proper paths
+func TestZipAndUnzipRoundTrip(t *testing.T) {
+	// Create temporary directory for tests
+	tmpDir, err := os.MkdirTemp("", "roundtrip_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create source directory with test files
+	sourceDir := filepath.Join(tmpDir, "source")
+	if err := os.MkdirAll(sourceDir, 0755); err != nil {
+		t.Fatalf("Failed to create source directory: %v", err)
+	}
+
+	// Use specific mod times for different items
+	rootModTime := time.Date(2023, 3, 1, 14, 30, 0, 0, time.UTC)
+	subdirModTime := time.Date(2023, 3, 1, 14, 29, 0, 0, time.UTC)
+	subdir2ModTime := time.Date(2023, 3, 1, 14, 28, 0, 0, time.UTC)
+	fileModTime := time.Date(2023, 3, 1, 14, 31, 0, 0, time.UTC)
+
+	// Create directories structure first
+	dirs := []string{
+		"subdir",
+		"subdir2",
+	}
+
+	for _, dir := range dirs {
+		fullPath := filepath.Join(sourceDir, dir)
+		if err := os.MkdirAll(fullPath, 0755); err != nil {
+			t.Fatalf("Failed to create directory: %v", err)
+		}
+	}
+
+	// Create files with specific modification times
+	testFiles := map[string]string{
+		"file1.txt":         "Content of file 1",
+		"subdir/file2.txt":  "Content of file 2 in subdir",
+		"subdir2/file3.txt": "Content of file 3 in another subdir",
+		"file4.txt":         "Content of file 4",
+	}
+
+	for filePath, content := range testFiles {
+		fullPath := filepath.Join(sourceDir, filePath)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			t.Fatalf("Failed to create directory: %v", err)
+		}
+		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+		if err := os.Chtimes(fullPath, fileModTime, fileModTime); err != nil {
+			t.Fatalf("Failed to set file time: %v", err)
+		}
+	}
+
+	// NOW set directory times AFTER creating all files
+
+	// Set time for root source directory
+	if err := os.Chtimes(sourceDir, rootModTime, rootModTime); err != nil {
+		t.Fatalf("Failed to set source directory time: %v", err)
+	}
+
+	// Set times for subdirectories
+	dirTimes := map[string]time.Time{
+		"subdir":  subdirModTime,
+		"subdir2": subdir2ModTime,
+	}
+
+	for dir, modTime := range dirTimes {
+		fullPath := filepath.Join(sourceDir, dir)
+		if err := os.Chtimes(fullPath, modTime, modTime); err != nil {
+			t.Fatalf("Failed to set directory %s time: %v", dir, err)
+		}
+	}
+
+	// Wait a moment to ensure time changes are applied
+	time.Sleep(100 * time.Millisecond)
+
+	// Create zip
+	zipPath := filepath.Join(tmpDir, "test.zip")
+	err = ZipDirectory(zipPath, sourceDir)
+	if err != nil {
+		t.Fatalf("ZipDirectory failed: %v", err)
+	}
+
+	// Print zip contents using Go's zip reader
+	fmt.Printf("=== ZIP Archive Contents ===\n")
+	archive, err := zip.OpenReader(zipPath)
+	if err == nil {
+		defer archive.Close()
+		for _, f := range archive.File {
+			modifiedTime := f.Modified
+			if modifiedTime.IsZero() {
+				modifiedTime = f.FileHeader.Modified
+			}
+			fmt.Printf("  %s (dir: %v) modTime: %v\n", f.Name, f.FileInfo().IsDir(), modifiedTime.UTC())
+		}
+	}
+
+	// Extract to different directory
+	extractDir := filepath.Join(tmpDir, "extracted")
+	err = UnzipDirectory(extractDir, zipPath)
+	if err != nil {
+		t.Fatalf("UnzipDirectory failed: %v", err)
+	}
+
+	// Expected items (both files and directories)
+	baseName := "test"
+	expectedItems := []string{
+		baseName + "/",
+		baseName + "/file1.txt",
+		baseName + "/subdir/",
+		baseName + "/subdir/file2.txt",
+		baseName + "/subdir2/",
+		baseName + "/subdir2/file3.txt",
+		baseName + "/file4.txt",
+	}
+
+	expectedExtractedTimes := map[string]time.Time{
+		baseName + "/":                  rootModTime,
+		baseName + "/subdir/":           subdirModTime,
+		baseName + "/subdir2/":          subdir2ModTime,
+		baseName + "/file1.txt":         fileModTime,
+		baseName + "/subdir/file2.txt":  fileModTime,
+		baseName + "/subdir2/file3.txt": fileModTime,
+		baseName + "/file4.txt":         fileModTime,
+	}
+
+	// Verify all items exist with correct modification times
+	fmt.Printf("=== Extracted Files Verification ===\n")
+	for _, itemPath := range expectedItems {
+		fullPath := filepath.Join(extractDir, itemPath)
+		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+			t.Errorf("Item was not extracted: %s", itemPath)
+			continue
+		}
+
+		// Verify with test assertion
+		expectedTime := expectedExtractedTimes[itemPath]
+		verifyFileModTime(t, fullPath, expectedTime)
+	}
+
+	// Verify file contents
+	verifyFileContent(t, filepath.Join(extractDir, baseName+"/file1.txt"), "Content of file 1")
+	verifyFileContent(t, filepath.Join(extractDir, baseName+"/subdir/file2.txt"), "Content of file 2 in subdir")
+	verifyFileContent(t, filepath.Join(extractDir, baseName+"/subdir2/file3.txt"), "Content of file 3 in another subdir")
+	verifyFileContent(t, filepath.Join(extractDir, baseName+"/file4.txt"), "Content of file 4")
+}
+
+// Helper function to create test zip file with specific modification time
+func createTestZipWithModTime(zipPath string, modTime time.Time) error {
+	file, err := os.Create(zipPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := zip.NewWriter(file)
+	defer writer.Close()
+
+	// Get base name for consistent structure
+	baseName := strings.TrimSuffix(filepath.Base(zipPath), ".zip")
+
+	// First create entries for directories with modification time
+	dirs := []string{
+		baseName + "/",
+		baseName + "/subdir/",
+		baseName + "/subdir2/",
+	}
+
+	for _, dir := range dirs {
+		header := &zip.FileHeader{
+			Name:     filepath.ToSlash(dir),
+			Modified: modTime,
+		}
+		_, err := writer.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Then create files
+	files := []struct {
+		name    string
+		content string
+	}{
+		{filepath.Join(baseName, "file1.txt"), "Test content 1"},
+		{filepath.Join(baseName, "subdir", "file2.txt"), "Test content 2"},
+		{filepath.Join(baseName, "subdir2", "file3.txt"), "Test content 3"},
+		{filepath.Join(baseName, "file4.txt"), "Test content 4"},
+	}
+
+	for _, f := range files {
+		header := &zip.FileHeader{
+			Name:     filepath.ToSlash(f.name),
+			Modified: modTime,
+			Method:   zip.Deflate,
+		}
+
+		w, err := writer.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+		if _, err := w.Write([]byte(f.content)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Helper function to verify file content
+func verifyFileContent(t *testing.T, filePath, expectedContent string) {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Errorf("Failed to read file %s: %v", filePath, err)
+		return
+	}
+
+	if string(content) != expectedContent {
+		t.Errorf("Content mismatch for %s, expected '%s', got '%s'",
+			filePath, expectedContent, string(content))
+	}
+}
+
+// Helper function to verify file modification time
+func verifyFileModTime(t *testing.T, filePath string, expectedTime time.Time) {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		t.Errorf("Failed to stat file %s: %v", filePath, err)
+		return
+	}
+
+	// Compare times truncated to seconds (file system precision may vary)
+	expected := expectedTime.UTC().Truncate(time.Second)
+	actual := info.ModTime().UTC().Truncate(time.Second)
+
+	if !actual.Equal(expected) {
+		t.Errorf("Modification time mismatch for %s, expected %v, got %v",
+			filePath, expected, actual)
+	}
 }
