@@ -595,6 +595,7 @@ main() {
      "armv8l" ) croc_arch="ARM";;
      "armv9l" ) croc_arch="ARM";;
        "i686" ) croc_arch="32bit";;
+    "riscv64" ) croc_arch="RISCV64";;
             * ) croc_arch="unknown";;
   esac
 
