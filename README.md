@@ -1,15 +1,9 @@
 <p align="center">
   <img src="https://user-images.githubusercontent.com/6550035/46709024-9b23ad00-cbf6-11e8-9fb2-ca8b20b7dbec.jpg" width="408px" border="0" alt="croc">
   <br>
-  <a href="https://github.com/schollz/croc/releases/latest">
-    <img src="https://img.shields.io/github/v/release/schollz/croc" alt="Version">
-  </a>
-  <a href="https://github.com/schollz/croc/actions/workflows/ci.yml">
-    <img src="https://github.com/schollz/croc/actions/workflows/ci.yml/badge.svg" alt="Build Status">
-  </a>
-  <a href="https://github.com/sponsors/schollz"> <img
-alt="GitHub Sponsors" src="https://img.shields.io/github/sponsors/schollz">
-</a>
+  <a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/github/v/release/schollz/croc" alt="Version"></a>
+  <a href="https://github.com/schollz/croc/actions/workflows/ci.yml"><img src="https://github.com/schollz/croc/actions/workflows/ci.yml/badge.svg" alt="Build Status"></a>
+  <a href="https://github.com/sponsors/schollz"><img alt="GitHub Sponsors" src="https://img.shields.io/github/sponsors/schollz"></a>
 </p>
 <p align="center">
   <strong>This project’s future depends on community support. <a href="https://github.com/sponsors/schollz">Become a sponsor today</a>.</strong>
