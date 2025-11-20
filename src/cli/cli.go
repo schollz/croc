@@ -96,6 +96,19 @@ func Run() (err error) {
 				&cli.IntFlag{Name: "transfers", Value: 5, Usage: "number of ports to use for relay"},
 			},
 		},
+		{
+			Name:   "generate-fish-completion",
+			Usage:  "generate fish completion and output to stdout",
+			Hidden: true,
+			Action: func(ctx *cli.Context) error {
+				completion, err := ctx.App.ToFishCompletion()
+				if err != nil {
+					return err
+				}
+				fmt.Print(completion)
+				return nil
+			},
+		},
 	}
 	app.Flags = []cli.Flag{
 		&cli.BoolFlag{Name: "internal-dns", Usage: "use a built-in DNS stub resolver rather than the host operating system"},
