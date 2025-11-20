@@ -36,6 +36,7 @@ jobs:
           CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -ldflags '-extldflags "-static"' -o croc-linux-arm
           GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -ldflags '-extldflags "-static"' -o croc-linux-arm5
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags '-extldflags "-static"' -o croc-linux-arm64
+          CGO_ENABLED=0 GOOS=linux GOARCH=riscv64 go build -ldflags '-extldflags "-static"' -o croc-linux-riscv64
           CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"' -o croc-darwin-amd64
           CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags '-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"' -o croc-darwin-arm64
           CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 go build -ldflags '' -o croc-freebsd-amd64

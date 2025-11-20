@@ -19,7 +19,6 @@ build:
     - 386
     - arm
     - arm64
-    - riscv64
   ignore:
     - goos: darwin
       goarch: 386
@@ -42,7 +41,6 @@ nfpms:
       386: 32bit
       arm: ARM
       arm64: ARM64
-      riscv64: RISCV64
       darwin: macOS
       linux: Linux
       windows: Windows
@@ -62,7 +60,6 @@ archives:
       386: 32bit
       arm: ARM
       arm64: ARM64
-      riscv64: RISCV64
       darwin: macOS
       linux: Linux
       windows: Windows

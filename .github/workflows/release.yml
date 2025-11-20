@@ -86,6 +86,11 @@ jobs:
             name: Linux-ARM64
             ext: ""
             archive: tar.gz
+          - goos: linux
+            goarch: riscv64
+            name: Linux-RISCV64
+            ext: ""
+            archive: tar.gz
           
           # macOS builds
           - goos: darwin
