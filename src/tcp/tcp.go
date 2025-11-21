@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +15,8 @@ import (
 	"github.com/schollz/croc/v10/src/comm"
 	"github.com/schollz/croc/v10/src/crypt"
 	"github.com/schollz/croc/v10/src/models"
+
+	"github.com/huin/goupnp/dcps/internetgateway2"
 )
 
 type server struct {
@@ -130,6 +133,22 @@ func (s *server) run() (err error) {
 		return fmt.Errorf("error listening on %s: %w", addr, err)
 	}
 	defer server.Close()
+
+	// setup UPnP
+	portInt, _ := strconv.Atoi(s.port)
+	defer clearUPnP(portInt)
+	if portInt > 0 {
+		go func() {
+			log.Debugf("attempting to setup UPnP for port %s", s.port)
+			err := setupUPnP(portInt)
+			if err != nil {
+				log.Debugf("UPnP setup failed: %v", err)
+			} else {
+				log.Infof("UPnP enabled for port %s", s.port)
+			}
+		}()
+	}
+
 	// spawn a new goroutine whenever a client connects
 	for {
 		connection, err := server.Accept()
@@ -592,4 +611,113 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	}
 	log.Debug("all set")
 	return
+}
+
+func setupUPnP(port int) (err error) {
+	localIP, err := getLocalIP()
+	if err != nil {
+		return err
+	}
+
+	// Try WANIPConnection1 first
+	clients, _, err := internetgateway2.NewWANIPConnection1Clients()
+	if err == nil && len(clients) > 0 {
+		client := clients[0]
+		externalIP, _ := client.GetExternalIPAddress()
+		err = client.AddPortMapping(
+			"",           // NewRemoteHost (empty for wildcard)
+			uint16(port), // NewExternalPort
+			"TCP",        // NewProtocol
+			uint16(port), // NewInternalPort
+			localIP,      // NewInternalClient
+			true,         // NewEnabled
+			"croc relay", // NewPortMappingDescription
+			0,            // NewLeaseDuration (0 = permanent)
+		)
+		if err != nil {
+			return fmt.Errorf("failed to add port mapping: %w", err)
+		}
+		log.Debugf("UPnP port mapping added for external IP %s", externalIP)
+		return nil
+	}
+
+	// fallback to WANPPPConnection1
+	pppClients, _, err := internetgateway2.NewWANPPPConnection1Clients()
+	if err == nil && len(pppClients) > 0 {
+		client := pppClients[0]
+		externalIP, _ := client.GetExternalIPAddress()
+
+		err = client.AddPortMapping(
+			"",           // NewRemoteHost (empty for wildcard)
+			uint16(port), // NewExternalPort
+			"TCP",        // NewProtocol
+			uint16(port), // NewInternalPort
+			localIP,      // NewInternalClient
+			true,         // NewEnabled
+			"croc relay", // NewPortMappingDescription
+			0,            // NewLeaseDuration (0 = permanent)
+		)
+		if err != nil {
+			return fmt.Errorf("failed to add port mapping: %w", err)
+		}
+		log.Debugf("UPnP port mapping added for external IP %s", externalIP)
+		return nil
+	}
+
+	return fmt.Errorf("no UPnP gateway found")
+}
+
+func clearUPnP(port int) (err error) {
+	// Try WANIPConnection1 first
+	log.Debugf("attempting to clears UPnP port mapping for port %d", port)
+	clients, _, err := internetgateway2.NewWANIPConnection1Clients()
+	if err == nil && len(clients) > 0 {
+		client := clients[0]
+
+		err = client.DeletePortMapping(
+			"",           // NewRemoteHost (empty for wildcard)
+			uint16(port), // NewExternalPort
+			"TCP",        // NewProtocol
+		)
+		if err != nil {
+			return fmt.Errorf("failed to delete port mapping: %w", err)
+		}
+		log.Debugf("UPnP port mapping removed for port %d", port)
+		return nil
+	}
+
+	// fallback to WANPPPConnection1
+	pppClients, _, err := internetgateway2.NewWANPPPConnection1Clients()
+	if err == nil && len(pppClients) > 0 {
+		client := pppClients[0]
+		err = client.DeletePortMapping(
+			"",           // NewRemoteHost (empty for wildcard)
+			uint16(port), // NewExternalPort
+			"TCP",        // NewProtocol
+		)
+		if err != nil {
+			return fmt.Errorf("failed to delete port mapping: %w", err)
+		}
+		log.Debugf("UPnP port mapping removed for port %d", port)
+		return nil
+	}
+
+	return fmt.Errorf("no UPnP gateway found")
+}
+
+func getLocalIP() (string, error) {
+	// Get local IP address to use in UPnP mapping
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", fmt.Errorf("failed to get local IP address: %w", err)
+	}
+
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String(), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("failed to get local IP address")
 }
