@@ -762,7 +762,7 @@ On the other computer run:
 					dataDecrypt, decryptErr = crypt.Decrypt(data, kB)
 					if decryptErr != nil {
 						log.Tracef("error decrypting: %v: '%s'", decryptErr, data)
-						// relay sent a messag encrypted with an invalid key.
+						// relay sent a message encrypted with an invalid key.
 						// consider this a security issue and abort
 						if strings.Contains(decryptErr.Error(), "message authentication failed") {
 							errchan <- decryptErr

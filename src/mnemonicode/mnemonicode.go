@@ -44,7 +44,7 @@ func WordsRequired(length int) int {
 
 // EncodeWordList encodes src into mnemomic words which are appended to dst.
 // The final wordlist is returned.
-// There will be WordsRequired(len(src)) words appeneded.
+// There will be WordsRequired(len(src)) words appended.
 func EncodeWordList(dst []string, src []byte) (result []string) {
 	if n := len(dst) + WordsRequired(len(src)); cap(dst) < n {
 		result = make([]string, len(dst), n)

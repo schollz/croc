@@ -281,7 +281,7 @@ func LocalIP() string {
 	return localAddr.IP.String()
 }
 
-// GenerateRandomPin returns a randomly generated pin with set lenght
+// GenerateRandomPin returns a randomly generated pin with set length
 func GenerateRandomPin() string {
 	s := ""
 	max := new(big.Int)
