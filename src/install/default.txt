@@ -580,6 +580,8 @@ main() {
     *"BusyBox"* )
         croc_os="Linux"
         ;;
+    "MINGW"* ) croc_os="Windows";
+                croc_dl_ext="zip";;
     "CYGWIN"* ) croc_os="Windows";
                 croc_dl_ext="zip";
                 print_message "== Cygwin is currently unsupported." "error";
