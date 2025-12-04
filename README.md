@@ -277,13 +277,13 @@ croc send --hash imohash SOMEFILE
 By default, the code phrase is copied to your clipboard. To disable this:
 
 ```bash
-croc send --disable-clipboard [filename]
+croc --disable-clipboard send [filename]
 ```
 
 To copy the full command with the secret as an environment variable (useful on Linux/macOS):
 
 ```bash
-croc send --extended-clipboard [filename]
+croc --extended-clipboard send [filename]
 ```
 
 This copies the full command like `CROC_SECRET="code-phrase" croc` (including any relay/pass flags).
