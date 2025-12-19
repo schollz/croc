@@ -123,7 +123,7 @@ func (s *server) run() (err error) {
 
 	}
 	addr = strings.Replace(addr, "127.0.0.1", "0.0.0.0", 1)
-	log.Info("starting TCP server on " + addr)
+	log.Infof("starting TCP server on %s", addr)
 	server, err := net.Listen(network, addr)
 	if err != nil {
 		return fmt.Errorf("error listening on %s: %w", addr, err)
