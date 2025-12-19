@@ -115,13 +115,12 @@ func (s *server) run() (err error) {
 			ip = tcpIP.IP
 		}
 		addr = net.JoinHostPort(ip.String(), s.port)
-		if s.host != "" {
-			if ip.To4() != nil {
-				network = "tcp4"
-			} else {
-				network = "tcp6"
-			}
+		if ip.To4() != nil {
+			network = "tcp4"
+		} else {
+			network = "tcp6"
 		}
+
 	}
 	addr = strings.Replace(addr, "127.0.0.1", "0.0.0.0", 1)
 	log.Info("starting TCP server on " + addr)
