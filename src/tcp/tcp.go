@@ -137,9 +137,9 @@ func (s *server) run() (err error) {
 			return fmt.Errorf("problem accepting connection: %w", err)
 		}
 		log.Debugf("client %s connected", connection.RemoteAddr().String())
-		go func(port string, connection net.Conn) {
+		go func(connection net.Conn) {
 			c := comm.New(connection)
-			room, errCommunication := s.clientCommunication(port, c)
+			room, errCommunication := s.clientCommunication(c)
 			log.Debugf("room: %+v", room)
 			log.Debugf("err: %+v", errCommunication)
 			if errCommunication != nil {
@@ -183,7 +183,7 @@ func (s *server) run() (err error) {
 				}
 				time.Sleep(1 * time.Second)
 			}
-		}(s.port, connection)
+		}(connection)
 	}
 }
 
@@ -222,7 +222,7 @@ func (s *server) stopRoomDeletion() {
 
 var weakKey = []byte{1, 2, 3}
 
-func (s *server) clientCommunication(port string, c *comm.Comm) (room string, err error) {
+func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 	// establish secure password with PAKE for communication with relay
 	B, err := pake.InitCurve(weakKey, 1, "siec")
 	if err != nil {
