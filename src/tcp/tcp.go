@@ -156,13 +156,14 @@ func (s *server) run() (err error) {
 				log.Debugf("checking connection of room %s for %+v", room, c)
 				deleteIt := false
 				s.rooms.Lock()
-				if _, ok := s.rooms.rooms[room]; !ok {
+				roomData, ok := s.rooms.rooms[room]
+				if !ok {
 					log.Debug("room is gone")
 					s.rooms.Unlock()
 					return
 				}
-				log.Debugf("room: %+v", s.rooms.rooms[room])
-				if s.rooms.rooms[room].first != nil && s.rooms.rooms[room].second != nil {
+				log.Debugf("room: %+v", roomData)
+				if roomData.first != nil && roomData.second != nil {
 					log.Debug("rooms ready")
 					s.rooms.Unlock()
 					break
@@ -385,17 +386,17 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 func (s *server) deleteRoom(room string) {
 	s.rooms.Lock()
 	defer s.rooms.Unlock()
-	if _, ok := s.rooms.rooms[room]; !ok {
+	roomData, ok := s.rooms.rooms[room]
+	if !ok {
 		return
 	}
 	log.Debugf("deleting room: %s", room)
-	if s.rooms.rooms[room].first != nil {
-		s.rooms.rooms[room].first.Close()
+	if roomData.first != nil {
+		roomData.first.Close()
 	}
-	if s.rooms.rooms[room].second != nil {
-		s.rooms.rooms[room].second.Close()
+	if roomData.second != nil {
+		roomData.second.Close()
 	}
-	s.rooms.rooms[room] = roomInfo{first: nil, second: nil}
 	delete(s.rooms.rooms, room)
 }
 
