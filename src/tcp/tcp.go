@@ -167,13 +167,12 @@ func (s *server) run() (err error) {
 					log.Debug("rooms ready")
 					s.rooms.Unlock()
 					break
-				} else {
-					if s.rooms.rooms[room].first != nil {
-						errSend := s.rooms.rooms[room].first.Send([]byte{1})
-						if errSend != nil {
-							log.Debug(errSend)
-							deleteIt = true
-						}
+				}
+				if s.rooms.rooms[room].first != nil {
+					errSend := s.rooms.rooms[room].first.Send([]byte{1})
+					if errSend != nil {
+						log.Debug(errSend)
+						deleteIt = true
 					}
 				}
 				s.rooms.Unlock()
