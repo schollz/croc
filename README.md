@@ -9,7 +9,7 @@
   <strong>This project’s future depends on community support. <a href="https://github.com/sponsors/schollz">Become a sponsor today</a>.</strong>
 </p>
 
-## About
+## ℹ️ About
 
 `croc` is a tool that allows any two computers to simply and securely transfer files and folders. AFAIK, *croc* is the only CLI file-transfer tool that does **all** of the following:
 
@@ -26,7 +26,7 @@ For more information about `croc`, see [my blog post](https://schollz.com/tinker
 
 ![Example](src/install/customization.gif)
 
-## Install
+## ℹ️ Install
 
 You can download [the latest release for your system](https://github.com/schollz/croc/releases/latest), or install a release from the command-line:
 
@@ -34,7 +34,7 @@ You can download [the latest release for your system](https://github.com/schollz
 curl https://getcroc.schollz.com | bash
 ```
 
-### On macOS
+### 💻 On macOS
 
 Using [Homebrew](https://brew.sh/):
 
@@ -49,7 +49,7 @@ sudo port selfupdate
 sudo port install croc
 ```
 
-### On Windows
+### 💻 On Windows
 
 You can install the latest release with [Scoop](https://scoop.sh/), [Chocolatey](https://chocolatey.org/), or [Winget](https://learn.microsoft.com/windows/package-manager/):
 
@@ -65,7 +65,7 @@ choco install croc
 winget install schollz.croc
 ```
 
-### Using nix-env
+### 💻 Using nix-env
 
 You can install the latest release with [Nix](https://nixos.org/):
 
@@ -73,7 +73,7 @@ You can install the latest release with [Nix](https://nixos.org/):
 nix-env -i croc
 ```
 
-### On NixOS
+### 💻 On NixOS
 
 You can add this to your [configuration.nix](https://nixos.org/manual/nixos/stable/#ch-configuration):
 
@@ -83,7 +83,7 @@ environment.systemPackages = [
 ];
 ```
 
-### On Alpine Linux
+### 💻 On Alpine Linux
 
 First, install dependencies:
 
@@ -92,7 +92,7 @@ apk add bash coreutils
 wget -qO- https://getcroc.schollz.com | bash
 ```
 
-### On Arch Linux
+### 💻 On Arch Linux
 
 Install with `pacman`:
 
@@ -100,7 +100,7 @@ Install with `pacman`:
 pacman -S croc
 ```
 
-### On Fedora
+### 💻 On Fedora
 
 Install with `dnf`:
 
@@ -108,7 +108,7 @@ Install with `dnf`:
 dnf install croc
 ```
 
-### On Gentoo
+### 💻 On Gentoo
 
 Install with `portage`:
 
@@ -116,7 +116,7 @@ Install with `portage`:
 emerge net-misc/croc
 ```
 
-### On Termux
+### 💻 On Termux
 
 Install with `pkg`:
 
@@ -124,7 +124,7 @@ Install with `pkg`:
 pkg install croc
 ```
 
-### On FreeBSD
+### 💻 On FreeBSD
 
 Install with `pkg`:
 
@@ -132,7 +132,7 @@ Install with `pkg`:
 pkg install croc
 ```
 
-### On Linux, macOS, and Windows via Conda
+### 💻 On Linux, macOS, and Windows via Conda
 
 You can install from [conda-forge](https://github.com/conda-forge/croc-feedstock) globally with [`pixi`](https://pixi.sh/):
 
@@ -146,7 +146,7 @@ Or install into a particular environment with [`conda`](https://docs.conda.io/pr
 conda install --channel conda-forge croc
 ```
 
-### On Linux, macOS via Docker 
+### 💻 On Linux, macOS via Docker 
 
 Add the following one-liner function to your ~/.profile (works with any POSIX-compliant shell):
 
@@ -156,7 +156,7 @@ croc() { [ $# -eq 0 ] && set -- ""; docker run --rm -it --user "$(id -u):$(id -g
 
 You can also just paste it in the terminal for current session. On first run Docker will pull the image. `croc` via Docker will only work within the current directory and its subdirectories.
 
-### Build from Source
+### 💻 Build from Source
 
 If you prefer, you can [install Go](https://go.dev/dl/) and build from source (requires Go 1.22+):
 
@@ -164,11 +164,11 @@ If you prefer, you can [install Go](https://go.dev/dl/) and build from source (r
 go install github.com/schollz/croc/v10@latest
 ```
 
-### On Android
+### 📱 On Android
 
 There is a 3rd-party F-Droid app [available to download](https://f-droid.org/packages/com.github.howeyc.crocgui/).
 
-## Usage
+## 🚀 Usage
 
 To send a file, simply do:
 
@@ -186,9 +186,9 @@ croc code-phrase
 
 The code phrase is used to establish password-authenticated key agreement ([PAKE](https://en.wikipedia.org/wiki/Password-authenticated_key_agreement)) which generates a secret key for the sender and recipient to use for end-to-end encryption.
 
-### Customizations & Options
+### 📋 Customizations & Options
 
-#### Using `croc` on Linux or macOS
+#### 🐊 Using `croc` on Linux or macOS
 
 On Linux and macOS, the sending and receiving process is slightly different to avoid [leaking the secret via the process name](https://nvd.nist.gov/vuln/detail/CVE-2023-43621). You will need to run `croc` with the secret as an environment variable. For example, to receive with the secret `***`:
 
@@ -202,7 +202,7 @@ For single-user systems, the default behavior can be permanently enabled by runn
 croc --classic
 ```
 
-#### Custom Code Phrase
+#### 🐊 Custom Code Phrase
 
 You can send with your own code phrase (must be more than 6 characters):
 
@@ -210,7 +210,7 @@ You can send with your own code phrase (must be more than 6 characters):
 croc send --code [code-phrase] [file(s)-or-folder]
 ```
 
-#### Allow Overwriting Without Prompt
+#### 🐊 Allow Overwriting Without Prompt
 
 To automatically overwrite files without prompting, use the `--overwrite` flag:
 
@@ -218,7 +218,7 @@ To automatically overwrite files without prompting, use the `--overwrite` flag:
 croc --yes --overwrite <code>
 ```
 
-#### Excluding Folders
+#### 🐊 Excluding Folders
 
 To exclude folders from being sent, use the `--exclude` flag with comma-delimited exclusions:
 
@@ -226,7 +226,7 @@ To exclude folders from being sent, use the `--exclude` flag with comma-delimite
 croc send --exclude "node_modules,.venv" [folder]
 ```
 
-#### Use Pipes - stdin and stdout
+#### 🐊 Use Pipes - stdin and stdout
 
 You can pipe to `croc`:
 
@@ -240,7 +240,7 @@ To receive the file to `stdout`, you can use:
 croc --yes [code-phrase] > out
 ```
 
-#### Send Text
+#### 🐊 Send Text
 
 To send URLs or short text, use:
 
@@ -248,7 +248,23 @@ To send URLs or short text, use:
 croc send --text "hello world"
 ```
 
-#### Use a Proxy
+#### 🐊 Send Multiple Files
+
+You can send multiple files directly by listing the files and/or folders:
+
+```bash
+croc send [file1] [file2] [file3] [folder1] [folder2]
+```
+
+#### 🐊 Show QR Code
+
+To show QR code (for mobile devices), use:
+
+```bash
+croc send --qr [file(s)-or-folder]
+```
+
+#### 🐊 Use a Proxy
 
 You can send files via a proxy by adding `--socks5`:
 
@@ -256,7 +272,7 @@ You can send files via a proxy by adding `--socks5`:
 croc --socks5 "127.0.0.1:9050" send SOMEFILE
 ```
 
-#### Change Encryption Curve
+#### 🐊 Change Encryption Curve
 
 To choose a different elliptic curve for encryption, use the `--curve` flag:
 
@@ -264,7 +280,7 @@ To choose a different elliptic curve for encryption, use the `--curve` flag:
 croc --curve p521 <codephrase>
 ```
 
-#### Change Hash Algorithm
+#### 🐊 Change Hash Algorithm
 
 For faster hashing, use the `imohash` algorithm:
 
@@ -272,7 +288,7 @@ For faster hashing, use the `imohash` algorithm:
 croc send --hash imohash SOMEFILE
 ```
 
-#### Clipboard Options
+#### 🐊 Clipboard Options
 
 By default, the code phrase is copied to your clipboard. To disable this:
 
@@ -288,7 +304,7 @@ croc send --extended-clipboard [filename]
 
 This copies the full command like `CROC_SECRET="code-phrase" croc` (including any relay/pass flags).
 
-#### Quiet Mode
+#### 🐊 Quiet Mode
 
 To suppress all output (useful for scripts and automation):
 
@@ -296,7 +312,7 @@ To suppress all output (useful for scripts and automation):
 croc --quiet send [filename]
 ```
 
-#### Self-host Relay
+#### 🐊 Self-host Relay
 
 You can run your own relay:
 
@@ -312,7 +328,7 @@ To send files using your relay:
 croc --relay "myrelay.example.com:9009" send [filename]
 ```
 
-#### Self-host Relay with Docker
+#### 🐊 Self-host Relay with Docker
 
 You can also run a relay with Docker:
 
@@ -326,7 +342,7 @@ To send files using your custom relay:
 croc --pass YOURPASSWORD --relay "myreal.example.com:9009" send [filename]
 ```
 
-## Acknowledgements
+## 🏆 Acknowledgements
 
 `croc` has evolved through many iterations, and I am thankful for the contributions! Special thanks to:
 
