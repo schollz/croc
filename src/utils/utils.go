@@ -334,6 +334,24 @@ func MissingChunks(fname string, fsize int64, chunkSize int) (chunkRanges []int6
 		return
 	}
 
+	// Show progress bar for large files (> 10MB)
+	var bar *progressbar.ProgressBar
+	showProgress := fsize > 10*1024*1024
+	if showProgress {
+		fnameShort := path.Base(fname)
+		if len(fnameShort) > 20 {
+			fnameShort = fnameShort[:20] + "..."
+		}
+		bar = progressbar.NewOptions64(fsize,
+			progressbar.OptionSetWriter(os.Stderr),
+			progressbar.OptionShowBytes(true),
+			progressbar.OptionSetDescription(fmt.Sprintf("Checking %s", fnameShort)),
+			progressbar.OptionClearOnFinish(),
+			progressbar.OptionFullWidth(),
+			progressbar.OptionThrottle(100*time.Millisecond),
+		)
+	}
+
 	emptyBuffer := make([]byte, chunkSize)
 	chunkNum := 0
 	chunks := make([]int64, int64(math.Ceil(float64(fsize)/float64(chunkSize))))
@@ -349,6 +367,12 @@ func MissingChunks(fname string, fsize int64, chunkSize int) (chunkRanges []int6
 			chunkNum++
 		}
 		currentLocation += int64(bytesread)
+		if showProgress && bar != nil {
+			bar.Add(bytesread)
+		}
+	}
+	if showProgress && bar != nil {
+		bar.Finish()
 	}
 	if chunkNum == 0 {
 		chunkRanges = []int64{}
