@@ -115,16 +115,15 @@ func (s *server) run() (err error) {
 			ip = tcpIP.IP
 		}
 		addr = net.JoinHostPort(ip.String(), s.port)
-		if s.host != "" {
-			if ip.To4() != nil {
-				network = "tcp4"
-			} else {
-				network = "tcp6"
-			}
+		if ip.To4() != nil {
+			network = "tcp4"
+		} else {
+			network = "tcp6"
 		}
+
 	}
 	addr = strings.Replace(addr, "127.0.0.1", "0.0.0.0", 1)
-	log.Info("starting TCP server on " + addr)
+	log.Infof("starting TCP server on %s", addr)
 	server, err := net.Listen(network, addr)
 	if err != nil {
 		return fmt.Errorf("error listening on %s: %w", addr, err)
@@ -137,9 +136,9 @@ func (s *server) run() (err error) {
 			return fmt.Errorf("problem accepting connection: %w", err)
 		}
 		log.Debugf("client %s connected", connection.RemoteAddr().String())
-		go func(port string, connection net.Conn) {
+		go func(connection net.Conn) {
 			c := comm.New(connection)
-			room, errCommunication := s.clientCommunication(port, c)
+			room, errCommunication := s.clientCommunication(c)
 			log.Debugf("room: %+v", room)
 			log.Debugf("err: %+v", errCommunication)
 			if errCommunication != nil {
@@ -157,23 +156,23 @@ func (s *server) run() (err error) {
 				log.Debugf("checking connection of room %s for %+v", room, c)
 				deleteIt := false
 				s.rooms.Lock()
-				if _, ok := s.rooms.rooms[room]; !ok {
+				roomData, ok := s.rooms.rooms[room]
+				if !ok {
 					log.Debug("room is gone")
 					s.rooms.Unlock()
 					return
 				}
-				log.Debugf("room: %+v", s.rooms.rooms[room])
-				if s.rooms.rooms[room].first != nil && s.rooms.rooms[room].second != nil {
+				log.Debugf("room: %+v", roomData)
+				if roomData.first != nil && roomData.second != nil {
 					log.Debug("rooms ready")
 					s.rooms.Unlock()
 					break
-				} else {
-					if s.rooms.rooms[room].first != nil {
-						errSend := s.rooms.rooms[room].first.Send([]byte{1})
-						if errSend != nil {
-							log.Debug(errSend)
-							deleteIt = true
-						}
+				}
+				if s.rooms.rooms[room].first != nil {
+					errSend := s.rooms.rooms[room].first.Send([]byte{1})
+					if errSend != nil {
+						log.Debug(errSend)
+						deleteIt = true
 					}
 				}
 				s.rooms.Unlock()
@@ -183,7 +182,7 @@ func (s *server) run() (err error) {
 				}
 				time.Sleep(1 * time.Second)
 			}
-		}(s.port, connection)
+		}(connection)
 	}
 }
 
@@ -222,7 +221,7 @@ func (s *server) stopRoomDeletion() {
 
 var weakKey = []byte{1, 2, 3}
 
-func (s *server) clientCommunication(port string, c *comm.Comm) (room string, err error) {
+func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 	// establish secure password with PAKE for communication with relay
 	B, err := pake.InitCurve(weakKey, 1, "siec")
 	if err != nil {
@@ -386,17 +385,17 @@ func (s *server) clientCommunication(port string, c *comm.Comm) (room string, er
 func (s *server) deleteRoom(room string) {
 	s.rooms.Lock()
 	defer s.rooms.Unlock()
-	if _, ok := s.rooms.rooms[room]; !ok {
+	roomData, ok := s.rooms.rooms[room]
+	if !ok {
 		return
 	}
 	log.Debugf("deleting room: %s", room)
-	if s.rooms.rooms[room].first != nil {
-		s.rooms.rooms[room].first.Close()
+	if roomData.first != nil {
+		roomData.first.Close()
 	}
-	if s.rooms.rooms[room].second != nil {
-		s.rooms.rooms[room].second.Close()
+	if roomData.second != nil {
+		roomData.second.Close()
 	}
-	s.rooms.rooms[room] = roomInfo{first: nil, second: nil}
 	delete(s.rooms.rooms, room)
 }
 
