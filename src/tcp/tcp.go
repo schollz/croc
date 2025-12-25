@@ -2,6 +2,7 @@ package tcp
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net"
 	"strings"
@@ -27,7 +28,9 @@ type server struct {
 	roomCleanupInterval time.Duration
 	roomTTL             time.Duration
 
-	stopRoomCleanup chan struct{}
+	// stopRoomCleanup chan struct{}
+	// replaced by stop ctx.go
+	*stop
 }
 
 type roomInfo struct {
@@ -50,7 +53,8 @@ func newDefaultServer() *server {
 	s.roomCleanupInterval = DEFAULT_ROOM_CLEANUP_INTERVAL
 	s.roomTTL = DEFAULT_ROOM_TTL
 	s.debugLevel = DEFAULT_LOG_LEVEL
-	s.stopRoomCleanup = make(chan struct{})
+	// s.stopRoomCleanup = make(chan struct{}) replaced by stop
+	s.stop = newStop(context.Background())
 	return s
 }
 
@@ -74,27 +78,38 @@ func Run(debugLevel, host, port, password string, banner ...string) (err error) 
 	return RunWithOptionsAsync(host, port, password, WithBanner(banner...), WithLogLevel(debugLevel))
 }
 
+// Mask our password in logs
+func maskedPassword(password string) (s string) {
+	if len(password) > 2 {
+		s = fmt.Sprintf("%c***%c", password[0], password[len(password)-1])
+	} else {
+		s = password
+	}
+	return
+}
+
 func (s *server) start() (err error) {
 	log.SetLevel(s.debugLevel)
 
-	// Mask our password in logs
-	maskedPassword := ""
-	if len(s.password) > 2 {
-		maskedPassword = fmt.Sprintf("%c***%c", s.password[0], s.password[len(s.password)-1])
-	} else {
-		maskedPassword = s.password
-	}
-
-	log.Debugf("starting with password '%s'", maskedPassword)
+	log.Debugf("starting with password '%s'", maskedPassword(s.password))
 
 	s.rooms.Lock()
 	s.rooms.rooms = make(map[string]roomInfo)
 	s.rooms.Unlock()
 
-	go s.deleteOldRooms()
-	defer s.stopRoomDeletion()
+	s.stop.wg.Add(1)
+	go func() {
+		defer s.stop.wg.Done()
+		s.deleteOldRooms()
+	}()
+	// defer s.stopRoomDeletion()
+	defer s.stop.Cancel()
+	if s.stop.gui {
+		defer s.stop.wg.Wait()
+	}
 
 	err = s.run()
+	err = Ignore(err)
 	if err != nil {
 		log.Error(err)
 	}
@@ -124,19 +139,36 @@ func (s *server) run() (err error) {
 	}
 	addr = strings.Replace(addr, "127.0.0.1", "0.0.0.0", 1)
 	log.Infof("starting TCP server on %s", addr)
-	server, err := net.Listen(network, addr)
+	lc := net.ListenConfig{}
+	s.stop.server, err = lc.Listen(s.stop.ctx, network, addr)
 	if err != nil {
 		return fmt.Errorf("error listening on %s: %w", addr, err)
 	}
-	defer server.Close()
+	defer s.stop.server.Close()
+
+	go func() {
+		dc := &net.Dialer{
+			Timeout: 100 * time.Millisecond,
+		}
+		if conn, err := dc.DialContext(s.stop.ctx, network, addr); err == nil {
+			log.Debugf("started TCP server on %s", addr)
+			conn.Close()
+		} else {
+			log.Errorf("started TCP server on %s : %v", addr, err)
+			s.stop.Cancel()
+		}
+	}()
+
 	// spawn a new goroutine whenever a client connects
 	for {
-		connection, err := server.Accept()
+		connection, err := s.stop.server.Accept()
 		if err != nil {
 			return fmt.Errorf("problem accepting connection: %w", err)
 		}
 		log.Debugf("client %s connected", connection.RemoteAddr().String())
+		s.stop.wg.Add(1)
 		go func(connection net.Conn) {
+			defer s.stop.wg.Done()
 			c := comm.New(connection)
 			room, errCommunication := s.clientCommunication(c)
 			log.Debugf("room: %+v", room)
@@ -151,9 +183,11 @@ func (s *server) run() (err error) {
 				connection.Close()
 				return
 			}
+			ticker := time.NewTicker(1 * time.Second)
+			defer ticker.Stop()
 			for {
 				// check connection
-				log.Debugf("checking connection of room %s for %+v", room, c)
+				log.Tracef("checking connection of room %s for %+v", room, c)
 				deleteIt := false
 				s.rooms.Lock()
 				roomData, ok := s.rooms.rooms[room]
@@ -162,14 +196,14 @@ func (s *server) run() (err error) {
 					s.rooms.Unlock()
 					return
 				}
-				log.Debugf("room: %+v", roomData)
+				log.Tracef("room: %+v", roomData)
 				if roomData.first != nil && roomData.second != nil {
 					log.Debug("rooms ready")
 					s.rooms.Unlock()
 					break
 				}
-				if s.rooms.rooms[room].first != nil {
-					errSend := s.rooms.rooms[room].first.Send([]byte{1})
+				if roomData.first != nil {
+					errSend := roomData.first.Send([]byte{1})
 					if errSend != nil {
 						log.Debug(errSend)
 						deleteIt = true
@@ -180,7 +214,14 @@ func (s *server) run() (err error) {
 					s.deleteRoom(room)
 					break
 				}
-				time.Sleep(1 * time.Second)
+				select {
+				case <-s.stop.ctx.Done():
+					log.Tracef("check: %v", s.stop.ctx.Err())
+					s.deleteRoom(room)
+					return
+				case <-ticker.C:
+					// time.Sleep(1 * time.Second)
+				}
 			}
 		}(connection)
 	}
@@ -190,34 +231,47 @@ func (s *server) run() (err error) {
 // have exceeded their allocated TTL.
 func (s *server) deleteOldRooms() {
 	ticker := time.NewTicker(s.roomCleanupInterval)
-	for {
+	defer func() {
+		ticker.Stop()
+		log.Debug("room cleanup stopped")
+	}()
+	for next := true; next; {
+		roomsToDelete := []string{}
 		select {
 		case <-ticker.C:
-			var roomsToDelete []string
 			s.rooms.Lock()
-			for room := range s.rooms.rooms {
-				if time.Since(s.rooms.rooms[room].opened) > s.roomTTL {
+			for room, roomData := range s.rooms.rooms {
+				if time.Since(roomData.opened) > s.roomTTL {
 					roomsToDelete = append(roomsToDelete, room)
 				}
 			}
 			s.rooms.Unlock()
-
-			for _, room := range roomsToDelete {
-				s.deleteRoom(room)
-				log.Debugf("room cleaned up: %s", room)
+		case <-s.stop.ctx.Done():
+			if s.server != nil {
+				log.Debugf("stop TCP server on %s", s.server.Addr())
+				s.server.Close()
+				time.Sleep(time.Millisecond)
 			}
-		case <-s.stopRoomCleanup:
-			ticker.Stop()
-			log.Debug("room cleanup stopped")
-			return
+			log.Debug("stop room cleanup fired")
+			s.rooms.Lock()
+			for room := range s.rooms.rooms {
+				roomsToDelete = append(roomsToDelete, room)
+			}
+			s.rooms.Unlock()
+			next = false
+		}
+		for _, room := range roomsToDelete {
+			s.deleteRoom(room)
+			log.Debugf("room cleaned up: %s", room)
 		}
 	}
 }
 
-func (s *server) stopRoomDeletion() {
-	log.Debug("stop room cleanup fired")
-	s.stopRoomCleanup <- struct{}{}
-}
+// replaced by stop
+// func (s *server) stopRoomDeletion() {
+// 	log.Debug("stop room cleanup fired")
+// 	s.stopRoomCleanup <- struct{}{}
+// }
 
 var weakKey = []byte{1, 2, 3}
 
@@ -533,7 +587,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		return
 	}
 
-	log.Debug("sending password")
+	log.Debugf("sending password '%s'", maskedPassword(password))
 	bSend, err := crypt.Encrypt([]byte(password), strongKeyForEncryption)
 	if err != nil {
 		log.Debug(err)
