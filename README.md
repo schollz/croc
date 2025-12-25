@@ -248,6 +248,22 @@ To send URLs or short text, use:
 croc send --text "hello world"
 ```
 
+#### Send Multiple Files
+
+You can send multiple files directly by listing the files and/or folders:
+
+```bash
+croc send [file1] [file2] [file3] [folder1] [folder2]
+```
+
+#### Show QR Code
+
+To show QR code (for mobile devices), use:
+
+```bash
+croc send --qr [file(s)-or-folder]
+```
+
 #### Use a Proxy
 
 You can send files via a proxy by adding `--socks5`:
