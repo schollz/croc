@@ -60,36 +60,36 @@ func Debug(debug bool) {
 
 // Options specifies user specific options
 type Options struct {
-	IsSender         bool
-	SharedSecret     string
-	RoomName         string
-	Debug            bool
-	RelayAddress     string
-	RelayAddress6    string
-	RelayPorts       []string
-	RelayPassword    string
-	Stdout           bool
-	NoPrompt         bool
-	NoMultiplexing   bool
-	DisableLocal     bool
-	OnlyLocal        bool
-	IgnoreStdin      bool
-	Ask              bool
-	SendingText      bool
-	NoCompress       bool
-	IP               string
-	Overwrite        bool
-	Curve            string
-	HashAlgorithm    string
-	ThrottleUpload   string
-	ZipFolder        bool
-	TestFlag         bool
-	GitIgnore        bool
-	MulticastAddress string
-	ShowQrCode       bool
-	Exclude          []string
-	Quiet            bool
-	DisableClipboard bool
+	IsSender          bool
+	SharedSecret      string
+	RoomName          string
+	Debug             bool
+	RelayAddress      string
+	RelayAddress6     string
+	RelayPorts        []string
+	RelayPassword     string
+	Stdout            bool
+	NoPrompt          bool
+	NoMultiplexing    bool
+	DisableLocal      bool
+	OnlyLocal         bool
+	IgnoreStdin       bool
+	Ask               bool
+	SendingText       bool
+	NoCompress        bool
+	IP                string
+	Overwrite         bool
+	Curve             string
+	HashAlgorithm     string
+	ThrottleUpload    string
+	ZipFolder         bool
+	TestFlag          bool
+	GitIgnore         bool
+	MulticastAddress  string
+	ShowQrCode        bool
+	Exclude           []string
+	Quiet             bool
+	DisableClipboard  bool
 	ExtendedClipboard bool
 }
 
@@ -1069,21 +1069,28 @@ func (c *Client) Receive() (err error) {
 			for _, ip := range ips {
 				ipv4Addr, ipv4Net, errNet := net.ParseCIDR(fmt.Sprintf("%s/24", ip))
 				log.Debugf("ipv4Add4: %+v, ipv4Net: %+v, err: %+v", ipv4Addr, ipv4Net, errNet)
-				localIps, _ := utils.GetLocalIPs()
-				haveLocalIP := false
-				for _, localIP := range localIps {
-					localIPparsed := net.ParseIP(localIP)
-					log.Debugf("localIP: %+v, localIPparsed: %+v", localIP, localIPparsed)
-					if ipv4Net.Contains(localIPparsed) {
-						haveLocalIP = true
-						log.Debugf("ip: %+v is a local IP", ip)
-						break
-					}
-				}
-				if !haveLocalIP {
-					log.Debugf("%s is not a local IP, skipping", ip)
-					continue
-				}
+
+				// For peer-to-peer connectivity within a LAN, the sender and receiver don't need to be on the same subnet.
+				// Even with NAT routers in their respective local networks,
+				// a receiver behind NAT can establish direct access to the sender without requiring internet connectivity.
+				// Conversely, the local networks on the sender and receiver may overlap but not be connected.
+				// This often occurs with 192.168.0.0/30 and 192.168.1.0/30 subnets.
+
+				// localIps, _ := utils.GetLocalIPs()
+				// haveLocalIP := false
+				// for _, localIP := range localIps {
+				// 	localIPparsed := net.ParseIP(localIP)
+				// 	log.Debugf("localIP: %+v, localIPparsed: %+v", localIP, localIPparsed)
+				// 	if ipv4Net.Contains(localIPparsed) {
+				// 		haveLocalIP = true
+				// 		log.Debugf("ip: %+v is a local IP", ip)
+				// 		break
+				// 	}
+				// }
+				// if !haveLocalIP {
+				// 	log.Debugf("%s is not a local IP, skipping", ip)
+				// 	continue
+				// }
 
 				serverTry := net.JoinHostPort(ip, port)
 				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.RoomName, 500*time.Millisecond)

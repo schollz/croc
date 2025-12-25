@@ -151,7 +151,7 @@ conda install --channel conda-forge croc
 Add the following one-liner function to your ~/.profile (works with any POSIX-compliant shell):
 
 ```bash
-croc() { [ $# -eq 0 ] && set -- ""; docker run --rm -it --user "$(id -u):$(id -g)" -v "$(pwd):/c" -v "$HOME/.config/croc:/.config/croc" -w /c -e CROC_SECRET schollz/croc "$@"; }
+croc() { [ $# -eq 0 ] && set -- ""; mkdir -p "$HOME/.config/croc"; docker run --rm -it --user "$(id -u):$(id -g)" -v "$(pwd):/c" -v "$HOME/.config/croc:/.config/croc" -w /c -e CROC_SECRET docker.io/schollz/croc "$@"; }
 ```
 
 You can also just paste it in the terminal for current session. On first run Docker will pull the image. `croc` via Docker will only work within the current directory and its subdirectories.
@@ -293,13 +293,13 @@ croc send --hash imohash SOMEFILE
 By default, the code phrase is copied to your clipboard. To disable this:
 
 ```bash
-croc send --disable-clipboard [filename]
+croc --disable-clipboard send [filename]
 ```
 
 To copy the full command with the secret as an environment variable (useful on Linux/macOS):
 
 ```bash
-croc send --extended-clipboard [filename]
+croc --extended-clipboard send [filename]
 ```
 
 This copies the full command like `CROC_SECRET="code-phrase" croc` (including any relay/pass flags).
@@ -333,7 +333,7 @@ croc --relay "myrelay.example.com:9009" send [filename]
 You can also run a relay with Docker:
 
 ```bash
-docker run -d -p 9009-9013:9009-9013 -e CROC_PASS='YOURPASSWORD' schollz/croc
+docker run -d -p 9009-9013:9009-9013 -e CROC_PASS='YOURPASSWORD' docker.io/schollz/croc
 ```
 
 To send files using your custom relay:

@@ -417,11 +417,12 @@ install_file_freebsd() {
 #          NAME:  install_file_linux
 #   DESCRIPTION:  Installs a file into a location using 'install'.  If EUID not
 #                 0, then attempt to use sudo (unless on android).
+#                 Falls back to cp/chmod for BusyBox compatibility.
 #    PARAMETERS:  $1 = file to install
 #                 $2 = location to install file into
 #       RETURNS:  0 = File Installed
 #                 1 = File not installed
-#                 20 = Could not find install command
+#                 20 = Could not find install or cp command
 #                 21 = Could not find sudo command
 #-------------------------------------------------------------------------------
 install_file_linux() {
@@ -434,14 +435,31 @@ install_file_linux() {
 
   if command -v install >/dev/null 2>&1; then
     if [[ "${EUID}" == "0" ]]; then
-      install -C -b -S '_old' -m 755 -t "${prefix}" "${file}"
+      # Try GNU install first, fall back to simple install for BusyBox
+      install -C -b -S '_old' -m 755 -t "${prefix}" "${file}" 2>/dev/null || \
+        install -m 755 "${file}" "${prefix}/"
       rcode="${?}"
     else
       if command -v sudo >/dev/null 2>&1; then
-        sudo install -C -b -S '_old' -m 755 "${file}" "${prefix}"
+        sudo install -C -b -S '_old' -m 755 "${file}" "${prefix}" 2>/dev/null || \
+          sudo install -m 755 "${file}" "${prefix}/"
         rcode="${?}"
       elif [[ "${ANDROID_ROOT}" != "" ]]; then
-        install -C -b -S '_old' -m 755 -t "${prefix}" "${file}"
+        install -C -b -S '_old' -m 755 -t "${prefix}" "${file}" 2>/dev/null || \
+          install -m 755 "${file}" "${prefix}/"
+        rcode="${?}"
+      else
+        rcode="21"
+      fi
+    fi
+  elif command -v cp >/dev/null 2>&1; then
+    # Fallback to cp/chmod if install is not available
+    if [[ "${EUID}" == "0" ]]; then
+      cp "${file}" "${prefix}/" && chmod 755 "${prefix}/$(basename "${file}")"
+      rcode="${?}"
+    else
+      if command -v sudo >/dev/null 2>&1; then
+        sudo cp "${file}" "${prefix}/" && sudo chmod 755 "${prefix}/$(basename "${file}")"
         rcode="${?}"
       else
         rcode="21"
