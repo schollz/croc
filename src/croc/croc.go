@@ -2,6 +2,7 @@ package croc
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
@@ -147,6 +148,9 @@ type Client struct {
 	quit                     chan bool
 	finishedNum              int
 	numberOfTransferredFiles int
+
+	// ctx.go for graceful shutdown
+	*stop
 }
 
 // Chunk contains information about the
@@ -260,6 +264,7 @@ func New(ops Options) (c *Client, err error) {
 	}
 
 	c.mutex = &sync.Mutex{}
+	c.stop = newStop(context.Background())
 	return
 }
 
@@ -578,7 +583,12 @@ func (c *Client) setupLocalRelay() {
 			if c.Options.Debug {
 				debugString = "debug"
 			}
-			err := tcp.Run(debugString, "127.0.0.1", portStr, c.Options.RelayPassword, strings.Join(c.Options.RelayPorts[1:], ","))
+			err := c.stop.run(
+				debugString,
+				"127.0.0.1",
+				portStr,
+				c.Options.RelayPassword,
+				strings.Join(c.Options.RelayPorts[1:], ","))
 			if err != nil {
 				panic(err)
 			}
@@ -600,6 +610,7 @@ func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 		Payload:   []byte("croc" + c.Options.RelayPorts[0]),
 		Delay:     20 * time.Millisecond,
 		TimeLimit: timeLimit,
+		StopChan:  c.stop.stopChan,
 	}
 	if useipv6 {
 		settings.IPVersion = peerdiscovery.IPv6
@@ -629,11 +640,15 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 	}
 	log.Debugf("local connection established: %+v", conn)
 	for {
+		if err := c.ctxErr(); err != nil {
+			errchan <- err
+			return
+		}
 		data, _ := conn.Receive()
 		if bytes.Equal(data, handshakeRequest) {
 			break
 		} else if bytes.Equal(data, []byte{1}) {
-			log.Debug("got ping")
+			log.Trace("got ping")
 		} else {
 			log.Debugf("instead of handshake got: %s", data)
 		}
@@ -652,6 +667,8 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 
 // Send will send the specified file
 func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, totalNumberFolders int) (err error) {
+	go c.stop.done()
+	defer c.stop.Cancel()
 	c.EmptyFoldersToTransfer = emptyFoldersToTransfer
 	c.TotalNumberFolders = totalNumberFolders
 	c.TotalNumberOfContents = len(filesInfo)
@@ -745,6 +762,10 @@ On the other computer run:
 			var kB []byte
 			B, _ := pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, c.Options.Curve)
 			for {
+				if err := c.ctxErr(); err != nil {
+					errchan <- err
+					return
+				}
 				var dataMessage SimpleMessage
 				log.Trace("waiting for bytes")
 				data, errConn := conn.Receive()
@@ -870,6 +891,8 @@ func showReceiveCommandQrCode(command string) {
 
 // Receive will receive a file
 func (c *Client) Receive() (err error) {
+	go c.stop.done()
+	defer c.stop.Cancel()
 	fmt.Fprintf(os.Stderr, "connecting...")
 	// recipient will look for peers first
 	// and continue if it doesn't find any within 100 ms
@@ -908,6 +931,7 @@ func (c *Client) Receive() (err error) {
 				Delay:            20 * time.Millisecond,
 				TimeLimit:        200 * time.Millisecond,
 				MulticastAddress: c.Options.MulticastAddress,
+				StopChan:         c.stop.stopChan,
 			})
 			if err1 == nil && len(ipv4discoveries) > 0 {
 				dmux.Lock()
@@ -924,6 +948,7 @@ func (c *Client) Receive() (err error) {
 				Delay:     20 * time.Millisecond,
 				TimeLimit: 200 * time.Millisecond,
 				IPVersion: peerdiscovery.IPv6,
+				StopChan:  c.stop.stopChan,
 			})
 			if err1 == nil && len(ipv6discoveries) > 0 {
 				dmux.Lock()
@@ -1128,6 +1153,8 @@ func (c *Client) Receive() (err error) {
 		if c.numberOfTransferredFiles+len(c.EmptyFoldersToTransfer) == 0 {
 			fmt.Fprintf(os.Stderr, "\rNo files transferred.\n")
 		}
+	} else {
+		c.SendError()
 	}
 	return
 }
@@ -1153,6 +1180,11 @@ func (c *Client) transfer() (err error) {
 
 	// listen for incoming messages and process them
 	for {
+		if e := c.ctxErr(); e != nil {
+			log.Tracef("transfer: %v", e)
+			err = e
+			break
+		}
 		var data []byte
 		var done bool
 		data, err = c.conn[0].Receive()
@@ -1172,6 +1204,10 @@ func (c *Client) transfer() (err error) {
 		if done {
 			break
 		}
+	}
+	if err := c.ctxErr(); err != nil && c.SuccessfulTransfer {
+		c.SuccessfulTransfer = false
+		log.Tracef("SuccessfulTransfer: %v", err)
 	}
 	// purge errors that come from successful transfer
 	if c.SuccessfulTransfer {
@@ -1222,6 +1258,9 @@ func (c *Client) transfer() (err error) {
 	if err != nil && strings.Contains(err.Error(), "unexpected end of JSON input") {
 		log.Debugf("error: %s", err.Error())
 		err = fmt.Errorf("room (secure channel) not ready, maybe peer disconnected")
+	}
+	if err != nil {
+		c.SendError()
 	}
 	return
 }
@@ -1392,6 +1431,16 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 }
 
 func (c *Client) processMessagePake(m message.Message) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if c.stop.gui {
+				log.Errorf("panic: %v", r)
+				c.stop.Cancel()
+			} else {
+				panic(r)
+			}
+		}
+	}()
 	log.Debug("received pake payload")
 
 	var salt []byte
@@ -1541,6 +1590,8 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 		done, err = c.processExternalIP(m)
 	case message.TypeError:
 		// c.spinner.Stop()
+		log.Trace("Peer initiates interruption of my loops and goroutines")
+		c.stop.Cancel()
 		fmt.Print("\r")
 		err = fmt.Errorf("peer error: %s", m.Message)
 		return true, err
@@ -2007,6 +2058,16 @@ func (c *Client) setBar() {
 }
 
 func (c *Client) receiveData(i int) {
+	defer func() {
+		if r := recover(); r != nil {
+			if c.stop.gui {
+				log.Errorf("panic: %v", r)
+				c.stop.Cancel()
+			} else {
+				panic(r)
+			}
+		}
+	}()
 	log.Tracef("%d receiving data", i)
 	for {
 		data, err := c.conn[i+1].Receive()
@@ -2036,6 +2097,28 @@ func (c *Client) receiveData(i int) {
 		positionInt64 := int64(position)
 
 		c.mutex.Lock()
+		if c.CurrentFileIsClosed || c.CurrentFile == nil {
+			c.mutex.Unlock()
+			log.Tracef("was closed %d", i)
+			return
+		}
+		if err := c.ctxErr(); err != nil {
+			c.CurrentFileIsClosed = true
+			defer c.mutex.Unlock()
+			log.Tracef("stopping: %v", err)
+			if err := c.CurrentFile.Close(); err != nil {
+				log.Tracef("closing %s: %v", c.CurrentFile.Name(), err)
+			} else {
+				log.Tracef("Successful closing %s", c.CurrentFile.Name())
+			}
+			log.Tracef("sending close-sender")
+			if sendErr := message.Send(c.conn[0], c.Key, message.Message{
+				Type: message.TypeCloseSender,
+			}); sendErr != nil {
+				log.Tracef("sending close-sender: %v", sendErr)
+			}
+			return
+		}
 		_, err = c.CurrentFile.WriteAt(data[8:], positionInt64)
 		if err != nil {
 			panic(err)
@@ -2075,6 +2158,14 @@ func (c *Client) receiveData(i int) {
 
 func (c *Client) sendData(i int) {
 	defer func() {
+		if r := recover(); r != nil {
+			if c.stop.gui {
+				log.Errorf("panic: %v", r)
+				c.stop.Cancel()
+			} else {
+				panic(r)
+			}
+		}
 		log.Debugf("finished with %d", i)
 		c.numfinished++
 		if c.numfinished == len(c.Options.RelayPorts) {
@@ -2089,6 +2180,10 @@ func (c *Client) sendData(i int) {
 	pos := uint64(0)
 	curi := float64(0)
 	for {
+		if err := c.ctxErr(); err != nil {
+			log.Tracef("stopping send %d: %v", i, err)
+			return
+		}
 		// Read file
 		var n int
 		var errRead error
