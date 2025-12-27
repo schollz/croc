@@ -7,6 +7,7 @@ import (
 
 	"github.com/schollz/croc/v10/src/message"
 	"github.com/schollz/croc/v10/src/tcp"
+	"github.com/schollz/croc/v10/src/utils"
 	log "github.com/schollz/logger"
 )
 
@@ -16,6 +17,7 @@ type stop struct {
 	cancel   context.CancelFunc
 	stopChan chan struct{} //peerdiscovery
 	run      func(debugLevel string, host string, port string, password string, banner ...string) (err error)
+	hash     func(fname string, algorithm string, showProgress ...bool) (hash256 []byte, err error)
 	gui      bool
 }
 
@@ -24,6 +26,7 @@ func newStop(ctx context.Context) *stop {
 	s := &stop{
 		stopChan: make(chan struct{}),
 		run:      tcp.Run,
+		hash:     utils.HashFile,
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -51,6 +54,9 @@ func NewCtx(ctx context.Context, ops Options) (*Client, error) {
 	c.stop.gui = true
 	c.stop.run = func(debugLevel string, host string, port string, password string, banner ...string) (err error) {
 		return tcp.RunCtx(c.stop.ctx, debugLevel, host, port, password, banner...)
+	}
+	c.stop.hash = func(fname string, algorithm string, showProgress ...bool) (hash256 []byte, err error) {
+		return utils.HashFileCtx(c.stop.ctx, fname, algorithm, showProgress...)
 	}
 
 	go func() {
