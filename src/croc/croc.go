@@ -535,7 +535,7 @@ func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {
 			c.Options.HashAlgorithm = "xxhash"
 		}
 
-		c.FilesToTransfer[i].Hash, err = utils.HashFile(fullPath, c.Options.HashAlgorithm, fileInfo.Size > 1e7)
+		c.FilesToTransfer[i].Hash, err = c.stop.hash(fullPath, c.Options.HashAlgorithm, fileInfo.Size > 1e7)
 		log.Debugf("hashed %s to %x using %s", fullPath, c.FilesToTransfer[i].Hash, c.Options.HashAlgorithm)
 		totalFilesSize += fileInfo.Size
 		if err != nil {
