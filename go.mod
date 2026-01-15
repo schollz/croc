@@ -14,13 +14,13 @@ require (
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/pake/v3 v3.1.0
 	github.com/schollz/peerdiscovery v1.7.6
-	github.com/schollz/progressbar/v3 v3.18.0
+	github.com/schollz/progressbar/v3 v3.19.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/crypto v0.46.0
-	golang.org/x/net v0.48.0
-	golang.org/x/sys v0.39.0
-	golang.org/x/term v0.38.0
+	golang.org/x/crypto v0.47.0
+	golang.org/x/net v0.49.0
+	golang.org/x/sys v0.40.0
+	golang.org/x/term v0.39.0
 	golang.org/x/time v0.14.0
 )
 
