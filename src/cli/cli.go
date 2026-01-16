@@ -799,6 +799,9 @@ func relay(c *cli.Context) (err error) {
 			ports[i] = strconv.Itoa(portString + i)
 		}
 	}
+	if len(ports) < 2 {
+		return fmt.Errorf("relay requires at least two ports; specify --ports with two or more ports or set --transfers to 2+")
+	}
 
 	tcpPorts := strings.Join(ports[1:], ",")
 	for i, port := range ports {
