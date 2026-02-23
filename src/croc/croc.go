@@ -1654,6 +1654,15 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 
 func (c *Client) updateIfSenderChannelSecured() (err error) {
 	if c.Options.IsSender && c.Step1ChannelSecured && !c.Step2FileInfoTransferred {
+
+		if len(c.FilesToTransfer) == 1 &&
+			c.FilesToTransfer[0].Name == filepath.Base(os.DevNull) &&
+			c.FilesToTransfer[0].FolderSource == filepath.Dir(os.DevNull) {
+			log.Debug(os.DevNull)
+			c.Step2FileInfoTransferred = true
+			return
+		}
+
 		var b []byte
 		machID, _ := machineid.ID()
 		b, err = json.Marshal(SenderInfo{
