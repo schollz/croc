@@ -1,4 +1,3 @@
-filippo.io/edwards25519 v1.1.0/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
 filippo.io/edwards25519 v1.2.0 h1:crnVqOiS4jqYleHd9vaKZ+HKtHfllngJIiOpNpoJsjo=
 filippo.io/edwards25519 v1.2.0/go.mod h1:xzAOLCNug/yB62zG1bQ8uziwrIqIuxhctzJT18Q77mc=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
@@ -44,8 +43,8 @@ github.com/schollz/cli/v2 v2.2.1 h1:ou22Mj7ZPjrKz+8k2iDTWaHskEEV5NiAxGrdsCL36VU=
 github.com/schollz/cli/v2 v2.2.1/go.mod h1:My6bfphRLZUhZdlFUK8scAxMWHydE7k4s2ed2Dtnn+s=
 github.com/schollz/logger v1.2.0 h1:5WXfINRs3lEUTCZ7YXhj0uN+qukjizvITLm3Ca2m0Ho=
 github.com/schollz/logger v1.2.0/go.mod h1:P6F4/dGMGcx8wh+kG1zrNEd4vnNpEBY/mwEMd/vn6AM=
-github.com/schollz/pake/v3 v3.1.0 h1:ZFGqqDlRWJlnE6IqnLmma7XpUgcvb8B1CSXp08ug334=
-github.com/schollz/pake/v3 v3.1.0/go.mod h1:eNsxl/10KNO240DajF8FvsTqYi7uDM1xwa5kmrzD3Ec=
+github.com/schollz/pake/v3 v3.1.1 h1:lyoU5uNQ3thfjEzrahgxWWBm6+pbI1F2KAZ3gs6LIV8=
+github.com/schollz/pake/v3 v3.1.1/go.mod h1:420+m3AakXcS0n7Uwc7eRs2CosQ2YfE/vKcIkilvqZc=
 github.com/schollz/peerdiscovery v1.7.6 h1:HJjU1cXcNGfZgenC/vbry9F6CH9B8f+QYcTipZLbtDg=
 github.com/schollz/peerdiscovery v1.7.6/go.mod h1:iTa0MWSPy49jJ2HcXL5oSSnFsd6olEUorAFljxbnj2I=
 github.com/schollz/progressbar/v3 v3.19.0 h1:Ea18xuIRQXLAUidVDox3AbwfUhD0/1IvohyTutOIFoc=
