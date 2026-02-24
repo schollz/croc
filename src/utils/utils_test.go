@@ -3,6 +3,7 @@ package utils
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -656,5 +657,318 @@ func verifyFileModTime(t *testing.T, filePath string, expectedTime time.Time) {
 	if !actual.Equal(expected) {
 		t.Errorf("Modification time mismatch for %s, expected %v, got %v",
 			filePath, expected, actual)
+	}
+}
+
+// TestHashFileCtxNoCancellation tests HashFileCtx without cancellation
+func TestHashFileCtxNoCancellation(t *testing.T) {
+	// Use the same bigFile() function as other tests
+	bigFile()
+	defer os.Remove("bigfile.test")
+
+	ctx := context.Background()
+
+	// Test each algorithm - using the same expected values from existing tests
+	tests := []struct {
+		name      string
+		algorithm string
+		wantHash  string
+	}{
+		{
+			name:      "MD5 hash",
+			algorithm: "md5",
+			wantHash:  "8304ff018e02baad0e3555bade29a405", // From TestMD5HashFile
+		},
+		{
+			name:      "XXHash",
+			algorithm: "xxhash",
+			wantHash:  "4918740eb5ccb6f7", // From TestXXHashFile
+		},
+		{
+			name:      "imohash",
+			algorithm: "imohash",
+			wantHash:  "c0d1e12301e6c635f6d4a8ea5c897437", // From TestIMOHashFile
+		},
+		{
+			name:      "highway",
+			algorithm: "highway",
+			wantHash:  "3c32999529323ed66a67aeac5720c7bf1301dcc5dca87d8d46595e85ff990329", // From TestHighwayHashFile
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test without progress bar
+			hash, err := HashFileCtx(ctx, "bigfile.test", tt.algorithm)
+			assert.NoError(t, err, "HashFileCtx should not return error")
+			assert.Equal(t, tt.wantHash, fmt.Sprintf("%x", hash),
+				"Hash should match for algorithm %s", tt.algorithm)
+
+			// Test with progress bar (false)
+			hash, err = HashFileCtx(ctx, "bigfile.test", tt.algorithm, false)
+			assert.NoError(t, err, "HashFileCtx with showProgress=false should not return error")
+			assert.Equal(t, tt.wantHash, fmt.Sprintf("%x", hash),
+				"Hash should match for algorithm %s with showProgress=false", tt.algorithm)
+
+			// Test with progress bar (true) - only for non-imohash to avoid spinner issues in tests
+			if tt.algorithm != "imohash" {
+				hash, err = HashFileCtx(ctx, "bigfile.test", tt.algorithm, true)
+				assert.NoError(t, err, "HashFileCtx with showProgress=true should not return error")
+				assert.Equal(t, tt.wantHash, fmt.Sprintf("%x", hash),
+					"Hash should match for algorithm %s with showProgress=true", tt.algorithm)
+			}
+		})
+	}
+
+	// Test symlink handling - match original behavior
+	t.Run("Symlink handling", func(t *testing.T) {
+		// Create symlink to bigfile.test
+		symlinkPath := "bigfile.test.symlink"
+		defer os.Remove(symlinkPath)
+
+		err := os.Symlink("bigfile.test", symlinkPath)
+		if err != nil && strings.Contains(err.Error(), "privilege") {
+			t.Skip("Skipping symlink test - requires privilege")
+		}
+		assert.NoError(t, err, "Should create symlink")
+
+		// Hash the symlink
+		hash, err := HashFileCtx(ctx, symlinkPath, "md5")
+		assert.NoError(t, err, "Should hash symlink target path")
+		assert.NotNil(t, hash, "Should return hash for symlink")
+
+		// The original HashFile returns []byte(SHA256(target))
+		// SHA256("bigfile.test") = "3ae29e98bba80ccefc79289c59cc34cb7223954310bb61c6a26147bb9b08c4e4"
+		// []byte("3ae29e98...") = ASCII bytes of hex string
+
+		// When converted back with fmt.Sprintf("%x", hash):
+		// ASCII '3' = 0x33, 'a' = 0x61, 'e' = 0x65, '2' = 0x32, etc.
+		// So fmt.Sprintf("%x", []byte("3ae2...")) = "33616532..."
+
+		actualHex := fmt.Sprintf("%x", hash)
+
+		// Let's compute what we SHOULD get:
+		targetPath := "bigfile.test"
+		expectedSHA256Hex := SHA256(targetPath) // "3ae29e98..."
+		expectedBytes := []byte(expectedSHA256Hex)
+		expectedResultHex := fmt.Sprintf("%x", expectedBytes) // hex of ASCII bytes
+
+		// Debug
+		t.Logf("Target path: '%s'", targetPath)
+		t.Logf("SHA256(target) hex: %s", expectedSHA256Hex)
+		t.Logf("Expected result (hex of ASCII bytes): %s", expectedResultHex)
+		t.Logf("Actual result: %s", actualHex)
+
+		// They should match!
+		assert.Equal(t, expectedResultHex, actualHex,
+			"HashFileCtx should behave exactly like HashFile for symlinks")
+
+		// Also test with original HashFile to ensure consistency
+		originalHash, err := HashFile(symlinkPath, "md5")
+		assert.NoError(t, err)
+		originalHex := fmt.Sprintf("%x", originalHash)
+
+		assert.Equal(t, originalHex, actualHex,
+			"HashFileCtx should return same result as HashFile for symlinks")
+	})
+	// Test error cases
+	t.Run("Error cases", func(t *testing.T) {
+		// Non-existent file
+		hash, err := HashFileCtx(ctx, "non_existent_file_12345.test", "md5")
+		assert.Error(t, err, "Should return error for non-existent file")
+		assert.Nil(t, hash, "Hash should be nil on error")
+
+		// Unsupported algorithm
+		hash, err = HashFileCtx(ctx, "bigfile.test", "unsupported_algo")
+		assert.Error(t, err, "Should return error for unsupported algorithm")
+		assert.Contains(t, err.Error(), "unsupported algorithm")
+		assert.Nil(t, hash, "Hash should be nil on error")
+	})
+}
+
+// TestHashFileCtxWithCancellation tests HashFileCtx with context cancellation
+func TestHashFileCtxWithCancellation(t *testing.T) {
+	// Use the same bigFile() function
+	bigFile()
+	defer os.Remove("bigfile.test")
+
+	// Test 1: Cancel before starting
+	t.Run("Cancel before start", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		hash, err := HashFileCtx(ctx, "bigfile.test", "md5")
+		assert.Error(t, err, "Should return error when context cancelled before start")
+		assert.Equal(t, context.Canceled, err, "Error should be context.Canceled")
+		assert.Nil(t, hash, "Hash should be nil when cancelled")
+	})
+
+	// Test 2: Cancel during operation
+	t.Run("Cancel during operation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		// Start hash operation in goroutine
+		errCh := make(chan error, 1)
+		hashCh := make(chan []byte, 1)
+
+		go func() {
+			hash, err := HashFileCtx(ctx, "bigfile.test", "md5", false)
+			if err != nil {
+				errCh <- err
+				hashCh <- nil
+			} else {
+				errCh <- nil
+				hashCh <- hash
+			}
+		}()
+
+		// Cancel after a short delay
+		time.Sleep(10 * time.Millisecond)
+		cancel()
+
+		// Wait for result
+		select {
+		case err := <-errCh:
+			hash := <-hashCh
+			// Either we got an error (cancelled) or a hash (completed before cancellation)
+			if err != nil {
+				// Check if it's a context error
+				if err == context.Canceled || err == context.DeadlineExceeded {
+					assert.Error(t, err, "Should return context error when cancelled")
+				}
+				assert.Nil(t, hash, "Hash should be nil when cancelled")
+			} else {
+				// Completed successfully before cancellation
+				assert.NotNil(t, hash, "If not cancelled, should return hash")
+				assert.Equal(t, 16, len(hash), "MD5 hash should be 16 bytes")
+				// Verify it's the correct hash
+				assert.Equal(t, "8304ff018e02baad0e3555bade29a405", fmt.Sprintf("%x", hash))
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("Test timed out")
+		}
+	})
+
+	// Test 3: Cancel with deadline
+	t.Run("Cancel with deadline", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
+		defer cancel()
+
+		// For a 75MB file, MD5 should take more than 1ms
+		hash, err := HashFileCtx(ctx, "bigfile.test", "md5", false)
+		assert.Error(t, err, "Should timeout for 75MB file with 1ms deadline")
+		assert.Equal(t, context.DeadlineExceeded, err, "Error should be context.DeadlineExceeded")
+		assert.Nil(t, hash, "Hash should be nil when deadline exceeded")
+	})
+
+	// Test 4: Imohash should be fast enough to complete before cancellation
+	t.Run("Imohash fast completion", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Imohash samples the file, so it should complete quickly
+		hash, err := HashFileCtx(ctx, "bigfile.test", "imohash", false)
+		assert.NoError(t, err, "Imohash should complete before any cancellation")
+		assert.NotNil(t, hash, "Should return hash for imohash")
+		assert.Equal(t, 16, len(hash), "Imohash should be 16 bytes")
+		// Verify it's the correct hash
+		assert.Equal(t, "c0d1e12301e6c635f6d4a8ea5c897437", fmt.Sprintf("%x", hash))
+	})
+}
+
+// TestHashFileCtxEquivalence tests that HashFileCtx produces same results as original HashFile
+func TestHashFileCtxEquivalence(t *testing.T) {
+	// Use bigFile() for consistency
+	bigFile()
+	defer os.Remove("bigfile.test")
+
+	algorithms := []string{"md5", "xxhash", "imohash", "highway"}
+
+	for _, algorithm := range algorithms {
+		t.Run(algorithm, func(t *testing.T) {
+			// Get hash using original HashFile
+			originalHash, err1 := HashFile("bigfile.test", algorithm)
+
+			// Get hash using HashFileCtx with background context
+			ctxHash, err2 := HashFileCtx(context.Background(), "bigfile.test", algorithm)
+
+			// Both should succeed or fail together
+			if err1 != nil {
+				assert.Error(t, err2, "HashFileCtx should also fail if HashFile fails")
+				t.Logf("Both failed as expected: %v", err1)
+			} else {
+				assert.NoError(t, err2, "HashFileCtx should not fail if HashFile succeeds")
+				assert.NotNil(t, originalHash, "Original hash should not be nil")
+				assert.NotNil(t, ctxHash, "Context hash should not be nil")
+
+				// Compare hex representations
+				originalHex := fmt.Sprintf("%x", originalHash)
+				ctxHex := fmt.Sprintf("%x", ctxHash)
+				assert.Equal(t, originalHex, ctxHex,
+					"HashFile and HashFileCtx should produce same hash for algorithm %s. Got %s vs %s",
+					algorithm, originalHex, ctxHex)
+
+				// Also verify against known values from existing tests
+				switch algorithm {
+				case "md5":
+					assert.Equal(t, "8304ff018e02baad0e3555bade29a405", originalHex)
+				case "xxhash":
+					assert.Equal(t, "4918740eb5ccb6f7", originalHex)
+				case "imohash":
+					assert.Equal(t, "c0d1e12301e6c635f6d4a8ea5c897437", originalHex)
+				case "highway":
+					assert.Equal(t, "3c32999529323ed66a67aeac5720c7bf1301dcc5dca87d8d46595e85ff990329", originalHex)
+				}
+			}
+		})
+	}
+}
+
+// TestHashFileCtxLargeFile tests with larger files (already using bigfile.test)
+func TestHashFileCtxLargeFile(t *testing.T) {
+	// Skip in short mode
+	if testing.Short() {
+		t.Skip("Skipping large file test in short mode")
+	}
+
+	// Use bigFile()
+	bigFile()
+	defer os.Remove("bigfile.test")
+
+	ctx := context.Background()
+
+	// Test each algorithm with large file
+	algorithms := []string{"md5", "xxhash", "imohash", "highway"}
+
+	for _, algorithm := range algorithms {
+		t.Run(algorithm, func(t *testing.T) {
+			hash, err := HashFileCtx(ctx, "bigfile.test", algorithm, false)
+			assert.NoError(t, err, "Should hash large file with algorithm %s", algorithm)
+			assert.NotNil(t, hash, "Should return hash for large file")
+
+			// Verify hash size
+			switch algorithm {
+			case "md5":
+				assert.Equal(t, 16, len(hash), "MD5 should be 16 bytes")
+			case "xxhash":
+				assert.Equal(t, 8, len(hash), "XXHash should be 8 bytes")
+			case "imohash":
+				assert.Equal(t, 16, len(hash), "Imohash should be 16 bytes")
+			case "highway":
+				assert.Equal(t, 32, len(hash), "HighwayHash should be 32 bytes")
+			}
+
+			// Verify against known values
+			switch algorithm {
+			case "md5":
+				assert.Equal(t, "8304ff018e02baad0e3555bade29a405", fmt.Sprintf("%x", hash))
+			case "xxhash":
+				assert.Equal(t, "4918740eb5ccb6f7", fmt.Sprintf("%x", hash))
+			case "imohash":
+				assert.Equal(t, "c0d1e12301e6c635f6d4a8ea5c897437", fmt.Sprintf("%x", hash))
+			case "highway":
+				assert.Equal(t, "3c32999529323ed66a67aeac5720c7bf1301dcc5dca87d8d46595e85ff990329", fmt.Sprintf("%x", hash))
+			}
+		})
 	}
 }
