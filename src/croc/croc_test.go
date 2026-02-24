@@ -1,6 +1,9 @@
 package croc
 
 import (
+	"context"
+	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
@@ -424,5 +427,795 @@ func TestCleanUp(t *testing.T) {
 				log.Debugf("%s was already purged.", folder)
 			}
 		}
+	}
+}
+
+func hashed(c *Client) bool {
+	if len(c.FilesToTransfer) == 0 {
+		return false
+	}
+	for _, file := range c.FilesToTransfer {
+		if len(file.Hash) == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func waitHashed(sender *Client) (err error) {
+	err = fmt.Errorf("not hashed")
+	for i := 0; i < 300; i++ { // Max 3 seconds
+		if hashed(sender) {
+			time.Sleep(100 * time.Millisecond)
+			return nil
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return
+}
+
+func createTestFile(t *testing.T, size int) (string, func()) {
+	tempFile, err := os.CreateTemp("", "test-*.dat")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data := make([]byte, size)
+	for i := 0; i < size; i++ {
+		data[i] = byte(i % 256)
+	}
+
+	if _, err := tempFile.Write(data); err != nil {
+		tempFile.Close()
+		os.Remove(tempFile.Name())
+		t.Fatal(err)
+	}
+
+	if err := tempFile.Close(); err != nil {
+		os.Remove(tempFile.Name())
+		t.Fatal(err)
+	}
+
+	return tempFile.Name(), func() {
+		os.Remove(tempFile.Name())
+	}
+}
+
+func TestBase(t *testing.T) {
+	tempFile, cleanup := createTestFile(t, 1024*1024) // 1 МБ
+	defer cleanup()
+	receivedFile := filepath.Base(tempFile)
+	defer os.Remove(receivedFile)
+
+	go tcp.Run("debug", "127.0.0.1", "8286", "pass123", "8287")
+	time.Sleep(200 * time.Millisecond)
+	go tcp.Run("debug", "127.0.0.1", "8287", "pass123")
+	time.Sleep(200 * time.Millisecond)
+
+	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
+
+	sender, err := New(Options{
+		IsSender:      true,
+		SharedSecret:  uniqueSecret,
+		Debug:         true,
+		RelayAddress:  "127.0.0.1:8286",
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+		GitIgnore:     false,
+	})
+	if err != nil {
+		t.Fatalf("Create sender failed: %v", err)
+	}
+
+	filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{tempFile}, false, false, []string{})
+	if errGet != nil {
+		t.Fatalf("Get file info failed: %v", errGet)
+	}
+
+	receiver, err := New(Options{
+		IsSender:      false,
+		SharedSecret:  uniqueSecret,
+		Debug:         true,
+		RelayAddress:  "127.0.0.1:8286",
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+	})
+	if err != nil {
+		t.Fatalf("Create receiver failed: %v", err)
+	}
+
+	fatalErr := make(chan error, 1)
+
+	failTest := func(err error) {
+		select {
+		case fatalErr <- err:
+		default:
+		}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		log.Warn("Send")
+		if err := sender.Send(filesInfo, emptyFolders, totalNumberFolders); err != nil {
+			failTest(fmt.Errorf("Send failed: %w", err))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		if err := waitHashed(sender); err != nil {
+			failTest(fmt.Errorf("waitHashed failed: %w", err))
+			return
+		}
+
+		log.Warn("Receive")
+		if err := receiver.Receive(); err != nil {
+			failTest(fmt.Errorf("Receive failed: %w", err))
+		}
+	}()
+
+	go func() {
+		for i := 0; i < 3000; i++ {
+			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
+				time.Sleep(time.Millisecond)
+				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
+					log.Warn("Step2FileInfoTransferred reached")
+					return
+				}
+				log.Warn("Step1ChannelSecured reached")
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	done := make(chan bool, 1)
+	go func() {
+		wg.Wait()
+		done <- true
+	}()
+
+	select {
+	case err := <-fatalErr:
+		t.Fatal(err)
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Test timeout after 5 seconds")
+	}
+}
+
+func TestCtx(t *testing.T) {
+	tempFile, cleanup := createTestFile(t, 1024*1024) // 1 МБ
+	defer cleanup()
+	receivedFile := filepath.Base(tempFile)
+	defer os.Remove(receivedFile)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+
+	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8288", "pass123", "8289")
+	time.Sleep(200 * time.Millisecond)
+	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8289", "pass123")
+	time.Sleep(200 * time.Millisecond)
+
+	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
+
+	sender, err := NewCtx(ctx, Options{
+		IsSender:      true,
+		SharedSecret:  uniqueSecret,
+		Debug:         true,
+		RelayAddress:  "127.0.0.1:8288",
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+		GitIgnore:     false,
+	})
+	if err != nil {
+		t.Fatalf("Create sender failed: %v", err)
+	}
+
+	filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{tempFile}, false, false, []string{})
+	if errGet != nil {
+		t.Fatalf("Get file info failed: %v", errGet)
+	}
+
+	receiver, err := NewCtx(ctx, Options{
+		IsSender:      false,
+		SharedSecret:  uniqueSecret,
+		Debug:         true,
+		RelayAddress:  "127.0.0.1:8288",
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+	})
+	if err != nil {
+		t.Fatalf("Create receiver failed: %v", err)
+	}
+
+	fatalErr := make(chan error, 1)
+
+	failTest := func(err error) {
+		select {
+		case fatalErr <- err:
+		default:
+		}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		log.Warn("Send")
+		if err := sender.Send(filesInfo, emptyFolders, totalNumberFolders); err != nil {
+			failTest(fmt.Errorf("Send failed: %w", err))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		if err := waitHashed(sender); err != nil {
+			failTest(fmt.Errorf("waitHashed failed: %w", err))
+			return
+		}
+
+		log.Warn("Receive")
+		if err := receiver.Receive(); err != nil {
+			failTest(fmt.Errorf("Receive failed: %w", err))
+		}
+	}()
+
+	go func() {
+		for i := 0; i < 3000; i++ {
+			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
+				time.Sleep(time.Millisecond)
+				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
+					log.Warn("Step2FileInfoTransferred reached")
+					return
+				}
+				log.Warn("Step1ChannelSecured reached")
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	done := make(chan bool, 1)
+	go func() {
+		wg.Wait()
+		done <- true
+	}()
+
+	select {
+	case err := <-fatalErr:
+		t.Fatal(err)
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Test timeout after 5 seconds")
+	}
+}
+
+func validErrors(err error) bool {
+	s := err.Error()
+	return strings.Contains(s, "cancel") ||
+		strings.Contains(s, "context") ||
+		strings.Contains(s, "reset") ||
+		strings.Contains(s, "broken") ||
+		strings.Contains(s, "refusing") ||
+		strings.Contains(s, "EOF") ||
+		strings.Contains(s, "closed")
+}
+
+func result(t *testing.T, err error) {
+	if err != nil {
+		if validErrors(err) {
+			t.Logf("Expected error during context cancellation: %v", err)
+		} else {
+			t.Errorf("Unexpected error during cancellation: %v", err)
+		}
+		return
+	}
+	t.Error("Transfer should have been interrupted by context cancellation")
+}
+
+func TestAllCtx(t *testing.T) {
+	tempFile, cleanup := createTestFile(t, 1024*1024) // 1 МБ
+	defer cleanup()
+	receivedFile := filepath.Base(tempFile)
+	defer os.Remove(receivedFile)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+
+	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8290", "pass123", "8291")
+	time.Sleep(200 * time.Millisecond)
+	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8291", "pass123")
+	time.Sleep(200 * time.Millisecond)
+
+	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
+
+	sender, err := NewCtx(ctx, Options{
+		IsSender:      true,
+		SharedSecret:  uniqueSecret,
+		Debug:         true,
+		RelayAddress:  "127.0.0.1:8290",
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+		GitIgnore:     false,
+	})
+	if err != nil {
+		t.Fatalf("Create sender failed: %v", err)
+	}
+
+	filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{tempFile}, false, false, []string{})
+	if errGet != nil {
+		t.Fatalf("Get file info failed: %v", errGet)
+	}
+
+	receiver, err := NewCtx(ctx, Options{
+		IsSender:      false,
+		SharedSecret:  uniqueSecret,
+		Debug:         true,
+		RelayAddress:  "127.0.0.1:8290",
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+	})
+	if err != nil {
+		t.Fatalf("Create receiver failed: %v", err)
+	}
+
+	fatalErr := make(chan error, 1)
+
+	failTest := func(err error) {
+		select {
+		case fatalErr <- err:
+		default:
+		}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		log.Warn("Send")
+		if err := sender.Send(filesInfo, emptyFolders, totalNumberFolders); err != nil {
+			failTest(fmt.Errorf("Send failed: %w", err))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		if err := waitHashed(sender); err != nil {
+			failTest(fmt.Errorf("waitHashed failed: %w", err))
+			return
+		}
+
+		log.Warn("Receive")
+		if err := receiver.Receive(); err != nil {
+			failTest(fmt.Errorf("Receive failed: %w", err))
+		}
+	}()
+
+	go func() {
+		for i := 0; i < 3000; i++ {
+			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
+				time.Sleep(time.Millisecond)
+				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
+					log.Warn("Step2FileInfoTransferred reached")
+					cancel()
+					return
+				}
+				log.Warn("Step1ChannelSecured reached")
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	done := make(chan bool, 1)
+	go func() {
+		wg.Wait()
+		done <- true
+	}()
+
+	select {
+	case err := <-fatalErr:
+		result(t, err)
+	case <-done:
+		t.Error("Transfer should have been interrupted by context cancellation")
+	case <-time.After(5 * time.Second):
+		t.Fatal("Test timeout after 5 seconds")
+	}
+}
+
+func TestSendCtx(t *testing.T) {
+	tempFile, cleanup := createTestFile(t, 1024*1024) // 1 МБ
+	defer cleanup()
+	receivedFile := filepath.Base(tempFile)
+	defer os.Remove(receivedFile)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+
+	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8292", "pass123", "8293")
+	time.Sleep(200 * time.Millisecond)
+	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8293", "pass123")
+	time.Sleep(200 * time.Millisecond)
+
+	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
+
+	sender, err := NewCtx(ctx2, Options{
+		IsSender:      true,
+		SharedSecret:  uniqueSecret,
+		Debug:         true,
+		RelayAddress:  "127.0.0.1:8292",
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+		GitIgnore:     false,
+	})
+	if err != nil {
+		t.Fatalf("Create sender failed: %v", err)
+	}
+
+	filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{tempFile}, false, false, []string{})
+	if errGet != nil {
+		t.Fatalf("Get file info failed: %v", errGet)
+	}
+
+	receiver, err := NewCtx(ctx, Options{
+		IsSender:      false,
+		SharedSecret:  uniqueSecret,
+		Debug:         true,
+		RelayAddress:  "127.0.0.1:8292",
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+	})
+	if err != nil {
+		t.Fatalf("Create receiver failed: %v", err)
+	}
+
+	fatalErr := make(chan error, 1)
+
+	failTest := func(err error) {
+		select {
+		case fatalErr <- err:
+		default:
+		}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		log.Warn("Send")
+		if err := sender.Send(filesInfo, emptyFolders, totalNumberFolders); err != nil {
+			failTest(fmt.Errorf("Send failed: %w", err))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		if err := waitHashed(sender); err != nil {
+			failTest(fmt.Errorf("waitHashed failed: %w", err))
+			return
+		}
+
+		log.Warn("Receive")
+		if err := receiver.Receive(); err != nil {
+			failTest(fmt.Errorf("Receive failed: %w", err))
+		}
+	}()
+
+	go func() {
+		for i := 0; i < 3000; i++ {
+			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
+				time.Sleep(time.Millisecond)
+				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
+					log.Warn("Step2FileInfoTransferred reached")
+					cancel2()
+					return
+				}
+				log.Warn("Step1ChannelSecured reached")
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	done := make(chan bool, 1)
+	go func() {
+		wg.Wait()
+		done <- true
+	}()
+
+	select {
+	case err := <-fatalErr:
+		result(t, err)
+	case <-done:
+		t.Error("Transfer should have been interrupted by context cancellation")
+	case <-time.After(5 * time.Second):
+		t.Fatal("Test timeout after 5 seconds")
+	}
+}
+
+func TestReceiveCtx(t *testing.T) {
+	tempFile, cleanup := createTestFile(t, 1024*1024) // 1 МБ
+	defer cleanup()
+	receivedFile := filepath.Base(tempFile)
+	defer os.Remove(receivedFile)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+
+	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8294", "pass123", "8295")
+	time.Sleep(200 * time.Millisecond)
+	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8295", "pass123")
+	time.Sleep(200 * time.Millisecond)
+
+	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
+
+	sender, err := NewCtx(ctx, Options{
+		IsSender:      true,
+		SharedSecret:  uniqueSecret,
+		Debug:         true,
+		RelayAddress:  "127.0.0.1:8294",
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+		GitIgnore:     false,
+	})
+	if err != nil {
+		t.Fatalf("Create sender failed: %v", err)
+	}
+
+	filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{tempFile}, false, false, []string{})
+	if errGet != nil {
+		t.Fatalf("Get file info failed: %v", errGet)
+	}
+
+	receiver, err := NewCtx(ctx2, Options{
+		IsSender:      false,
+		SharedSecret:  uniqueSecret,
+		Debug:         true,
+		RelayAddress:  "127.0.0.1:8294",
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+	})
+	if err != nil {
+		t.Fatalf("Create receiver failed: %v", err)
+	}
+
+	fatalErr := make(chan error, 1)
+
+	failTest := func(err error) {
+		select {
+		case fatalErr <- err:
+		default:
+		}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		log.Warn("Send")
+		if err := sender.Send(filesInfo, emptyFolders, totalNumberFolders); err != nil {
+			failTest(fmt.Errorf("Send failed: %w", err))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		if err := waitHashed(sender); err != nil {
+			failTest(fmt.Errorf("waitHashed failed: %w", err))
+			return
+		}
+
+		log.Warn("Receive")
+		if err := receiver.Receive(); err != nil {
+			failTest(fmt.Errorf("Receive failed: %w", err))
+		}
+	}()
+
+	go func() {
+		for i := 0; i < 3000; i++ {
+			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
+				time.Sleep(time.Millisecond)
+				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
+					log.Warn("Step2FileInfoTransferred reached")
+					cancel2()
+					return
+				}
+				log.Warn("Step1ChannelSecured reached")
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	done := make(chan bool, 1)
+	go func() {
+		wg.Wait()
+		done <- true
+	}()
+
+	select {
+	case err := <-fatalErr:
+		result(t, err)
+	case <-done:
+		t.Error("Transfer should have been interrupted by context cancellation")
+	case <-time.After(5 * time.Second):
+		t.Fatal("Test timeout after 5 seconds")
+	}
+}
+
+func TestRunCtx(t *testing.T) {
+	tempFile, cleanup := createTestFile(t, 1024*1024) // 1 МБ
+	defer cleanup()
+	receivedFile := filepath.Base(tempFile)
+	defer os.Remove(receivedFile)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+
+	go tcp.RunCtx(ctx2, "debug", "127.0.0.1", "8296", "pass123", "8297")
+	time.Sleep(200 * time.Millisecond)
+	go tcp.RunCtx(ctx2, "debug", "127.0.0.1", "8297", "pass123")
+	time.Sleep(200 * time.Millisecond)
+
+	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
+
+	sender, err := NewCtx(ctx, Options{
+		IsSender:      true,
+		SharedSecret:  uniqueSecret,
+		Debug:         true,
+		RelayAddress:  "127.0.0.1:8296",
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+		GitIgnore:     false,
+	})
+	if err != nil {
+		t.Fatalf("Create sender failed: %v", err)
+	}
+
+	filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{tempFile}, false, false, []string{})
+	if errGet != nil {
+		t.Fatalf("Get file info failed: %v", errGet)
+	}
+
+	receiver, err := NewCtx(ctx, Options{
+		IsSender:      false,
+		SharedSecret:  uniqueSecret,
+		Debug:         true,
+		RelayAddress:  "127.0.0.1:8296",
+		RelayPassword: "pass123",
+		Stdout:        false,
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+	})
+	if err != nil {
+		t.Fatalf("Create receiver failed: %v", err)
+	}
+
+	fatalErr := make(chan error, 1)
+
+	failTest := func(err error) {
+		select {
+		case fatalErr <- err:
+		default:
+		}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		log.Warn("Send")
+		if err := sender.Send(filesInfo, emptyFolders, totalNumberFolders); err != nil {
+			failTest(fmt.Errorf("Send failed: %w", err))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		if err := waitHashed(sender); err != nil {
+			failTest(fmt.Errorf("waitHashed failed: %w", err))
+			return
+		}
+
+		log.Warn("Receive")
+		if err := receiver.Receive(); err != nil {
+			failTest(fmt.Errorf("Receive failed: %w", err))
+		}
+	}()
+
+	go func() {
+		for i := 0; i < 3000; i++ {
+			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
+				time.Sleep(time.Millisecond)
+				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
+					log.Warn("Step2FileInfoTransferred reached")
+					cancel2()
+					return
+				}
+				log.Warn("Step1ChannelSecured reached")
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	done := make(chan bool, 1)
+	go func() {
+		wg.Wait()
+		done <- true
+	}()
+
+	select {
+	case err := <-fatalErr:
+		result(t, err)
+	case <-done:
+		t.Error("Transfer should have been interrupted by context cancellation")
+	case <-time.After(5 * time.Second):
+		t.Fatal("Test timeout after 5 seconds")
 	}
 }

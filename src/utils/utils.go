@@ -415,6 +415,9 @@ func ChunkRangesToChunks(chunkRanges []int64) (chunks []int64) {
 func GetLocalIPs() (ips []string, err error) {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
+		if ip := LocalIP(); ip != "" {
+			return []string{ip}, nil
+		}
 		return
 	}
 	ips = []string{}
