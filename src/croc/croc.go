@@ -1228,9 +1228,17 @@ func (c *Client) transfer() (err error) {
 	if c.SuccessfulTransfer && !c.Options.IsSender {
 		for _, file := range c.FilesToTransfer {
 			if file.TempFile {
-				utils.UnzipDirectory(".", file.Name)
-				os.Remove(file.Name)
-				log.Debugf("Removing %s\n", file.Name)
+				if unzipErr := utils.UnzipDirectory(".", file.Name); unzipErr != nil {
+					c.SuccessfulTransfer = false
+					err = fmt.Errorf("failed to unzip received archive %s: %w", file.Name, unzipErr)
+					log.Error(err)
+					break
+				}
+				if removeErr := os.Remove(file.Name); removeErr != nil {
+					log.Warnf("error removing %s: %v", file.Name, removeErr)
+				} else {
+					log.Debugf("Removing %s\n", file.Name)
+				}
 			}
 		}
 	}

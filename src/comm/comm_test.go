@@ -1,7 +1,9 @@
 package comm
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/binary"
 	"net"
 	"testing"
 	"time"
@@ -76,4 +78,29 @@ func TestComm(t *testing.T) {
 	assert.NotNil(t, a.Send(token))
 	_, err = a.Write(token)
 	assert.NotNil(t, err)
+}
+
+func TestReceiveRejectsOversizedMessage(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	c := New(clientConn)
+
+	writeErr := make(chan error, 1)
+	go func() {
+		header := new(bytes.Buffer)
+		header.Write(MAGIC_BYTES)
+		if err := binary.Write(header, binary.LittleEndian, uint32(maxReadMessageSize+1)); err != nil {
+			writeErr <- err
+			return
+		}
+		_, err := serverConn.Write(header.Bytes())
+		writeErr <- err
+	}()
+
+	_, err := c.Receive()
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "message too large")
+	assert.Nil(t, <-writeErr)
 }
