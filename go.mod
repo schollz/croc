@@ -1,6 +1,6 @@
 module github.com/schollz/croc/v10
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -12,13 +12,13 @@ require (
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/schollz/cli/v2 v2.2.1
 	github.com/schollz/logger v1.2.0
-	github.com/schollz/pake/v3 v3.1.0
+	github.com/schollz/pake/v3 v3.1.1
 	github.com/schollz/peerdiscovery v1.7.6
 	github.com/schollz/progressbar/v3 v3.19.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.48.0
-	golang.org/x/net v0.50.0
+	golang.org/x/net v0.51.0
 	golang.org/x/sys v0.41.0
 	golang.org/x/term v0.40.0
 	golang.org/x/time v0.14.0
