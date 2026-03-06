@@ -417,6 +417,42 @@ func TestUnzipToNonExistentDirectory(t *testing.T) {
 	}
 }
 
+func TestUnzipDirectoryRejectsPathTraversal(t *testing.T) {
+	tmpDir := t.TempDir()
+	zipPath := filepath.Join(tmpDir, "malicious-relative.zip")
+	extractDir := filepath.Join(tmpDir, "extract")
+	escapedPath := filepath.Join(tmpDir, "escaped.txt")
+
+	err := createZipWithEntries(zipPath, []zipTestEntry{
+		{name: "safe/file.txt", content: "safe"},
+		{name: "../../escaped.txt", content: "escape"},
+	})
+	if err != nil {
+		t.Fatalf("Failed to create malicious zip: %v", err)
+	}
+
+	err = UnzipDirectory(extractDir, zipPath)
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "invalid file path")
+
+	_, statErr := os.Stat(escapedPath)
+	assert.True(t, os.IsNotExist(statErr), "path traversal should not create files outside destination")
+
+	_, statErr = os.Stat(filepath.Join(extractDir, "safe", "file.txt"))
+	assert.True(t, os.IsNotExist(statErr), "pre-validation should prevent partial extraction")
+}
+
+func TestResolveUnzipPathRejectsAbsolutePathEntry(t *testing.T) {
+	destination := t.TempDir()
+	absoluteEntry := filepath.Join(string(os.PathSeparator), "tmp", "croc-absolute-escape.txt")
+
+	_, err := resolveUnzipPath(destination, absoluteEntry)
+	assert.NotNil(t, err)
+	if err != nil {
+		assert.Contains(t, err.Error(), "path escapes destination")
+	}
+}
+
 // TestZipAndUnzipRoundTrip tests complete zip/unzip cycle with proper paths
 func TestZipAndUnzipRoundTrip(t *testing.T) {
 	// Create temporary directory for tests
@@ -626,6 +662,36 @@ func createTestZipWithModTime(zipPath string, modTime time.Time) error {
 	}
 
 	return nil
+}
+
+type zipTestEntry struct {
+	name    string
+	content string
+}
+
+func createZipWithEntries(zipPath string, entries []zipTestEntry) error {
+	file, err := os.Create(zipPath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := zip.NewWriter(file)
+	for _, entry := range entries {
+		header := &zip.FileHeader{
+			Name:   filepath.ToSlash(entry.name),
+			Method: zip.Deflate,
+		}
+		w, err := writer.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+		if _, err := w.Write([]byte(entry.content)); err != nil {
+			return err
+		}
+	}
+
+	return writer.Close()
 }
 
 // Helper function to verify file content
