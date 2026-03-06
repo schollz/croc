@@ -645,22 +645,25 @@ func UnzipDirectory(destination string, source string) error {
 	}
 	defer archive.Close()
 
+	// Pre-validate all paths to avoid partial extraction on malicious archives.
+	filePaths := make([]string, len(archive.File))
+	for i, f := range archive.File {
+		filePath, pathErr := resolveUnzipPath(destination, f.Name)
+		if pathErr != nil {
+			log.Errorf("Invalid file path %s: %v\n", f.Name, pathErr)
+			return fmt.Errorf("invalid file path in zip entry %q: %w", f.Name, pathErr)
+		}
+		filePaths[i] = filePath
+	}
+
 	// Store modification times for all files and directories
 	modTimes := make(map[string]time.Time)
 
 	// First pass: extract all files and directories, store modification times
-	for _, f := range archive.File {
-		filePath := filepath.Join(destination, f.Name)
+	for i, f := range archive.File {
+		filePath := filePaths[i]
 		fmt.Fprintf(os.Stderr, "\r\033[2K")
 		fmt.Fprintf(os.Stderr, "\rUnzipping file %s", filePath)
-
-		// Issue #593 conceal path traversal vulnerability
-		// make sure the filepath does not have ".."
-		filePath = filepath.Clean(filePath)
-		if strings.Contains(filePath, "..") {
-			log.Errorf("Invalid file path %s\n", filePath)
-			continue
-		}
 
 		// Store modification time for this entry (BOTH files and directories)
 		modifiedTime := f.Modified
@@ -730,6 +733,29 @@ func UnzipDirectory(destination string, source string) error {
 
 	fmt.Fprintf(os.Stderr, "\n")
 	return nil
+}
+
+func resolveUnzipPath(destination string, entryName string) (string, error) {
+	if filepath.IsAbs(entryName) || filepath.VolumeName(entryName) != "" {
+		return "", fmt.Errorf("path escapes destination")
+	}
+
+	destinationAbs, err := filepath.Abs(destination)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve destination: %w", err)
+	}
+	destinationAbs = filepath.Clean(destinationAbs)
+
+	filePath := filepath.Clean(filepath.Join(destinationAbs, entryName))
+	relativePath, err := filepath.Rel(destinationAbs, filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve path %q: %w", entryName, err)
+	}
+	if relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("path escapes destination")
+	}
+
+	return filePath, nil
 }
 
 // ValidFileName checks if a filename is valid

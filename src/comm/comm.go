@@ -21,6 +21,8 @@ var HttpProxy = ""
 
 var MAGIC_BYTES = []byte("croc")
 
+const maxReadMessageSize = 64 * 1024 * 1024
+
 // Comm is some basic TCP communication
 type Comm struct {
 	connection net.Conn
@@ -171,6 +173,11 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 	err = binary.Read(rbuf, binary.LittleEndian, &numBytesUint32)
 	if err != nil {
 		err = fmt.Errorf("binary.Read failed: %w", err)
+		log.Debug(err.Error())
+		return
+	}
+	if numBytesUint32 > uint32(maxReadMessageSize) {
+		err = fmt.Errorf("message too large: %d > %d", numBytesUint32, maxReadMessageSize)
 		log.Debug(err.Error())
 		return
 	}
