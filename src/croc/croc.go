@@ -69,6 +69,7 @@ type Options struct {
 	RelayAddress6     string
 	RelayPorts        []string
 	RelayPassword     string
+	PoolURL           string // URL of pool API for relay discovery
 	Stdout            bool
 	NoPrompt          bool
 	NoMultiplexing    bool
@@ -724,6 +725,25 @@ On the other computer run:
 
 	if !c.Options.OnlyLocal {
 		go func() {
+			// Phase 2: Pool Discovery - If using default relays, try pool API first
+			if c.Options.PoolURL != "" {
+				isUsingDefaults := (c.Options.RelayAddress == models.DEFAULT_RELAY || c.Options.RelayAddress == "") &&
+					(c.Options.RelayAddress6 == models.DEFAULT_RELAY6 || c.Options.RelayAddress6 == "")
+
+				if isUsingDefaults {
+					log.Debug("Attempting pool relay discovery before using defaults")
+					discoveredAddress, discoveredPort, discoverErr := c.discoverRelay()
+					if discoverErr == nil {
+						log.Infof("Using relay from pool: %s:%s", discoveredAddress, discoveredPort)
+						// Use discovered relay instead of defaults
+						c.Options.RelayAddress = net.JoinHostPort(discoveredAddress, discoveredPort)
+						c.Options.RelayAddress6 = "" // Clear IPv6 to avoid conflict
+					} else {
+						log.Debugf("Pool discovery failed, falling back to default relay: %v", discoverErr)
+					}
+				}
+			}
+
 			var ipaddr, banner string
 			var conn *comm.Comm
 			durations := []time.Duration{100 * time.Millisecond, 5 * time.Second}
@@ -989,6 +1009,25 @@ func (c *Client) Receive() (err error) {
 		log.Debugf("discoveries: %+v", discoveries)
 		log.Debug("establishing connection")
 	}
+
+	// Phase 2: Pool Discovery - If local discovery failed and using default relays, try pool API
+	if !usingLocal && !isIPset && c.Options.PoolURL != "" {
+		isUsingDefaults := (c.Options.RelayAddress == models.DEFAULT_RELAY || c.Options.RelayAddress == "") &&
+			(c.Options.RelayAddress6 == models.DEFAULT_RELAY6 || c.Options.RelayAddress6 == "")
+
+		if isUsingDefaults {
+			log.Debug("Local discovery failed, attempting pool relay discovery")
+			discoveredAddress, discoveredPort, discoverErr := c.discoverRelay()
+			if discoverErr == nil {
+				log.Infof("Using relay from pool: %s:%s", discoveredAddress, discoveredPort)
+				c.Options.RelayAddress = net.JoinHostPort(discoveredAddress, discoveredPort)
+				c.Options.RelayAddress6 = "" // Clear IPv6 to avoid conflict
+			} else {
+				log.Debugf("Pool discovery failed, falling back to default relay: %v", discoverErr)
+			}
+		}
+	}
+
 	var banner string
 	durations := []time.Duration{200 * time.Millisecond, 5 * time.Second}
 	err = fmt.Errorf("found no addresses to connect")
@@ -1241,6 +1280,15 @@ func (c *Client) transfer() (err error) {
 				}
 			}
 		}
+	}
+
+	// Phase 3: Show relay volunteer recruitment message always (unless quiet mode)
+	if !c.Options.Quiet && !c.Options.IsSender {
+		fmt.Fprintf(os.Stderr, "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+		fmt.Fprintf(os.Stderr, "💡 croc relies on community relays\n")
+		fmt.Fprintf(os.Stderr, "   Help keep transfers fast and decentralized!\n")
+		fmt.Fprintf(os.Stderr, "   croc relay community --pool %s\n", c.Options.PoolURL)
+		fmt.Fprintf(os.Stderr, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
 	}
 
 	if c.Options.Stdout && !c.Options.IsSender && len(c.FilesToTransfer) > 0 && c.FilesToTransferCurrentNum < len(c.FilesToTransfer) {

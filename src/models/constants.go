@@ -21,6 +21,7 @@ var (
 	DEFAULT_RELAY6     = "croc6.schollz.com"
 	DEFAULT_PORT       = "9009"
 	DEFAULT_PASSPHRASE = "pass123"
+	DEFAULT_POOL       = "http://croc.schollz.com:8080" // Same host as relay, different port for pool API
 	INTERNAL_DNS       = false
 )
 
