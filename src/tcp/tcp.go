@@ -28,6 +28,12 @@ type server struct {
 	roomCleanupInterval time.Duration
 	roomTTL             time.Duration
 
+	// Public registration fields
+	enablePublicRegistration bool
+	poolURL                  string
+	relayAddresses           []string
+	relayVersion             string
+
 	// stopRoomCleanup chan struct{}
 	// replaced by stop ctx.go
 	*stop
@@ -78,6 +84,18 @@ func Run(debugLevel, host, port, password string, banner ...string) (err error) 
 	return RunWithOptionsAsync(host, port, password, WithBanner(banner...), WithLogLevel(debugLevel))
 }
 
+// RunWithOptions starts a tcp listener with custom options
+func RunWithOptions(host, port, password string, opts ...interface{}) error {
+	// Convert interface{} to serverOptsFunc
+	serverOpts := make([]serverOptsFunc, 0, len(opts))
+	for _, opt := range opts {
+		if fn, ok := opt.(serverOptsFunc); ok {
+			serverOpts = append(serverOpts, fn)
+		}
+	}
+	return RunWithOptionsAsync(host, port, password, serverOpts...)
+}
+
 // Mask our password in logs
 func maskedPassword(password string) (s string) {
 	if len(password) > 2 {
@@ -102,6 +120,23 @@ func (s *server) start() (err error) {
 		defer s.stop.wg.Done()
 		s.deleteOldRooms()
 	}()
+
+	// Start public registration loop if enabled
+	if s.enablePublicRegistration {
+		log.Infof("Public registration enabled - will register %d address(es) with pool API: %s", len(s.relayAddresses), s.poolURL)
+		s.stop.wg.Add(1)
+		go func() {
+			defer s.stop.wg.Done()
+			config := registrationConfig{
+				poolURL:           s.poolURL,
+				relayAddresses:    s.relayAddresses,
+				version:           s.relayVersion,
+				heartbeatInterval: 30 * time.Second,
+			}
+			startRegistrationLoop(s.stop.ctx, config)
+		}()
+	}
+
 	// defer s.stopRoomDeletion()
 	defer s.stop.Cancel()
 	if s.stop.gui {

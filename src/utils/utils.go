@@ -247,24 +247,97 @@ func SHA256(s string) string {
 	return hex.EncodeToString(sha.Sum(nil))
 }
 
-// PublicIP returns public ip address
+// PublicIP returns public IPv4 address
 func PublicIP() (ip string, err error) {
-	// ask ipv4.icanhazip.com for the public ip
-	// by making http request
-	// if the request fails, return nothing
-	resp, err := http.Get("http://ipv4.icanhazip.com")
-	if err != nil {
-		return
+	endpoints := []string{
+		"http://ipv4.icanhazip.com",
+		"https://api.ipify.org",
+		"https://ifconfig.me/ip",
 	}
-	defer resp.Body.Close()
 
-	// read the body of the response
-	// and return the ip address
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(resp.Body)
-	ip = strings.TrimSpace(buf.String())
+	client := &http.Client{Timeout: 5 * time.Second}
+	var errs []string
+	for _, endpoint := range endpoints {
+		resp, reqErr := client.Get(endpoint)
+		if reqErr != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", endpoint, reqErr))
+			continue
+		}
 
-	return
+		body, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", endpoint, readErr))
+			continue
+		}
+
+		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+			errs = append(errs, fmt.Sprintf("%s: status %d", endpoint, resp.StatusCode))
+			continue
+		}
+
+		candidate := strings.TrimSpace(string(body))
+		if !IsPublicIP(candidate) {
+			errs = append(errs, fmt.Sprintf("%s: non-public IP %q", endpoint, candidate))
+			continue
+		}
+
+		// Ensure it's IPv4
+		if net.ParseIP(candidate).To4() == nil {
+			continue
+		}
+
+		return candidate, nil
+	}
+
+	return "", fmt.Errorf("unable to detect public IPv4: %s", strings.Join(errs, "; "))
+}
+
+// PublicIPv6 returns public IPv6 address
+func PublicIPv6() (ip string, err error) {
+	endpoints := []string{
+		"http://ipv6.icanhazip.com",
+		"https://api64.ipify.org",
+		"https://ifconfig.co/ip",
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	var errs []string
+	for _, endpoint := range endpoints {
+		resp, reqErr := client.Get(endpoint)
+		if reqErr != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", endpoint, reqErr))
+			continue
+		}
+
+		body, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", endpoint, readErr))
+			continue
+		}
+
+		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+			errs = append(errs, fmt.Sprintf("%s: status %d", endpoint, resp.StatusCode))
+			continue
+		}
+
+		candidate := strings.TrimSpace(string(body))
+		if !IsPublicIP(candidate) {
+			errs = append(errs, fmt.Sprintf("%s: non-public IP %q", endpoint, candidate))
+			continue
+		}
+
+		// Ensure it's IPv6
+		parsed := net.ParseIP(candidate)
+		if parsed == nil || parsed.To4() != nil {
+			continue
+		}
+
+		return candidate, nil
+	}
+
+	return "", fmt.Errorf("unable to detect public IPv6: %s", strings.Join(errs, "; "))
 }
 
 // LocalIP returns local ip address
@@ -488,6 +561,9 @@ func IsLocalIP(ipaddress string) bool {
 	}
 	host, _, _ := net.SplitHostPort(ipaddress)
 	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
 	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
 		return true
 	}
@@ -497,6 +573,64 @@ func IsLocalIP(ipaddress string) bool {
 		}
 	}
 	return false
+}
+
+// IsPublicIP reports whether ipAddress is a globally routable public IP.
+func IsPublicIP(ipAddress string) bool {
+	ip := net.ParseIP(strings.TrimSpace(ipAddress))
+	if ip == nil {
+		return false
+	}
+
+	if ip.IsUnspecified() || ip.IsLoopback() || ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsPrivate() {
+		return false
+	}
+
+	// CGNAT range (RFC6598): not globally reachable from the public internet.
+	_, cgnat, _ := net.ParseCIDR("100.64.0.0/10")
+	if cgnat.Contains(ip) {
+		return false
+	}
+
+	return true
+}
+
+// ValidatePublicRelayAddress validates relay addresses in host:port form and
+// requires host to be a public IP address.
+func ValidatePublicRelayAddress(address string) error {
+	host, port, err := net.SplitHostPort(strings.TrimSpace(address))
+	if err != nil {
+		return fmt.Errorf("invalid relay address %q, expected host:port", address)
+	}
+
+	if _, err = net.LookupPort("tcp", port); err != nil {
+		return fmt.Errorf("invalid relay port %q", port)
+	}
+
+	host = strings.Trim(host, "[]")
+	if net.ParseIP(host) == nil {
+		return fmt.Errorf("relay host must be a public IP, got %q", host)
+	}
+
+	if !IsPublicIP(host) {
+		return fmt.Errorf("relay host %q is not a public IP", host)
+	}
+
+	return nil
+}
+
+// MeasureLatency measures the round-trip time to establish a TCP connection to an address
+func MeasureLatency(address string, timeout time.Duration) (time.Duration, error) {
+	start := time.Now()
+
+	conn, err := net.DialTimeout("tcp", address, timeout)
+	if err != nil {
+		return 0, fmt.Errorf("failed to connect to %s: %w", address, err)
+	}
+	defer conn.Close()
+
+	latency := time.Since(start)
+	return latency, nil
 }
 
 func ZipDirectory(destination string, source string) (err error) {

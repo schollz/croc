@@ -11,7 +11,7 @@
 
 ## About
 
-`croc` is a tool that allows any two computers to simply and securely transfer files and folders. AFAIK, *croc* is the only CLI file-transfer tool that does **all** of the following:
+`croc` is a tool that allows any two computers to simply and securely transfer files and folders. AFAIK, _croc_ is the only CLI file-transfer tool that does **all** of the following:
 
 - Allows **any two computers** to transfer data (using a relay)
 - Provides **end-to-end encryption** (using PAKE)
@@ -146,7 +146,7 @@ Or install into a particular environment with [`conda`](https://docs.conda.io/pr
 conda install --channel conda-forge croc
 ```
 
-### On Linux, macOS via Docker 
+### On Linux, macOS via Docker
 
 Add the following one-liner function to your ~/.profile (works with any POSIX-compliant shell):
 
@@ -314,7 +314,9 @@ croc --quiet send [filename]
 
 #### Self-host Relay
 
-You can run your own relay:
+##### Simple Local Relay
+
+To run a simple relay on your local network:
 
 ```bash
 croc relay
@@ -328,7 +330,75 @@ To send files using your relay:
 croc --relay "myrelay.example.com:9009" send [filename]
 ```
 
-#### Self-host Relay with Docker
+##### Federated Relay Pool (Public Community Relays)
+
+Croc supports a **federated relay pool** where multiple community relays can register with a central pool API, automatically discovering each other.
+
+**Main Relay (Pool API + Relay)** — Run this centrally:
+
+```bash
+croc relay --role main --host 0.0.0.0 \
+  --ports 9009,9010,9011,9012,9013 \
+  --pool-port 8080
+```
+
+This starts:
+
+- Central pool API on port 8080 for relay pool management
+- Public relay on ports 9009-9013
+- Auto-detects your public IPv4 address and advertises it to community relays
+
+**Community Relay** — Run this on any server to join the pool:
+
+```bash
+croc relay --role community --host 0.0.0.0 \
+  --ports 9009,9010,9011,9012,9013
+```
+
+The relay automatically:
+
+- Detects its public IPv4 address (IPv6 detected but not registered with pool API)
+- Registers with the default pool API (`http://croc.schollz.com:8080`)
+- Sends heartbeats every 30 seconds to stay in the pool
+- Gets promoted to "ready" after 2 minutes of health checks
+
+To use a custom pool API endpoint:
+
+```bash
+croc relay --role community --host 0.0.0.0 \
+  --ports 9009,9010,9011,9012,9013 \
+  --pool http://your-pool-host:8080
+```
+
+**Private Relay** — Relay only, no publishing to pool API:
+
+```bash
+croc relay --role private --host 0.0.0.0 \
+  --ports 9009,9010,9011,9012,9013
+```
+
+Role can also be set with environment variable:
+
+```bash
+export CROC_RELAY_ROLE=community
+croc relay --host 0.0.0.0 --ports 9009,9010,9011,9012,9013
+```
+
+**View relay pool status:**
+
+```bash
+curl -s http://POOL_HOST:8080/relays | jq
+```
+
+**How it works:**
+
+- Clients automatically discover the fastest relay from the pool
+- Clients measure latency to multiple relays and pick the best one
+- Relays in `main` or `community` role must be publicly accessible with IPv4 (auto-detected)
+- Pool API currently supports IPv4 only; relays must have a public IPv4 address
+- After every successful relay-based transfer using a relay, users see a message encouraging them to run their own relay
+
+##### Relay with Docker
 
 You can also run a relay with Docker:
 
@@ -339,7 +409,13 @@ docker run -d -p 9009-9013:9009-9013 -e CROC_PASS='YOURPASSWORD' docker.io/schol
 To send files using your custom relay:
 
 ```bash
-croc --pass YOURPASSWORD --relay "myreal.example.com:9009" send [filename]
+croc --pass YOURPASSWORD --relay "myrelay.example.com:9009" send [filename]
+```
+
+For a public relay that joins the pool:
+
+```bash
+docker run -d -p 9009-9013:9009-9013 docker.io/schollz/croc relay community --host 0.0.0.0 --ports 9009,9010,9011,9012,9013
 ```
 
 ## Acknowledgements

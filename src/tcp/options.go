@@ -43,6 +43,18 @@ func WithRoomTTL(ttl time.Duration) serverOptsFunc {
 	}
 }
 
+func WithPublicRegistration(poolURL string, relayAddresses []string, version string) serverOptsFunc {
+	return func(s *server) error {
+		if poolURL != "" && len(relayAddresses) > 0 {
+			s.enablePublicRegistration = true
+			s.poolURL = poolURL
+			s.relayAddresses = relayAddresses
+			s.relayVersion = version
+		}
+		return nil
+	}
+}
+
 func containsSlice(s []string, e string) bool {
 	for _, ss := range s {
 		if e == ss {

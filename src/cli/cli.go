@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -19,6 +21,7 @@ import (
 	"github.com/schollz/croc/v10/src/croc"
 	"github.com/schollz/croc/v10/src/mnemonicode"
 	"github.com/schollz/croc/v10/src/models"
+	poollib "github.com/schollz/croc/v10/src/pool"
 	"github.com/schollz/croc/v10/src/tcp"
 	"github.com/schollz/croc/v10/src/utils"
 	log "github.com/schollz/logger"
@@ -86,16 +89,37 @@ func Run() (err error) {
 			Action:   send,
 		},
 		{
-			Name:        "relay",
-			Usage:       "start your own relay (optional)",
-			Description: "start relay",
-			HelpName:    "croc relay",
-			Action:      relay,
+			Name:  "relay",
+			Usage: "start a croc relay",
+			Description: `Start a relay in one of three modes:
+
+	main:      Start a main relay with integrated pool API (public pool coordinator)
+	community: Start a community relay that registers with a pool API (public volunteer relay)
+   private:   Start a private relay (not publicly registered, default)
+
+EXAMPLES:
+	Start main relay with pool API:
+		croc relay --role main --host 0.0.0.0 --ports 9009,9010,9011,9012,9013 --pool-port 8080
+   
+   Start community relay:
+		croc relay --role community --host 0.0.0.0 --pool http://pool.example.com:8080
+   
+   Start private relay:
+      croc relay --host 0.0.0.0
+   
+	Short flag alias:
+		croc relay --rol main --host 0.0.0.0`,
+			ArgsUsage: "",
+			HelpName:  "croc relay",
+			Action:    relay,
 			Flags: []cli.Flag{
-				&cli.StringFlag{Name: "host", Usage: "host of the relay"},
-				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay"},
-				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay"},
-				&cli.IntFlag{Name: "transfers", Value: 5, Usage: "number of ports to use for relay"},
+				&cli.StringFlag{Name: "role", Aliases: []string{"rol"}, Usage: "relay role: main, community, or private", EnvVars: []string{"CROC_RELAY_ROLE"}},
+				&cli.StringFlag{Name: "host", Value: "0.0.0.0", Usage: "host address to bind to (default: 0.0.0.0 for all IPv4 interfaces)"},
+				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "comma-separated list of ports for the relay"},
+				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay (used with --transfers)"},
+				&cli.IntFlag{Name: "transfers", Value: 5, Usage: "number of ports to use for relay (starting from --port)"},
+				&cli.IntFlag{Name: "pool-port", Value: 8080, Usage: "port for integrated pool HTTP server (only for 'main' role)"},
+				&cli.StringFlag{Name: "pool", Value: models.DEFAULT_POOL, Usage: "pool API URL for relay registration (for 'main' and 'community' roles)", EnvVars: []string{"CROC_POOL"}},
 			},
 		},
 		{
@@ -133,6 +157,7 @@ func Run() (err error) {
 		&cli.StringFlag{Name: "ip", Value: "", Usage: "set sender ip if known e.g. 10.0.0.1:9009, [::1]:9009"},
 		&cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay", EnvVars: []string{"CROC_RELAY"}},
 		&cli.StringFlag{Name: "relay6", Value: models.DEFAULT_RELAY6, Usage: "ipv6 address of the relay", EnvVars: []string{"CROC_RELAY6"}},
+		&cli.StringFlag{Name: "pool", Value: models.DEFAULT_POOL, Usage: "address of the relay pool API", EnvVars: []string{"CROC_POOL"}},
 		&cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 		&cli.StringFlag{Name: "pass", Value: models.DEFAULT_PASSPHRASE, Usage: "password for the relay", EnvVars: []string{"CROC_PASS"}},
 		&cli.StringFlag{Name: "socks5", Value: "", Usage: "add a socks5 proxy", EnvVars: []string{"SOCKS5_PROXY"}},
@@ -282,6 +307,105 @@ func determinePass(c *cli.Context) (pass string) {
 	return
 }
 
+func localIPv4Set() map[string]struct{} {
+	result := make(map[string]struct{})
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return result
+	}
+
+	for _, iface := range interfaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil {
+				continue
+			}
+			if v4 := ip.To4(); v4 != nil {
+				result[v4.String()] = struct{}{}
+			}
+		}
+	}
+
+	return result
+}
+
+// detectUsablePublicIPv4 verifies that we have a real public IPv4 bound to a local interface.
+// If the detected public IPv4 is not local, we are likely behind NAT and cannot act as a public relay.
+func detectUsablePublicIPv4() (string, error) {
+	publicIP, err := utils.PublicIP()
+	if err != nil {
+		return "", fmt.Errorf("could not detect public IPv4: %w", err)
+	}
+
+	parsed := net.ParseIP(publicIP)
+	if parsed == nil || parsed.To4() == nil || !utils.IsPublicIP(publicIP) {
+		return "", fmt.Errorf("detected IP %q is not a usable public IPv4", publicIP)
+	}
+
+	localIPs := localIPv4Set()
+	if _, ok := localIPs[publicIP]; !ok {
+		return "", fmt.Errorf("detected public IPv4 %s is not bound to this host (likely behind NAT)", publicIP)
+	}
+
+	return publicIP, nil
+}
+
+func waitForPoolReady(url string, timeout time.Duration) error {
+	client := &http.Client{Timeout: 500 * time.Millisecond}
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		resp, err := client.Get(url + "/health")
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return nil
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	return fmt.Errorf("pool API did not become ready at %s within %s", url, timeout)
+}
+
+func relayRoleFromInvocation(c *cli.Context) (role string, err error) {
+	if c.Args().Len() > 0 {
+		arg := strings.TrimSpace(c.Args().First())
+		if arg != "" {
+			return "", fmt.Errorf("positional relay role is no longer supported: %q\nuse --role (or --rol), e.g. 'croc relay --role main'", arg)
+		}
+	}
+
+	// Priority order: --role flag > environment variable > default (private)
+	role = strings.TrimSpace(c.String("role"))
+	if role == "" {
+		// Finally check environment variable
+		role = strings.TrimSpace(os.Getenv("CROC_RELAY_ROLE"))
+	}
+	if role == "" {
+		// Default to private relay (not publicly registered)
+		return "private", nil
+	}
+
+	// Validate the role
+	switch role {
+	case "main", "community", "private":
+		return role, nil
+	default:
+		return "", fmt.Errorf("invalid relay role %q\n\nAllowed roles:\n  main      - start main relay with integrated pool API\n  community - start community relay (registers with pool API)\n  private   - start private relay (not publicly registered)\n\nUsage: croc relay --role [role] [options]", role)
+	}
+}
+
 func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
 	comm.Socks5Proxy = c.String("socks5")
@@ -309,33 +433,34 @@ func send(c *cli.Context) (err error) {
 	}
 
 	crocOptions := croc.Options{
-		SharedSecret:     c.String("code"),
-		IsSender:         true,
-		Debug:            c.Bool("debug"),
-		NoPrompt:         c.Bool("yes"),
-		RelayAddress:     c.String("relay"),
-		RelayAddress6:    c.String("relay6"),
-		Stdout:           c.Bool("stdout"),
-		DisableLocal:     c.Bool("no-local"),
-		OnlyLocal:        c.Bool("local"),
-		IgnoreStdin:      c.Bool("ignore-stdin"),
-		RelayPorts:       ports,
-		Ask:              c.Bool("ask"),
-		NoMultiplexing:   c.Bool("no-multi"),
-		RelayPassword:    determinePass(c),
-		SendingText:      c.String("text") != "",
-		NoCompress:       c.Bool("no-compress"),
-		Overwrite:        c.Bool("overwrite"),
-		Curve:            c.String("curve"),
-		HashAlgorithm:    c.String("hash"),
-		ThrottleUpload:   c.String("throttleUpload"),
-		ZipFolder:        c.Bool("zip"),
-		GitIgnore:        c.Bool("git"),
-		ShowQrCode:       c.Bool("qrcode"),
-		MulticastAddress: c.String("multicast"),
-		Exclude:          excludeStrings,
-		Quiet:            c.Bool("quiet"),
-		DisableClipboard: c.Bool("disable-clipboard"),
+		SharedSecret:      c.String("code"),
+		IsSender:          true,
+		Debug:             c.Bool("debug"),
+		NoPrompt:          c.Bool("yes"),
+		RelayAddress:      c.String("relay"),
+		RelayAddress6:     c.String("relay6"),
+		Stdout:            c.Bool("stdout"),
+		DisableLocal:      c.Bool("no-local"),
+		OnlyLocal:         c.Bool("local"),
+		IgnoreStdin:       c.Bool("ignore-stdin"),
+		RelayPorts:        ports,
+		Ask:               c.Bool("ask"),
+		NoMultiplexing:    c.Bool("no-multi"),
+		RelayPassword:     determinePass(c),
+		PoolURL:           c.String("pool"),
+		SendingText:       c.String("text") != "",
+		NoCompress:        c.Bool("no-compress"),
+		Overwrite:         c.Bool("overwrite"),
+		Curve:             c.String("curve"),
+		HashAlgorithm:     c.String("hash"),
+		ThrottleUpload:    c.String("throttleUpload"),
+		ZipFolder:         c.Bool("zip"),
+		GitIgnore:         c.Bool("git"),
+		ShowQrCode:        c.Bool("qrcode"),
+		MulticastAddress:  c.String("multicast"),
+		Exclude:           excludeStrings,
+		Quiet:             c.Bool("quiet"),
+		DisableClipboard:  c.Bool("disable-clipboard"),
 		ExtendedClipboard: c.Bool("extended-clipboard"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
@@ -612,23 +737,24 @@ func receive(c *cli.Context) (err error) {
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
 	crocOptions := croc.Options{
-		SharedSecret:     c.String("code"),
-		IsSender:         false,
-		Debug:            c.Bool("debug"),
-		NoPrompt:         c.Bool("yes"),
-		RelayAddress:     c.String("relay"),
-		RelayAddress6:    c.String("relay6"),
-		Stdout:           c.Bool("stdout"),
-		Ask:              c.Bool("ask"),
-		RelayPassword:    determinePass(c),
-		OnlyLocal:        c.Bool("local"),
-		IP:               c.String("ip"),
-		Overwrite:        c.Bool("overwrite"),
-		Curve:            c.String("curve"),
-		TestFlag:         c.Bool("testing"),
-		MulticastAddress: c.String("multicast"),
-		Quiet:            c.Bool("quiet"),
-		DisableClipboard: c.Bool("disable-clipboard"),
+		SharedSecret:      c.String("code"),
+		IsSender:          false,
+		Debug:             c.Bool("debug"),
+		NoPrompt:          c.Bool("yes"),
+		RelayAddress:      c.String("relay"),
+		RelayAddress6:     c.String("relay6"),
+		Stdout:            c.Bool("stdout"),
+		Ask:               c.Bool("ask"),
+		RelayPassword:     determinePass(c),
+		PoolURL:           c.String("pool"),
+		OnlyLocal:         c.Bool("local"),
+		IP:                c.String("ip"),
+		Overwrite:         c.Bool("overwrite"),
+		Curve:             c.String("curve"),
+		TestFlag:          c.Bool("testing"),
+		MulticastAddress:  c.String("multicast"),
+		Quiet:             c.Bool("quiet"),
+		DisableClipboard:  c.Bool("disable-clipboard"),
 		ExtendedClipboard: c.Bool("extended-clipboard"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
@@ -782,8 +908,22 @@ func relay(c *cli.Context) (err error) {
 	if c.Bool("debug") {
 		debugString = "debug"
 	}
+
+	relayRole, err := relayRoleFromInvocation(c)
+	if err != nil {
+		return err
+	}
+
+	publicMode := relayRole != "private"
+	withPoolServerMode := relayRole == "main"
+	log.Infof("Relay mode: %s (public=%v, poolServer=%v)", relayRole, publicMode, withPoolServerMode)
+
 	host := c.String("host")
+	if host == "" {
+		host = "0.0.0.0"
+	}
 	var ports []string
+	poolURL := c.String("pool")
 
 	if c.IsSet("ports") {
 		ports = strings.Split(c.String("ports"), ",")
@@ -805,17 +945,117 @@ func relay(c *cli.Context) (err error) {
 		return fmt.Errorf("relay requires at least two ports; specify --ports with two or more ports or set --transfers to 2+")
 	}
 
+	if withPoolServerMode {
+		publicIPv4, detectErr := detectUsablePublicIPv4()
+		if detectErr != nil {
+			return fmt.Errorf("main relay requires a public IPv4 directly assigned to this host: %w", detectErr)
+		}
+
+		poolPort := c.Int("pool-port")
+		if poolPort <= 0 {
+			return fmt.Errorf("--pool-port must be greater than 0")
+		}
+
+		poolPortStr := strconv.Itoa(poolPort)
+		for _, relayPort := range ports {
+			if relayPort == poolPortStr {
+				return fmt.Errorf("--pool-port %d conflicts with relay port %s", poolPort, relayPort)
+			}
+		}
+
+		// For main relay, use detected public IPv4 so registration source/claim can match.
+		if !c.IsSet("pool") || poolURL == "" {
+			poolURL = fmt.Sprintf("http://%s:%d", publicIPv4, poolPort)
+		}
+
+		go func() {
+			config := poollib.ServerConfig{
+				Host:            "0.0.0.0", // IPv4 only binding
+				Port:            poolPort,
+				TTL:             10 * time.Minute,
+				CleanupInterval: 1 * time.Minute,
+			}
+			log.Infof("Starting integrated pool API on %s:%d", config.Host, config.Port)
+			if err := poollib.RunServer(config); err != nil {
+				log.Errorf("integrated pool API stopped: %v", err)
+			}
+		}()
+
+		log.Infof("Waiting for pool API to be ready at %s...", poolURL)
+		if err := waitForPoolReady(fmt.Sprintf("http://127.0.0.1:%d", poolPort), 8*time.Second); err != nil {
+			return fmt.Errorf("failed to start integrated pool API on IPv4 (0.0.0.0:%d): %w\n\npublic relay mode requires a public IPv4 address that is reachable from the internet", poolPort, err)
+		}
+		log.Infof("Pool API is ready and accepting registrations")
+	}
+
+	// Handle public registration
+	var publicOpts []interface{}
+	if publicMode {
+		if _, detectErr := detectUsablePublicIPv4(); detectErr != nil {
+			return fmt.Errorf("public relay mode requires a public IPv4 directly assigned to this host: %w", detectErr)
+		}
+
+		// Use DEFAULT_POOL if no pool endpoint was specified and not starting a new pool API
+		if poolURL == "" && !withPoolServerMode {
+			poolURL = models.DEFAULT_POOL
+			log.Infof("No pool endpoint specified; using default pool API: %s", poolURL)
+		}
+		if poolURL == "" {
+			return fmt.Errorf("public relay roles require a pool API URL (use --pool or set CROC_POOL)")
+		}
+
+		// Detect public IPv4 address for relay registration
+		// Note: IPv6 is not supported by the pool API at this time
+		var publicAddresses []string
+
+		// Try IPv4
+		ipv4, err4 := utils.PublicIP()
+		if err4 == nil {
+			addr := fmt.Sprintf("%s:%s", ipv4, ports[0])
+			if err := utils.ValidatePublicRelayAddress(addr); err == nil {
+				publicAddresses = append(publicAddresses, addr)
+				log.Infof("Detected public IPv4 address: %s", addr)
+			} else {
+				log.Warnf("IPv4 address detected but not valid as public relay: %v", err)
+			}
+		} else {
+			log.Warnf("Failed to detect public IPv4 address: %v", err4)
+		}
+
+		// Check for IPv6 and inform user it's not supported
+		ipv6, err6 := utils.PublicIPv6()
+		if err6 == nil {
+			log.Infof("Detected public IPv6 address: [%s]:%s (not registered - pool API only supports IPv4)", ipv6, ports[0])
+		}
+
+		if len(publicAddresses) == 0 {
+			return fmt.Errorf("failed to detect public IPv4 address for %s relay\\n\\nPlease ensure:\\n  - Your server has a public IPv4 address\\n  - The IPv4 is not behind NAT or firewall blocking external services\\n  - External IP detection services are accessible\\n\\nNote: IPv6-only servers are not currently supported by the pool API", relayRole)
+		}
+
+		log.Infof("Public %s relay: registering %d address(es) with pool API at %s", relayRole, len(publicAddresses), poolURL)
+		publicOpts = append(publicOpts, tcp.WithPublicRegistration(poolURL, publicAddresses, Version))
+	}
+
 	tcpPorts := strings.Join(ports[1:], ",")
 	for i, port := range ports {
 		if i == 0 {
 			continue
 		}
 		go func(portStr string) {
-			err := tcp.Run(debugString, host, portStr, determinePass(c))
+			// Transfer-port servers must not register independently; only the main
+			// relay server should maintain pool registration/token.
+			opts := []interface{}{tcp.WithLogLevel(debugString)}
+			err := tcp.RunWithOptions(host, portStr, determinePass(c), opts...)
 			if err != nil {
 				panic(err)
 			}
 		}(port)
 	}
-	return tcp.Run(debugString, host, ports[0], determinePass(c), tcpPorts)
+
+	// Main port with banner
+	opts := []interface{}{tcp.WithBanner(tcpPorts), tcp.WithLogLevel(debugString)}
+	if len(publicOpts) > 0 {
+		opts = append(opts, publicOpts...)
+	}
+	return tcp.RunWithOptions(host, ports[0], determinePass(c), opts...)
 }
