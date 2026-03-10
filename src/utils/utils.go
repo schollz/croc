@@ -247,24 +247,39 @@ func SHA256(s string) string {
 	return hex.EncodeToString(sha.Sum(nil))
 }
 
-// PublicIP returns public ip address
-func PublicIP() (ip string, err error) {
-	// ask ipv4.icanhazip.com for the public ip
-	// by making http request
-	// if the request fails, return nothing
-	resp, err := http.Get("http://ipv4.icanhazip.com")
+// PublicIPv4 returns the public IPv4 address.
+func PublicIPv4() (ip string, err error) {
+	return publicIP("http://ipv4.icanhazip.com")
+}
+
+// PublicIPv6 returns the public IPv6 address, if available.
+func PublicIPv6() (ip string, err error) {
+	return publicIP("http://ipv6.icanhazip.com")
+}
+
+func publicIP(url string) (ip string, err error) {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(url)
 	if err != nil {
-		return
+		return "", fmt.Errorf("failed to request public IP from %s: %w", url, err)
 	}
 	defer resp.Body.Close()
 
-	// read the body of the response
-	// and return the ip address
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(resp.Body)
-	ip = strings.TrimSpace(buf.String())
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected status code from %s: %d", url, resp.StatusCode)
+	}
 
-	return
+	buf := new(bytes.Buffer)
+	if _, err = buf.ReadFrom(resp.Body); err != nil {
+		return "", fmt.Errorf("failed to read response body from %s: %w", url, err)
+	}
+
+	ip = strings.TrimSpace(buf.String())
+	if ip == "" {
+		return "", fmt.Errorf("empty response body from %s", url)
+	}
+
+	return ip, nil
 }
 
 // LocalIP returns local ip address
@@ -296,13 +311,22 @@ func GenerateRandomPin() string {
 	return s
 }
 
-// GetRandomName returns mnemonicoded random name
-func GetRandomName() string {
+// GetRandomName returns a random transfer code.
+// If relayID is provided, format is <relay_id>-<pin>-<words>.
+func GetRandomName(relayID ...string) string {
 	var result []string
 	bs := make([]byte, NbBytesWords)
-	rand.Read(bs)
+	n, err := rand.Read(bs)
+	if err != nil || n != len(bs) {
+		log.Error("failed to read random bytes for GetRandomName: ", err)
+		return ""
+	}
 	result = mnemonicode.EncodeWordList(result, bs)
-	return GenerateRandomPin() + "-" + strings.Join(result, "-")
+	secret := GenerateRandomPin() + "-" + strings.Join(result, "-")
+	if len(relayID) > 0 && strings.TrimSpace(relayID[0]) != "" {
+		return strings.TrimSpace(strings.ToLower(relayID[0])) + "-" + secret
+	}
+	return secret
 }
 
 // ByteCountDecimal converts bytes to human readable byte string

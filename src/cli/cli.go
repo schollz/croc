@@ -1,16 +1,20 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/chzyer/readline"
@@ -19,6 +23,7 @@ import (
 	"github.com/schollz/croc/v10/src/croc"
 	"github.com/schollz/croc/v10/src/mnemonicode"
 	"github.com/schollz/croc/v10/src/models"
+	"github.com/schollz/croc/v10/src/pool"
 	"github.com/schollz/croc/v10/src/tcp"
 	"github.com/schollz/croc/v10/src/utils"
 	log "github.com/schollz/logger"
@@ -36,7 +41,7 @@ func Run() (err error) {
 	app := cli.NewApp()
 	app.Name = "croc"
 	if Version == "" {
-		Version = "v10.4.1"
+		Version = "v10.5.0"
 	}
 	app.Version = Version
 	app.Compiled = time.Now()
@@ -94,6 +99,8 @@ func Run() (err error) {
 			Flags: []cli.Flag{
 				&cli.StringFlag{Name: "host", Usage: "host of the relay"},
 				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay"},
+				&cli.StringFlag{Name: "listen", Value: models.DEFAULT_POOL_LISTEN, Usage: "listen address for relay main pool API", EnvVars: []string{"CROC_POOL_LISTEN"}},
+				&cli.StringFlag{Name: "pool", Value: models.DEFAULT_POOL_URL, Usage: "pool URL for relay node registration", EnvVars: []string{"CROC_POOL_URL"}},
 				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay"},
 				&cli.IntFlag{Name: "transfers", Value: 5, Usage: "number of ports to use for relay"},
 			},
@@ -133,6 +140,7 @@ func Run() (err error) {
 		&cli.StringFlag{Name: "ip", Value: "", Usage: "set sender ip if known e.g. 10.0.0.1:9009, [::1]:9009"},
 		&cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay", EnvVars: []string{"CROC_RELAY"}},
 		&cli.StringFlag{Name: "relay6", Value: models.DEFAULT_RELAY6, Usage: "ipv6 address of the relay", EnvVars: []string{"CROC_RELAY6"}},
+		&cli.StringFlag{Name: "pool", Value: models.DEFAULT_POOL_URL, Usage: "pool URL for relay discovery", EnvVars: []string{"CROC_POOL_URL"}},
 		&cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 		&cli.StringFlag{Name: "pass", Value: models.DEFAULT_PASSPHRASE, Usage: "password for the relay", EnvVars: []string{"CROC_PASS"}},
 		&cli.StringFlag{Name: "socks5", Value: "", Usage: "add a socks5 proxy", EnvVars: []string{"SOCKS5_PROXY"}},
@@ -234,7 +242,7 @@ func setDebugLevel(c *cli.Context) {
 		log.SetLevel("debug")
 		log.Debug("debug mode on")
 		// print the public IP address
-		ip, err := utils.PublicIP()
+		ip, err := utils.PublicIPv4()
 		if err == nil {
 			log.Debugf("public IP address: %s", ip)
 		} else {
@@ -309,33 +317,33 @@ func send(c *cli.Context) (err error) {
 	}
 
 	crocOptions := croc.Options{
-		SharedSecret:     c.String("code"),
-		IsSender:         true,
-		Debug:            c.Bool("debug"),
-		NoPrompt:         c.Bool("yes"),
-		RelayAddress:     c.String("relay"),
-		RelayAddress6:    c.String("relay6"),
-		Stdout:           c.Bool("stdout"),
-		DisableLocal:     c.Bool("no-local"),
-		OnlyLocal:        c.Bool("local"),
-		IgnoreStdin:      c.Bool("ignore-stdin"),
-		RelayPorts:       ports,
-		Ask:              c.Bool("ask"),
-		NoMultiplexing:   c.Bool("no-multi"),
-		RelayPassword:    determinePass(c),
-		SendingText:      c.String("text") != "",
-		NoCompress:       c.Bool("no-compress"),
-		Overwrite:        c.Bool("overwrite"),
-		Curve:            c.String("curve"),
-		HashAlgorithm:    c.String("hash"),
-		ThrottleUpload:   c.String("throttleUpload"),
-		ZipFolder:        c.Bool("zip"),
-		GitIgnore:        c.Bool("git"),
-		ShowQrCode:       c.Bool("qrcode"),
-		MulticastAddress: c.String("multicast"),
-		Exclude:          excludeStrings,
-		Quiet:            c.Bool("quiet"),
-		DisableClipboard: c.Bool("disable-clipboard"),
+		SharedSecret:      c.String("code"),
+		IsSender:          true,
+		Debug:             c.Bool("debug"),
+		NoPrompt:          c.Bool("yes"),
+		RelayAddress:      c.String("relay"),
+		RelayAddress6:     c.String("relay6"),
+		Stdout:            c.Bool("stdout"),
+		DisableLocal:      c.Bool("no-local"),
+		OnlyLocal:         c.Bool("local"),
+		IgnoreStdin:       c.Bool("ignore-stdin"),
+		RelayPorts:        ports,
+		Ask:               c.Bool("ask"),
+		NoMultiplexing:    c.Bool("no-multi"),
+		RelayPassword:     determinePass(c),
+		SendingText:       c.String("text") != "",
+		NoCompress:        c.Bool("no-compress"),
+		Overwrite:         c.Bool("overwrite"),
+		Curve:             c.String("curve"),
+		HashAlgorithm:     c.String("hash"),
+		ThrottleUpload:    c.String("throttleUpload"),
+		ZipFolder:         c.Bool("zip"),
+		GitIgnore:         c.Bool("git"),
+		ShowQrCode:        c.Bool("qrcode"),
+		MulticastAddress:  c.String("multicast"),
+		Exclude:           excludeStrings,
+		Quiet:             c.Bool("quiet"),
+		DisableClipboard:  c.Bool("disable-clipboard"),
 		ExtendedClipboard: c.Bool("extended-clipboard"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
@@ -450,9 +458,18 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 		}
 	}
 
+	selectedRelayID := ""
+	if len(crocOptions.SharedSecret) == 0 && shouldUsePoolDiscovery(c) {
+		selectedRelayID = applyPoolRelayForSender(c, &crocOptions)
+	}
+
 	if len(crocOptions.SharedSecret) == 0 {
 		// generate code phrase
-		crocOptions.SharedSecret = utils.GetRandomName()
+		if selectedRelayID != "" {
+			crocOptions.SharedSecret = utils.GetRandomName(selectedRelayID)
+		} else {
+			crocOptions.SharedSecret = utils.GetRandomName()
+		}
 	}
 	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfo(fnames, crocOptions.ZipFolder, crocOptions.GitIgnore, crocOptions.Exclude)
 	if err != nil {
@@ -612,23 +629,23 @@ func receive(c *cli.Context) (err error) {
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
 	crocOptions := croc.Options{
-		SharedSecret:     c.String("code"),
-		IsSender:         false,
-		Debug:            c.Bool("debug"),
-		NoPrompt:         c.Bool("yes"),
-		RelayAddress:     c.String("relay"),
-		RelayAddress6:    c.String("relay6"),
-		Stdout:           c.Bool("stdout"),
-		Ask:              c.Bool("ask"),
-		RelayPassword:    determinePass(c),
-		OnlyLocal:        c.Bool("local"),
-		IP:               c.String("ip"),
-		Overwrite:        c.Bool("overwrite"),
-		Curve:            c.String("curve"),
-		TestFlag:         c.Bool("testing"),
-		MulticastAddress: c.String("multicast"),
-		Quiet:            c.Bool("quiet"),
-		DisableClipboard: c.Bool("disable-clipboard"),
+		SharedSecret:      c.String("code"),
+		IsSender:          false,
+		Debug:             c.Bool("debug"),
+		NoPrompt:          c.Bool("yes"),
+		RelayAddress:      c.String("relay"),
+		RelayAddress6:     c.String("relay6"),
+		Stdout:            c.Bool("stdout"),
+		Ask:               c.Bool("ask"),
+		RelayPassword:     determinePass(c),
+		OnlyLocal:         c.Bool("local"),
+		IP:                c.String("ip"),
+		Overwrite:         c.Bool("overwrite"),
+		Curve:             c.String("curve"),
+		TestFlag:          c.Bool("testing"),
+		MulticastAddress:  c.String("multicast"),
+		Quiet:             c.Bool("quiet"),
+		DisableClipboard:  c.Bool("disable-clipboard"),
 		ExtendedClipboard: c.Bool("extended-clipboard"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
@@ -740,6 +757,8 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 		}
 	}
 
+	applyPoolRelayForReceiver(c, &crocOptions)
+
 	cr, err := croc.New(crocOptions)
 	if err != nil {
 		return
@@ -782,11 +801,115 @@ func relay(c *cli.Context) (err error) {
 	if c.Bool("debug") {
 		debugString = "debug"
 	}
-	host := c.String("host")
-	var ports []string
 
+	mode := strings.ToLower(strings.TrimSpace(c.Args().First()))
+	if mode == "main" {
+		return relayMain(c, debugString)
+	}
+	if mode == "node" {
+		return relayNode(c, debugString)
+	}
+	return relayLegacy(c, debugString)
+}
+
+func relayMain(c *cli.Context, debugString string) error {
+	listenAddr := c.String("listen")
+	if strings.TrimSpace(listenAddr) == "" {
+		listenAddr = models.DEFAULT_POOL_LISTEN
+	}
+
+	server := pool.NewServer(listenAddr)
+	server.HeartbeatTimeout = models.POOL_HEARTBEAT_TIMEOUT
+	server.CleanupInterval = models.POOL_CLEANUP_INTERVAL
+
+	host := c.String("host")
+	ports, err := parseRelayPorts(c)
+	if err != nil {
+		return err
+	}
+	pass := determinePass(c)
+	go func() {
+		if err := runRelayServers(debugString, host, ports, pass); err != nil {
+			log.Errorf("relay TCP servers error: %v", err)
+		}
+	}()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return server.Start(ctx)
+}
+
+func relayNode(c *cli.Context, debugString string) error {
+	host := c.String("host")
+	ports, err := parseRelayPorts(c)
+	if err != nil {
+		return err
+	}
+
+	registerReq := pool.RegisterRequest{Ports: ports, Password: determinePass(c)}
+	if ipv4, err4 := utils.PublicIPv4(); err4 == nil {
+		if pool.IsPublicIPv4(strings.TrimSpace(ipv4)) {
+			registerReq.IPv4 = strings.TrimSpace(ipv4)
+		}
+	}
+	if ipv6, err6 := utils.PublicIPv6(); err6 == nil {
+		if pool.IsPublicIPv6(strings.TrimSpace(ipv6)) {
+			registerReq.IPv6 = strings.TrimSpace(ipv6)
+		}
+	}
+	if registerReq.IPv4 == "" && registerReq.IPv6 == "" {
+		return fmt.Errorf("could not detect a globally routable public IP address")
+	}
+
+	poolURL := strings.TrimSpace(c.String("pool"))
+	if poolURL == "" {
+		poolURL = models.DEFAULT_POOL_URL
+	}
+	poolClient := pool.NewClient(poolURL)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	registerResp, err := poolClient.Register(ctx, registerReq)
+	cancel()
+	if err != nil {
+		return fmt.Errorf("could not register relay with pool: %w", err)
+	}
+	log.Infof("registered relay node with relay_id=%s on pool=%s", registerResp.RelayID, poolURL)
+
+	go func() {
+		ticker := time.NewTicker(models.POOL_HEARTBEAT_INTERVAL)
+		defer ticker.Stop()
+		for range ticker.C {
+			hbCtx, hbCancel := context.WithTimeout(context.Background(), 3*time.Second)
+			hbErr := poolClient.Heartbeat(hbCtx, registerResp.RelayID)
+			hbCancel()
+			if hbErr != nil {
+				log.Errorf("heartbeat failed for relay_id=%s: %v", registerResp.RelayID, hbErr)
+				continue
+			}
+			log.Debugf("heartbeat sent for relay_id=%s", registerResp.RelayID)
+		}
+	}()
+
+	return runRelayServers(debugString, host, ports, determinePass(c))
+}
+
+func relayLegacy(c *cli.Context, debugString string) error {
+	host := c.String("host")
+	ports, err := parseRelayPorts(c)
+	if err != nil {
+		return err
+	}
+	return runRelayServers(debugString, host, ports, determinePass(c))
+}
+
+func parseRelayPorts(c *cli.Context) ([]string, error) {
+	var ports []string
 	if c.IsSet("ports") {
-		ports = strings.Split(c.String("ports"), ",")
+		for _, p := range strings.Split(c.String("ports"), ",") {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				ports = append(ports, p)
+			}
+		}
 	} else {
 		portString := c.Int("port")
 		if portString == 0 {
@@ -802,20 +925,97 @@ func relay(c *cli.Context) (err error) {
 		}
 	}
 	if len(ports) < 2 {
-		return fmt.Errorf("relay requires at least two ports; specify --ports with two or more ports or set --transfers to 2+")
+		return nil, fmt.Errorf("relay requires at least two ports; specify --ports with two or more ports or set --transfers to 2+")
 	}
+	return ports, nil
+}
 
-	tcpPorts := strings.Join(ports[1:], ",")
+func startRelayServers(debugString, host string, ports []string, pass string) {
 	for i, port := range ports {
 		if i == 0 {
 			continue
 		}
 		go func(portStr string) {
-			err := tcp.Run(debugString, host, portStr, determinePass(c))
+			err := tcp.Run(debugString, host, portStr, pass)
 			if err != nil {
 				panic(err)
 			}
 		}(port)
 	}
-	return tcp.Run(debugString, host, ports[0], determinePass(c), tcpPorts)
+}
+
+func runRelayServers(debugString, host string, ports []string, pass string) error {
+	startRelayServers(debugString, host, ports, pass)
+	tcpPorts := strings.Join(ports[1:], ",")
+	return tcp.Run(debugString, host, ports[0], pass, tcpPorts)
+}
+
+func shouldUsePoolDiscovery(c *cli.Context) bool {
+	// Explicit direct-relay configuration disables pool discovery.
+	if c.IsSet("relay") || c.IsSet("relay6") {
+		return false
+	}
+	return true
+}
+
+func applyPoolRelayForSender(c *cli.Context, crocOptions *croc.Options) string {
+	poolURL := strings.TrimSpace(c.String("pool"))
+	poolClient := pool.NewClient(poolURL)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	relays, err := poolClient.FetchRelays(ctx)
+	cancel()
+	if err != nil {
+		log.Debugf("pool relay fetch failed, using legacy relay fallback: %v", err)
+		return ""
+	}
+	relay, ok := poolClient.ChooseRandomReachableRelay(relays)
+	if !ok {
+		log.Debug("no reachable pool relays found, using legacy relay fallback")
+		return ""
+	}
+	applyRelayToOptions(crocOptions, relay)
+	log.Infof("selected relay_id=%s from pool for sender", relay.RelayID)
+	return relay.RelayID
+}
+
+func applyPoolRelayForReceiver(c *cli.Context, crocOptions *croc.Options) {
+	relayID, _ := pool.ParseTransferCode(crocOptions.SharedSecret)
+	if relayID == "" {
+		return
+	}
+	if !shouldUsePoolDiscovery(c) {
+		return
+	}
+	poolURL := strings.TrimSpace(c.String("pool"))
+	poolClient := pool.NewClient(poolURL)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	relays, err := poolClient.FetchRelays(ctx)
+	cancel()
+	if err != nil {
+		log.Debugf("pool lookup failed for relay_id=%s, using legacy fallback: %v", relayID, err)
+		return
+	}
+	for _, relay := range relays {
+		if relay.RelayID == relayID {
+			applyRelayToOptions(crocOptions, relay)
+			log.Infof("resolved relay_id=%s from pool for receiver", relayID)
+			return
+		}
+	}
+	log.Debugf("relay_id=%s not found in pool response, using legacy fallback", relayID)
+}
+
+func applyRelayToOptions(crocOptions *croc.Options, relay pool.Relay) {
+	if len(relay.Ports) > 0 {
+		if relay.IPv4 != "" {
+			crocOptions.RelayAddress = net.JoinHostPort(relay.IPv4, relay.Ports[0])
+		}
+		if relay.IPv6 != "" {
+			crocOptions.RelayAddress6 = net.JoinHostPort(relay.IPv6, relay.Ports[0])
+		}
+		crocOptions.RelayPorts = relay.Ports
+	}
+	if relay.Password != "" {
+		crocOptions.RelayPassword = relay.Password
+	}
 }

@@ -11,7 +11,7 @@
 
 ## About
 
-`croc` is a tool that allows any two computers to simply and securely transfer files and folders. AFAIK, *croc* is the only CLI file-transfer tool that does **all** of the following:
+`croc` is a tool that allows any two computers to simply and securely transfer files and folders. AFAIK, _croc_ is the only CLI file-transfer tool that does **all** of the following:
 
 - Allows **any two computers** to transfer data (using a relay)
 - Provides **end-to-end encryption** (using PAKE)
@@ -146,7 +146,7 @@ Or install into a particular environment with [`conda`](https://docs.conda.io/pr
 conda install --channel conda-forge croc
 ```
 
-### On Linux, macOS via Docker 
+### On Linux, macOS via Docker
 
 Add the following one-liner function to your ~/.profile (works with any POSIX-compliant shell):
 
@@ -327,6 +327,74 @@ To send files using your relay:
 ```bash
 croc --relay "myrelay.example.com:9009" send [filename]
 ```
+
+#### Federated Relay Pool (Main + Community Nodes)
+
+You can run a pool-based relay network where:
+
+- a main node provides relay discovery APIs,
+- community relay nodes register themselves,
+- senders and receivers automatically discover relays from the pool.
+
+Pool endpoints:
+
+- `POST /register`
+- `POST /heartbeat`
+- `POST /relays`
+
+There are two common deployment types.
+
+##### Type 1: Public Pool (Built-in Defaults)
+
+Built-in defaults:
+
+- Pool URL: `http://croc.schollz.com:9000`
+- Relay password default: `pass123`
+
+Use these commands:
+
+```bash
+# Community relay node joins default public pool
+# Note: for relay node mode, place flags before the trailing "node" argument
+croc relay node
+
+# Sender (default pool is used automatically)
+croc send log.txt
+
+# Receiver (default pool is used automatically)
+croc RELAYID-PIN-WORD-WORD-WORD
+```
+
+##### Type 2: Custom Pool
+
+Use these commands:
+
+```bash
+# 1) Start main node (pool API)
+croc relay main --listen 0.0.0.0:9000
+
+# 2) Start a community relay node and register to the pool
+# Note: for relay node mode, place flags before the trailing "node" argument
+croc relay --pool http://POOL_IP:9000 --pass YOUR_POOL_PASS --ports 9009,9010,9011,9012,9013 node
+
+# 3) Sender uses pool discovery
+croc --pool http://POOL_IP:9000 send log.txt
+
+# 4) Receiver uses the transfer code from sender
+croc --pool http://POOL_IP:9000 RELAYID-PIN-WORD-WORD-WORD
+```
+
+Example transfer code format:
+
+```text
+12ca-1571-friday-brown-fluid
+```
+
+Notes:
+
+- If `--pool` is omitted, croc uses the built-in default pool URL.
+- If pool discovery fails, croc falls back to legacy relay behavior.
+- Legacy direct relay mode with `--relay` continues to work unchanged.
 
 #### Self-host Relay with Docker
 

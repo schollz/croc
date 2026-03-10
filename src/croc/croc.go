@@ -37,6 +37,7 @@ import (
 	"github.com/schollz/croc/v10/src/crypt"
 	"github.com/schollz/croc/v10/src/message"
 	"github.com/schollz/croc/v10/src/models"
+	"github.com/schollz/croc/v10/src/pool"
 	"github.com/schollz/croc/v10/src/tcp"
 	"github.com/schollz/croc/v10/src/utils"
 )
@@ -151,6 +152,8 @@ type Client struct {
 
 	// ctx.go for graceful shutdown
 	*stop
+
+	normalizedSharedSecret string
 }
 
 // Chunk contains information about the
@@ -204,6 +207,13 @@ func New(ops Options) (c *Client, err error) {
 	c.Options = ops
 	Debug(c.Options.Debug)
 
+	_, parsedSecret := pool.ParseTransferCode(c.Options.SharedSecret)
+	if parsedSecret == "" {
+		c.normalizedSharedSecret = c.Options.SharedSecret
+	} else {
+		c.normalizedSharedSecret = parsedSecret
+	}
+
 	// redirect stderr to null if quiet mode is enabled
 	if c.Options.Quiet {
 		devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
@@ -212,13 +222,13 @@ func New(ops Options) (c *Client, err error) {
 		}
 	}
 
-	if len(c.Options.SharedSecret) < 6 {
+	if len(c.normalizedSharedSecret) < 6 {
 		err = fmt.Errorf("code is too short")
 		return
 	}
 	// Create a hash of part of the shared secret to use as the room name
 	hashExtra := "croc"
-	roomNameBytes := sha256.Sum256([]byte(c.Options.SharedSecret[:4] + hashExtra))
+	roomNameBytes := sha256.Sum256([]byte(c.normalizedSharedSecret[:4] + hashExtra))
 	c.Options.RoomName = hex.EncodeToString(roomNameBytes[:])
 
 	c.conn = make([]*comm.Comm, 16)
@@ -257,7 +267,7 @@ func New(ops Options) (c *Client, err error) {
 
 	// initialize pake for recipient
 	if !c.Options.IsSender {
-		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, c.Options.Curve)
+		c.Pake, err = pake.InitCurve([]byte(c.normalizedSharedSecret[5:]), 0, c.Options.Curve)
 	}
 	if err != nil {
 		return
@@ -760,7 +770,7 @@ On the other computer run:
 			log.Debugf("banner: %s", banner)
 			log.Debugf("connection established: %+v", conn)
 			var kB []byte
-			B, _ := pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, c.Options.Curve)
+			B, _ := pake.InitCurve([]byte(c.normalizedSharedSecret[5:]), 1, c.Options.Curve)
 			for {
 				if err := c.ctxErr(); err != nil {
 					errchan <- err
@@ -1031,7 +1041,7 @@ func (c *Client) Receive() (err error) {
 		err = func() (err error) {
 			var A *pake.Pake
 			var data []byte
-			A, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, c.Options.Curve)
+			A, err = pake.InitCurve([]byte(c.normalizedSharedSecret[5:]), 0, c.Options.Curve)
 			if err != nil {
 				return err
 			}
@@ -1455,7 +1465,7 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 	if c.Options.IsSender {
 		// initialize curve based on the recipient's choice
 		log.Debugf("using curve %s", string(m.Bytes2))
-		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, string(m.Bytes2))
+		c.Pake, err = pake.InitCurve([]byte(c.normalizedSharedSecret[5:]), 1, string(m.Bytes2))
 		if err != nil {
 			log.Error(err)
 			return
