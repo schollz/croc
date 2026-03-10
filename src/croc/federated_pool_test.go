@@ -54,6 +54,7 @@ func TestFederatedPoolEndToEnd(t *testing.T) {
 	poolServer := pool.NewServer(poolListen)
 	poolServer.HeartbeatTimeout = 30 * time.Second
 	poolServer.CleanupInterval = 60 * time.Second
+	poolServer.AllowPrivateIPs = true
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -129,7 +130,7 @@ func TestFederatedPoolEndToEnd(t *testing.T) {
 		SharedSecret:  relayCode,
 		Debug:         true,
 		RelayAddress:  net.JoinHostPort(selectedRelay.IPv4, selectedRelay.Ports[0]),
-		RelayPassword: selectedRelay.Password,
+		RelayPassword: "pass123", // Password obtained out-of-band (not from pool per proposal)
 		Stdout:        false,
 		NoPrompt:      true,
 		DisableLocal:  true,

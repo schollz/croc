@@ -18,6 +18,7 @@ type Server struct {
 	HeartbeatTimeout time.Duration
 	CleanupInterval  time.Duration
 	ListenAddress    string
+	AllowPrivateIPs  bool
 	httpServer       *http.Server
 }
 
@@ -114,11 +115,11 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "either ipv6 or ipv4 is required")
 		return
 	}
-	if ipv6 := strings.TrimSpace(req.IPv6); ipv6 != "" && !IsPublicIPv6(ipv6) {
+	if ipv6 := strings.TrimSpace(req.IPv6); ipv6 != "" && !IsPublicIPv6(ipv6) && !s.AllowPrivateIPs {
 		writeErr(w, http.StatusBadRequest, "ipv6 must be a publicly routable address")
 		return
 	}
-	if ipv4 := strings.TrimSpace(req.IPv4); ipv4 != "" && !IsPublicIPv4(ipv4) {
+	if ipv4 := strings.TrimSpace(req.IPv4); ipv4 != "" && !IsPublicIPv4(ipv4) && !s.AllowPrivateIPs {
 		writeErr(w, http.StatusBadRequest, "ipv4 must be a publicly routable address")
 		return
 	}
