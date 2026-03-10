@@ -111,6 +111,11 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "ports must contain at least two entries")
 		return
 	}
+	ports, err := SanitizePorts(req.Ports)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if strings.TrimSpace(req.IPv6) == "" && strings.TrimSpace(req.IPv4) == "" {
 		writeErr(w, http.StatusBadRequest, "either ipv6 or ipv4 is required")
 		return
@@ -141,7 +146,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		RelayID:  relayID,
 		IPv6:     strings.TrimSpace(req.IPv6),
 		IPv4:     strings.TrimSpace(req.IPv4),
-		Ports:    req.Ports,
+		Ports:    ports,
 		Password: req.Password,
 	}
 	s.Registry.Upsert(relay)

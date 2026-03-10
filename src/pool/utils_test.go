@@ -35,3 +35,29 @@ func TestPublicIPValidation(t *testing.T) {
 	assert.False(t, IsPublicIPv6("::1"))
 	assert.False(t, IsPublicIPv6("fc00::1"))
 }
+
+func TestSanitizePorts(t *testing.T) {
+	t.Run("trims and accepts valid", func(t *testing.T) {
+		ports, err := SanitizePorts([]string{" 9009 ", "9010"})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"9009", "9010"}, ports)
+	})
+
+	t.Run("rejects non-numeric", func(t *testing.T) {
+		_, err := SanitizePorts([]string{"9009", "foo"})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "must be numeric")
+	})
+
+	t.Run("rejects out of range", func(t *testing.T) {
+		_, err := SanitizePorts([]string{"9009", "70000"})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "range 1-65535")
+	})
+
+	t.Run("rejects empty", func(t *testing.T) {
+		_, err := SanitizePorts([]string{"9009", "   "})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "non-empty")
+	})
+}

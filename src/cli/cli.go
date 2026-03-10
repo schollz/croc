@@ -8,11 +8,13 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/chzyer/readline"
@@ -832,7 +834,9 @@ func relayMain(c *cli.Context, debugString string) error {
 		}
 	}()
 
-	return server.Start(context.Background())
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return server.Start(ctx)
 }
 
 func relayNode(c *cli.Context, debugString string) error {

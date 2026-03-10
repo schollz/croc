@@ -69,3 +69,46 @@ func TestRelaysEndpointReturnsActiveOnly(t *testing.T) {
 		assert.Equal(t, StatusActive, r.Status)
 	}
 }
+
+func TestRegisterSanitizesPorts(t *testing.T) {
+	s := NewServer("")
+
+	reqBody := RegisterRequest{
+		IPv4:  "203.0.113.10",
+		Ports: []string{" 9009 ", "9010"},
+	}
+	b, err := json.Marshal(reqBody)
+	assert.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/register", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	s.handleRegister(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	var resp RegisterResponse
+	assert.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+
+	relay, ok := s.Registry.Get(resp.RelayID)
+	assert.True(t, ok)
+	assert.Equal(t, []string{"9009", "9010"}, relay.Ports)
+}
+
+func TestRegisterRejectsInvalidPorts(t *testing.T) {
+	s := NewServer("")
+
+	reqBody := RegisterRequest{
+		IPv4:  "203.0.113.10",
+		Ports: []string{"9009", "abc"},
+	}
+	b, err := json.Marshal(reqBody)
+	assert.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/register", bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	s.handleRegister(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "must be numeric")
+}

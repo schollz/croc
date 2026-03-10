@@ -7,10 +7,30 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
 var relayIDRegex = regexp.MustCompile(`^[a-f0-9]{4}$`)
+
+var privateIPv4Blocks = mustParseCIDRs([]string{
+	"10.0.0.0/8",
+	"172.16.0.0/12",
+	"192.168.0.0/16",
+	"100.64.0.0/10",
+})
+
+func mustParseCIDRs(cidrs []string) []*net.IPNet {
+	blocks := make([]*net.IPNet, 0, len(cidrs))
+	for _, cidr := range cidrs {
+		_, block, err := net.ParseCIDR(cidr)
+		if err != nil {
+			panic(fmt.Sprintf("pool: invalid CIDR %q: %v", cidr, err))
+		}
+		blocks = append(blocks, block)
+	}
+	return blocks
+}
 
 // GenerateRelayIDFromIP returns a deterministic 4-char relay ID from an IP string.
 func GenerateRelayIDFromIP(ip string) (string, error) {
@@ -28,6 +48,28 @@ func GenerateRelayIDFromIP(ip string) (string, error) {
 
 func IsRelayID(s string) bool {
 	return relayIDRegex.MatchString(strings.ToLower(strings.TrimSpace(s)))
+}
+
+func SanitizePorts(ports []string) ([]string, error) {
+	if len(ports) < 2 {
+		return nil, errors.New("ports must contain at least two entries")
+	}
+	sanitized := make([]string, 0, len(ports))
+	for _, p := range ports {
+		trimmed := strings.TrimSpace(p)
+		if trimmed == "" {
+			return nil, errors.New("ports entries must be non-empty")
+		}
+		port, err := strconv.Atoi(trimmed)
+		if err != nil {
+			return nil, fmt.Errorf("invalid port %q: must be numeric", p)
+		}
+		if port < 1 || port > 65535 {
+			return nil, fmt.Errorf("invalid port %q: must be in range 1-65535", p)
+		}
+		sanitized = append(sanitized, trimmed)
+	}
+	return sanitized, nil
 }
 
 // ParseTransferCode splits a code into relayID + secret for federated format.
@@ -75,14 +117,7 @@ func IsPublicIPv4(ipStr string) bool {
 	}
 
 	// RFC1918 + CGNAT
-	privateCIDRs := []string{
-		"10.0.0.0/8",
-		"172.16.0.0/12",
-		"192.168.0.0/16",
-		"100.64.0.0/10",
-	}
-	for _, cidr := range privateCIDRs {
-		_, block, _ := net.ParseCIDR(cidr)
+	for _, block := range privateIPv4Blocks {
 		if block.Contains(ip) {
 			return false
 		}
