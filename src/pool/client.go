@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"strings"
@@ -95,7 +95,7 @@ func (c *Client) ChooseRandomReachableRelay(relays []Relay) (Relay, bool) {
 	if len(reachable) == 0 {
 		return Relay{}, false
 	}
-	return reachable[rand.Intn(len(reachable))], true
+	return reachable[rand.IntN(len(reachable))], true
 }
 
 func isRelayReachable(relay Relay, timeout time.Duration) bool {
