@@ -99,7 +99,6 @@ func Run() (err error) {
 				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay"},
 				&cli.StringFlag{Name: "listen", Value: models.DEFAULT_POOL_LISTEN, Usage: "listen address for relay main pool API", EnvVars: []string{"CROC_POOL_LISTEN"}},
 				&cli.StringFlag{Name: "pool", Value: models.DEFAULT_POOL_URL, Usage: "pool URL for relay node registration", EnvVars: []string{"CROC_POOL_URL"}},
-				&cli.BoolFlag{Name: "public", Usage: "mark relay node as public for pool mode", EnvVars: []string{"CROC_POOL_PUBLIC"}},
 				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay"},
 				&cli.IntFlag{Name: "transfers", Value: 5, Usage: "number of ports to use for relay"},
 			},
@@ -826,7 +825,12 @@ func relayMain(c *cli.Context, debugString string) error {
 	if err != nil {
 		return err
 	}
-	startRelayServers(debugString, host, ports, determinePass(c))
+	pass := determinePass(c)
+	go func() {
+		if err := runRelayServers(debugString, host, ports, pass); err != nil {
+			log.Errorf("relay TCP servers error: %v", err)
+		}
+	}()
 
 	return server.Start(context.Background())
 }

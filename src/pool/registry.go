@@ -1,7 +1,7 @@
 package pool
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"sync"
 	"time"
 )

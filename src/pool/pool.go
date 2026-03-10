@@ -114,6 +114,14 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "either ipv6 or ipv4 is required")
 		return
 	}
+	if ipv6 := strings.TrimSpace(req.IPv6); ipv6 != "" && !IsPublicIPv6(ipv6) {
+		writeErr(w, http.StatusBadRequest, "ipv6 must be a publicly routable address")
+		return
+	}
+	if ipv4 := strings.TrimSpace(req.IPv4); ipv4 != "" && !IsPublicIPv4(ipv4) {
+		writeErr(w, http.StatusBadRequest, "ipv4 must be a publicly routable address")
+		return
+	}
 	if strings.TrimSpace(req.RelayID) != "" {
 		log.Debugf("ignoring client-supplied relay_id=%s; main node assigns relay_id", req.RelayID)
 	}
@@ -169,6 +177,12 @@ func (s *Server) handleRelays(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	// Run cleanup immediately so stale relays are not served.
+	s.Registry.MarkInactiveOlderThan(s.HeartbeatTimeout)
 	relays := s.Registry.ListActive(50)
+	// Strip passwords: relay credentials must be obtained out-of-band.
+	for i := range relays {
+		relays[i].Password = ""
+	}
 	writeJSON(w, http.StatusOK, RelayListResponse{Relays: relays})
 }

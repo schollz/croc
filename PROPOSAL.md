@@ -1,7 +1,7 @@
 # Federated Relay Pool for Croc - Architecture and Implementation Notes
 
 **Status:** Implemented in v10.5.0  
-**Last Updated:** 2026-03-09 | **Revision:** 2.2 (Implementation-aligned)
+**Last Updated:** 2026-03-09 | **Revision:** 2.3 (Security-hardened)
 
 ---
 
@@ -54,7 +54,7 @@ A lightweight relay **discovery + coordination** system that:
 **Sender (croc send file.txt):**
 
 ```
-1. POST /relays → List of available {relay_id, ipv6, ipv4, ports, password, status, version}
+1. POST /relays → List of available {relay_id, ipv6, ipv4, ports, status, version} (**no password** — credentials are out-of-band)
 2. Cache relay registry locally
 3. Select relay (fastest, random, or preference)
 4. Generate code: "12ca-1571-yellow-apple"
@@ -264,14 +264,15 @@ Implement a lightweight HTTP REST API for relay coordination:
 **3. POST /relays** - List active relays for clients
 
 - Return array of up to 50 active relays
-- Include relay ID, IPv6/IPv4 addresses, ports, password, status, node version
+- Include relay ID, IPv6/IPv4 addresses, ports, status, node version (**password is never returned** — clients must obtain relay credentials out-of-band)
 - Randomize order to distribute load
 - Only include relays marked as active
 
 **Background Tasks:**
 
-- Run periodic cleanup every 60 seconds
+- Run periodic cleanup every 30 seconds (equal to heartbeat timeout, to minimise stale-relay exposure)
 - Mark relays as inactive if no heartbeat for 30+ seconds
+- Cleanup also runs eagerly before each /relays response
 - Keep inactive relays in registry for potential recovery
 
 **Server Configuration:**
@@ -352,7 +353,7 @@ Enhance croc clients to support federated relay discovery:
 **Client-Side Relay Cache:**
 
 - Maintain local cache mapping relay IDs to connection info
-- Cache includes: IPv6/IPv4 addresses, ports, passwords, node version
+- Cache includes: IPv6/IPv4 addresses, ports, node version (passwords not cached from pool; known out-of-band)
 - Allow pool URL override via config
 
 **Relay Discovery Workflow:**

@@ -31,7 +31,7 @@ const (
 	RELAY_STATUS_INACTIVE   = "inactive"
 	POOL_HEARTBEAT_TIMEOUT  = 30 * time.Second
 	POOL_HEARTBEAT_INTERVAL = 10 * time.Second
-	POOL_CLEANUP_INTERVAL   = 60 * time.Second
+	POOL_CLEANUP_INTERVAL   = 30 * time.Second
 )
 
 // publicDNS are servers to be queried if a local lookup fails
