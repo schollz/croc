@@ -213,7 +213,7 @@ func TestHashFile(t *testing.T) {
 }
 
 func TestPublicIP(t *testing.T) {
-	ip, err := PublicIP()
+	ip, err := PublicIPv4()
 	fmt.Println(ip)
 	assert.True(t, strings.Contains(ip, ".") || strings.Contains(ip, ":"))
 	assert.Nil(t, err)

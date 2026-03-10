@@ -247,23 +247,29 @@ func SHA256(s string) string {
 	return hex.EncodeToString(sha.Sum(nil))
 }
 
-// PublicIP returns public ip address
-func PublicIP() (ip string, err error) {
-	// ask ipv4.icanhazip.com for the public ip
-	// by making http request
-	// if the request fails, return nothing
+// PublicIPv4 returns the public IPv4 address.
+func PublicIPv4() (ip string, err error) {
 	resp, err := http.Get("http://ipv4.icanhazip.com")
 	if err != nil {
 		return
 	}
 	defer resp.Body.Close()
-
-	// read the body of the response
-	// and return the ip address
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(resp.Body)
 	ip = strings.TrimSpace(buf.String())
+	return
+}
 
+// PublicIPv6 returns the public IPv6 address, if available.
+func PublicIPv6() (ip string, err error) {
+	resp, err := http.Get("http://ipv6.icanhazip.com")
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(resp.Body)
+	ip = strings.TrimSpace(buf.String())
 	return
 }
 

@@ -240,7 +240,7 @@ func setDebugLevel(c *cli.Context) {
 		log.SetLevel("debug")
 		log.Debug("debug mode on")
 		// print the public IP address
-		ip, err := utils.PublicIP()
+		ip, err := utils.PublicIPv4()
 		if err == nil {
 			log.Debugf("public IP address: %s", ip)
 		} else {
@@ -842,18 +842,19 @@ func relayNode(c *cli.Context, debugString string) error {
 		return err
 	}
 
-	ip, err := utils.PublicIP()
-	if err != nil {
-		return fmt.Errorf("could not detect public IP: %w", err)
-	}
-	ip = strings.TrimSpace(ip)
 	registerReq := pool.RegisterRequest{Ports: ports, Password: determinePass(c)}
-	if pool.IsPublicIPv6(ip) {
-		registerReq.IPv6 = ip
-	} else if pool.IsPublicIPv4(ip) {
-		registerReq.IPv4 = ip
-	} else {
-		return fmt.Errorf("detected public IP is not globally routable: %s", ip)
+	if ipv4, err4 := utils.PublicIPv4(); err4 == nil {
+		if pool.IsPublicIPv4(strings.TrimSpace(ipv4)) {
+			registerReq.IPv4 = strings.TrimSpace(ipv4)
+		}
+	}
+	if ipv6, err6 := utils.PublicIPv6(); err6 == nil {
+		if pool.IsPublicIPv6(strings.TrimSpace(ipv6)) {
+			registerReq.IPv6 = strings.TrimSpace(ipv6)
+		}
+	}
+	if registerReq.IPv4 == "" && registerReq.IPv6 == "" {
+		return fmt.Errorf("could not detect a globally routable public IP address")
 	}
 
 	poolURL := strings.TrimSpace(c.String("pool"))
