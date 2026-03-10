@@ -17,11 +17,21 @@ const TCP_BUFFER_SIZE = 1024 * 64
 
 // DEFAULT_RELAY is the default relay used (can be set using --relay)
 var (
-	DEFAULT_RELAY      = "croc.schollz.com"
-	DEFAULT_RELAY6     = "croc6.schollz.com"
-	DEFAULT_PORT       = "9009"
-	DEFAULT_PASSPHRASE = "pass123"
-	INTERNAL_DNS       = false
+	DEFAULT_RELAY       = "croc.schollz.com"
+	DEFAULT_RELAY6      = "croc6.schollz.com"
+	DEFAULT_PORT        = "9009"
+	DEFAULT_PASSPHRASE  = "pass123"
+	DEFAULT_POOL_URL    = "http://croc.schollz.com:9000"
+	DEFAULT_POOL_LISTEN = "0.0.0.0:9000"
+	INTERNAL_DNS        = false
+)
+
+const (
+	RELAY_STATUS_ACTIVE     = "active"
+	RELAY_STATUS_INACTIVE   = "inactive"
+	POOL_HEARTBEAT_TIMEOUT  = 30 * time.Second
+	POOL_HEARTBEAT_INTERVAL = 10 * time.Second
+	POOL_CLEANUP_INTERVAL   = 60 * time.Second
 )
 
 // publicDNS are servers to be queried if a local lookup fails

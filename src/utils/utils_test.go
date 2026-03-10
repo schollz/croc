@@ -229,6 +229,11 @@ func TestGetRandomName(t *testing.T) {
 	name := GetRandomName()
 	fmt.Println(name)
 	assert.NotEmpty(t, name)
+	assert.GreaterOrEqual(t, strings.Count(name, "-"), 1)
+
+	nameWithRelay := GetRandomName("ab12")
+	assert.True(t, strings.HasPrefix(nameWithRelay, "ab12-"))
+	assert.GreaterOrEqual(t, strings.Count(nameWithRelay, "-"), 2)
 }
 
 func intSliceSame(a, b []int) bool {

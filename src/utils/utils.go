@@ -296,13 +296,18 @@ func GenerateRandomPin() string {
 	return s
 }
 
-// GetRandomName returns mnemonicoded random name
-func GetRandomName() string {
+// GetRandomName returns a random transfer code.
+// If relayID is provided, format is <relay_id>-<pin>-<words>.
+func GetRandomName(relayID ...string) string {
 	var result []string
 	bs := make([]byte, NbBytesWords)
 	rand.Read(bs)
 	result = mnemonicode.EncodeWordList(result, bs)
-	return GenerateRandomPin() + "-" + strings.Join(result, "-")
+	secret := GenerateRandomPin() + "-" + strings.Join(result, "-")
+	if len(relayID) > 0 && strings.TrimSpace(relayID[0]) != "" {
+		return strings.TrimSpace(strings.ToLower(relayID[0])) + "-" + secret
+	}
+	return secret
 }
 
 // ByteCountDecimal converts bytes to human readable byte string
