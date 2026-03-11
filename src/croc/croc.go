@@ -1798,21 +1798,37 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 	return
 }
 
-func max(a int, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func formatDescription(description string) string {
-	width, _, err := term.GetSize(int(os.Stdout.Fd()))
-	width = max(20, width-60)
-	if err != nil {
-		return description
+	const (
+		// Reserve extra room for variable progress metadata such as [elapsed:remaining].
+		progressMetaWidth = 78
+		minDescription    = 12
+		defaultTermWidth  = 80
+	)
+
+	width, _, err := term.GetSize(int(os.Stderr.Fd()))
+	if err != nil || width <= 0 {
+		width, _, err = term.GetSize(int(os.Stdout.Fd()))
 	}
-	if len(description) > width {
-		description = description[:(width-3)] + "..."
+	if err != nil || width <= 0 {
+		if envColumns, convErr := strconv.Atoi(os.Getenv("COLUMNS")); convErr == nil && envColumns > 0 {
+			width = envColumns
+		} else {
+			width = defaultTermWidth
+		}
+	}
+
+	maxDescription := width - progressMetaWidth
+	if maxDescription < minDescription {
+		maxDescription = minDescription
+	}
+
+	runes := []rune(description)
+	if len(runes) > maxDescription {
+		if maxDescription <= 3 {
+			return string(runes[:maxDescription])
+		}
+		return string(runes[:maxDescription-3]) + "..."
 	}
 	return description
 }
