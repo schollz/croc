@@ -8,7 +8,7 @@ require (
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/kalafut/imohash v1.1.1
 	github.com/magisterquis/connectproxy v0.0.0-20200725203833-3582e84f0c9b
-	github.com/minio/highwayhash v1.0.3
+	github.com/minio/highwayhash v1.0.4
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/schollz/cli/v2 v2.2.1
 	github.com/schollz/logger v1.2.0
