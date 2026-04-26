@@ -204,7 +204,7 @@ croc --classic
 
 #### Custom Code Phrase
 
-You can send with your own code phrase (must be more than 6 characters):
+You can send with your own code phrase (must be at least 6 characters):
 
 ```bash
 croc send --code [code-phrase] [file(s)-or-folder]
