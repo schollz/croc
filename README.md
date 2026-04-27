@@ -166,7 +166,10 @@ go install github.com/schollz/croc/v10@latest
 
 ### On Android
 
-There is a 3rd-party F-Droid app [available to download](https://f-droid.org/packages/com.github.howeyc.crocgui/).
+There are two F-Droid apps available:
+
+- [crocgui](https://f-droid.org/packages/com.github.howeyc.crocgui/) — original port (Go, basic UI)
+- [croc-app](https://f-droid.org/en/packages/com.dking.crocapp/) — native Kotlin/Jetpack Compose client with a modern, mobile-first interface
 
 ## Usage
 
