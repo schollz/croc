@@ -1,6 +1,7 @@
 package croc
 
 import (
+	"archive/zip"
 	"context"
 	"fmt"
 	"math/rand"
@@ -259,6 +260,85 @@ func TestCrocIgnoreGit(t *testing.T) {
 		if strings.Contains(file.Name, "LICENSE") {
 			t.Errorf("test failed, should ignore LICENSE")
 		}
+	}
+}
+
+// TestGetFilesInfoZipFolderHonoursFilters covers the integration between
+// GetFilesInfo and ZipDirectory when zipfolder=true. Regression test for
+// https://github.com/schollz/croc/issues/1087: --exclude and --git were
+// silently ignored in zip mode because the args weren't passed through.
+func TestGetFilesInfoZipFolderHonoursFilters(t *testing.T) {
+	tmpDir := t.TempDir()
+	src := filepath.Join(tmpDir, "myproj")
+	for _, rel := range []string{
+		"main.go",
+		"node_modules/pkg.json",
+		".venv/file.py",
+		"build/output.bin",
+	} {
+		p := filepath.Join(src, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	// gitWalk calls MatchesPath(info.Name()) on basenames, which doesn't
+	// match patterns with trailing slashes. Use a plain pattern.
+	gitignore := filepath.Join(src, ".gitignore")
+	if err := os.WriteFile(gitignore, []byte("build\n"), 0o644); err != nil {
+		t.Fatalf("write .gitignore: %v", err)
+	}
+
+	// GetFilesInfo creates the zip in cwd, so chdir to a clean tmp location.
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	filesInfo, _, _, err := GetFilesInfo([]string{"myproj"}, true /*zipfolder*/, true /*ignoreGit*/, []string{"node_modules", ".venv"})
+	if err != nil {
+		t.Fatalf("GetFilesInfo: %v", err)
+	}
+	if len(filesInfo) != 1 {
+		t.Fatalf("expected 1 FileInfo (the zip), got %d", len(filesInfo))
+	}
+	zipName := filesInfo[0].Name
+	defer os.Remove(zipName)
+
+	archive, err := zip.OpenReader(zipName)
+	if err != nil {
+		t.Fatalf("open zip %s: %v", zipName, err)
+	}
+	defer archive.Close()
+
+	got := make([]string, 0, len(archive.File))
+	for _, f := range archive.File {
+		got = append(got, f.Name)
+	}
+	for _, name := range got {
+		if strings.Contains(name, "node_modules") || strings.Contains(name, ".venv") {
+			t.Errorf("--exclude leak: %q is in zip\n  members: %v", name, got)
+		}
+		if strings.Contains(name, "build") {
+			t.Errorf("--git leak: %q is in zip\n  members: %v", name, got)
+		}
+	}
+	wantKept := "myproj/main.go"
+	found := false
+	for _, name := range got {
+		if name == wantKept {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected %q in zip; got %v", wantKept, got)
 	}
 }
 

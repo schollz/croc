@@ -499,7 +499,12 @@ func IsLocalIP(ipaddress string) bool {
 	return false
 }
 
-func ZipDirectory(destination string, source string) (err error) {
+// ZipDirectory writes the contents of source into a zip at destination.
+// Files whose absolute path is present in ignoredPaths are skipped (used by
+// the --git flag to honour .gitignore rules). Files whose zip path contains
+// any string in exclusions (case-insensitive) are also skipped, mirroring
+// the post-walk filter in cli.go for non-zip transfers.
+func ZipDirectory(destination string, source string, ignoredPaths map[string]bool, exclusions []string) (err error) {
 	if _, err = os.Stat(destination); err == nil {
 		log.Errorf("%s file already exists!\n", destination)
 		return fmt.Errorf("file already exists: %s", destination)
@@ -561,6 +566,17 @@ func ZipDirectory(destination string, source string) (err error) {
 			return nil
 		}
 
+		// Honour --git: skip paths flagged by .gitignore matching upstream.
+		if len(ignoredPaths) > 0 {
+			absPath, absErr := filepath.Abs(path)
+			if absErr == nil && ignoredPaths[absPath] {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+		}
+
 		// Calculate relative path from source directory
 		relPath, err := filepath.Rel(source, path)
 		if err != nil {
@@ -571,6 +587,20 @@ func ZipDirectory(destination string, source string) (err error) {
 		// Create zip path with base name structure
 		zipPath := filepath.Join(baseName, relPath)
 		zipPath = filepath.ToSlash(zipPath)
+
+		// Honour --exclude: case-insensitive substring match against the zip
+		// path, mirroring the post-walk filter in cli.go.
+		if len(exclusions) > 0 {
+			zipPathLower := strings.ToLower(zipPath)
+			for _, exclusion := range exclusions {
+				if strings.Contains(zipPathLower, exclusion) {
+					if info.IsDir() {
+						return filepath.SkipDir
+					}
+					return nil
+				}
+			}
+		}
 
 		if info.IsDir() {
 			// Add directory entry to zip with original modification time
