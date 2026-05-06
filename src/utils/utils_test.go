@@ -533,7 +533,7 @@ func TestZipAndUnzipRoundTrip(t *testing.T) {
 
 	// Create zip
 	zipPath := filepath.Join(tmpDir, "test.zip")
-	err = ZipDirectory(zipPath, sourceDir)
+	err = ZipDirectory(zipPath, sourceDir, nil, nil)
 	if err != nil {
 		t.Fatalf("ZipDirectory failed: %v", err)
 	}
@@ -1036,5 +1036,120 @@ func TestHashFileCtxLargeFile(t *testing.T) {
 				assert.Equal(t, "3c32999529323ed66a67aeac5720c7bf1301dcc5dca87d8d46595e85ff990329", fmt.Sprintf("%x", hash))
 			}
 		})
+	}
+}
+
+// zipMembers returns the slash-separated names of every entry in the archive.
+func zipMembers(t *testing.T, zipPath string) []string {
+	t.Helper()
+	archive, err := zip.OpenReader(zipPath)
+	if err != nil {
+		t.Fatalf("open zip: %v", err)
+	}
+	defer archive.Close()
+	names := make([]string, 0, len(archive.File))
+	for _, f := range archive.File {
+		names = append(names, f.Name)
+	}
+	return names
+}
+
+func writeFile(t *testing.T, dir, rel string) {
+	t.Helper()
+	p := filepath.Join(dir, rel)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+		t.Fatalf("write %s: %v", rel, err)
+	}
+}
+
+// TestZipDirectoryHonoursExclusions covers the --exclude flag in zip mode.
+// Regression test for https://github.com/schollz/croc/issues/1087.
+func TestZipDirectoryHonoursExclusions(t *testing.T) {
+	tmpDir := t.TempDir()
+	src := filepath.Join(tmpDir, "src")
+	for _, rel := range []string{
+		"main.go",
+		"node_modules/pkg.json",
+		".venv/file.py",
+	} {
+		writeFile(t, src, rel)
+	}
+
+	zipPath := filepath.Join(tmpDir, "src.zip")
+	if err := ZipDirectory(zipPath, src, nil, []string{"node_modules", ".venv"}); err != nil {
+		t.Fatalf("ZipDirectory: %v", err)
+	}
+
+	members := zipMembers(t, zipPath)
+	for _, name := range members {
+		if strings.Contains(name, "node_modules") || strings.Contains(name, ".venv") {
+			t.Errorf("excluded path leaked into zip: %s\n  members: %v", name, members)
+		}
+	}
+	wantKept := "src/main.go"
+	found := false
+	for _, name := range members {
+		if name == wantKept {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected %q in zip; got %v", wantKept, members)
+	}
+}
+
+// TestZipDirectoryHonoursIgnoredPaths covers the --git flag in zip mode.
+// Regression test for https://github.com/schollz/croc/issues/1087.
+func TestZipDirectoryHonoursIgnoredPaths(t *testing.T) {
+	tmpDir := t.TempDir()
+	src := filepath.Join(tmpDir, "src")
+	for _, rel := range []string{
+		"main.go",
+		"build/output.bin",
+		"secrets/key.pem",
+	} {
+		writeFile(t, src, rel)
+	}
+
+	absSecrets, err := filepath.Abs(filepath.Join(src, "secrets"))
+	if err != nil {
+		t.Fatalf("abs: %v", err)
+	}
+	absSecretFile, err := filepath.Abs(filepath.Join(src, "secrets/key.pem"))
+	if err != nil {
+		t.Fatalf("abs: %v", err)
+	}
+	ignored := map[string]bool{
+		absSecrets:    true, // directory entry
+		absSecretFile: true, // file entry (gitWalk records both)
+	}
+
+	zipPath := filepath.Join(tmpDir, "src.zip")
+	if err := ZipDirectory(zipPath, src, ignored, nil); err != nil {
+		t.Fatalf("ZipDirectory: %v", err)
+	}
+
+	members := zipMembers(t, zipPath)
+	for _, name := range members {
+		if strings.Contains(name, "secrets") {
+			t.Errorf("ignored path leaked into zip: %s\n  members: %v", name, members)
+		}
+	}
+	wantKept := []string{"src/main.go", "src/build/output.bin"}
+	for _, want := range wantKept {
+		found := false
+		for _, name := range members {
+			if name == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected %q in zip; got %v", want, members)
+		}
 	}
 }
