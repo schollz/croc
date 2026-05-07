@@ -22,7 +22,11 @@ USER nobody
 
 # Simple TCP health check with nc!
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD nc -z localhost 9009 || exit 1
+    CMD sh -c ' \
+    P="${CROC_PORTS:-${CROC_PORT:-9009}}"; \
+    for p in ${P//,/ }; do \
+        nc -z -w 3 localhost "$p" || exit 1; \
+    done'
 
 ENTRYPOINT ["/croc-entrypoint.sh"]
 CMD ["relay"]

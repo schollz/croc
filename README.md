@@ -342,6 +342,12 @@ To send files using your custom relay:
 croc --pass YOURPASSWORD --relay "myreal.example.com:9009" send [filename]
 ```
 
+To use custom ports, set `CROC_PORTS` (comma-separated) or `CROC_PORT` (base port):
+
+```bash
+docker run -d -p 9010-9011:9010-9011 -e CROC_PORTS='9010,9011' -e CROC_PASS='YOURPASSWORD' docker.io/schollz/croc
+```
+
 ## Acknowledgements
 
 `croc` has evolved through many iterations, and I am thankful for the contributions! Special thanks to:
