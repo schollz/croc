@@ -24,7 +24,8 @@ USER nobody
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD sh -c ' \
     P="${CROC_PORTS:-${CROC_PORT:-9009}}"; \
-    for p in ${P//,/ }; do \
+    IFS=,; set -- $P; \
+    for p in "$@"; do \
         nc -z -w 3 localhost "$p" || exit 1; \
     done'
 
