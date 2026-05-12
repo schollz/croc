@@ -329,14 +329,18 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 	passwordMatch := clientPassword == s.password
 	isDefaultPassword := clientPassword == models.DEFAULT_PASSPHRASE
 
-	// reject immediately if password is neither correct nor default
-	if !passwordMatch && !isDefaultPassword {
-		err = fmt.Errorf("bad password")
-		enc, _ := crypt.Encrypt([]byte(err.Error()), strongKeyForEncryption)
-		if err = c.Send(enc); err != nil {
-			return "", fmt.Errorf("send error: %w", err)
+	if !passwordMatch {
+		// let sender create all rooms as first and anti-brute-force
+		time.Sleep(time.Second)
+		// reject if password is neither correct nor default
+		if !isDefaultPassword {
+			err = fmt.Errorf("bad password")
+			enc, _ := crypt.Encrypt([]byte(err.Error()), strongKeyForEncryption)
+			if err = c.Send(enc); err != nil {
+				return "", fmt.Errorf("send error: %w", err)
+			}
+			return
 		}
-		return
 	}
 
 	// send ok to tell client they are connected
