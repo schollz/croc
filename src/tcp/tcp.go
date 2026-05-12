@@ -325,7 +325,19 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 	if err != nil {
 		return
 	}
-	passwordMatch := strings.TrimSpace(string(passwordBytes)) == s.password
+	clientPassword := strings.TrimSpace(string(passwordBytes))
+	passwordMatch := clientPassword == s.password
+	isDefaultPassword := clientPassword == models.DEFAULT_PASSPHRASE
+
+	// reject immediately if password is neither correct nor default
+	if !passwordMatch && !isDefaultPassword {
+		err = fmt.Errorf("bad password")
+		enc, _ := crypt.Encrypt([]byte(err.Error()), strongKeyForEncryption)
+		if err = c.Send(enc); err != nil {
+			return "", fmt.Errorf("send error: %w", err)
+		}
+		return
+	}
 
 	// send ok to tell client they are connected
 	banner := s.banner
@@ -358,7 +370,7 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 	// create the room if it is new
 	if _, ok := s.rooms.rooms[room]; !ok {
 		// restricted access: client with default password cannot create rooms
-		if !passwordMatch {
+		if !passwordMatch && isDefaultPassword {
 			s.rooms.Unlock()
 			log.Debugf("restricted access: cannot create room %s with default password", room)
 			err = fmt.Errorf("bad password")

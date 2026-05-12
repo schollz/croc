@@ -349,6 +349,24 @@ func TestCorrectPasswordFullAccess(t *testing.T) {
 	c2.Close()
 }
 
+func TestArbitraryWrongPasswordRejected(t *testing.T) {
+	log.SetLevel("error")
+	go Run("debug", "127.0.0.1", "8401", "secretpass", "8402")
+	time.Sleep(100 * time.Millisecond)
+
+	// Sender creates room with correct password
+	c1, _, _, err := ConnectToTCPServer("127.0.0.1:8401", "secretpass", "arbRoom")
+	assert.Nil(t, err)
+	assert.NotNil(t, c1)
+
+	// Client with arbitrary wrong password (not default) should be rejected immediately
+	_, _, _, err = ConnectToTCPServer("127.0.0.1:8401", "somegarbage", "arbRoom")
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "bad password")
+
+	c1.Close()
+}
+
 func TestServerReleasesPort(t *testing.T) {
 	log.SetLevel("trace")
 	host := "127.0.0.1"

@@ -10,21 +10,25 @@ When sender CS1 runs relay CR with password CRP and sends a file to recipient CR
 
 **The client side does NOT change.** All logic is on the relay side.
 
+When the user does not specify `--pass`, the client sends the default password `pass123` (the default value of the `--pass` flag in `src/cli/cli.go`, defined as `models.DEFAULT_PASSPHRASE` in `src/models/constants.go`).
+
 ```mermaid
 flowchart TD
     A[Client connects to relay] --> B[PAKE handshake]
     B --> C[Client sends password]
-    C --> D{Password matches?}
+    C --> D{Password matches relay?}
     D -->|Yes| E[Full access - as before]
     E --> F[Send banner]
     F --> G[Receive room name]
     G --> H[Create or join room]
-    D -->|No| I[Restricted access]
-    I --> J[Send banner - instead of error]
-    J --> K[Receive room name]
-    K --> L{Room exists?}
-    L -->|Yes| M[Join room]
-    L -->|No| N[Reply bad password - reject]
+    D -->|No| I{Is it default pass123?}
+    I -->|No| J[Reject immediately - bad password]
+    I -->|Yes| K[Restricted access]
+    K --> L[Send banner - instead of error]
+    L --> M[Receive room name]
+    M --> N{Room exists?}
+    N -->|Yes| O[Join room]
+    N -->|No| P[Reply bad password - reject]
 ```
 
 ### Backward compatibility
@@ -35,17 +39,22 @@ flowchart TD
 | Custom relay, sender | CRP | CRP | ✅ Full access - as before |
 | Custom relay, recipient with --pass CRP | CRP | CRP | ✅ Full access - as before |
 | Custom relay, recipient without --pass | pass123 | CRP | ✅ Restricted: can join existing room |
-| Custom relay, attacker without password | pass123 | CRP | ❌ Cannot create room - bad password |
+| Custom relay, client without --pass | pass123 | CRP | ❌ Cannot create room - bad password |
+| Custom relay, client with arbitrary password | garbage | CRP | ❌ Rejected immediately - bad password |
 | New relay + old client | any | any | ✅ Works - client unchanged |
 | Old relay + new client | pass123 | CRP | ❌ Old relay replies bad password immediately - need to update relay |
 
 ## Changes in `src/tcp/tcp.go`
 
-### Function `clientCommunication`
+### Function `clientCommunication` — actual code
 
-**Current logic**: When password doesn't match, immediately send error and close connection:
 ```go
-if strings.TrimSpace(string(passwordBytes)) != s.password {
+clientPassword := strings.TrimSpace(string(passwordBytes))
+passwordMatch := clientPassword == s.password
+isDefaultPassword := clientPassword == models.DEFAULT_PASSPHRASE
+
+// reject immediately if password is neither correct nor default
+if !passwordMatch && !isDefaultPassword {
     err = fmt.Errorf("bad password")
     enc, _ := crypt.Encrypt([]byte(err.Error()), strongKeyForEncryption)
     if err = c.Send(enc); err != nil {
@@ -53,60 +62,69 @@ if strings.TrimSpace(string(passwordBytes)) != s.password {
     }
     return
 }
-```
 
-**New logic**: When password doesn't match, don't reject immediately — set a flag and continue:
-
-```go
-passwordMatch := strings.TrimSpace(string(passwordBytes)) == s.password
-
-// Send banner regardless of password match
+// send ok to tell client they are connected
 banner := s.banner
 if len(banner) == 0 {
     banner = "ok"
 }
+log.Debugf("sending '%s'", banner)
 bSend, err := crypt.Encrypt([]byte(banner+"|||"+c.Connection().RemoteAddr().String()), strongKeyForEncryption)
-// ... send banner ...
+if err != nil {
+    return
+}
+err = c.Send(bSend)
+if err != nil {
+    return
+}
 
-// Receive room name from client
+// wait for client to tell me which room they want
+log.Debug("waiting for answer")
 enc, err := c.Receive()
+if err != nil {
+    return
+}
 roomBytes, err := crypt.Decrypt(enc, strongKeyForEncryption)
+if err != nil {
+    return
+}
 room = string(roomBytes)
 
 s.rooms.Lock()
+// create the room if it is new
 if _, ok := s.rooms.rooms[room]; !ok {
-    // Room does NOT exist
-    if !passwordMatch {
-        // Restricted access: cannot create rooms
+    // restricted access: client with default password cannot create rooms
+    if !passwordMatch && isDefaultPassword {
         s.rooms.Unlock()
-        bSend, _ = crypt.Encrypt([]byte("bad password"), strongKeyForEncryption)
-        c.Send(bSend)
-        return "", fmt.Errorf("bad password")
+        log.Debugf("restricted access: cannot create room %s with default password", room)
+        err = fmt.Errorf("bad password")
+        enc, _ := crypt.Encrypt([]byte(err.Error()), strongKeyForEncryption)
+        if err = c.Send(enc); err != nil {
+            return "", fmt.Errorf("send error: %w", err)
+        }
+        return
     }
-    // Full access: create room (as before)
-    s.rooms.rooms[room] = roomInfo{first: c, opened: time.Now()}
-    // ... send ok ...
+    s.rooms.rooms[room] = roomInfo{
+        first:  c,
+        opened: time.Now(),
+    }
+    s.rooms.Unlock()
+    // ... send ok, same as before ...
     return
 }
 // Room exists — allow joining regardless of password
-// ... existing join logic ...
+// ... existing join logic unchanged ...
 ```
 
-### Summary of changes in `clientCommunication`:
-
-1. Replace the `if != password { return }` block with setting a `passwordMatch` flag
-2. Banner is sent always — remove dependency on password check
-3. After receiving room name — add check: if room is new AND password didn't match → reject with `bad password`
-
-## Files to modify
+## Files modified
 
 | File | Change |
 |------|--------|
 | `src/tcp/tcp.go` | Modify `clientCommunication` — allow joining existing room with default password |
 
-## Tests to add in `src/tcp/tcp_test.go`
+## Tests added in `src/tcp/tcp_test.go`
 
-1. Sender with correct password → can create room ✅
-2. Recipient with default password + existing room → can join ✅
-3. Client with default password + non-existing room → rejected ❌
-4. Public relay (pass123) → everything works as before ✅
+1. `TestDefaultPasswordCanJoinExistingRoom` — default password + existing room → can join ✅
+2. `TestDefaultPasswordCannotCreateRoom` — default password + new room → rejected ❌
+3. `TestCorrectPasswordFullAccess` — correct password → full access ✅
+4. `TestArbitraryWrongPasswordRejected` — arbitrary wrong password → rejected immediately ❌
