@@ -1515,7 +1515,8 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 				fmt.Sprintf("%s-%d", c.Options.RoomName, j),
 			)
 			if err != nil {
-				panic(err)
+				log.Errorf("failed to connect to %s: %v", server, err)
+				return
 			}
 			log.Debugf("connected to %s", server)
 			if !c.Options.IsSender {
