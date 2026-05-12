@@ -285,6 +285,70 @@ func TestLargeDataTransfer(t *testing.T) {
 	c2.Close()
 }
 
+func TestDefaultPasswordCanJoinExistingRoom(t *testing.T) {
+	log.SetLevel("error")
+	go Run("debug", "127.0.0.1", "8395", "secretpass", "8396")
+	time.Sleep(100 * time.Millisecond)
+
+	roomName := "restrictedRoom"
+
+	// Sender creates room with correct password
+	c1, _, _, err := ConnectToTCPServer("127.0.0.1:8395", "secretpass", roomName)
+	assert.Nil(t, err)
+	assert.NotNil(t, c1)
+
+	// Recipient joins existing room with default password (pass123)
+	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8395", "pass123", roomName)
+	assert.Nil(t, err)
+	assert.NotNil(t, c2)
+
+	// Verify data exchange works
+	assert.Nil(t, c1.Send([]byte("hello from sender")))
+	var data []byte
+	for {
+		data, err = c2.Receive()
+		if bytes.Equal(data, []byte{1}) {
+			continue
+		}
+		break
+	}
+	assert.Nil(t, err)
+	assert.Equal(t, []byte("hello from sender"), data)
+
+	c1.Close()
+	c2.Close()
+}
+
+func TestDefaultPasswordCannotCreateRoom(t *testing.T) {
+	log.SetLevel("error")
+	go Run("debug", "127.0.0.1", "8397", "secretpass", "8398")
+	time.Sleep(100 * time.Millisecond)
+
+	// Client with default password tries to create a new room (should fail)
+	_, _, _, err := ConnectToTCPServer("127.0.0.1:8397", "pass123", "newRoom")
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "bad password")
+}
+
+func TestCorrectPasswordFullAccess(t *testing.T) {
+	log.SetLevel("error")
+	go Run("debug", "127.0.0.1", "8399", "secretpass", "8400")
+	time.Sleep(100 * time.Millisecond)
+
+	// Client with correct password can create room
+	c1, _, _, err := ConnectToTCPServer("127.0.0.1:8399", "secretpass", "fullAccessRoom")
+	assert.Nil(t, err)
+	assert.NotNil(t, c1)
+
+	// Another client with correct password can join
+	c2, _, _, err := ConnectToTCPServer("127.0.0.1:8399", "secretpass", "fullAccessRoom")
+	assert.Nil(t, err)
+	assert.NotNil(t, c2)
+
+	c1.Close()
+	c2.Close()
+}
+
 func TestServerReleasesPort(t *testing.T) {
 	log.SetLevel("trace")
 	host := "127.0.0.1"
