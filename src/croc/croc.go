@@ -22,6 +22,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/denisbrodbeck/machineid"
 	ignore "github.com/sabhiram/go-gitignore"
 	log "github.com/schollz/logger"
@@ -1499,39 +1501,45 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 	log.Debugf("generated key = %+x with salt %x", c.Key, salt)
 
 	// connects to the other ports of the server for transfer
-	var wg sync.WaitGroup
-	wg.Add(len(c.Options.RelayPorts))
+	var g errgroup.Group
 	for i := 0; i < len(c.Options.RelayPorts); i++ {
 		log.Debugf("port: [%s]", c.Options.RelayPorts[i])
-		go func(j int) {
-			defer wg.Done()
+		j := i
+		g.Go(func() error {
 			var host string
 			if c.Options.RelayAddress == "127.0.0.1" {
 				host = c.Options.RelayAddress
 			} else {
-				host, _, err = net.SplitHostPort(c.Options.RelayAddress)
-				if err != nil {
-					log.Errorf("bad relay address %s", c.Options.RelayAddress)
-					return
+				var splitErr error
+				host, _, splitErr = net.SplitHostPort(c.Options.RelayAddress)
+				if splitErr != nil {
+					return fmt.Errorf("bad relay address %s: %w", c.Options.RelayAddress, splitErr)
 				}
 			}
 			server := net.JoinHostPort(host, c.Options.RelayPorts[j])
 			log.Debugf("connecting to %s", server)
-			c.conn[j+1], _, _, err = tcp.ConnectToTCPServer(
+			var connErr error
+			c.conn[j+1], _, _, connErr = tcp.ConnectToTCPServer(
 				server,
 				c.Options.RelayPassword,
 				fmt.Sprintf("%s-%d", c.Options.RoomName, j),
 			)
-			if err != nil {
-				panic(err)
+			if connErr != nil {
+				return fmt.Errorf("connect to port %s: %w", c.Options.RelayPorts[j], connErr)
 			}
 			log.Debugf("connected to %s", server)
 			if !c.Options.IsSender {
 				go c.receiveData(j)
 			}
-		}(i)
+			return nil
+		})
 	}
-	wg.Wait()
+	if err = g.Wait(); err != nil {
+		if c.stop.gui {
+			c.stop.Cancel()
+		}
+		return err
+	}
 	if !c.Options.IsSender {
 		log.Debug("sending external IP")
 		err = message.Send(c.conn[0], c.Key, message.Message{
