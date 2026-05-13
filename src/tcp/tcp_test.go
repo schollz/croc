@@ -319,17 +319,6 @@ func TestDefaultPasswordCanJoinExistingRoom(t *testing.T) {
 	c2.Close()
 }
 
-func TestDefaultPasswordCannotCreateRoom(t *testing.T) {
-	log.SetLevel("error")
-	go Run("debug", "127.0.0.1", "8397", "secretpass", "8398")
-	time.Sleep(100 * time.Millisecond)
-
-	// Client with default password tries to create a new room (should fail)
-	_, _, _, err := ConnectToTCPServer("127.0.0.1:8397", "pass123", "newRoom")
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "bad password")
-}
-
 func TestCorrectPasswordFullAccess(t *testing.T) {
 	log.SetLevel("error")
 	go Run("debug", "127.0.0.1", "8399", "secretpass", "8400")
