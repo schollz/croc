@@ -1,34 +1,48 @@
-name: Release
+name: Release Please
 
 on:
-  release:
-    types: [created]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Release tag (e.g. v10.4.3)'
-        required: true
+  push:
+    branches: [main]
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
 
 jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@16a9c90856f42705d54a6fda1823352bdc62cf38 # v4.4.0 (pin SHA to avoid supply chain attacks)
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
   prepare-source:
+    name: Prepare source tarball
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 (pin SHA to avoid supply chain attacks)
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          ref: ${{ needs.release-please.outputs.tag_name }}
 
       - name: Setup Go
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0 (pin SHA to avoid supply chain attacks)
         with:
           go-version: '^1.24.0'
 
       - name: Prepare source tarball
         run: |
-          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          TAG="${{ needs.release-please.outputs.tag_name }}"
           SRCDIR="croc-${TAG}"
           cp -r . "${SRCDIR}"
           rm -rf "${SRCDIR}/.git"
@@ -36,12 +50,15 @@ jobs:
           cd .. && tar -czvf "croc_${TAG}_src.tar.gz" "${SRCDIR}"
 
       - name: Upload source artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 (pin SHA to avoid supply chain attacks)
         with:
           name: source-tarball
           path: "*.tar.gz"
 
   build:
+    name: Build ${{ matrix.name }}
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -67,7 +84,7 @@ jobs:
             name: Windows-ARM64
             ext: .exe
             archive: zip
-          
+
           # Linux builds
           - goos: linux
             goarch: amd64
@@ -100,7 +117,7 @@ jobs:
             name: Linux-RISCV64
             ext: ""
             archive: tar.gz
-          
+
           # macOS builds
           - goos: darwin
             goarch: amd64
@@ -112,7 +129,7 @@ jobs:
             name: macOS-ARM64
             ext: ""
             archive: tar.gz
-          
+
           # BSD builds
           - goos: dragonfly
             goarch: amd64
@@ -157,12 +174,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 (pin SHA to avoid supply chain attacks)
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          ref: ${{ needs.release-please.outputs.tag_name }}
 
       - name: Setup Go
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0 (pin SHA to avoid supply chain attacks)
         with:
           go-version: '^1.24.0'
 
@@ -173,7 +190,6 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           GOARM: ${{ matrix.goarm }}
         run: |
-          # Set LDFLAGS based on platform
           case "${{ matrix.goos }}" in
             "darwin")
               LDFLAGS='-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"'
@@ -185,13 +201,13 @@ jobs:
               LDFLAGS='-extldflags "-static"'
               ;;
           esac
-          
+
           echo "Building for ${{ matrix.goos }}/${{ matrix.goarch }} with LDFLAGS: $LDFLAGS"
           go build -ldflags "$LDFLAGS" -o croc${{ matrix.ext }}
 
       - name: Create archive
         run: |
-          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          TAG="${{ needs.release-please.outputs.tag_name }}"
           if [ "${{ matrix.archive }}" = "zip" ]; then
             zip "croc_${TAG}_${{ matrix.name }}.zip" croc${{ matrix.ext }} LICENSE
           else
@@ -199,7 +215,7 @@ jobs:
           fi
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 (pin SHA to avoid supply chain attacks)
         with:
           name: build-${{ matrix.name }}
           path: |
@@ -207,27 +223,27 @@ jobs:
             *.tar.gz
 
   release:
-    needs: [prepare-source, build]
+    name: Upload release assets
+    needs: [release-please, prepare-source, build]
+    if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-24.04
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0 (pin SHA to avoid supply chain attacks)
         with:
           merge-multiple: true
 
       - name: Generate checksums
         run: |
-          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          TAG="${{ needs.release-please.outputs.tag_name }}"
           sha256sum *.zip *.tar.gz > "croc_${TAG}_checksums.txt"
-          
           echo "Generated checksums:"
           cat "croc_${TAG}_checksums.txt"
 
       - name: Upload release assets
-        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2 (pin SHA to avoid supply chain attacks)
         with:
-          tag_name: ${{ github.event.release.tag_name || inputs.tag }}
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: |
             *.zip
             *.tar.gz
