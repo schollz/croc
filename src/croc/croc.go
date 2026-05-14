@@ -1046,7 +1046,7 @@ func (c *Client) Receive() (err error) {
 				log.Errorf("dataMessage send error: %v", err)
 				return
 			}
-			data, err = c.conn[0].Receive()
+			data, err = c.receiveSkippingPing(0)
 			if err != nil {
 				return
 			}
@@ -1075,7 +1075,7 @@ func (c *Client) Receive() (err error) {
 			if err = c.conn[0].Send(data); err != nil {
 				log.Errorf("ips send error: %v", err)
 			}
-			data, err = c.conn[0].Receive()
+			data, err = c.receiveSkippingPing(0)
 			if err != nil {
 				return
 			}
@@ -1161,6 +1161,25 @@ func (c *Client) Receive() (err error) {
 	return
 }
 
+// receiveSkippingPing receives data from the specified connection,
+// silently discarding relay keepalive ping messages ([]byte{1}).
+// The relay sends these pings periodically while waiting for the second peer
+// to connect, so all Receive calls must skip them to avoid protocol errors.
+func (c *Client) receiveSkippingPing(connIndex int) (data []byte, err error) {
+	for {
+		data, err = c.conn[connIndex].Receive()
+		if err != nil {
+			return
+		}
+		if bytes.Equal(data, []byte{1}) {
+			// log.Trace("got ping")
+			log.Debug("got ping")
+			continue
+		}
+		return
+	}
+}
+
 func (c *Client) transfer() (err error) {
 	// connect to the server
 
@@ -1189,7 +1208,7 @@ func (c *Client) transfer() (err error) {
 		}
 		var data []byte
 		var done bool
-		data, err = c.conn[0].Receive()
+		data, err = c.receiveSkippingPing(0)
 		if err != nil {
 			log.Debugf("got error receiving: %v", err)
 			if !c.Step1ChannelSecured {
@@ -2111,13 +2130,9 @@ func (c *Client) receiveData(i int) {
 	}()
 	log.Tracef("%d receiving data", i)
 	for {
-		data, err := c.conn[i+1].Receive()
+		data, err := c.receiveSkippingPing(i + 1)
 		if err != nil {
 			break
-		}
-		if bytes.Equal(data, []byte{1}) {
-			log.Trace("got ping")
-			continue
 		}
 
 		data, err = crypt.Decrypt(data, c.Key)
