@@ -204,6 +204,7 @@ func (s *server) run() (err error) {
 					break
 				}
 				if roomData.first != nil {
+					deleteIt = !roomData.firstAuthorized && time.Since(roomData.opened) > UNAUTHORIZED_ROOM_TTL
 					errSend := roomData.first.Send([]byte{1})
 					if errSend != nil {
 						log.Debug(errSend)
