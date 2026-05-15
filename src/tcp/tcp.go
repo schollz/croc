@@ -429,18 +429,6 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 		return
 	}
 
-	// second connection is the sender, time to staple connections
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	// start piping
-	go func(com1, com2 *comm.Comm, wg *sync.WaitGroup) {
-		log.Debug("starting pipes")
-		pipe(com1.Connection(), com2.Connection())
-		wg.Done()
-		log.Debug("done piping")
-	}(otherConnection, c, &wg)
-
 	// tell the sender everything is ready
 	bSend, err = crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
 	if err != nil {
@@ -451,6 +439,20 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 		s.deleteRoom(room)
 		return
 	}
+
+	// second connection is the sender, time to staple connections
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	// start piping
+	// after tell the sender everything is ready prevent race sending to sender
+	go func(com1, com2 *comm.Comm, wg *sync.WaitGroup) {
+		log.Debug("starting pipes")
+		pipe(com1.Connection(), com2.Connection())
+		wg.Done()
+		log.Debug("done piping")
+	}(otherConnection, c, &wg)
+
 	wg.Wait()
 
 	// delete room

@@ -638,6 +638,8 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 		err = fmt.Errorf("could not connect to 127.0.0.1:%s: %w", c.Options.RelayPorts[0], err)
 		log.Debug(err)
 		// not really an error because it will try to connect over the actual relay
+		// but if not send to errchan second read from it stuck
+		errchan <- err
 		return
 	}
 	log.Debugf("local connection established: %+v", conn)
@@ -646,13 +648,19 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 			errchan <- err
 			return
 		}
-		data, _ := conn.Receive()
+		data, connErr := conn.Receive()
 		if bytes.Equal(data, handshakeRequest) {
 			break
 		} else if bytes.Equal(data, []byte{1}) {
 			log.Trace("got ping")
 		} else {
 			log.Debugf("instead of handshake got: %s", data)
+			// throttle the reading
+			if connErr == nil {
+				connErr = fmt.Errorf("gracefully refusing using the local relay")
+			}
+			errchan <- connErr
+			return
 		}
 	}
 	c.conn[0] = conn
