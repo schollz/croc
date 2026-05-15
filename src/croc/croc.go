@@ -628,6 +628,19 @@ func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 	}
 }
 
+// transferOverLocalRelay connects the sender to its own local relay and waits
+// for the receiver to join. The receiver may initiate a PAKE key exchange
+// (pake1/pake2) followed by an encrypted ipRequest to discover the sender's
+// local IPs. Although the relay is local, the PAKE exchange is still valuable:
+//
+//   - The receiver may not have discovered the sender via multicast (e.g. due
+//     to firewalls, different subnets, or IPv4/IPv6 mismatches), so it falls
+//     back to requesting IPs through the relay pipe.
+//   - The shared secret used in PAKE ensures that only the legitimate receiver
+//     can decrypt the IP list, preventing leakage to unauthorized peers that
+//     might guess the room name on the local relay.
+//   - Keeping the same protocol flow as the public relay goroutine (see Send)
+//     ensures consistent behaviour regardless of which relay path is used.
 func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 	time.Sleep(500 * time.Millisecond)
 	log.Debug("establishing connection")
@@ -643,18 +656,81 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 		return
 	}
 	log.Debugf("local connection established: %+v", conn)
+	var kB []byte
+	B, _ := pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, c.Options.Curve)
 	for {
 		if err := c.ctxErr(); err != nil {
 			errchan <- err
 			return
 		}
+		var dataMessage SimpleMessage
 		data, connErr := conn.Receive()
-		if bytes.Equal(data, handshakeRequest) {
+		if connErr != nil {
+			log.Tracef("[%+v] had error: %s", conn, connErr.Error())
+		}
+		json.Unmarshal(data, &dataMessage)
+		// if kB not null, then use it to decrypt
+		if kB != nil {
+			var decryptErr error
+			var dataDecrypt []byte
+			dataDecrypt, decryptErr = crypt.Decrypt(data, kB)
+			if decryptErr != nil {
+				log.Tracef("error decrypting: %v: '%s'", decryptErr, data)
+				if strings.Contains(decryptErr.Error(), "message authentication failed") {
+					errchan <- decryptErr
+					return
+				}
+			} else {
+				data = dataDecrypt
+				log.Tracef("decrypted: %s", data)
+			}
+		}
+		if bytes.Equal(data, ipRequest) {
+			log.Tracef("got ipRequest")
+			// recipient wants to try to connect to local ips
+			var ips []string
+			if !c.Options.DisableLocal {
+				ips, err = utils.GetLocalIPs()
+				if err != nil {
+					log.Tracef("error getting local ips: %v", err)
+				}
+				ips = append([]string{c.Options.RelayPorts[0]}, ips...)
+			}
+			log.Tracef("sending ips: %+v", ips)
+			bips, errIps := json.Marshal(ips)
+			if errIps != nil {
+				log.Tracef("error marshalling ips: %v", errIps)
+			}
+			bips, errIps = crypt.Encrypt(bips, kB)
+			if errIps != nil {
+				log.Tracef("error encrypting ips: %v", errIps)
+			}
+			if err = conn.Send(bips); err != nil {
+				log.Errorf("error sending: %v", err)
+			}
+		} else if dataMessage.Kind == "pake1" {
+			log.Trace("got pake1")
+			var pakeError error
+			pakeError = B.Update(dataMessage.Bytes)
+			if pakeError == nil {
+				kB, pakeError = B.SessionKey()
+				if pakeError == nil {
+					log.Tracef("dataMessage kB: %x", kB)
+					dataMessage.Bytes = B.Bytes()
+					dataMessage.Kind = "pake2"
+					data, _ = json.Marshal(dataMessage)
+					if pakeError = conn.Send(data); pakeError != nil {
+						log.Errorf("dataMessage error sending: %v", pakeError)
+					}
+				}
+			}
+		} else if bytes.Equal(data, handshakeRequest) {
+			log.Trace("got handshake")
 			break
 		} else if bytes.Equal(data, []byte{1}) {
 			log.Trace("got ping")
 		} else {
-			log.Debugf("instead of handshake got: %s", data)
+			log.Tracef("[%+v] got weird bytes: %+v", conn, data)
 			// throttle the reading
 			if connErr == nil {
 				connErr = fmt.Errorf("gracefully refusing using the local relay")
@@ -1180,8 +1256,7 @@ func (c *Client) receiveSkippingPing(connIndex int) (data []byte, err error) {
 			return
 		}
 		if bytes.Equal(data, []byte{1}) {
-			// log.Trace("got ping")
-			log.Debug("got ping")
+			log.Trace("got ping")
 			continue
 		}
 		return
