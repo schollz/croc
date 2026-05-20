@@ -282,6 +282,17 @@ func determinePass(c *cli.Context) (pass string) {
 	return
 }
 
+func resolveSendSharedSecret(sharedSecret, envSecret string) string {
+	if envSecret != "" {
+		return envSecret
+	}
+	return sharedSecret
+}
+
+func shouldExitForUnixSendCode(goos string, codeFlagSet, classicInsecureMode bool, envSecret string) bool {
+	return goos != "windows" && codeFlagSet && !classicInsecureMode && envSecret == ""
+}
+
 func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
 	comm.Socks5Proxy = c.String("socks5")
@@ -426,12 +437,10 @@ func send(c *cli.Context) (err error) {
 	}
 
 	classicInsecureMode := utils.Exists(getClassicConfigFile(true))
-	if !classicInsecureMode {
-		// if operating system is UNIX, then use environmental variable to set the code
-		if (!(runtime.GOOS == "windows") && c.IsSet("code")) || os.Getenv("CROC_SECRET") != "" {
-			crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
-			if crocOptions.SharedSecret == "" {
-				fmt.Printf(`On UNIX systems, to send with a custom code phrase,
+	envSecret := os.Getenv("CROC_SECRET")
+	crocOptions.SharedSecret = resolveSendSharedSecret(crocOptions.SharedSecret, envSecret)
+	if shouldExitForUnixSendCode(runtime.GOOS, c.IsSet("code"), classicInsecureMode, envSecret) {
+		fmt.Printf(`On UNIX systems, to send with a custom code phrase,
 you need to set the environmental variable CROC_SECRET:
 
   CROC_SECRET=**** croc send file.txt
@@ -445,9 +454,7 @@ Or you can go back to the classic croc behavior by enabling classic mode:
   croc --classic
 
 `)
-				os.Exit(0)
-			}
-		}
+		os.Exit(0)
 	}
 
 	if len(crocOptions.SharedSecret) == 0 {
