@@ -22,6 +22,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/denisbrodbeck/machineid"
 	ignore "github.com/sabhiram/go-gitignore"
 	log "github.com/schollz/logger"
@@ -626,6 +628,19 @@ func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 	}
 }
 
+// transferOverLocalRelay connects the sender to its own local relay and waits
+// for the receiver to join. The receiver may initiate a PAKE key exchange
+// (pake1/pake2) followed by an encrypted ipRequest to discover the sender's
+// local IPs. Although the relay is local, the PAKE exchange is still valuable:
+//
+//   - The receiver may not have discovered the sender via multicast (e.g. due
+//     to firewalls, different subnets, or IPv4/IPv6 mismatches), so it falls
+//     back to requesting IPs through the relay pipe.
+//   - The shared secret used in PAKE ensures that only the legitimate receiver
+//     can decrypt the IP list, preventing leakage to unauthorized peers that
+//     might guess the room name on the local relay.
+//   - Keeping the same protocol flow as the public relay goroutine (see Send)
+//     ensures consistent behaviour regardless of which relay path is used.
 func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 	time.Sleep(500 * time.Millisecond)
 	log.Debug("establishing connection")
@@ -636,21 +651,92 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 		err = fmt.Errorf("could not connect to 127.0.0.1:%s: %w", c.Options.RelayPorts[0], err)
 		log.Debug(err)
 		// not really an error because it will try to connect over the actual relay
+		// but if not send to errchan second read from it stuck
+		errchan <- err
 		return
 	}
 	log.Debugf("local connection established: %+v", conn)
+	var kB []byte
+	B, _ := pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, c.Options.Curve)
 	for {
 		if err := c.ctxErr(); err != nil {
 			errchan <- err
 			return
 		}
-		data, _ := conn.Receive()
-		if bytes.Equal(data, handshakeRequest) {
+		var dataMessage SimpleMessage
+		data, connErr := conn.Receive()
+		if connErr != nil {
+			log.Tracef("[%+v] had error: %s", conn, connErr.Error())
+		}
+		json.Unmarshal(data, &dataMessage)
+		// if kB not null, then use it to decrypt
+		if kB != nil {
+			var decryptErr error
+			var dataDecrypt []byte
+			dataDecrypt, decryptErr = crypt.Decrypt(data, kB)
+			if decryptErr != nil {
+				log.Tracef("error decrypting: %v: '%s'", decryptErr, data)
+				if strings.Contains(decryptErr.Error(), "message authentication failed") {
+					errchan <- decryptErr
+					return
+				}
+			} else {
+				data = dataDecrypt
+				log.Tracef("decrypted: %s", data)
+			}
+		}
+		if bytes.Equal(data, ipRequest) {
+			log.Tracef("got ipRequest")
+			// recipient wants to try to connect to local ips
+			var ips []string
+			if !c.Options.DisableLocal {
+				ips, err = utils.GetLocalIPs()
+				if err != nil {
+					log.Tracef("error getting local ips: %v", err)
+				}
+				ips = append([]string{c.Options.RelayPorts[0]}, ips...)
+			}
+			log.Tracef("sending ips: %+v", ips)
+			bips, errIps := json.Marshal(ips)
+			if errIps != nil {
+				log.Tracef("error marshalling ips: %v", errIps)
+			}
+			bips, errIps = crypt.Encrypt(bips, kB)
+			if errIps != nil {
+				log.Tracef("error encrypting ips: %v", errIps)
+			}
+			if err = conn.Send(bips); err != nil {
+				log.Errorf("error sending: %v", err)
+			}
+		} else if dataMessage.Kind == "pake1" {
+			log.Trace("got pake1")
+			var pakeError error
+			pakeError = B.Update(dataMessage.Bytes)
+			if pakeError == nil {
+				kB, pakeError = B.SessionKey()
+				if pakeError == nil {
+					log.Tracef("dataMessage kB: %x", kB)
+					dataMessage.Bytes = B.Bytes()
+					dataMessage.Kind = "pake2"
+					data, _ = json.Marshal(dataMessage)
+					if pakeError = conn.Send(data); pakeError != nil {
+						log.Errorf("dataMessage error sending: %v", pakeError)
+					}
+				}
+			}
+		} else if bytes.Equal(data, handshakeRequest) {
+			log.Trace("got handshake")
 			break
 		} else if bytes.Equal(data, []byte{1}) {
 			log.Trace("got ping")
 		} else {
-			log.Debugf("instead of handshake got: %s", data)
+			log.Tracef("[%+v] got weird bytes: %+v", conn, data)
+			// throttle the reading
+			if connErr == nil {
+				connErr = fmt.Errorf("gracefully refusing using the local relay")
+			}
+			errchan <- connErr
+			return
 		}
 	}
 	c.conn[0] = conn
@@ -1044,7 +1130,7 @@ func (c *Client) Receive() (err error) {
 				log.Errorf("dataMessage send error: %v", err)
 				return
 			}
-			data, err = c.conn[0].Receive()
+			data, err = c.receiveSkippingPing(0)
 			if err != nil {
 				return
 			}
@@ -1073,7 +1159,7 @@ func (c *Client) Receive() (err error) {
 			if err = c.conn[0].Send(data); err != nil {
 				log.Errorf("ips send error: %v", err)
 			}
-			data, err = c.conn[0].Receive()
+			data, err = c.receiveSkippingPing(0)
 			if err != nil {
 				return
 			}
@@ -1159,6 +1245,24 @@ func (c *Client) Receive() (err error) {
 	return
 }
 
+// receiveSkippingPing receives data from the specified connection,
+// silently discarding relay keepalive ping messages ([]byte{1}).
+// The relay sends these pings periodically while waiting for the second peer
+// to connect, so all Receive calls must skip them to avoid protocol errors.
+func (c *Client) receiveSkippingPing(connIndex int) (data []byte, err error) {
+	for {
+		data, err = c.conn[connIndex].Receive()
+		if err != nil {
+			return
+		}
+		if bytes.Equal(data, []byte{1}) {
+			log.Trace("got ping")
+			continue
+		}
+		return
+	}
+}
+
 func (c *Client) transfer() (err error) {
 	// connect to the server
 
@@ -1187,7 +1291,7 @@ func (c *Client) transfer() (err error) {
 		}
 		var data []byte
 		var done bool
-		data, err = c.conn[0].Receive()
+		data, err = c.receiveSkippingPing(0)
 		if err != nil {
 			log.Debugf("got error receiving: %v", err)
 			if !c.Step1ChannelSecured {
@@ -1499,39 +1603,45 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 	log.Debugf("generated key = %+x with salt %x", c.Key, salt)
 
 	// connects to the other ports of the server for transfer
-	var wg sync.WaitGroup
-	wg.Add(len(c.Options.RelayPorts))
+	var g errgroup.Group
 	for i := 0; i < len(c.Options.RelayPorts); i++ {
 		log.Debugf("port: [%s]", c.Options.RelayPorts[i])
-		go func(j int) {
-			defer wg.Done()
+		j := i
+		g.Go(func() error {
 			var host string
 			if c.Options.RelayAddress == "127.0.0.1" {
 				host = c.Options.RelayAddress
 			} else {
-				host, _, err = net.SplitHostPort(c.Options.RelayAddress)
-				if err != nil {
-					log.Errorf("bad relay address %s", c.Options.RelayAddress)
-					return
+				var splitErr error
+				host, _, splitErr = net.SplitHostPort(c.Options.RelayAddress)
+				if splitErr != nil {
+					return fmt.Errorf("bad relay address %s: %w", c.Options.RelayAddress, splitErr)
 				}
 			}
 			server := net.JoinHostPort(host, c.Options.RelayPorts[j])
 			log.Debugf("connecting to %s", server)
-			c.conn[j+1], _, _, err = tcp.ConnectToTCPServer(
+			var connErr error
+			c.conn[j+1], _, _, connErr = tcp.ConnectToTCPServer(
 				server,
 				c.Options.RelayPassword,
 				fmt.Sprintf("%s-%d", c.Options.RoomName, j),
 			)
-			if err != nil {
-				panic(err)
+			if connErr != nil {
+				return fmt.Errorf("connect to port %s: %w", c.Options.RelayPorts[j], connErr)
 			}
 			log.Debugf("connected to %s", server)
 			if !c.Options.IsSender {
 				go c.receiveData(j)
 			}
-		}(i)
+			return nil
+		})
 	}
-	wg.Wait()
+	if err = g.Wait(); err != nil {
+		if c.stop.gui {
+			c.stop.Cancel()
+		}
+		return err
+	}
 	if !c.Options.IsSender {
 		log.Debug("sending external IP")
 		err = message.Send(c.conn[0], c.Key, message.Message{
@@ -1662,6 +1772,7 @@ func (c *Client) processMessage(payload []byte) (done bool, err error) {
 
 func (c *Client) updateIfSenderChannelSecured() (err error) {
 	if c.Options.IsSender && c.Step1ChannelSecured && !c.Step2FileInfoTransferred {
+
 		var b []byte
 		machID, _ := machineid.ID()
 		b, err = json.Marshal(SenderInfo{
@@ -2094,13 +2205,9 @@ func (c *Client) receiveData(i int) {
 	}()
 	log.Tracef("%d receiving data", i)
 	for {
-		data, err := c.conn[i+1].Receive()
+		data, err := c.receiveSkippingPing(i + 1)
 		if err != nil {
 			break
-		}
-		if bytes.Equal(data, []byte{1}) {
-			log.Trace("got ping")
-			continue
 		}
 
 		data, err = crypt.Decrypt(data, c.Key)
