@@ -34,10 +34,11 @@ type server struct {
 }
 
 type roomInfo struct {
-	first  *comm.Comm
-	second *comm.Comm
-	opened time.Time
-	full   bool
+	first           *comm.Comm
+	second          *comm.Comm
+	opened          time.Time
+	full            bool
+	firstAuthorized bool // true if first peer knows the correct relay password
 }
 
 type roomMap struct {
@@ -203,6 +204,7 @@ func (s *server) run() (err error) {
 					break
 				}
 				if roomData.first != nil {
+					deleteIt = !roomData.firstAuthorized && time.Since(roomData.opened) > UNAUTHORIZED_ROOM_TTL
 					errSend := roomData.first.Send([]byte{1})
 					if errSend != nil {
 						log.Debug(errSend)
@@ -325,13 +327,19 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 	if err != nil {
 		return
 	}
-	if strings.TrimSpace(string(passwordBytes)) != s.password {
+	clientPassword := strings.TrimSpace(string(passwordBytes))
+	passwordMatch := clientPassword == s.password
+	isDefaultPassword := clientPassword == models.DEFAULT_PASSPHRASE
+
+	if !passwordMatch && !isDefaultPassword {
+		// reject if password is neither correct nor default
 		err = fmt.Errorf("bad password")
 		enc, _ := crypt.Encrypt([]byte(err.Error()), strongKeyForEncryption)
 		if err = c.Send(enc); err != nil {
 			return "", fmt.Errorf("send error: %w", err)
 		}
 		return
+		// default password: authorization checked later
 	}
 
 	// send ok to tell client they are connected
@@ -365,8 +373,9 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 	// create the room if it is new
 	if _, ok := s.rooms.rooms[room]; !ok {
 		s.rooms.rooms[room] = roomInfo{
-			first:  c,
-			opened: time.Now(),
+			first:           c,
+			opened:          time.Now(),
+			firstAuthorized: passwordMatch,
 		}
 		s.rooms.Unlock()
 		// tell the client that they got the room
@@ -398,26 +407,27 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 		return
 	}
 	log.Debugf("room %s has 2", room)
+	firstAuthorized := s.rooms.rooms[room].firstAuthorized
+	secondAuthorized := passwordMatch
 	s.rooms.rooms[room] = roomInfo{
-		first:  s.rooms.rooms[room].first,
-		second: c,
-		opened: s.rooms.rooms[room].opened,
-		full:   true,
+		first:           s.rooms.rooms[room].first,
+		second:          c,
+		opened:          s.rooms.rooms[room].opened,
+		full:            true,
+		firstAuthorized: firstAuthorized,
 	}
 	otherConnection := s.rooms.rooms[room].first
 	s.rooms.Unlock()
 
-	// second connection is the sender, time to staple connections
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	// start piping
-	go func(com1, com2 *comm.Comm, wg *sync.WaitGroup) {
-		log.Debug("starting pipes")
-		pipe(com1.Connection(), com2.Connection())
-		wg.Done()
-		log.Debug("done piping")
-	}(otherConnection, c, &wg)
+	// check authorization: at least one peer must know the correct relay password
+	if !firstAuthorized && !secondAuthorized {
+		log.Debugf("unauthorized: both peers use default password in room %s", room)
+		err = fmt.Errorf("bad password")
+		enc, _ := crypt.Encrypt([]byte(err.Error()), strongKeyForEncryption)
+		c.Send(enc)
+		s.deleteRoom(room)
+		return
+	}
 
 	// tell the sender everything is ready
 	bSend, err = crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
@@ -429,6 +439,20 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 		s.deleteRoom(room)
 		return
 	}
+
+	// second connection is the sender, time to staple connections
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	// start piping
+	// after tell the sender everything is ready prevent race sending to sender
+	go func(com1, com2 *comm.Comm, wg *sync.WaitGroup) {
+		log.Debug("starting pipes")
+		pipe(com1.Connection(), com2.Connection())
+		wg.Done()
+		log.Debug("done piping")
+	}(otherConnection, c, &wg)
+
 	wg.Wait()
 
 	// delete room
