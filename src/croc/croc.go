@@ -1500,6 +1500,13 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 
 	// connects to the other ports of the server for transfer
 	var wg sync.WaitGroup
+
+       if need := len(c.Options.RelayPorts) + 1; len(c.conn) < need {
+               newConn := make([]*comm.Comm, need)
+               copy(newConn, c.conn)
+               c.conn = newConn
+       }
+
 	wg.Add(len(c.Options.RelayPorts))
 	for i := 0; i < len(c.Options.RelayPorts); i++ {
 		log.Debugf("port: [%s]", c.Options.RelayPorts[i])
