@@ -70,7 +70,7 @@ func Run() (err error) {
 			Flags: []cli.Flag{
 				&cli.BoolFlag{Name: "zip", Usage: "zip folder before sending"},
 				&cli.StringFlag{Name: "code", Aliases: []string{"c"}, Usage: "codephrase used to connect to relay (at least 6 characters)"},
-				&cli.StringFlag{Name: "hash", Value: "xxhash", Usage: "hash algorithm (xxhash, imohash, md5)"},
+				&cli.StringFlag{Name: "hash", Value: "xxhash", Usage: "hash algorithm (xxhash, imohash, md5, highway)"},
 				&cli.StringFlag{Name: "text", Aliases: []string{"t"}, Usage: "send some text"},
 				&cli.BoolFlag{Name: "no-local", Usage: "disable local relay when sending"},
 				&cli.BoolFlag{Name: "no-multi", Usage: "disable multiplexing"},
