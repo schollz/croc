@@ -104,3 +104,24 @@ func TestReceiveRejectsOversizedMessage(t *testing.T) {
 	assert.Contains(t, err.Error(), "message too large")
 	assert.Nil(t, <-writeErr)
 }
+
+func TestReceiveAllowsLargeMessage(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	c := New(clientConn)
+	payload := bytes.Repeat([]byte("a"), 2*1024*1024)
+
+	writeErr := make(chan error, 1)
+	go func() {
+		_, err := New(serverConn).Write(payload)
+		writeErr <- err
+	}()
+
+	data, err := c.Receive()
+	assert.Nil(t, err)
+	assert.Equal(t, payload, data)
+	assert.Nil(t, <-writeErr)
+	assert.GreaterOrEqual(t, messageBodyReadTimeout, time.Minute)
+}
