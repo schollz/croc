@@ -2315,9 +2315,9 @@ func copyToClipboard(str string, quiet bool, extendedClipboard bool) {
 		} else if os.Getenv("XDG_SESSION_TYPE") == "x11" || os.Getenv("XDG_SESSION_TYPE") == "xorg" { // Xorg running
 			if isExecutableInPath("xclip") {
 				cmd = exec.Command("xclip", "-selection", "clipboard")
+			} else if isExecutableInPath("xsel") {
+				cmd = exec.Command("xsel", "-b")
 			}
-		} else if isExecutableInPath("xsel") {
-			cmd = exec.Command("xsel", "-b")
 		} else if isExecutableInPath("termux-clipboard-set") {
 			cmd = exec.Command("termux-clipboard-set")
 		}
