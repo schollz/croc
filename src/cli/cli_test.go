@@ -1,6 +1,52 @@
 package cli
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
+
+func TestParseRelayPorts(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want []string
+	}{
+		{
+			name: "plain comma separated",
+			in:   "9009,9010,9011",
+			want: []string{"9009", "9010", "9011"},
+		},
+		{
+			name: "spaces after commas are trimmed",
+			in:   "9009, 9010, 9011",
+			want: []string{"9009", "9010", "9011"},
+		},
+		{
+			name: "surrounding and trailing empties are dropped",
+			in:   " 9009 ,, 9010 ,",
+			want: []string{"9009", "9010"},
+		},
+		{
+			name: "single port",
+			in:   "9009",
+			want: []string{"9009"},
+		},
+		{
+			name: "empty string yields no ports",
+			in:   "",
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseRelayPorts(tt.in)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("parseRelayPorts(%q) = %#v, want %#v", tt.in, got, tt.want)
+			}
+		})
+	}
+}
 
 func TestResolveSendSharedSecret(t *testing.T) {
 	t.Run("uses env secret", func(t *testing.T) {
