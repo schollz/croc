@@ -889,6 +889,82 @@ func showReceiveCommandQrCode(command string) {
 	}
 }
 
+type peerDiscoveryResult struct {
+	discoveries []peerdiscovery.Discovered
+	err         error
+}
+
+var (
+	receivePeerDiscoveryTimeout   = 500 * time.Millisecond
+	receivePeerDiscoveryTimeLimit = 200 * time.Millisecond
+	peerDiscover                  = peerdiscovery.Discover
+)
+
+func (c *Client) discoverReceivePeers() (discoveries []peerdiscovery.Discovered) {
+	resultChan := make(chan peerDiscoveryResult, 2)
+	stopDiscovery := make(chan struct{})
+	var closeOnce sync.Once
+	closeDiscovery := func() {
+		closeOnce.Do(func() {
+			close(stopDiscovery)
+		})
+	}
+	defer closeDiscovery()
+	go func() {
+		select {
+		case <-c.stop.stopChan:
+			closeDiscovery()
+		case <-stopDiscovery:
+		}
+	}()
+
+	startDiscovery := func(settings peerdiscovery.Settings) {
+		settings.StopChan = stopDiscovery
+		discover := peerDiscover
+		go func() {
+			found, err := discover(settings)
+			resultChan <- peerDiscoveryResult{
+				discoveries: found,
+				err:         err,
+			}
+		}()
+	}
+
+	startDiscovery(peerdiscovery.Settings{
+		Limit:            1,
+		Payload:          []byte("ok"),
+		Delay:            20 * time.Millisecond,
+		TimeLimit:        receivePeerDiscoveryTimeLimit,
+		MulticastAddress: c.Options.MulticastAddress,
+	})
+	startDiscovery(peerdiscovery.Settings{
+		Limit:     1,
+		Payload:   []byte("ok"),
+		Delay:     20 * time.Millisecond,
+		TimeLimit: receivePeerDiscoveryTimeLimit,
+		IPVersion: peerdiscovery.IPv6,
+	})
+
+	timer := time.NewTimer(receivePeerDiscoveryTimeout)
+	defer timer.Stop()
+	for remaining := 2; remaining > 0; remaining-- {
+		select {
+		case result := <-resultChan:
+			if result.err != nil {
+				log.Debugf("peer discovery failed: %v", result.err)
+				continue
+			}
+			discoveries = append(discoveries, result.discoveries...)
+		case <-timer.C:
+			log.Debug("peer discovery timed out")
+			return
+		case <-c.stop.stopChan:
+			return
+		}
+	}
+	return
+}
+
 // Receive will receive a file
 func (c *Client) Receive() (err error) {
 	go c.stop.done()
@@ -919,45 +995,7 @@ func (c *Client) Receive() (err error) {
 
 	if !c.Options.DisableLocal && !isIPset {
 		log.Debug("attempt to discover peers")
-		var discoveries []peerdiscovery.Discovered
-		var wgDiscovery sync.WaitGroup
-		var dmux sync.Mutex
-		wgDiscovery.Add(2)
-		go func() {
-			defer wgDiscovery.Done()
-			ipv4discoveries, err1 := peerdiscovery.Discover(peerdiscovery.Settings{
-				Limit:            1,
-				Payload:          []byte("ok"),
-				Delay:            20 * time.Millisecond,
-				TimeLimit:        200 * time.Millisecond,
-				MulticastAddress: c.Options.MulticastAddress,
-				StopChan:         c.stop.stopChan,
-			})
-			if err1 == nil && len(ipv4discoveries) > 0 {
-				dmux.Lock()
-				err = err1
-				discoveries = append(discoveries, ipv4discoveries...)
-				dmux.Unlock()
-			}
-		}()
-		go func() {
-			defer wgDiscovery.Done()
-			ipv6discoveries, err1 := peerdiscovery.Discover(peerdiscovery.Settings{
-				Limit:     1,
-				Payload:   []byte("ok"),
-				Delay:     20 * time.Millisecond,
-				TimeLimit: 200 * time.Millisecond,
-				IPVersion: peerdiscovery.IPv6,
-				StopChan:  c.stop.stopChan,
-			})
-			if err1 == nil && len(ipv6discoveries) > 0 {
-				dmux.Lock()
-				err = err1
-				discoveries = append(discoveries, ipv6discoveries...)
-				dmux.Unlock()
-			}
-		}()
-		wgDiscovery.Wait()
+		discoveries := c.discoverReceivePeers()
 
 		if err == nil && len(discoveries) > 0 {
 			log.Debugf("all discoveries: %+v", discoveries)

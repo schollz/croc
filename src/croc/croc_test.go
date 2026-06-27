@@ -16,6 +16,7 @@ import (
 
 	"github.com/schollz/croc/v10/src/tcp"
 	log "github.com/schollz/logger"
+	"github.com/schollz/peerdiscovery"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,6 +29,37 @@ func init() {
 	go tcp.Run("debug", "127.0.0.1", "8284", "pass123")
 	go tcp.Run("debug", "127.0.0.1", "8285", "pass123")
 	time.Sleep(1 * time.Second)
+}
+
+func TestDiscoverReceivePeersTimesOut(t *testing.T) {
+	oldDiscover := peerDiscover
+	oldTimeout := receivePeerDiscoveryTimeout
+	oldTimeLimit := receivePeerDiscoveryTimeLimit
+	defer func() {
+		peerDiscover = oldDiscover
+		receivePeerDiscoveryTimeout = oldTimeout
+		receivePeerDiscoveryTimeLimit = oldTimeLimit
+	}()
+
+	receivePeerDiscoveryTimeout = 10 * time.Millisecond
+	receivePeerDiscoveryTimeLimit = time.Hour
+	peerDiscover = func(settings ...peerdiscovery.Settings) ([]peerdiscovery.Discovered, error) {
+		<-settings[0].StopChan
+		return nil, nil
+	}
+
+	c := &Client{
+		Options: Options{
+			MulticastAddress: "239.255.255.250",
+		},
+		stop: newStop(context.Background()),
+	}
+
+	start := time.Now()
+	discoveries := c.discoverReceivePeers()
+
+	assert.Empty(t, discoveries)
+	assert.Less(t, time.Since(start), 500*time.Millisecond)
 }
 
 func TestCrocReadme(t *testing.T) {
