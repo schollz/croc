@@ -289,6 +289,116 @@ func isEmptyFolder(folderPath string) (bool, error) {
 	return false, nil
 }
 
+func isLocalReceivePath(name string) bool {
+	name = path.Clean(strings.ReplaceAll(name, "\\", "/"))
+	return name == "." || (filepath.IsLocal(filepath.FromSlash(name)) && !path.IsAbs(name))
+}
+
+func normalizeReceiveFolder(folder string) (string, error) {
+	cleanFolder := path.Clean(strings.ReplaceAll(folder, "\\", "/"))
+	if cleanFolder == "" {
+		cleanFolder = "."
+	}
+	if !isLocalReceivePath(cleanFolder) {
+		return "", fmt.Errorf("filename must be a local path: '%s'", folder)
+	}
+	if strings.Contains(cleanFolder, ".ssh") {
+		return "", fmt.Errorf("invalid path detected: '%s'", folder)
+	}
+	if err := utils.ValidFileName(cleanFolder); err != nil {
+		return "", err
+	}
+	return cleanFolder, nil
+}
+
+func normalizeReceiveFilePath(folder, name string) (string, string, error) {
+	cleanFolder, err := normalizeReceiveFolder(folder)
+	if err != nil {
+		return "", "", err
+	}
+	cleanName := path.Clean(strings.ReplaceAll(name, "\\", "/"))
+	if cleanName == "." || cleanName == "" || cleanName != path.Base(cleanName) || !isLocalReceivePath(cleanName) {
+		return "", "", fmt.Errorf("filename must be a local path: '%s'", name)
+	}
+	if err := utils.ValidFileName(cleanName); err != nil {
+		return "", "", err
+	}
+	destination := path.Clean(path.Join(cleanFolder, cleanName))
+	if !isLocalReceivePath(destination) {
+		return "", "", fmt.Errorf("filename must be a local path: '%s'", path.Join(folder, name))
+	}
+	if err := utils.ValidFileName(destination); err != nil {
+		return "", "", err
+	}
+	return cleanFolder, destination, nil
+}
+
+func validateReceiveSymlinkTarget(folder, target string) error {
+	cleanTarget := path.Clean(strings.ReplaceAll(target, "\\", "/"))
+	if cleanTarget == "." || cleanTarget == "" || path.IsAbs(cleanTarget) || filepath.IsAbs(filepath.FromSlash(cleanTarget)) {
+		return fmt.Errorf("symlink target must be a local path: '%s'", target)
+	}
+	resolvedTarget := path.Clean(path.Join(folder, cleanTarget))
+	if !isLocalReceivePath(resolvedTarget) {
+		return fmt.Errorf("symlink target escapes receive directory: '%s'", target)
+	}
+	return nil
+}
+
+func validateReceiveMetadata(files []FileInfo, emptyFolders []FileInfo) ([]FileInfo, []FileInfo, error) {
+	normalizedFiles := make([]FileInfo, len(files))
+	normalizedEmptyFolders := make([]FileInfo, len(emptyFolders))
+	destinations := make(map[string]struct{}, len(files)+len(emptyFolders))
+
+	for i, fi := range files {
+		cleanFolder, destination, err := normalizeReceiveFilePath(fi.FolderRemote, fi.Name)
+		if err != nil {
+			return nil, nil, err
+		}
+		if _, ok := destinations[destination]; ok {
+			return nil, nil, fmt.Errorf("duplicate destination path: '%s'", destination)
+		}
+		destinations[destination] = struct{}{}
+		if fi.Symlink != "" {
+			if err := validateReceiveSymlinkTarget(cleanFolder, fi.Symlink); err != nil {
+				return nil, nil, err
+			}
+		}
+		normalizedFiles[i] = fi
+		normalizedFiles[i].FolderRemote = cleanFolder
+		normalizedFiles[i].Name = path.Base(strings.ReplaceAll(fi.Name, "\\", "/"))
+	}
+
+	for i, fi := range emptyFolders {
+		cleanFolder, err := normalizeReceiveFolder(fi.FolderRemote)
+		if err != nil {
+			return nil, nil, err
+		}
+		if _, ok := destinations[cleanFolder]; ok {
+			return nil, nil, fmt.Errorf("duplicate destination path: '%s'", cleanFolder)
+		}
+		destinations[cleanFolder] = struct{}{}
+		normalizedEmptyFolders[i] = fi
+		normalizedEmptyFolders[i].FolderRemote = cleanFolder
+	}
+
+	return normalizedFiles, normalizedEmptyFolders, nil
+}
+
+func rejectSymlinkDestination(pathToFile string) error {
+	info, err := os.Lstat(pathToFile)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("refusing to open symlink destination: '%s'", pathToFile)
+	}
+	return nil
+}
+
 // helper function to walk each subfolder and parses against an ignore file.
 // returns a hashmap Key: Absolute filepath, Value: boolean (true=ignore)
 func gitWalk(dir string, gitObj *ignore.GitIgnore, files map[string]bool) {
@@ -1312,6 +1422,11 @@ func (c *Client) transfer() (err error) {
 }
 
 func (c *Client) createEmptyFolder(i int) (err error) {
+	folderRemote, err := normalizeReceiveFolder(c.EmptyFoldersToTransfer[i].FolderRemote)
+	if err != nil {
+		return
+	}
+	c.EmptyFoldersToTransfer[i].FolderRemote = folderRemote
 	err = os.MkdirAll(c.EmptyFoldersToTransfer[i].FolderRemote, os.ModePerm)
 	if err != nil {
 		return
@@ -1343,21 +1458,10 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	c.Options.SendingText = senderInfo.SendingText
 	c.Options.NoCompress = senderInfo.NoCompress
 	c.Options.HashAlgorithm = senderInfo.HashAlgorithm
-	c.EmptyFoldersToTransfer = senderInfo.EmptyFoldersToTransfer
 	c.TotalNumberFolders = senderInfo.TotalNumberFolders
-	c.FilesToTransfer = senderInfo.FilesToTransfer
-	for i, fi := range c.FilesToTransfer {
-		// Issues #593 - sanitize the sender paths and prevent ".." from being used
-		c.FilesToTransfer[i].FolderRemote = filepath.Clean(fi.FolderRemote)
-		// Issues #593 - disallow specific folders like .ssh
-		if strings.Contains(c.FilesToTransfer[i].FolderRemote, ".ssh") {
-			return true, fmt.Errorf("invalid path detected: '%s'", fi.FolderRemote)
-		}
-		// Issue #595 - disallow filenames with invisible characters
-		errFileName := utils.ValidFileName(path.Join(c.FilesToTransfer[i].FolderRemote, fi.Name))
-		if errFileName != nil {
-			return true, errFileName
-		}
+	c.FilesToTransfer, c.EmptyFoldersToTransfer, err = validateReceiveMetadata(senderInfo.FilesToTransfer, senderInfo.EmptyFoldersToTransfer)
+	if err != nil {
+		return true, err
 	}
 	c.TotalNumberOfContents = 0
 	if c.FilesToTransfer != nil {
@@ -1539,11 +1643,11 @@ func (c *Client) processMessagePake(m message.Message) (err error) {
 	// connects to the other ports of the server for transfer
 	var wg sync.WaitGroup
 
-       if need := len(c.Options.RelayPorts) + 1; len(c.conn) < need {
-               newConn := make([]*comm.Comm, need)
-               copy(newConn, c.conn)
-               c.conn = newConn
-       }
+	if need := len(c.Options.RelayPorts) + 1; len(c.conn) < need {
+		newConn := make([]*comm.Comm, need)
+		copy(newConn, c.conn)
+		c.conn = newConn
+	}
 
 	wg.Add(len(c.Options.RelayPorts))
 	for i := 0; i < len(c.Options.RelayPorts); i++ {
@@ -1741,10 +1845,15 @@ func (c *Client) recipientInitializeFile() (err error) {
 	log.Debugf("working on file %d", c.FilesToTransferCurrentNum)
 
 	// recipient sets the file
-	pathToFile := path.Join(
+	folderRemote, pathToFile, err := normalizeReceiveFilePath(
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
 	)
+	if err != nil {
+		return
+	}
+	c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote = folderRemote
+	c.FilesToTransfer[c.FilesToTransferCurrentNum].Name = path.Base(pathToFile)
 	folderForFile, _ := filepath.Split(pathToFile)
 	folderForFileBase := filepath.Base(folderForFile)
 	if folderForFileBase != "." && folderForFileBase != "" {
@@ -1753,6 +1862,9 @@ func (c *Client) recipientInitializeFile() (err error) {
 		}
 	}
 	var errOpen error
+	if err = rejectSymlinkDestination(pathToFile); err != nil {
+		return
+	}
 	c.CurrentFile, errOpen = os.OpenFile(
 		pathToFile,
 		os.O_WRONLY, 0o666)
@@ -1772,6 +1884,9 @@ func (c *Client) recipientInitializeFile() (err error) {
 			)
 		}
 	} else {
+		if err = rejectSymlinkDestination(pathToFile); err != nil {
+			return
+		}
 		c.CurrentFile, errOpen = os.Create(pathToFile)
 		if errOpen != nil {
 			errOpen = fmt.Errorf("could not create %s: %w", pathToFile, errOpen)
@@ -1880,6 +1995,12 @@ func formatDescription(description string) string {
 
 func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) {
 	log.Debugf("touching file with folder / name")
+	folderRemote, pathToFile, err := normalizeReceiveFilePath(fileInfo.FolderRemote, fileInfo.Name)
+	if err != nil {
+		return
+	}
+	fileInfo.FolderRemote = folderRemote
+	fileInfo.Name = path.Base(pathToFile)
 	if !utils.Exists(fileInfo.FolderRemote) {
 		err = os.MkdirAll(fileInfo.FolderRemote, os.ModePerm)
 		if err != nil {
@@ -1887,8 +2008,10 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 			return
 		}
 	}
-	pathToFile := path.Join(fileInfo.FolderRemote, fileInfo.Name)
 	if fileInfo.Symlink != "" {
+		if err = validateReceiveSymlinkTarget(fileInfo.FolderRemote, fileInfo.Symlink); err != nil {
+			return
+		}
 		log.Debug("creating symlink")
 		// remove symlink if it exists
 		if _, errExists := os.Lstat(pathToFile); errExists == nil {
@@ -1899,6 +2022,9 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 			return
 		}
 	} else {
+		if err = rejectSymlinkDestination(pathToFile); err != nil {
+			return
+		}
 		emptyFile, errCreate := os.Create(pathToFile)
 		if errCreate != nil {
 			log.Error(errCreate)
