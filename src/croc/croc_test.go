@@ -3,10 +3,10 @@ package croc
 import (
 	"archive/zip"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/schollz/croc/v10/src/message"
 	"github.com/schollz/croc/v10/src/tcp"
 	log "github.com/schollz/logger"
 	"github.com/schollz/peerdiscovery"
@@ -60,6 +61,260 @@ func TestDiscoverReceivePeersTimesOut(t *testing.T) {
 
 	assert.Empty(t, discoveries)
 	assert.Less(t, time.Since(start), 500*time.Millisecond)
+}
+
+func TestHostileSymlinkThenSameNameFileOverwritesSymlinkTarget(t *testing.T) {
+	tmpDir := t.TempDir()
+	receiveDir := filepath.Join(tmpDir, "receive")
+	if err := os.MkdirAll(receiveDir, 0o755); err != nil {
+		t.Fatalf("mkdir receive dir: %v", err)
+	}
+	originalCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(receiveDir); err != nil {
+		t.Fatalf("chdir receive dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(originalCwd); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	}()
+
+	outsideTarget := filepath.Join(tmpDir, "outside-target.txt")
+	original := []byte("original content that should remain\n")
+	if err := os.WriteFile(outsideTarget, original, 0o644); err != nil {
+		t.Fatalf("write outside target: %v", err)
+	}
+
+	attackerPayload := []byte("attacker-controlled\n")
+	senderInfo := SenderInfo{
+		FilesToTransfer: []FileInfo{
+			{
+				Name:         "dup",
+				FolderRemote: ".",
+				Size:         0,
+				Symlink:      outsideTarget,
+			},
+			{
+				Name:         "dup",
+				FolderRemote: ".",
+				Size:         int64(len(attackerPayload)),
+				Mode:         0o644,
+			},
+		},
+		SendingText: true,
+	}
+	payload, err := json.Marshal(senderInfo)
+	assert.NoError(t, err)
+
+	client := &Client{
+		Options: Options{
+			NoPrompt:    true,
+			SendingText: true,
+		},
+		FilesHasFinished: make(map[int]struct{}),
+	}
+
+	done, err := client.processMessageFileInfo(message.Message{
+		Type:  message.TypeFileInfo,
+		Bytes: payload,
+	})
+	assert.True(t, done)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "symlink target")
+
+	got, err := os.ReadFile(outsideTarget)
+	assert.NoError(t, err)
+	assert.Equal(t, original, got)
+
+	_, err = os.Lstat(filepath.Join(receiveDir, "dup"))
+	assert.True(t, os.IsNotExist(err), "hostile metadata should be rejected before creating dup")
+}
+
+func TestHostileEmptyFolderTraversalCreatesOutsideCwd(t *testing.T) {
+	tmpDir := t.TempDir()
+	receiveDir := filepath.Join(tmpDir, "receive")
+	if err := os.MkdirAll(receiveDir, 0o755); err != nil {
+		t.Fatalf("mkdir receive dir: %v", err)
+	}
+
+	originalCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(receiveDir); err != nil {
+		t.Fatalf("chdir receive dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(originalCwd); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	}()
+
+	outsideFolder := filepath.Join(tmpDir, "outside-empty-folder")
+	hostileFolder := filepath.Join("..", filepath.Base(outsideFolder))
+	senderInfo := SenderInfo{
+		FilesToTransfer: []FileInfo{
+			{
+				Name:         "benign.txt",
+				FolderRemote: ".",
+				Size:         1,
+			},
+		},
+		EmptyFoldersToTransfer: []FileInfo{
+			{
+				FolderRemote: hostileFolder,
+			},
+		},
+		TotalNumberFolders: 1,
+		SendingText:        true,
+	}
+	payload, err := json.Marshal(senderInfo)
+	assert.NoError(t, err)
+
+	client := &Client{
+		Options: Options{
+			NoPrompt:    true,
+			SendingText: true,
+		},
+		FilesHasFinished: make(map[int]struct{}),
+	}
+
+	done, err := client.processMessageFileInfo(message.Message{
+		Type:  message.TypeFileInfo,
+		Bytes: payload,
+	})
+	assert.True(t, done)
+	assert.Error(t, err)
+
+	_, err = os.Stat(outsideFolder)
+	assert.True(t, os.IsNotExist(err), "empty folder metadata should be rejected before creating directories outside the receive directory")
+}
+
+func TestHostileRegularFileTraversalRejected(t *testing.T) {
+	senderInfo := SenderInfo{
+		FilesToTransfer: []FileInfo{
+			{
+				Name:         "x.txt",
+				FolderRemote: filepath.Join("..", "escaped-file"),
+				Size:         1,
+			},
+		},
+	}
+	payload, err := json.Marshal(senderInfo)
+	assert.NoError(t, err)
+
+	client := &Client{
+		Options: Options{
+			NoPrompt:    true,
+			SendingText: true,
+		},
+		FilesHasFinished: make(map[int]struct{}),
+	}
+
+	done, err := client.processMessageFileInfo(message.Message{
+		Type:  message.TypeFileInfo,
+		Bytes: payload,
+	})
+	assert.True(t, done)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "filename must be a local path")
+}
+
+func TestHostileDuplicateDestinationRejected(t *testing.T) {
+	senderInfo := SenderInfo{
+		FilesToTransfer: []FileInfo{
+			{
+				Name:         "dup",
+				FolderRemote: ".",
+				Size:         1,
+			},
+			{
+				Name:         "dup",
+				FolderRemote: "./",
+				Size:         2,
+			},
+		},
+		SendingText: true,
+	}
+	payload, err := json.Marshal(senderInfo)
+	assert.NoError(t, err)
+
+	client := &Client{
+		Options: Options{
+			NoPrompt:    true,
+			SendingText: true,
+		},
+		FilesHasFinished: make(map[int]struct{}),
+	}
+
+	done, err := client.processMessageFileInfo(message.Message{
+		Type:  message.TypeFileInfo,
+		Bytes: payload,
+	})
+	assert.True(t, done)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate destination path")
+}
+
+func TestHostileExistingSymlinkDestinationRejected(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation requires elevated privileges on some Windows setups")
+	}
+
+	tmpDir := t.TempDir()
+	receiveDir := filepath.Join(tmpDir, "receive")
+	if err := os.MkdirAll(receiveDir, 0o755); err != nil {
+		t.Fatalf("mkdir receive dir: %v", err)
+	}
+
+	originalCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(receiveDir); err != nil {
+		t.Fatalf("chdir receive dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(originalCwd); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	}()
+
+	outsideTarget := filepath.Join(tmpDir, "outside-target.txt")
+	original := []byte("original content that should remain\n")
+	if err := os.WriteFile(outsideTarget, original, 0o644); err != nil {
+		t.Fatalf("write outside target: %v", err)
+	}
+	if err := os.Symlink(outsideTarget, "dup"); err != nil {
+		t.Fatalf("create symlink: %v", err)
+	}
+
+	client := &Client{
+		Options: Options{
+			SendingText: true,
+			Overwrite:   true,
+		},
+		FilesHasFinished: make(map[int]struct{}),
+		FilesToTransfer: []FileInfo{
+			{
+				Name:         "dup",
+				FolderRemote: ".",
+				Size:         1,
+				Mode:         0o644,
+			},
+		},
+	}
+
+	err = client.recipientInitializeFile()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "refusing to open symlink destination")
+
+	got, err := os.ReadFile(outsideTarget)
+	assert.NoError(t, err)
+	assert.Equal(t, original, got)
 }
 
 func TestCrocReadme(t *testing.T) {
@@ -197,7 +452,12 @@ func TestCrocSymlink(t *testing.T) {
 	defer os.RemoveAll(pathName)
 	defer os.RemoveAll("./link-in-folder")
 	os.MkdirAll(pathName, 0o755)
-	os.Symlink("../../README.md", filepath.Join(pathName, "README.link"))
+	if err := os.WriteFile(filepath.Join(pathName, "target.txt"), []byte("safe symlink target"), 0o644); err != nil {
+		t.Fatalf("write symlink target: %v", err)
+	}
+	if err := os.Symlink("target.txt", filepath.Join(pathName, "README.link")); err != nil {
+		t.Fatalf("create symlink: %v", err)
+	}
 
 	log.Debug("setting up sender")
 	sender, err := New(Options{
@@ -259,14 +519,23 @@ func TestCrocSymlink(t *testing.T) {
 
 	wg.Wait()
 
-	s, err := filepath.EvalSymlinks(path.Join(pathName, "README.link"))
-	if s != "../../README.md" && s != "..\\..\\README.md" {
-		log.Debug(s)
-		t.Errorf("symlink failed to transfer in folder")
+	linkPath := filepath.Join("link-in-folder", "README.link")
+	s, err := os.Readlink(linkPath)
+	if s != "target.txt" {
+		t.Errorf("symlink target = %q, want target.txt", s)
 	}
 	if err != nil {
 		t.Errorf("symlink transfer failed: %s", err.Error())
 	}
+	resolvedLink, err := filepath.EvalSymlinks(linkPath)
+	if err != nil {
+		t.Errorf("symlink resolution failed: %s", err.Error())
+	}
+	resolvedTarget, err := filepath.EvalSymlinks(filepath.Join("link-in-folder", "target.txt"))
+	if err != nil {
+		t.Errorf("target resolution failed: %s", err.Error())
+	}
+	assert.Equal(t, resolvedTarget, resolvedLink)
 }
 func TestCrocIgnoreGit(t *testing.T) {
 	log.SetLevel("trace")
