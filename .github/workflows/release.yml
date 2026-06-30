@@ -49,11 +49,6 @@ jobs:
             ext: .exe
             archive: zip
           - goos: windows
-            goarch: arm
-            name: Windows-ARM
-            ext: .exe
-            archive: zip
-          - goos: windows
             goarch: arm64
             name: Windows-ARM64
             ext: .exe
