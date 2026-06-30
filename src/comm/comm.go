@@ -3,6 +3,7 @@ package comm
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -119,6 +120,9 @@ func (c *Comm) Connection() net.Conn {
 // Close closes the connection
 func (c *Comm) Close() {
 	if err := c.connection.Close(); err != nil {
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
 		log.Warnf("error closing connection: %v", err)
 	}
 }

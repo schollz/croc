@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -860,6 +862,197 @@ func createTestFile(t *testing.T, size int) (string, func()) {
 	return tempFile.Name(), func() {
 		os.Remove(tempFile.Name())
 	}
+}
+
+func freeTestPort(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen for free port: %v", err)
+	}
+	defer listener.Close()
+	return strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)
+}
+
+func startReconnectRelay(t *testing.T) (controlPort string, cancel func()) {
+	t.Helper()
+	controlPort = freeTestPort(t)
+	dataPort := freeTestPort(t)
+	ctx, stop := context.WithCancel(context.Background())
+	go tcp.RunCtx(ctx, "warn", "127.0.0.1", controlPort, "pass123", dataPort)
+	go tcp.RunCtx(ctx, "warn", "127.0.0.1", dataPort, "pass123")
+	time.Sleep(250 * time.Millisecond)
+	return controlPort, stop
+}
+
+func waitForReconnectCondition(timeout time.Duration, condition func() bool) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return true
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return false
+}
+
+func runReconnectDropTest(t *testing.T, connIndex int, disableReceiverReconnect bool) error {
+	t.Helper()
+	tempFile, cleanup := createTestFile(t, 2*1024*1024)
+	defer cleanup()
+	receivedFile := filepath.Base(tempFile)
+	defer os.Remove(receivedFile)
+
+	controlPort, stopRelay := startReconnectRelay(t)
+	defer stopRelay()
+
+	uniqueSecret := fmt.Sprintf("reconnect-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
+	sender, err := New(Options{
+		IsSender:       true,
+		SharedSecret:   uniqueSecret,
+		Debug:          true,
+		RelayAddress:   "127.0.0.1:" + controlPort,
+		RelayPassword:  "pass123",
+		NoPrompt:       true,
+		DisableLocal:   true,
+		Curve:          "siec",
+		Overwrite:      true,
+		GitIgnore:      false,
+		NoCompress:     true,
+		NoMultiplexing: true,
+		ThrottleUpload: "512K",
+	})
+	if err != nil {
+		t.Fatalf("Create sender failed: %v", err)
+	}
+
+	filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{tempFile}, false, false, []string{})
+	if errGet != nil {
+		t.Fatalf("Get file info failed: %v", errGet)
+	}
+
+	receiver, err := New(Options{
+		IsSender:       false,
+		SharedSecret:   uniqueSecret,
+		Debug:          true,
+		RelayAddress:   "127.0.0.1:" + controlPort,
+		RelayPassword:  "pass123",
+		NoPrompt:       true,
+		DisableLocal:   true,
+		Curve:          "siec",
+		Overwrite:      true,
+		NoCompress:     true,
+		NoMultiplexing: true,
+	})
+	if err != nil {
+		t.Fatalf("Create receiver failed: %v", err)
+	}
+	if disableReceiverReconnect {
+		receiver.reconnectVersion = 0
+	}
+	deterministicReconnectRoom := sender.baseRoomName + "-reconnect-1"
+
+	errc := make(chan error, 2)
+	go func() {
+		errc <- sender.Send(filesInfo, emptyFolders, totalNumberFolders)
+	}()
+	go func() {
+		if err := waitHashed(sender); err != nil {
+			errc <- err
+			return
+		}
+		errc <- receiver.Receive()
+	}()
+
+	dropped := make(chan struct{})
+	go func() {
+		defer close(dropped)
+		ok := waitForReconnectCondition(5*time.Second, func() bool {
+			return sender.Step4FileTransferred && len(sender.conn) > connIndex && sender.conn[connIndex] != nil
+		})
+		if !ok {
+			return
+		}
+		time.Sleep(150 * time.Millisecond)
+		sender.conn[connIndex].Close()
+	}()
+
+	var firstErr error
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errc:
+			if err != nil && firstErr == nil {
+				firstErr = err
+			}
+		case <-time.After(20 * time.Second):
+			t.Fatal("reconnect transfer timed out")
+		}
+	}
+	<-dropped
+	if firstErr != nil {
+		return firstErr
+	}
+	assert.NotEqual(t, deterministicReconnectRoom, sender.Options.RoomName)
+	assert.NotEqual(t, sender.baseRoomName, sender.Options.RoomName)
+
+	original, err := os.ReadFile(tempFile)
+	if err != nil {
+		t.Fatalf("read original: %v", err)
+	}
+	received, err := os.ReadFile(receivedFile)
+	if err != nil {
+		t.Fatalf("read received: %v", err)
+	}
+	assert.Equal(t, original, received)
+	return nil
+}
+
+func TestGenerateReconnectRoom(t *testing.T) {
+	const baseRoom = "base-room"
+
+	first, err := generateReconnectRoom()
+	assert.NoError(t, err)
+	second, err := generateReconnectRoom()
+	assert.NoError(t, err)
+
+	assert.NotEmpty(t, first)
+	assert.NotEmpty(t, second)
+	assert.NotEqual(t, first, second)
+	assert.NotContains(t, first, baseRoom)
+	assert.NotContains(t, second, baseRoom)
+}
+
+func TestReconnectRetryEligibility(t *testing.T) {
+	c := &Client{
+		reconnectVersion:     ReconnectVersion,
+		peerReconnectVersion: ReconnectVersion,
+		nextReconnectRoom:    "next-room",
+		stop:                 newStop(context.Background()),
+	}
+	assert.True(t, c.canRetryTransfer(transferDisconnectError{err: fmt.Errorf("EOF")}, 0))
+	assert.False(t, c.canRetryTransfer(transferDisconnectError{err: fmt.Errorf("EOF")}, maxReconnectAttempts))
+	assert.False(t, c.canRetryTransfer(fmt.Errorf("local file error"), 0))
+	c.nextReconnectRoom = ""
+	assert.False(t, c.canRetryTransfer(transferDisconnectError{err: fmt.Errorf("EOF")}, 0))
+	c.nextReconnectRoom = "next-room"
+	c.peerReconnectVersion = 0
+	assert.False(t, c.canRetryTransfer(transferDisconnectError{err: fmt.Errorf("EOF")}, 0))
+}
+
+func TestReconnectResumesControlDrop(t *testing.T) {
+	err := runReconnectDropTest(t, 0, false)
+	assert.NoError(t, err)
+}
+
+func TestReconnectResumesDataDrop(t *testing.T) {
+	err := runReconnectDropTest(t, 1, false)
+	assert.NoError(t, err)
+}
+
+func TestReconnectDisabledPeerReturnsCleanError(t *testing.T) {
+	err := runReconnectDropTest(t, 1, true)
+	assert.Error(t, err)
+	assert.NotContains(t, fmt.Sprintf("%v", err), "panic")
 }
 
 func TestBase(t *testing.T) {
