@@ -293,6 +293,19 @@ func shouldExitForUnixSendCode(goos string, codeFlagSet, classicInsecureMode boo
 	return goos != "windows" && codeFlagSet && !classicInsecureMode && envSecret == ""
 }
 
+// parseRelayPorts splits a comma-separated --ports value, trimming whitespace
+// around each entry and dropping empties. This keeps "9009, 9010," working the
+// same as "9009,9010" instead of producing invalid port strings like " 9010".
+func parseRelayPorts(portsFlag string) []string {
+	var ports []string
+	for _, p := range strings.Split(portsFlag, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			ports = append(ports, p)
+		}
+	}
+	return ports
+}
+
 func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
 	comm.Socks5Proxy = c.String("socks5")
@@ -793,7 +806,7 @@ func relay(c *cli.Context) (err error) {
 	var ports []string
 
 	if c.IsSet("ports") {
-		ports = strings.Split(c.String("ports"), ",")
+		ports = parseRelayPorts(c.String("ports"))
 	} else {
 		portString := c.Int("port")
 		if portString == 0 {
