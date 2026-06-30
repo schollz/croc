@@ -333,7 +333,9 @@ func (a *transferAttemptState) finishSenderData(total int, file *os.File) {
 		a.sendClose.Do(func() {
 			log.Debug("closing file")
 			if err := file.Close(); err != nil {
-				log.Errorf("error closing file: %v", err)
+				if !errors.Is(err, os.ErrClosed) {
+					log.Errorf("error closing file: %v", err)
+				}
 			}
 		})
 	}
@@ -469,6 +471,11 @@ func (c *Client) transferWithReconnect(connectAttempt func(attempt int) error) e
 		if !c.canRetryTransfer(lastErr, attempt) {
 			return lastErr
 		}
+		role := "Receiver"
+		if c.Options.IsSender {
+			role = "Sender"
+		}
+		fmt.Fprintf(os.Stderr, "\n%s detected a transfer interruption. Retrying securely...\n", role)
 		lastDisconnectErr = lastErr
 		c.closeAttempt()
 	}
@@ -2388,7 +2395,8 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		var fileHash []byte
 		if errRecipientFile == nil && recipientFileInfo.Size() == fileInfo.Size {
 			// the file exists, but is same size, so hash it
-			fileHash, errHash = utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name), c.Options.HashAlgorithm)
+			fmt.Fprintf(os.Stderr, "\nChecking existing file before resuming...\n")
+			fileHash, errHash = utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name), c.Options.HashAlgorithm, !c.Options.SendingText)
 		}
 		if fileInfo.Size == 0 || fileInfo.Symlink != "" {
 			err = c.createEmptyFileAndFinish(fileInfo, i)
