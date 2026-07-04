@@ -516,6 +516,16 @@ func ZipDirectory(destination string, source string, ignoredPaths map[string]boo
 		return fmt.Errorf("source directory does not exist: %s", source)
 	}
 
+	sourceAbs, err := filepath.Abs(source)
+	if err != nil {
+		return fmt.Errorf("failed to resolve source path: %w", err)
+	}
+	destinationAbs, err := filepath.Abs(destination)
+	if err != nil {
+		return fmt.Errorf("failed to resolve zip destination path: %w", err)
+	}
+	skipDestination := pathWithin(sourceAbs, destinationAbs)
+
 	fmt.Fprintf(os.Stderr, "Zipping %s to %s\n", source, destination)
 	file, err := os.Create(destination)
 	if err != nil {
@@ -564,6 +574,13 @@ func ZipDirectory(destination string, source string, ignoredPaths map[string]boo
 		// Skip root directory (we already added it)
 		if path == source {
 			return nil
+		}
+
+		if skipDestination {
+			absPath, absErr := filepath.Abs(path)
+			if absErr == nil && filepath.Clean(absPath) == filepath.Clean(destinationAbs) {
+				return nil
+			}
 		}
 
 		// Honour --git: skip paths flagged by .gitignore matching upstream.
@@ -665,6 +682,14 @@ func ZipDirectory(destination string, source string, ignoredPaths map[string]boo
 	}
 	fmt.Fprintf(os.Stderr, "\n")
 	return nil
+}
+
+func pathWithin(parent string, child string) bool {
+	rel, err := filepath.Rel(filepath.Clean(parent), filepath.Clean(child))
+	if err != nil {
+		return false
+	}
+	return rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
 func UnzipDirectory(destination string, source string) error {
