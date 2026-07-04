@@ -645,6 +645,70 @@ func TestGetFilesInfoZipFolderHonoursFilters(t *testing.T) {
 	}
 }
 
+func TestGetFilesInfoZipFolderFromInsideSourceExcludesArchiveItself(t *testing.T) {
+	tmpDir := t.TempDir()
+	src := filepath.Join(tmpDir, "payload")
+	if err := os.MkdirAll(src, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "file.txt"), []byte("contents"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(src); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	done := make(chan []FileInfo, 1)
+	errc := make(chan error, 1)
+	go func() {
+		filesInfo, _, _, err := GetFilesInfo([]string{src}, true, false, nil)
+		if err != nil {
+			errc <- err
+			return
+		}
+		done <- filesInfo
+	}()
+
+	var filesInfo []FileInfo
+	select {
+	case filesInfo = <-done:
+	case err := <-errc:
+		t.Fatalf("GetFilesInfo: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("GetFilesInfo did not return when zipping a directory from inside itself")
+	}
+	if len(filesInfo) != 1 {
+		t.Fatalf("expected 1 FileInfo (the zip), got %d", len(filesInfo))
+	}
+
+	archive, err := zip.OpenReader(filesInfo[0].Name)
+	if err != nil {
+		t.Fatalf("open zip: %v", err)
+	}
+	defer archive.Close()
+
+	members := make([]string, 0, len(archive.File))
+	foundPayload := false
+	for _, f := range archive.File {
+		members = append(members, f.Name)
+		if f.Name == "payload/payload.zip" {
+			t.Fatalf("archive includes itself: %v", members)
+		}
+		if f.Name == "payload/file.txt" {
+			foundPayload = true
+		}
+	}
+	if !foundPayload {
+		t.Fatalf("archive is missing payload file: %v", members)
+	}
+}
+
 func TestCrocLocal(t *testing.T) {
 	log.SetLevel("trace")
 	defer os.Remove("LICENSE")
