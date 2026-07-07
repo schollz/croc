@@ -165,7 +165,8 @@ access the shared secret and receive the files instead of the intended
 recipient.
 
 Do you wish to continue to DISABLE the classic mode? (y/N) `)
-				choice := strings.ToLower(utils.GetInput(""))
+				choice, _ := utils.GetInput("")
+				choice = strings.ToLower(choice)
 				if choice == "y" || choice == "yes" {
 					os.Remove(classicFile)
 					fmt.Print("\nClassic mode DISABLED.\n\n")
@@ -189,7 +190,8 @@ multi-user system, this could allow other local users to access the
 shared secret and receive the files instead of the intended recipient.
 
 Do you wish to continue to enable the classic mode? (y/N) `)
-				choice := strings.ToLower(utils.GetInput(""))
+				choice, _ := utils.GetInput("")
+				choice = strings.ToLower(choice)
 				if choice == "y" || choice == "yes" {
 					fmt.Print("\nClassic mode ENABLED.\n\n")
 					os.WriteFile(classicFile, []byte("enabled"), 0o644)
@@ -213,8 +215,9 @@ Do you wish to continue to enable the classic mode? (y/N) `)
 				fnames = append(fnames, "'"+basename+"'")
 			}
 			promptMessage := fmt.Sprintf("Did you mean to send %s? (Y/n) ", strings.Join(fnames, ", "))
-			choice := strings.ToLower(utils.GetInput(promptMessage))
-			if choice == "" || choice == "y" || choice == "yes" {
+			choice, errInput := utils.GetInput(promptMessage)
+			choice = strings.ToLower(choice)
+			if errInput == nil && (choice == "" || choice == "y" || choice == "yes") {
 				return send(c)
 			}
 		}
@@ -711,7 +714,10 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 		}
 	}
 	if crocOptions.SharedSecret == "" {
-		crocOptions.SharedSecret = utils.GetInput("Enter receive code: ")
+		crocOptions.SharedSecret, err = utils.GetInput("Enter receive code: ")
+		if err != nil {
+			return fmt.Errorf("could not read receive code: %w", err)
+		}
 	}
 	if c.String("out") != "" {
 		if err = os.Chdir(c.String("out")); err != nil {

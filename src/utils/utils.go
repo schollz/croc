@@ -69,12 +69,20 @@ func Exists(name string) bool {
 	return true
 }
 
-// GetInput returns the input with a given prompt
-func GetInput(prompt string) string {
+// GetInput returns one line of input from stdin with a given prompt,
+// with surrounding whitespace trimmed. On read error (e.g. closed or
+// exhausted stdin) the returned string is empty, so callers that treat
+// an empty answer as consent must check the error.
+func GetInput(prompt string) (string, error) {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Fprintf(os.Stderr, "%s", prompt)
-	text, _ := reader.ReadString('\n')
-	return strings.TrimSpace(text)
+	text, err := reader.ReadString('\n')
+	text = strings.TrimSpace(text)
+	if err != nil && text != "" {
+		// a final line without a trailing newline is still a valid answer
+		err = nil
+	}
+	return text, err
 }
 
 // HashFile returns the hash of a file or, in case of a symlink, the
@@ -755,7 +763,8 @@ func UnzipDirectory(destination string, source string) error {
 		// check if file exists
 		if _, err := os.Stat(filePath); err == nil {
 			prompt := fmt.Sprintf("\nOverwrite '%s'? (y/N) ", filePath)
-			choice := strings.ToLower(GetInput(prompt))
+			choice, _ := GetInput(prompt)
+			choice = strings.ToLower(choice)
 			if choice != "y" && choice != "yes" {
 				fmt.Fprintf(os.Stderr, "Skipping '%s'\n", filePath)
 				continue
