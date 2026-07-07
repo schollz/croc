@@ -1,9 +1,28 @@
 package cli
 
 import (
+	"flag"
 	"reflect"
 	"testing"
+
+	"github.com/schollz/cli/v2"
 )
+
+// determinePass should trim a pass from --pass/CROC_PASS, not just from a file.
+func TestDeterminePassTrimsEnvValue(t *testing.T) {
+	set := flag.NewFlagSet("test", flag.ContinueOnError)
+	set.String("pass", "", "")
+	if err := set.Set("pass", "pass123\n"); err != nil {
+		t.Fatalf("failed to set flag: %v", err)
+	}
+	ctx := cli.NewContext(nil, set, nil)
+
+	got := determinePass(ctx)
+	want := "pass123"
+	if got != want {
+		t.Errorf("determinePass(%q) = %q, want %q", "pass123\\n", got, want)
+	}
+}
 
 func TestParseRelayPorts(t *testing.T) {
 	tests := []struct {

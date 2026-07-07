@@ -170,6 +170,16 @@ func TestWrongPassword(t *testing.T) {
 	assert.Contains(t, err.Error(), "bad password")
 }
 
+// A relay password with trailing whitespace should still accept a trimmed client password.
+func TestPasswordWithTrailingWhitespace(t *testing.T) {
+	log.SetLevel("error")
+	go Run("debug", "127.0.0.1", "8395", "pass123 ", "8396")
+	time.Sleep(100 * time.Millisecond)
+
+	_, _, _, err := ConnectToTCPServer("127.0.0.1:8395", "pass123", "testRoom")
+	assert.Nil(t, err)
+}
+
 func TestRoomIsolation(t *testing.T) {
 	log.SetLevel("error")
 	go Run("debug", "127.0.0.1", "8387", "pass123", "8388")

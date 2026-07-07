@@ -325,7 +325,7 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 	if err != nil {
 		return
 	}
-	if strings.TrimSpace(string(passwordBytes)) != s.password {
+	if strings.TrimSpace(string(passwordBytes)) != strings.TrimSpace(s.password) {
 		err = fmt.Errorf("bad password")
 		enc, _ := crypt.Encrypt([]byte(err.Error()), strongKeyForEncryption)
 		if err = c.Send(enc); err != nil {
