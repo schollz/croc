@@ -148,6 +148,10 @@ type Client struct {
 	relayControlAddress  string
 	reconnectVersion     int
 	peerReconnectVersion int
+	// localRelayPort is the control port of the ephemeral local relay started by
+	// setupLocalRelay(). It is captured before any goroutines that might
+	// overwrite c.Options.RelayPorts are launched.
+	localRelayPort string
 
 	bar             *progressbar.ProgressBar
 	longestFilename int
@@ -904,6 +908,9 @@ func (c *Client) setupLocalRelay() {
 	for i, port := range openPorts {
 		c.Options.RelayPorts[i] = fmt.Sprint(port)
 	}
+	// Capture the local relay control port before any goroutine that handles
+	// the external relay can overwrite c.Options.RelayPorts.
+	c.localRelayPort = c.Options.RelayPorts[0]
 	for _, port := range c.Options.RelayPorts {
 		go func(portStr string) {
 			debugString := "warn"
@@ -934,7 +941,7 @@ func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 	// look for peers first
 	settings := peerdiscovery.Settings{
 		Limit:     -1,
-		Payload:   []byte("croc" + c.Options.RelayPorts[0]),
+		Payload:   []byte("croc" + c.localRelayPort),
 		Delay:     20 * time.Millisecond,
 		TimeLimit: timeLimit,
 		StopChan:  c.stop.stopChan,
@@ -956,12 +963,12 @@ func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 	time.Sleep(500 * time.Millisecond)
 	log.Debug("establishing connection")
-	c.relayControlAddress = "127.0.0.1:" + c.Options.RelayPorts[0]
+	c.relayControlAddress = "127.0.0.1:" + c.localRelayPort
 	var banner string
 	conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.relayControlAddress, c.Options.RelayPassword, c.Options.RoomName)
 	log.Debugf("banner: %s", banner)
 	if err != nil {
-		err = fmt.Errorf("could not connect to 127.0.0.1:%s: %w", c.Options.RelayPorts[0], err)
+		err = fmt.Errorf("could not connect to 127.0.0.1:%s: %w", c.localRelayPort, err)
 		log.Debug(err)
 		// not really an error because it will try to connect over the actual relay
 		return
@@ -1039,7 +1046,7 @@ func (c *Client) senderWaitForHandshake(conn *comm.Comm) error {
 				if err != nil {
 					log.Tracef("error getting local ips: %v", err)
 				}
-				ips = append([]string{c.Options.RelayPorts[0]}, ips...)
+				ips = append([]string{c.localRelayPort}, ips...)
 			}
 			log.Tracef("sending ips: %+v", ips)
 			bips, err := json.Marshal(ips)
