@@ -277,8 +277,9 @@ func determinePass(c *cli.Context) (pass string) {
 	pass = c.String("pass")
 	b, err := os.ReadFile(pass)
 	if err == nil {
-		pass = strings.TrimSpace(string(b))
+		pass = string(b)
 	}
+	pass = strings.TrimSpace(pass)
 	return
 }
 
