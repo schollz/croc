@@ -18,6 +18,7 @@ import (
 
 	"github.com/schollz/croc/v10/src/message"
 	"github.com/schollz/croc/v10/src/tcp"
+	"github.com/schollz/croc/v10/src/utils"
 	log "github.com/schollz/logger"
 	"github.com/schollz/peerdiscovery"
 	"github.com/stretchr/testify/assert"
@@ -778,6 +779,84 @@ func TestCrocLocal(t *testing.T) {
 	wg.Wait()
 }
 
+func TestSenderWaitsForLocalRelayAfterExternalRelayCloses(t *testing.T) {
+	log.SetLevel("warn")
+	localIPs, err := utils.GetLocalIPs()
+	if err != nil || len(localIPs) == 0 {
+		t.Skipf("local relay regression requires a non-loopback local IP: %v", err)
+	}
+	externalPorts := freeConsecutiveTestPorts(t, 5)
+	ctx, stopRelay := context.WithCancel(context.Background())
+	defer stopRelay()
+	go tcp.RunCtx(ctx, "warn", "127.0.0.1", externalPorts[0], "pass123", strings.Join(externalPorts[1:], ","))
+	for _, port := range externalPorts[1:] {
+		go tcp.RunCtx(ctx, "warn", "127.0.0.1", port, "pass123")
+	}
+	time.Sleep(250 * time.Millisecond)
+
+	tempFile, cleanup := createTestFile(t, 64)
+	defer cleanup()
+	receivedFile := filepath.Base(tempFile)
+	defer os.Remove(receivedFile)
+
+	secret := fmt.Sprintf("localrelay-%d", time.Now().UnixNano())
+	sender, err := New(Options{
+		IsSender:      true,
+		SharedSecret:  secret,
+		Debug:         true,
+		RelayAddress:  net.JoinHostPort("127.0.0.1", externalPorts[0]),
+		RelayPorts:    append([]string(nil), externalPorts...),
+		RelayPassword: "pass123",
+		NoPrompt:      true,
+		DisableLocal:  false,
+		Curve:         "siec",
+		Overwrite:     true,
+		GitIgnore:     false,
+		NoCompress:    true,
+	})
+	if err != nil {
+		t.Fatalf("create sender: %v", err)
+	}
+	filesInfo, emptyFolders, totalNumberFolders, err := GetFilesInfo([]string{tempFile}, false, false, []string{})
+	if err != nil {
+		t.Fatalf("GetFilesInfo: %v", err)
+	}
+	receiver, err := New(Options{
+		IsSender:      false,
+		SharedSecret:  secret,
+		Debug:         true,
+		RelayAddress:  net.JoinHostPort("127.0.0.1", externalPorts[0]),
+		RelayPassword: "pass123",
+		NoPrompt:      true,
+		DisableLocal:  false,
+		TestFlag:      true,
+		Curve:         "siec",
+		Overwrite:     true,
+		NoCompress:    true,
+	})
+	if err != nil {
+		t.Fatalf("create receiver: %v", err)
+	}
+
+	errc := make(chan error, 2)
+	go func() {
+		errc <- sender.Send(filesInfo, emptyFolders, totalNumberFolders)
+	}()
+	go func() {
+		if err := waitHashed(sender); err != nil {
+			errc <- err
+			return
+		}
+		errc <- receiver.Receive()
+	}()
+
+	for i := 0; i < 2; i++ {
+		if err := <-errc; err != nil {
+			t.Fatalf("transfer failed: %v", err)
+		}
+	}
+}
+
 func TestCrocError(t *testing.T) {
 	content := []byte("temporary file's content")
 	tmpfile, err := os.CreateTemp("", "example")
@@ -822,11 +901,12 @@ func TestReceiverStdoutWithInvalidSecret(t *testing.T) {
 	// Test for issue: panic when receiving with --stdout and invalid CROC_SECRET
 	// This should fail gracefully without panicking
 	log.SetLevel("warn")
+	unusedPort := freeTestPort(t)
 	receiver, err := New(Options{
 		IsSender:      false,
 		SharedSecret:  "invalid-secret-12345",
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8281",
+		RelayAddress:  net.JoinHostPort("127.0.0.1", unusedPort),
 		RelayPassword: "pass123",
 		Stdout:        true, // This is the key flag that triggered the panic
 		NoPrompt:      true,
@@ -936,6 +1016,34 @@ func freeTestPort(t *testing.T) string {
 	}
 	defer listener.Close()
 	return strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)
+}
+
+func freeConsecutiveTestPorts(t *testing.T, count int) []string {
+	t.Helper()
+	for attempts := 0; attempts < 100; attempts++ {
+		base := 20000 + rand.Intn(20000)
+		listeners := make([]net.Listener, 0, count)
+		ports := make([]string, 0, count)
+		ok := true
+		for i := 0; i < count; i++ {
+			port := strconv.Itoa(base + i)
+			listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", port))
+			if err != nil {
+				ok = false
+				break
+			}
+			listeners = append(listeners, listener)
+			ports = append(ports, port)
+		}
+		for _, listener := range listeners {
+			listener.Close()
+		}
+		if ok {
+			return ports
+		}
+	}
+	t.Fatalf("could not find %d consecutive free ports", count)
+	return nil
 }
 
 func startReconnectRelay(t *testing.T) (controlPort string, cancel func()) {

@@ -520,11 +520,13 @@ func ZipDirectory(destination string, source string, ignoredPaths map[string]boo
 	if err != nil {
 		return fmt.Errorf("failed to resolve source path: %w", err)
 	}
+	if resolvedSourceAbs, resolveErr := filepath.EvalSymlinks(sourceAbs); resolveErr == nil {
+		sourceAbs = resolvedSourceAbs
+	}
 	destinationAbs, err := filepath.Abs(destination)
 	if err != nil {
 		return fmt.Errorf("failed to resolve zip destination path: %w", err)
 	}
-	skipDestination := pathWithin(sourceAbs, destinationAbs)
 
 	fmt.Fprintf(os.Stderr, "Zipping %s to %s\n", source, destination)
 	file, err := os.Create(destination)
@@ -533,6 +535,10 @@ func ZipDirectory(destination string, source string, ignoredPaths map[string]boo
 		return fmt.Errorf("failed to create zip file: %w", err)
 	}
 	defer file.Close()
+	if resolvedDestinationAbs, resolveErr := filepath.EvalSymlinks(destinationAbs); resolveErr == nil {
+		destinationAbs = resolvedDestinationAbs
+	}
+	skipDestination := pathWithin(sourceAbs, destinationAbs)
 	writer := zip.NewWriter(file)
 	// no compression because croc does its compression on the fly
 	writer.RegisterCompressor(zip.Deflate, func(out io.Writer) (io.WriteCloser, error) {
@@ -578,8 +584,13 @@ func ZipDirectory(destination string, source string, ignoredPaths map[string]boo
 
 		if skipDestination {
 			absPath, absErr := filepath.Abs(path)
-			if absErr == nil && filepath.Clean(absPath) == filepath.Clean(destinationAbs) {
-				return nil
+			if absErr == nil {
+				if resolvedAbsPath, resolveErr := filepath.EvalSymlinks(absPath); resolveErr == nil {
+					absPath = resolvedAbsPath
+				}
+				if filepath.Clean(absPath) == filepath.Clean(destinationAbs) {
+					return nil
+				}
 			}
 		}
 
