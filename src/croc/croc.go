@@ -911,7 +911,9 @@ func (c *Client) setupLocalRelay() {
 	// Capture the local relay control port before any goroutine that handles
 	// the external relay can overwrite c.Options.RelayPorts.
 	c.localRelayPort = c.Options.RelayPorts[0]
-	for _, port := range c.Options.RelayPorts {
+	localRelayPorts := append([]string(nil), c.Options.RelayPorts...)
+	localRelayBanner := strings.Join(localRelayPorts[1:], ",")
+	for _, port := range localRelayPorts {
 		go func(portStr string) {
 			debugString := "warn"
 			if c.Options.Debug {
@@ -922,7 +924,7 @@ func (c *Client) setupLocalRelay() {
 				"127.0.0.1",
 				portStr,
 				c.Options.RelayPassword,
-				strings.Join(c.Options.RelayPorts[1:], ","))
+				localRelayBanner)
 			if err != nil {
 				panic(err)
 			}
@@ -1089,6 +1091,16 @@ func (c *Client) senderWaitForHandshake(conn *comm.Comm) error {
 			return fmt.Errorf("gracefully refusing using the public relay")
 		}
 	}
+}
+
+func isFatalSenderRouteError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errString := err.Error()
+	return strings.Contains(errString, "refusing files") ||
+		strings.Contains(errString, "bad password") ||
+		strings.Contains(errString, "message authentication failed")
 }
 
 func (c *Client) senderReconnectRelayAttempt(attempt int) error {
@@ -1271,10 +1283,16 @@ On the other computer run:
 		}
 	}
 	if !c.Options.DisableLocal {
-		if strings.Contains(err.Error(), "refusing files") || strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "bad password") || strings.Contains(err.Error(), "message authentication failed") {
-			errchan <- err
+		if isFatalSenderRouteError(err) {
+			return err
 		}
-		err = <-errchan
+		log.Debugf("waiting for alternate sender route after: %v", err)
+		select {
+		case alternateErr := <-errchan:
+			err = alternateErr
+		case <-time.After(10 * time.Second):
+			log.Debug("timed out waiting for alternate sender route")
+		}
 	}
 	return err
 }
@@ -1647,6 +1665,10 @@ func (c *Client) transfer() (err error) {
 				}
 			}
 			break
+		}
+		if bytes.Equal(data, []byte{1}) {
+			log.Trace("got ping")
+			continue
 		}
 		done, err = c.processMessage(data, attempt)
 		if err != nil {
