@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/denisbrodbeck/machineid"
@@ -151,7 +152,8 @@ type Client struct {
 	// localRelayPort is the control port of the ephemeral local relay started by
 	// setupLocalRelay(). It is captured before any goroutines that might
 	// overwrite c.Options.RelayPorts are launched.
-	localRelayPort string
+	localRelayPort     string
+	transferPathChosen atomic.Bool
 
 	bar             *progressbar.ProgressBar
 	longestFilename int
@@ -961,35 +963,43 @@ func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 }
 
 func (c *Client) transferOverLocalRelay(errchan chan<- error) {
-	time.Sleep(500 * time.Millisecond)
 	log.Debug("establishing connection")
-	c.relayControlAddress = "127.0.0.1:" + c.localRelayPort
+	relayControlAddress := "127.0.0.1:" + c.localRelayPort
 	var banner string
-	conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.relayControlAddress, c.Options.RelayPassword, c.Options.RoomName)
-	log.Debugf("banner: %s", banner)
-	if err != nil {
-		err = fmt.Errorf("could not connect to 127.0.0.1:%s: %w", c.localRelayPort, err)
-		log.Debug(err)
-		// not really an error because it will try to connect over the actual relay
-		return
-	}
-	log.Debugf("local connection established: %+v", conn)
+	var conn *comm.Comm
+	var ipaddr string
+	var err error
+	deadline := time.Now().Add(500 * time.Millisecond)
 	for {
-		if err := c.ctxErr(); err != nil {
-			errchan <- err
+		conn, banner, ipaddr, err = tcp.ConnectToTCPServer(relayControlAddress, c.Options.RelayPassword, c.Options.RoomName)
+		if err == nil {
+			break
+		}
+		if ctxErr := c.ctxErr(); ctxErr != nil {
+			errchan <- ctxErr
 			return
 		}
-		data, _ := conn.Receive()
-		if bytes.Equal(data, handshakeRequest) {
-			break
-		} else if bytes.Equal(data, []byte{1}) {
-			log.Trace("got ping")
-		} else {
-			log.Debugf("instead of handshake got: %s", data)
+		if time.Now().After(deadline) {
+			err = fmt.Errorf("could not connect to 127.0.0.1:%s: %w", c.localRelayPort, err)
+			log.Debug(err)
+			// not really an error because it will try to connect over the actual relay
+			return
 		}
+		time.Sleep(10 * time.Millisecond)
 	}
-	c.conn[0] = conn
+	log.Debugf("banner: %s", banner)
+	log.Debugf("local connection established: %+v", conn)
+	if err = c.senderWaitForHandshake(conn); err != nil {
+		errchan <- err
+		return
+	}
+	if !c.claimTransferPath() {
+		conn.Close()
+		return
+	}
 	log.Debug("exchanged header message")
+	c.relayControlAddress = relayControlAddress
+	c.conn[0] = conn
 	c.Options.RelayAddress = "127.0.0.1"
 	c.Options.RelayPorts = strings.Split(banner, ",")
 	if c.Options.NoMultiplexing {
@@ -1144,6 +1154,21 @@ func (c *Client) receiverReconnectRelayAttempt(attempt int) error {
 	return nil
 }
 
+func (c *Client) claimTransferPath() bool {
+	return c.transferPathChosen.CompareAndSwap(false, true)
+}
+
+func shouldWaitForAlternatePath(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "refusing files") ||
+		strings.Contains(err.Error(), "could not connect") ||
+		strings.Contains(err.Error(), "EOF") ||
+		strings.Contains(err.Error(), "bad password") ||
+		strings.Contains(err.Error(), "message authentication failed")
+}
+
 // Send will send the specified file
 func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, totalNumberFolders int) (err error) {
 	go c.stop.done()
@@ -1205,6 +1230,7 @@ On the other computer run:
 		go func() {
 			var ipaddr, banner string
 			var conn *comm.Comm
+			var selectedAddress string
 			durations := []time.Duration{100 * time.Millisecond, 5 * time.Second}
 			for i, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
 				if address == "" {
@@ -1222,7 +1248,7 @@ On the other computer run:
 				log.Debugf("trying connection to %s", address)
 				conn, banner, ipaddr, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.RoomName, durations[i])
 				if err == nil {
-					c.Options.RelayAddress = address
+					selectedAddress = address
 					break
 				}
 				log.Debugf("could not establish '%s'", address)
@@ -1236,14 +1262,19 @@ On the other computer run:
 				errchan <- err
 				return
 			}
-			c.relayControlAddress = c.Options.RelayAddress
 			log.Debugf("banner: %s", banner)
 			log.Debugf("connection established: %+v", conn)
 			if err = c.senderWaitForHandshake(conn); err != nil {
 				errchan <- err
 				return
 			}
+			if !c.claimTransferPath() {
+				conn.Close()
+				return
+			}
 
+			c.Options.RelayAddress = selectedAddress
+			c.relayControlAddress = selectedAddress
 			c.conn[0] = conn
 			c.Options.RelayPorts = strings.Split(banner, ",")
 			if c.Options.NoMultiplexing {
@@ -1270,10 +1301,7 @@ On the other computer run:
 			return err
 		}
 	}
-	if !c.Options.DisableLocal {
-		if strings.Contains(err.Error(), "refusing files") || strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "bad password") || strings.Contains(err.Error(), "message authentication failed") {
-			errchan <- err
-		}
+	if !c.Options.DisableLocal && !c.Options.OnlyLocal && shouldWaitForAlternatePath(err) {
 		err = <-errchan
 	}
 	return err

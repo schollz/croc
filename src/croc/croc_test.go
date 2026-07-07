@@ -949,6 +949,22 @@ func startReconnectRelay(t *testing.T) (controlPort string, cancel func()) {
 	return controlPort, stop
 }
 
+func startMultiPortRelay(t *testing.T, transfers int) (controlPort string, cancel func()) {
+	t.Helper()
+	controlPort = freeTestPort(t)
+	dataPorts := make([]string, transfers)
+	for i := range dataPorts {
+		dataPorts[i] = freeTestPort(t)
+	}
+	ctx, stop := context.WithCancel(context.Background())
+	go tcp.RunCtx(ctx, "warn", "127.0.0.1", controlPort, "pass123", strings.Join(dataPorts, ","))
+	for _, dataPort := range dataPorts {
+		go tcp.RunCtx(ctx, "warn", "127.0.0.1", dataPort, "pass123")
+	}
+	time.Sleep(250 * time.Millisecond)
+	return controlPort, stop
+}
+
 func waitForReconnectCondition(timeout time.Duration, condition func() bool) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
@@ -1117,6 +1133,90 @@ func TestReconnectDisabledPeerReturnsCleanError(t *testing.T) {
 	err := runReconnectDropTest(t, 1, true)
 	assert.Error(t, err)
 	assert.NotContains(t, fmt.Sprintf("%v", err), "panic")
+}
+
+func TestShouldWaitForAlternatePath(t *testing.T) {
+	assert.True(t, shouldWaitForAlternatePath(fmt.Errorf("EOF")))
+	assert.True(t, shouldWaitForAlternatePath(fmt.Errorf("message authentication failed")))
+	assert.False(t, shouldWaitForAlternatePath(fmt.Errorf("boom")))
+	assert.False(t, shouldWaitForAlternatePath(nil))
+}
+
+func TestClaimTransferPath(t *testing.T) {
+	c := &Client{}
+	assert.True(t, c.claimTransferPath())
+	assert.False(t, c.claimTransferPath())
+}
+
+func TestExternalRelayWithPasswordCanFallbackToLocalRelay(t *testing.T) {
+	tempFile, cleanup := createTestFile(t, 512*1024)
+	defer cleanup()
+	receivedFile := filepath.Base(tempFile)
+	defer os.Remove(receivedFile)
+
+	controlPort, stopRelay := startMultiPortRelay(t, 4)
+	defer stopRelay()
+
+	uniqueSecret := fmt.Sprintf("local-fallback-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
+	sender, err := New(Options{
+		IsSender:         true,
+		SharedSecret:     uniqueSecret,
+		Debug:            true,
+		RelayAddress:     "127.0.0.1:" + controlPort,
+		RelayPorts:       []string{"9009", "9010", "9011", "9012", "9013"},
+		RelayPassword:    "pass123",
+		NoPrompt:         true,
+		DisableLocal:     false,
+		Curve:            "siec",
+		Overwrite:        true,
+		GitIgnore:        false,
+		NoCompress:       true,
+		MulticastAddress: "239.255.255.250",
+	})
+	if err != nil {
+		t.Fatalf("Create sender failed: %v", err)
+	}
+
+	filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{tempFile}, false, false, []string{})
+	if errGet != nil {
+		t.Fatalf("Get file info failed: %v", errGet)
+	}
+
+	receiver, err := New(Options{
+		IsSender:         false,
+		SharedSecret:     uniqueSecret,
+		Debug:            true,
+		RelayAddress:     "127.0.0.1:" + controlPort,
+		RelayPassword:    "pass123",
+		NoPrompt:         true,
+		DisableLocal:     false,
+		Curve:            "siec",
+		Overwrite:        true,
+		NoCompress:       true,
+		TestFlag:         true,
+		MulticastAddress: "239.255.255.251",
+	})
+	if err != nil {
+		t.Fatalf("Create receiver failed: %v", err)
+	}
+
+	errc := make(chan error, 2)
+	go func() {
+		errc <- sender.Send(filesInfo, emptyFolders, totalNumberFolders)
+	}()
+	go func() {
+		if err := waitHashed(sender); err != nil {
+			errc <- err
+			return
+		}
+		errc <- receiver.Receive()
+	}()
+
+	for i := 0; i < 2; i++ {
+		if err := <-errc; err != nil {
+			t.Fatalf("relay fallback transfer failed: %v", err)
+		}
+	}
 }
 
 func TestBase(t *testing.T) {
