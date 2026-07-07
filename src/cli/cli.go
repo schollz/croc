@@ -13,11 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chzyer/readline"
 	"github.com/schollz/cli/v2"
 	"github.com/schollz/croc/v10/src/comm"
 	"github.com/schollz/croc/v10/src/croc"
-	"github.com/schollz/croc/v10/src/mnemonicode"
 	"github.com/schollz/croc/v10/src/models"
 	"github.com/schollz/croc/v10/src/tcp"
 	"github.com/schollz/croc/v10/src/utils"
@@ -599,36 +597,6 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 	}
 }
 
-type TabComplete struct{}
-
-func (t TabComplete) Do(line []rune, pos int) ([][]rune, int) {
-	var words = strings.SplitAfter(string(line), "-")
-	var lastPartialWord = words[len(words)-1]
-	var nbCharacter = len(lastPartialWord)
-	if nbCharacter == 0 {
-		// No completion
-		return [][]rune{[]rune("")}, 0
-	}
-	if len(words) == 1 && nbCharacter == utils.NbPinNumbers {
-		// Check if word is indeed a number
-		_, err := strconv.Atoi(lastPartialWord)
-		if err == nil {
-			return [][]rune{[]rune("-")}, nbCharacter
-		}
-	}
-	var strArray [][]rune
-	for _, s := range mnemonicode.WordList {
-		if strings.HasPrefix(s, lastPartialWord) {
-			var completionCandidate = s[nbCharacter:]
-			if len(words) <= mnemonicode.WordsRequired(utils.NbBytesWords) {
-				completionCandidate += "-"
-			}
-			strArray = append(strArray, []rune(completionCandidate))
-		}
-	}
-	return strArray, nbCharacter
-}
-
 func receive(c *cli.Context) (err error) {
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
@@ -743,17 +711,7 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 		}
 	}
 	if crocOptions.SharedSecret == "" {
-		l, err := readline.NewEx(&readline.Config{
-			Prompt:       "Enter receive code: ",
-			AutoComplete: TabComplete{},
-		})
-		if err != nil {
-			return err
-		}
-		crocOptions.SharedSecret, err = l.Readline()
-		if err != nil {
-			return err
-		}
+		crocOptions.SharedSecret = utils.GetInput("Enter receive code: ")
 	}
 	if c.String("out") != "" {
 		if err = os.Chdir(c.String("out")); err != nil {
