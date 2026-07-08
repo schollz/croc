@@ -216,8 +216,11 @@ Do you wish to continue to enable the classic mode? (y/N) `)
 			}
 			promptMessage := fmt.Sprintf("Did you mean to send %s? (Y/n) ", strings.Join(fnames, ", "))
 			choice, errInput := utils.GetInput(promptMessage)
+			if errInput != nil {
+				return fmt.Errorf("could not read confirmation (use 'croc send' to send without one): %w", errInput)
+			}
 			choice = strings.ToLower(choice)
-			if errInput == nil && (choice == "" || choice == "y" || choice == "yes") {
+			if choice == "" || choice == "y" || choice == "yes" {
 				return send(c)
 			}
 		}

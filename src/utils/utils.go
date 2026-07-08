@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -69,16 +70,19 @@ func Exists(name string) bool {
 	return true
 }
 
+// stdinReader is shared by all prompts so that piped or typed-ahead
+// answers buffered past one line survive to the next prompt.
+var stdinReader = bufio.NewReader(os.Stdin)
+
 // GetInput returns one line of input from stdin with a given prompt,
 // with surrounding whitespace trimmed. On read error (e.g. closed or
 // exhausted stdin) the returned string is empty, so callers that treat
 // an empty answer as consent must check the error.
 func GetInput(prompt string) (string, error) {
-	reader := bufio.NewReader(os.Stdin)
 	fmt.Fprintf(os.Stderr, "%s", prompt)
-	text, err := reader.ReadString('\n')
+	text, err := stdinReader.ReadString('\n')
 	text = strings.TrimSpace(text)
-	if err != nil && text != "" {
+	if errors.Is(err, io.EOF) && text != "" {
 		// a final line without a trailing newline is still a valid answer
 		err = nil
 	}
