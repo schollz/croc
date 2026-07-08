@@ -2427,7 +2427,6 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		var fileHash []byte
 		if errRecipientFile == nil && recipientFileInfo.Size() == fileInfo.Size {
 			// the file exists, but is same size, so hash it
-			fmt.Fprintf(os.Stderr, "\nChecking existing file before resuming...\n")
 			fileHash, errHash = utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name), c.Options.HashAlgorithm, !c.Options.SendingText)
 		}
 		if fileInfo.Size == 0 || fileInfo.Symlink != "" {
