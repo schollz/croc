@@ -45,11 +45,15 @@ import (
 var (
 	ipRequest        = []byte("ips?")
 	handshakeRequest = []byte("handshake")
+
+	alternateSenderRouteTimeout      = 10 * time.Second
+	alternateSenderRoutePollInterval = 50 * time.Millisecond
 )
 
 const (
-	ReconnectVersion     = 1
-	maxReconnectAttempts = 10
+	ReconnectVersion                   = 1
+	maxReconnectAttempts               = 10
+	reconnectCandidateHandshakeTimeout = 2 * time.Second
 )
 
 func init() {
@@ -142,12 +146,14 @@ type Client struct {
 	limiter                *rate.Limiter
 
 	// tcp connections
-	conn                 []*comm.Comm
-	baseRoomName         string
-	nextReconnectRoom    string
-	relayControlAddress  string
-	reconnectVersion     int
-	peerReconnectVersion int
+	conn                    []*comm.Comm
+	baseRoomName            string
+	nextReconnectRoom       string
+	relayControlAddress     string
+	reconnectRelayAddresses []string
+	reconnectRelayMu        sync.Mutex
+	reconnectVersion        int
+	peerReconnectVersion    int
 	// localRelayPort is the control port of the ephemeral local relay started by
 	// setupLocalRelay(). It is captured before any goroutines that might
 	// overwrite c.Options.RelayPorts are launched.
@@ -372,8 +378,75 @@ func isTransferDisconnectError(err error) bool {
 	return err != nil && errors.As(err, &disconnect)
 }
 
+func normalizeRelayAddress(address string) string {
+	if address == "" {
+		return ""
+	}
+	host, port, _ := net.SplitHostPort(address)
+	if port == "" {
+		host = address
+		port = models.DEFAULT_PORT
+	}
+	return net.JoinHostPort(host, port)
+}
+
+func (c *Client) rememberReconnectRelayAddress(address string) {
+	address = normalizeRelayAddress(address)
+	if address == "" {
+		return
+	}
+	c.reconnectRelayMu.Lock()
+	defer c.reconnectRelayMu.Unlock()
+	for _, existing := range c.reconnectRelayAddresses {
+		if existing == address {
+			return
+		}
+	}
+	c.reconnectRelayAddresses = append(c.reconnectRelayAddresses, address)
+}
+
+func (c *Client) setRelayControlAddress(address string) {
+	address = normalizeRelayAddress(address)
+	if address == "" {
+		return
+	}
+	c.reconnectRelayMu.Lock()
+	defer c.reconnectRelayMu.Unlock()
+	c.relayControlAddress = address
+	c.Options.RelayAddress = address
+	reconnectRelayAddresses := []string{address}
+	for _, existing := range c.reconnectRelayAddresses {
+		if existing != address {
+			reconnectRelayAddresses = append(reconnectRelayAddresses, existing)
+		}
+	}
+	c.reconnectRelayAddresses = reconnectRelayAddresses
+}
+
+func (c *Client) reconnectRelayCandidates() []string {
+	c.reconnectRelayMu.Lock()
+	defer c.reconnectRelayMu.Unlock()
+	var candidates []string
+	if c.relayControlAddress != "" {
+		candidates = append(candidates, c.relayControlAddress)
+	}
+	for _, address := range c.reconnectRelayAddresses {
+		seen := false
+		for _, candidate := range candidates {
+			if candidate == address {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			candidates = append(candidates, address)
+		}
+	}
+	return candidates
+}
+
 func (c *Client) activeTransferStarted() bool {
-	return c.Step3RecipientRequestFile || c.Step4FileTransferred
+	return c.firstSend || c.Step3RecipientRequestFile || c.Step4FileTransferred
 }
 
 func (c *Client) canRetryTransfer(err error, attempt int) bool {
@@ -965,7 +1038,11 @@ func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 	time.Sleep(500 * time.Millisecond)
 	log.Debug("establishing connection")
-	c.relayControlAddress = "127.0.0.1:" + c.localRelayPort
+	if !c.Options.OnlyLocal {
+		c.rememberReconnectRelayAddress(c.Options.RelayAddress)
+		c.rememberReconnectRelayAddress(c.Options.RelayAddress6)
+	}
+	c.setRelayControlAddress("127.0.0.1:" + c.localRelayPort)
 	var banner string
 	conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.relayControlAddress, c.Options.RelayPassword, c.Options.RoomName)
 	log.Debugf("banner: %s", banner)
@@ -992,7 +1069,6 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 	}
 	c.conn[0] = conn
 	log.Debug("exchanged header message")
-	c.Options.RelayAddress = "127.0.0.1"
 	c.Options.RelayPorts = strings.Split(banner, ",")
 	if c.Options.NoMultiplexing {
 		log.Debug("no multiplexing")
@@ -1103,55 +1179,90 @@ func isFatalSenderRouteError(err error) bool {
 		strings.Contains(errString, "message authentication failed")
 }
 
-func (c *Client) senderReconnectRelayAttempt(attempt int) error {
-	if c.relayControlAddress == "" {
-		return fmt.Errorf("missing relay control address")
+func (c *Client) waitForAlternateSenderRoute(errchan <-chan error, originalErr error) error {
+	timeout := time.NewTimer(alternateSenderRouteTimeout)
+	ticker := time.NewTicker(alternateSenderRoutePollInterval)
+	defer timeout.Stop()
+	defer ticker.Stop()
+
+	for {
+		if c.activeTransferStarted() {
+			select {
+			case err := <-errchan:
+				return err
+			case <-c.stop.ctx.Done():
+				return c.stop.ctx.Err()
+			}
+		}
+
+		select {
+		case err := <-errchan:
+			return err
+		case <-ticker.C:
+		case <-timeout.C:
+			log.Debug("timed out waiting for alternate sender route")
+			return originalErr
+		case <-c.stop.ctx.Done():
+			return c.stop.ctx.Err()
+		}
 	}
+}
+
+func (c *Client) reconnectRelayAttempt(handshake func(*comm.Comm) error) error {
 	room := c.nextReconnectRoom
 	if room == "" {
 		return transferDisconnectError{err: fmt.Errorf("missing reconnect room")}
 	}
-	conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.relayControlAddress, c.Options.RelayPassword, room)
-	if err != nil {
-		return fmt.Errorf("could not reconnect to %s: %w", c.relayControlAddress, err)
+	candidates := c.reconnectRelayCandidates()
+	if len(candidates) == 0 {
+		return fmt.Errorf("missing relay control address")
 	}
-	if err = c.senderWaitForHandshake(conn); err != nil {
-		conn.Close()
-		return err
+	var reconnectErrors []string
+	for _, address := range candidates {
+		conn, banner, ipaddr, err := tcp.ConnectToTCPServer(address, c.Options.RelayPassword, room)
+		if err != nil {
+			reconnectErrors = append(reconnectErrors, fmt.Sprintf("%s: %v", address, err))
+			continue
+		}
+		errc := make(chan error, 1)
+		go func() {
+			errc <- handshake(conn)
+		}()
+		select {
+		case err = <-errc:
+		case <-time.After(reconnectCandidateHandshakeTimeout):
+			err = fmt.Errorf("timed out waiting for reconnect handshake")
+		case <-c.stop.ctx.Done():
+			err = c.stop.ctx.Err()
+		}
+		if err != nil {
+			conn.Close()
+			reconnectErrors = append(reconnectErrors, fmt.Sprintf("%s: %v", address, err))
+			continue
+		}
+		c.setRelayControlAddress(address)
+		c.conn[0] = conn
+		c.Options.RoomName = room
+		c.Options.RelayPorts = strings.Split(banner, ",")
+		if c.Options.NoMultiplexing {
+			c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
+		}
+		c.ExternalIP = ipaddr
+		return nil
 	}
-	c.conn[0] = conn
-	c.Options.RoomName = room
-	c.Options.RelayPorts = strings.Split(banner, ",")
-	if c.Options.NoMultiplexing {
-		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
-	}
-	c.ExternalIP = ipaddr
-	return nil
+	return fmt.Errorf("could not reconnect to any relay: %s", strings.Join(reconnectErrors, "; "))
+}
+
+func (c *Client) senderReconnectRelayAttempt(attempt int) error {
+	return c.reconnectRelayAttempt(c.senderWaitForHandshake)
 }
 
 func (c *Client) receiverReconnectRelayAttempt(attempt int) error {
-	if c.relayControlAddress == "" {
-		return fmt.Errorf("missing relay control address")
-	}
-	room := c.nextReconnectRoom
-	if room == "" {
-		return transferDisconnectError{err: fmt.Errorf("missing reconnect room")}
-	}
-	conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.relayControlAddress, c.Options.RelayPassword, room)
-	if err != nil {
-		return fmt.Errorf("could not reconnect to %s: %w", c.relayControlAddress, err)
-	}
-	if err = conn.Send(handshakeRequest); err != nil {
-		conn.Close()
+	if err := c.reconnectRelayAttempt(func(conn *comm.Comm) error {
+		return conn.Send(handshakeRequest)
+	}); err != nil {
 		return err
 	}
-	c.conn[0] = conn
-	c.Options.RoomName = room
-	c.Options.RelayPorts = strings.Split(banner, ",")
-	if c.Options.NoMultiplexing {
-		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
-	}
-	c.ExternalIP = ipaddr
 	log.Debug("exchanged reconnect header message")
 	return nil
 }
@@ -1248,7 +1359,7 @@ On the other computer run:
 				errchan <- err
 				return
 			}
-			c.relayControlAddress = c.Options.RelayAddress
+			c.setRelayControlAddress(c.Options.RelayAddress)
 			log.Debugf("banner: %s", banner)
 			log.Debugf("connection established: %+v", conn)
 			if err = c.senderWaitForHandshake(conn); err != nil {
@@ -1287,12 +1398,7 @@ On the other computer run:
 			return err
 		}
 		log.Debugf("waiting for alternate sender route after: %v", err)
-		select {
-		case alternateErr := <-errchan:
-			err = alternateErr
-		case <-time.After(10 * time.Second):
-			log.Debug("timed out waiting for alternate sender route")
-		}
+		err = c.waitForAlternateSenderRoute(errchan, err)
 	}
 	return err
 }
@@ -1461,8 +1567,7 @@ func (c *Client) Receive() (err error) {
 		log.Debugf("trying connection to %s", address)
 		c.conn[0], banner, c.ExternalIP, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.RoomName, durations[i])
 		if err == nil {
-			c.Options.RelayAddress = address
-			c.relayControlAddress = address
+			c.setRelayControlAddress(address)
 			break
 		}
 		log.Debugf("could not establish '%s'", address)
@@ -1582,8 +1687,7 @@ func (c *Client) Receive() (err error) {
 				log.Debugf("banner: %s", banner2)
 				// reset to the local port
 				banner = banner2
-				c.Options.RelayAddress = serverTry
-				c.relayControlAddress = serverTry
+				c.setRelayControlAddress(serverTry)
 				c.ExternalIP = externalIP
 				c.conn[0].Close()
 				c.conn[0] = nil

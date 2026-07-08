@@ -1211,6 +1211,101 @@ func TestReconnectRetryEligibility(t *testing.T) {
 	assert.False(t, c.canRetryTransfer(transferDisconnectError{err: fmt.Errorf("EOF")}, 0))
 }
 
+func TestReconnectFallsBackToRememberedRelay(t *testing.T) {
+	controlPort, stopRelay := startReconnectRelay(t)
+	defer stopRelay()
+	relayAddress := net.JoinHostPort("127.0.0.1", controlPort)
+	deadAddress := net.JoinHostPort("127.0.0.1", freeTestPort(t))
+	secret := fmt.Sprintf("fallback-%d", time.Now().UnixNano())
+	room := fmt.Sprintf("fallback-room-%d", time.Now().UnixNano())
+
+	sender, err := New(Options{
+		IsSender:       true,
+		SharedSecret:   secret,
+		Debug:          true,
+		RelayAddress:   relayAddress,
+		RelayPassword:  "pass123",
+		NoPrompt:       true,
+		DisableLocal:   true,
+		Curve:          "siec",
+		NoMultiplexing: true,
+	})
+	if err != nil {
+		t.Fatalf("create sender: %v", err)
+	}
+	receiver, err := New(Options{
+		IsSender:       false,
+		SharedSecret:   secret,
+		Debug:          true,
+		RelayAddress:   relayAddress,
+		RelayPassword:  "pass123",
+		NoPrompt:       true,
+		DisableLocal:   true,
+		Curve:          "siec",
+		NoMultiplexing: true,
+	})
+	if err != nil {
+		t.Fatalf("create receiver: %v", err)
+	}
+
+	for _, client := range []*Client{sender, receiver} {
+		client.nextReconnectRoom = room
+		client.setRelayControlAddress(deadAddress)
+		client.rememberReconnectRelayAddress(relayAddress)
+	}
+
+	errc := make(chan error, 1)
+	go func() {
+		errc <- sender.senderReconnectRelayAttempt(1)
+	}()
+	if err := receiver.receiverReconnectRelayAttempt(1); err != nil {
+		t.Fatalf("receiver reconnect: %v", err)
+	}
+	select {
+	case err := <-errc:
+		if err != nil {
+			t.Fatalf("sender reconnect: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("sender reconnect timed out")
+	}
+
+	assert.Equal(t, relayAddress, sender.relayControlAddress)
+	assert.Equal(t, relayAddress, receiver.relayControlAddress)
+	assert.Equal(t, relayAddress, sender.Options.RelayAddress)
+	assert.Equal(t, relayAddress, receiver.Options.RelayAddress)
+}
+
+func TestSenderWaitsPastAlternateRouteTimeoutAfterTransferStarts(t *testing.T) {
+	oldTimeout := alternateSenderRouteTimeout
+	oldPollInterval := alternateSenderRoutePollInterval
+	defer func() {
+		alternateSenderRouteTimeout = oldTimeout
+		alternateSenderRoutePollInterval = oldPollInterval
+	}()
+	alternateSenderRouteTimeout = 30 * time.Millisecond
+	alternateSenderRoutePollInterval = 5 * time.Millisecond
+
+	c := &Client{
+		stop: newStop(context.Background()),
+	}
+	errchan := make(chan error, 1)
+	originalErr := fmt.Errorf("losing route EOF")
+
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		c.firstSend = true
+		time.Sleep(60 * time.Millisecond)
+		errchan <- nil
+	}()
+
+	start := time.Now()
+	err := c.waitForAlternateSenderRoute(errchan, originalErr)
+
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, time.Since(start), 50*time.Millisecond)
+}
+
 func TestReconnectResumesControlDrop(t *testing.T) {
 	err := runReconnectDropTest(t, 0, false)
 	assert.NoError(t, err)
