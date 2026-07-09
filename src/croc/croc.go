@@ -306,6 +306,18 @@ func (e transferDisconnectError) Unwrap() error {
 	return e.err
 }
 
+type pakeHandshakeError struct {
+	err error
+}
+
+func (e pakeHandshakeError) Error() string {
+	return fmt.Sprintf("pake not successful: %v", e.err)
+}
+
+func (e pakeHandshakeError) Unwrap() error {
+	return e.err
+}
+
 type transferAttemptState struct {
 	errc    chan error
 	control *comm.Comm
@@ -443,6 +455,12 @@ func (c *Client) reconnectRelayCandidates() []string {
 		}
 	}
 	return candidates
+}
+
+func (c *Client) currentRelayControlAddress() string {
+	c.reconnectRelayMu.Lock()
+	defer c.reconnectRelayMu.Unlock()
+	return c.relayControlAddress
 }
 
 func (c *Client) activeTransferStarted() bool {
@@ -1042,9 +1060,9 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 		c.rememberReconnectRelayAddress(c.Options.RelayAddress)
 		c.rememberReconnectRelayAddress(c.Options.RelayAddress6)
 	}
-	c.setRelayControlAddress("127.0.0.1:" + c.localRelayPort)
+	localControlAddress := "127.0.0.1:" + c.localRelayPort
 	var banner string
-	conn, banner, ipaddr, err := tcp.ConnectToTCPServer(c.relayControlAddress, c.Options.RelayPassword, c.Options.RoomName)
+	conn, banner, ipaddr, err := tcp.ConnectToTCPServer(localControlAddress, c.Options.RelayPassword, c.Options.RoomName)
 	log.Debugf("banner: %s", banner)
 	if err != nil {
 		err = fmt.Errorf("could not connect to 127.0.0.1:%s: %w", c.localRelayPort, err)
@@ -1067,6 +1085,7 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 			log.Debugf("instead of handshake got: %s", data)
 		}
 	}
+	c.setRelayControlAddress(localControlAddress)
 	c.conn[0] = conn
 	log.Debug("exchanged header message")
 	c.Options.RelayPorts = strings.Split(banner, ",")
@@ -1328,6 +1347,7 @@ On the other computer run:
 		go func() {
 			var ipaddr, banner string
 			var conn *comm.Comm
+			var selectedAddress string
 			durations := []time.Duration{100 * time.Millisecond, 5 * time.Second}
 			for i, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
 				if address == "" {
@@ -1345,7 +1365,7 @@ On the other computer run:
 				log.Debugf("trying connection to %s", address)
 				conn, banner, ipaddr, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.RoomName, durations[i])
 				if err == nil {
-					c.Options.RelayAddress = address
+					selectedAddress = address
 					break
 				}
 				log.Debugf("could not establish '%s'", address)
@@ -1359,7 +1379,6 @@ On the other computer run:
 				errchan <- err
 				return
 			}
-			c.setRelayControlAddress(c.Options.RelayAddress)
 			log.Debugf("banner: %s", banner)
 			log.Debugf("connection established: %+v", conn)
 			if err = c.senderWaitForHandshake(conn); err != nil {
@@ -1367,6 +1386,7 @@ On the other computer run:
 				return
 			}
 
+			c.setRelayControlAddress(selectedAddress)
 			c.conn[0] = conn
 			c.Options.RelayPorts = strings.Split(banner, ",")
 			if c.Options.NoMultiplexing {
@@ -2033,21 +2053,21 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, string(m.Bytes2))
 		if err != nil {
 			log.Error(err)
-			return
+			return pakeHandshakeError{err: err}
 		}
 
 		// update the pake
 		err = c.Pake.Update(m.Bytes)
 		if err != nil {
-			return
+			return pakeHandshakeError{err: err}
 		}
 
 		// generate salt and send it back to recipient
 		log.Debug("generating salt")
 		salt = make([]byte, 8)
-		if _, rerr := rand.Read(salt); err != nil {
+		if _, rerr := rand.Read(salt); rerr != nil {
 			log.Errorf("can't generate random numbers: %v", rerr)
-			return
+			return pakeHandshakeError{err: rerr}
 		}
 		log.Debug("sender sending pake+salt")
 		err = message.Send(c.conn[0], c.Key, message.Message{
@@ -2055,26 +2075,38 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 			Bytes:  c.Pake.Bytes(),
 			Bytes2: salt,
 		})
+		if err != nil {
+			return pakeHandshakeError{err: err}
+		}
 	} else {
 		err = c.Pake.Update(m.Bytes)
 		if err != nil {
-			return
+			return pakeHandshakeError{err: err}
 		}
 		salt = m.Bytes2
 	}
 	// generate key
 	key, err := c.Pake.SessionKey()
 	if err != nil {
-		return err
+		return pakeHandshakeError{err: err}
 	}
 	c.Key, _, err = crypt.New(key, salt)
 	if err != nil {
-		return err
+		return pakeHandshakeError{err: err}
 	}
 	log.Debugf("generated key = %+x with salt %x", c.Key, salt)
 
 	// connects to the other ports of the server for transfer
 	var wg sync.WaitGroup
+	relayControlAddress := c.currentRelayControlAddress()
+	if relayControlAddress == "" {
+		relayControlAddress = c.Options.RelayAddress
+	}
+	relayControlAddress = normalizeRelayAddress(relayControlAddress)
+	relayHost, _, err := net.SplitHostPort(relayControlAddress)
+	if err != nil {
+		return fmt.Errorf("bad relay address %s: %w", relayControlAddress, err)
+	}
 
 	if need := len(c.Options.RelayPorts) + 1; len(c.conn) < need {
 		newConn := make([]*comm.Comm, need)
@@ -2088,28 +2120,18 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 		log.Debugf("port: [%s]", c.Options.RelayPorts[i])
 		go func(j int) {
 			defer wg.Done()
-			var host string
-			if c.Options.RelayAddress == "127.0.0.1" {
-				host = c.Options.RelayAddress
-			} else {
-				host, _, err = net.SplitHostPort(c.Options.RelayAddress)
-				if err != nil {
-					log.Errorf("bad relay address %s", c.Options.RelayAddress)
-					errc <- err
-					return
-				}
-			}
-			server := net.JoinHostPort(host, c.Options.RelayPorts[j])
+			server := net.JoinHostPort(relayHost, c.Options.RelayPorts[j])
 			log.Debugf("connecting to %s", server)
-			c.conn[j+1], _, _, err = tcp.ConnectToTCPServer(
+			dataConn, _, _, connErr := tcp.ConnectToTCPServer(
 				server,
 				c.Options.RelayPassword,
 				fmt.Sprintf("%s-%d", c.Options.RoomName, j),
 			)
-			if err != nil {
-				errc <- err
+			if connErr != nil {
+				errc <- connErr
 				return
 			}
+			c.conn[j+1] = dataConn
 			log.Debugf("connected to %s", server)
 			if !c.Options.IsSender {
 				go c.receiveData(j, c.conn[j+1], attempt)
@@ -2120,7 +2142,7 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 	close(errc)
 	for connectErr := range errc {
 		if connectErr != nil {
-			return connectErr
+			return fmt.Errorf("could not connect transfer ports: %w", connectErr)
 		}
 	}
 	if !c.Options.IsSender {
@@ -2182,7 +2204,6 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 	case message.TypePAKE:
 		err = c.processMessagePake(m, attempt)
 		if err != nil {
-			err = fmt.Errorf("pake not successful: %w", err)
 			log.Debug(err)
 		}
 	case message.TypeExternalIP:

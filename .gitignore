@@ -28,3 +28,4 @@ go.work.sum
 /croc
 croc_v*
 bin/
+src/croc/test-*

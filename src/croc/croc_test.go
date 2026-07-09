@@ -857,6 +857,99 @@ func TestSenderWaitsForLocalRelayAfterExternalRelayCloses(t *testing.T) {
 	}
 }
 
+func TestSenderLocalProbeDoesNotCorruptExternalRoute(t *testing.T) {
+	log.SetLevel("warn")
+	const externalHost = "127.0.0.2"
+	probeListener, err := net.Listen("tcp", net.JoinHostPort(externalHost, "0"))
+	if err != nil {
+		t.Skipf("%s is not available: %v", externalHost, err)
+	}
+	probeListener.Close()
+
+	externalPorts := freeConsecutiveTestPortsForHost(t, externalHost, 9)
+	localPorts := freeConsecutiveTestPorts(t, 5)
+	ctx, stopRelay := context.WithCancel(context.Background())
+	defer stopRelay()
+	go tcp.RunCtx(ctx, "warn", externalHost, externalPorts[0], "pass123", strings.Join(externalPorts[1:], ","))
+	for _, port := range externalPorts[1:] {
+		go tcp.RunCtx(ctx, "warn", externalHost, port, "pass123")
+	}
+	time.Sleep(250 * time.Millisecond)
+
+	tempFile, cleanup := createTestFile(t, 0)
+	defer cleanup()
+	receivedFile := filepath.Base(tempFile)
+	defer os.Remove(receivedFile)
+
+	secret := fmt.Sprintf("externalroute-%d", time.Now().UnixNano())
+	externalAddress := net.JoinHostPort(externalHost, externalPorts[0])
+	sender, err := New(Options{
+		IsSender:      true,
+		SharedSecret:  secret,
+		Debug:         true,
+		RelayAddress:  externalAddress,
+		RelayPorts:    localPorts,
+		RelayPassword: "pass123",
+		NoPrompt:      true,
+		DisableLocal:  false,
+		Curve:         "siec",
+		Overwrite:     true,
+		GitIgnore:     false,
+		NoCompress:    true,
+	})
+	if err != nil {
+		t.Fatalf("create sender: %v", err)
+	}
+	filesInfo, emptyFolders, totalNumberFolders, err := GetFilesInfo([]string{tempFile}, false, false, []string{})
+	if err != nil {
+		t.Fatalf("GetFilesInfo: %v", err)
+	}
+	receiver, err := New(Options{
+		IsSender:      false,
+		SharedSecret:  secret,
+		Debug:         true,
+		RelayAddress:  externalAddress,
+		RelayPassword: "pass123",
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+		NoCompress:    true,
+	})
+	if err != nil {
+		t.Fatalf("create receiver: %v", err)
+	}
+
+	errc := make(chan error, 2)
+	go func() {
+		errc <- sender.Send(filesInfo, emptyFolders, totalNumberFolders)
+	}()
+	if err := waitHashed(sender); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(800 * time.Millisecond)
+	go func() {
+		errc <- receiver.Receive()
+	}()
+
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errc:
+			if err != nil {
+				t.Fatalf("transfer failed: %v", err)
+			}
+		case <-time.After(20 * time.Second):
+			t.Fatal("transfer timed out")
+		}
+	}
+	assert.Equal(t, externalAddress, sender.Options.RelayAddress)
+	info, err := os.Stat(receivedFile)
+	if err != nil {
+		t.Fatalf("received file missing: %v", err)
+	}
+	assert.Equal(t, int64(0), info.Size())
+}
+
 func TestCrocError(t *testing.T) {
 	content := []byte("temporary file's content")
 	tmpfile, err := os.CreateTemp("", "example")
@@ -1020,6 +1113,11 @@ func freeTestPort(t *testing.T) string {
 
 func freeConsecutiveTestPorts(t *testing.T, count int) []string {
 	t.Helper()
+	return freeConsecutiveTestPortsForHost(t, "127.0.0.1", count)
+}
+
+func freeConsecutiveTestPortsForHost(t *testing.T, host string, count int) []string {
+	t.Helper()
 	for attempts := 0; attempts < 100; attempts++ {
 		base := 20000 + rand.Intn(20000)
 		listeners := make([]net.Listener, 0, count)
@@ -1027,7 +1125,7 @@ func freeConsecutiveTestPorts(t *testing.T, count int) []string {
 		ok := true
 		for i := 0; i < count; i++ {
 			port := strconv.Itoa(base + i)
-			listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", port))
+			listener, err := net.Listen("tcp", net.JoinHostPort(host, port))
 			if err != nil {
 				ok = false
 				break
