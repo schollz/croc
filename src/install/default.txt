@@ -110,16 +110,16 @@ print_message() {
 
   message="${1}"
   severity="${2}"
-  red='\e[0;31m'
-  green='\e[0;32m'
-  yellow='\e[1;33m'
-  nc='\e[0m'
+  red='\033[0;31m'
+  green='\033[0;32m'
+  yellow='\033[1;33m'
+  nc='\033[0m'
 
   case "${severity}" in
-    "info" ) echo -e "${nc}${message}${nc}";;
-      "ok" ) echo -e "${green}${message}${nc}";;
-   "error" ) echo -e "${red}${message}${nc}";;
-    "warn" ) echo -e "${yellow}${message}${nc}";;
+    "info" ) printf '%b%s%b\n' "${nc}" "${message}" "${nc}";;
+      "ok" ) printf '%b%s%b\n' "${green}" "${message}" "${nc}";;
+   "error" ) printf '%b%s%b\n' "${red}" "${message}" "${nc}";;
+    "warn" ) printf '%b%s%b\n' "${yellow}" "${message}" "${nc}";;
   esac
 
 
