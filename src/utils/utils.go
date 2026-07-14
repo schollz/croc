@@ -285,7 +285,7 @@ func LocalIP() string {
 func GenerateRandomPin() string {
 	s := ""
 	max := new(big.Int)
-	max.SetInt64(9)
+	max.SetInt64(10)
 	for range NbPinNumbers {
 		v, err := rand.Int(rand.Reader, max)
 		if err != nil {
