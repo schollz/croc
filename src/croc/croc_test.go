@@ -646,6 +646,25 @@ func TestGetFilesInfoZipFolderHonoursFilters(t *testing.T) {
 	}
 }
 
+// TestIsChild guards the gitignore walk helper. A directory or file whose
+// base name merely starts with ".." (e.g. "..cache") is still a legitimate
+// child of its parent and must be reported as such, otherwise it escapes the
+// inherited ignore rules in gitWalk and leaks into --git transfers.
+func TestIsChild(t *testing.T) {
+	sep := string(os.PathSeparator)
+	base := filepath.Join(sep+"a", "b")
+	// genuine descendants
+	assert.True(t, isChild(base, filepath.Join(base, "c")))
+	assert.True(t, isChild(base, filepath.Join(base, "c", "d")))
+	// a child whose name starts with ".." is still a child (regression)
+	assert.True(t, isChild(base, filepath.Join(base, "..cache")))
+	// the path itself is treated as a child
+	assert.True(t, isChild(base, base))
+	// siblings and ancestors are not children
+	assert.False(t, isChild(base, filepath.Join(sep+"a", "bc")))
+	assert.False(t, isChild(base, sep+"a"))
+}
+
 func TestGetFilesInfoZipFolderFromInsideSourceExcludesArchiveItself(t *testing.T) {
 	tmpDir := t.TempDir()
 	src := filepath.Join(tmpDir, "payload")
