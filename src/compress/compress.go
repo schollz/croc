@@ -22,12 +22,21 @@ func Compress(src []byte) []byte {
 	return compressedData.Bytes()
 }
 
-// Decompress returns a decompressed byte slice.
-func Decompress(src []byte) []byte {
+// Decompress returns a decompressed byte slice and any error encountered.
+// Previously errors were silently swallowed and an empty slice returned,
+// which caused json.Unmarshal to fail with "invalid character" when files
+// with non-ASCII names (e.g. umlauts, accented chars) were transferred.
+// Callers should fall back to the raw bytes if an error is returned.
+func Decompress(src []byte) ([]byte, error) {
 	compressedData := bytes.NewBuffer(src)
 	deCompressedData := new(bytes.Buffer)
-	decompress(compressedData, deCompressedData)
-	return deCompressedData.Bytes()
+	decompressor := flate.NewReader(compressedData)
+	defer decompressor.Close()
+	if _, err := io.Copy(deCompressedData, decompressor); err != nil {
+		log.Debugf("error decompressing data: %v", err)
+		return nil, err
+	}
+	return deCompressedData.Bytes(), nil
 }
 
 // compress uses flate to compress a byte slice to a corresponding level
@@ -43,7 +52,7 @@ func compress(src []byte, dest io.Writer, level int) {
 	compressor.Close()
 }
 
-// decompress uses flate to decompress an io.Reader
+// decompress uses flate to decompress an io.Reader (internal helper, kept for compatibility)
 func decompress(src io.Reader, dest io.Writer) {
 	decompressor := flate.NewReader(src)
 	if _, err := io.Copy(dest, decompressor); err != nil {
