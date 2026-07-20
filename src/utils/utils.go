@@ -33,6 +33,16 @@ import (
 const NbPinNumbers = 4
 const NbBytesWords = 4
 
+const maxProgressFilenameRunes = 20
+
+func shortenProgressFilename(fname string) string {
+	fnameRunes := []rune(path.Base(fname))
+	if len(fnameRunes) > maxProgressFilenameRunes {
+		return string(fnameRunes[:maxProgressFilenameRunes]) + "..."
+	}
+	return string(fnameRunes)
+}
+
 // Get or create home directory
 func GetConfigDir(requireValidPath bool) (homedir string, err error) {
 	if envHomedir, isSet := os.LookupEnv("CROC_CONFIG_DIR"); isSet {
@@ -129,10 +139,7 @@ func HighwayHashFile(fname string, doShowProgress bool) (hashHighway []byte, err
 	}
 	if doShowProgress {
 		stat, _ := f.Stat()
-		fnameShort := path.Base(fname)
-		if len(fnameShort) > 20 {
-			fnameShort = fnameShort[:20] + "..."
-		}
+		fnameShort := shortenProgressFilename(fname)
 		bar := progressbar.NewOptions64(stat.Size(),
 			progressbar.OptionSetWriter(os.Stderr),
 			progressbar.OptionShowBytes(true),
@@ -164,10 +171,7 @@ func MD5HashFile(fname string, doShowProgress bool) (hash256 []byte, err error) 
 	h := md5.New()
 	if doShowProgress {
 		stat, _ := f.Stat()
-		fnameShort := path.Base(fname)
-		if len(fnameShort) > 20 {
-			fnameShort = fnameShort[:20] + "..."
-		}
+		fnameShort := shortenProgressFilename(fname)
 		bar := progressbar.NewOptions64(stat.Size(),
 			progressbar.OptionSetWriter(os.Stderr),
 			progressbar.OptionShowBytes(true),
@@ -216,10 +220,7 @@ func XXHashFile(fname string, doShowProgress bool) (hash256 []byte, err error) {
 	h := xxhash.New()
 	if doShowProgress {
 		stat, _ := f.Stat()
-		fnameShort := path.Base(fname)
-		if len(fnameShort) > 20 {
-			fnameShort = fnameShort[:20] + "..."
-		}
+		fnameShort := shortenProgressFilename(fname)
 		bar := progressbar.NewOptions64(stat.Size(),
 			progressbar.OptionSetWriter(os.Stderr),
 			progressbar.OptionShowBytes(true),
@@ -338,10 +339,7 @@ func MissingChunks(fname string, fsize int64, chunkSize int) (chunkRanges []int6
 	var bar *progressbar.ProgressBar
 	showProgress := fsize > 10*1024*1024
 	if showProgress {
-		fnameShort := path.Base(fname)
-		if len(fnameShort) > 20 {
-			fnameShort = fnameShort[:20] + "..."
-		}
+		fnameShort := shortenProgressFilename(fname)
 		bar = progressbar.NewOptions64(fsize,
 			progressbar.OptionSetWriter(os.Stderr),
 			progressbar.OptionShowBytes(true),
