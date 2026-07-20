@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
@@ -115,10 +114,7 @@ func HashFileCtx(ctx context.Context, fname string, algorithm string, showProgre
 	// Create progress bar based on algorithm
 	var bar *progressbar.ProgressBar
 	if doShowProgress {
-		fnameShort := path.Base(fname)
-		if len(fnameShort) > 20 {
-			fnameShort = fnameShort[:20] + "..."
-		}
+		fnameShort := shortenProgressFilename(fname)
 
 		if algorithm == "imohash" {
 			// Spinner for imohash (indeterminate progress, max = -1)

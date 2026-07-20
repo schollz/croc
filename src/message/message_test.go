@@ -1,11 +1,9 @@
 package message
 
 import (
-	"crypto/rand"
 	"fmt"
 	"net"
 	"testing"
-	"time"
 
 	"github.com/schollz/croc/v10/src/comm"
 	"github.com/schollz/croc/v10/src/crypt"
@@ -49,48 +47,41 @@ func TestMessageNoPass(t *testing.T) {
 }
 
 func TestSend(t *testing.T) {
-	token := make([]byte, 40000000)
-	rand.Read(token)
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
 
-	port := "8801"
-	go func() {
-		log.Debug("starting TCP server on " + port)
-		server, err := net.Listen("tcp", "0.0.0.0:"+port)
-		if err != nil {
-			log.Error(err)
-		}
-		defer server.Close()
-		// spawn a new goroutine whenever a client connects
-		for {
-			connection, err := server.Accept()
-			if err != nil {
-				log.Error(err)
-			}
-			log.Debugf("client %s connected", connection.RemoteAddr().String())
-			go func(_ string, connection net.Conn) {
-				c := comm.New(connection)
-				err = c.Send([]byte("hello, world"))
-				assert.Nil(t, err)
-				data, err := c.Receive()
-				assert.Nil(t, err)
-				assert.Equal(t, []byte("hello, computer"), data)
-				data, err = c.Receive()
-				assert.Nil(t, err)
-				assert.Equal(t, []byte{'\x00'}, data)
-				data, err = c.Receive()
-				assert.Nil(t, err)
-				assert.Equal(t, token, data)
-			}(port, connection)
-		}
-	}()
-
-	time.Sleep(800 * time.Millisecond)
-	a, err := comm.NewConnection("127.0.0.1:"+port, 10*time.Minute)
-	assert.Nil(t, err)
-	m := Message{Type: TypeMessage, Message: "hello, world"}
+	client := comm.New(clientConn)
+	server := comm.New(serverConn)
+	want := Message{Type: TypeMessage, Message: "hello, world"}
 	e, salt, err := crypt.New([]byte("pass"), nil)
 	log.Debug(salt)
-	assert.Nil(t, err)
+	if err != nil {
+		t.Fatalf("create encryption key: %v", err)
+	}
 
-	assert.Nil(t, Send(a, e, m))
+	type receiveResult struct {
+		message Message
+		err     error
+	}
+	resultCh := make(chan receiveResult, 1)
+	go func() {
+		data, err := server.Receive()
+		if err != nil {
+			resultCh <- receiveResult{err: err}
+			return
+		}
+		got, err := Decode(e, data)
+		resultCh <- receiveResult{message: got, err: err}
+	}()
+
+	if err := Send(client, e, want); err != nil {
+		t.Fatalf("send message: %v", err)
+	}
+
+	result := <-resultCh
+	if result.err != nil {
+		t.Fatalf("receive message: %v", result.err)
+	}
+	assert.Equal(t, want, result.message)
 }

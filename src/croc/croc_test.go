@@ -2,6 +2,7 @@ package croc
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/schollz/croc/v10/src/message"
 	"github.com/schollz/croc/v10/src/tcp"
@@ -382,6 +384,126 @@ func TestCrocReadme(t *testing.T) {
 	}()
 
 	wg.Wait()
+}
+
+func TestCrocNonASCIIFileName(t *testing.T) {
+	testDir := t.TempDir()
+	sourceDir := filepath.Join(testDir, "source")
+	receiveDir := filepath.Join(testDir, "receive")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("create source directory: %v", err)
+	}
+	if err := os.MkdirAll(receiveDir, 0o755); err != nil {
+		t.Fatalf("create receive directory: %v", err)
+	}
+
+	// The 20-byte progress-label truncation boundary falls in the middle of ä.
+	const fileName = "1234567890123456789ä.txt"
+	want := bytes.Repeat([]byte("x"), 10_000_001)
+	sourcePath := filepath.Join(sourceDir, fileName)
+	if err := os.WriteFile(sourcePath, want, 0o644); err != nil {
+		t.Fatalf("write source file: %v", err)
+	}
+	stderr, err := os.CreateTemp(testDir, "transfer-stderr-")
+	if err != nil {
+		t.Fatalf("create stderr capture: %v", err)
+	}
+	originalStderr := os.Stderr
+	os.Stderr = stderr
+	t.Cleanup(func() {
+		os.Stderr = originalStderr
+		if err := stderr.Close(); err != nil {
+			t.Errorf("close stderr capture: %v", err)
+		}
+	})
+
+	filesInfo, emptyFolders, totalNumberFolders, err := GetFilesInfo([]string{sourcePath}, false, false, nil)
+	if err != nil {
+		t.Fatalf("get source file info: %v", err)
+	}
+
+	originalCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory: %v", err)
+	}
+	if err := os.Chdir(receiveDir); err != nil {
+		t.Fatalf("change to receive directory: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(originalCwd); err != nil {
+			t.Errorf("restore working directory: %v", err)
+		}
+	})
+
+	secret := fmt.Sprintf("non-ascii-filename-%d", time.Now().UnixNano())
+	sender, err := New(Options{
+		IsSender:      true,
+		SharedSecret:  secret,
+		RelayAddress:  "127.0.0.1:8281",
+		RelayPorts:    []string{"8281"},
+		RelayPassword: "pass123",
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+		GitIgnore:     false,
+	})
+	if err != nil {
+		t.Fatalf("create sender: %v", err)
+	}
+	receiver, err := New(Options{
+		IsSender:      false,
+		SharedSecret:  secret,
+		RelayAddress:  "127.0.0.1:8281",
+		RelayPassword: "pass123",
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Overwrite:     true,
+	})
+	if err != nil {
+		t.Fatalf("create receiver: %v", err)
+	}
+
+	errCh := make(chan error, 2)
+	go func() {
+		errCh <- sender.Send(filesInfo, emptyFolders, totalNumberFolders)
+	}()
+	time.Sleep(100 * time.Millisecond)
+	go func() {
+		errCh <- receiver.Receive()
+	}()
+	for i := 0; i < 2; i++ {
+		if err := <-errCh; err != nil {
+			t.Errorf("transfer failed: %v", err)
+		}
+	}
+
+	receivedPath := filepath.Join(receiveDir, fileName)
+	got, err := os.ReadFile(receivedPath)
+	if err != nil {
+		t.Fatalf("read received file %q: %v", fileName, err)
+	}
+	if !bytes.Equal(want, got) {
+		t.Errorf("received payload does not match source")
+	}
+
+	if err := stderr.Sync(); err != nil {
+		t.Fatalf("sync stderr capture: %v", err)
+	}
+	output, err := os.ReadFile(stderr.Name())
+	if err != nil {
+		t.Fatalf("read stderr capture: %v", err)
+	}
+	for offset := 0; offset < len(output); {
+		_, size := utf8.DecodeRune(output[offset:])
+		if size == 1 && output[offset] >= utf8.RuneSelf {
+			end := min(offset+8, len(output))
+			t.Errorf("transfer output is not valid UTF-8 at byte %d near %x", offset, output[offset:end])
+			break
+		}
+		offset += size
+	}
 }
 
 func TestCrocEmptyFolder(t *testing.T) {
