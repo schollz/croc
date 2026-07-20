@@ -71,7 +71,18 @@ func Decode(key []byte, b []byte) (m Message, err error) {
 			return
 		}
 	}
-	b = compress.Decompress(b)
+	// Attempt decompression; fall back to raw bytes on failure.
+	// This handles two edge cases:
+	//   1. Legacy/uncompressed payloads from older croc versions.
+	//   2. Corrupt flate output caused by non-ASCII bytes in filenames
+	//      (e.g. German umlauts), which previously produced an empty
+	//      byte slice and a misleading "invalid character" JSON error
+	//      (see issue #1171).
+	if decompressed, decompErr := compress.Decompress(b); decompErr == nil {
+		b = decompressed
+	} else {
+		log.Debugf("decompression failed, attempting decode on raw bytes: %v", decompErr)
+	}
 	err = json.Unmarshal(b, &m)
 	if err == nil {
 		if key != nil {
