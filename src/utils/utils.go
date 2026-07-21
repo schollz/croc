@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -79,12 +80,23 @@ func Exists(name string) bool {
 	return true
 }
 
-// GetInput returns the input with a given prompt
-func GetInput(prompt string) string {
-	reader := bufio.NewReader(os.Stdin)
+// stdinReader is shared by all prompts so that piped or typed-ahead
+// answers buffered past one line survive to the next prompt.
+var stdinReader = bufio.NewReader(os.Stdin)
+
+// GetInput returns one line of input from stdin with a given prompt,
+// with surrounding whitespace trimmed. On read error (e.g. closed or
+// exhausted stdin) the returned string is empty, so callers that treat
+// an empty answer as consent must check the error.
+func GetInput(prompt string) (string, error) {
 	fmt.Fprintf(os.Stderr, "%s", prompt)
-	text, _ := reader.ReadString('\n')
-	return strings.TrimSpace(text)
+	text, err := stdinReader.ReadString('\n')
+	text = strings.TrimSpace(text)
+	if errors.Is(err, io.EOF) && text != "" {
+		// a final line without a trailing newline is still a valid answer
+		err = nil
+	}
+	return text, err
 }
 
 // HashFile returns the hash of a file or, in case of a symlink, the
@@ -784,7 +796,8 @@ func UnzipDirectory(destination string, source string) error {
 		// check if file exists
 		if _, err := os.Stat(filePath); err == nil {
 			prompt := fmt.Sprintf("\nOverwrite '%s'? (y/N) ", filePath)
-			choice := strings.ToLower(GetInput(prompt))
+			choice, _ := GetInput(prompt)
+			choice = strings.ToLower(choice)
 			if choice != "y" && choice != "yes" {
 				fmt.Fprintf(os.Stderr, "Skipping '%s'\n", filePath)
 				continue

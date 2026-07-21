@@ -13,11 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chzyer/readline"
 	"github.com/schollz/cli/v2"
 	"github.com/schollz/croc/v10/src/comm"
 	"github.com/schollz/croc/v10/src/croc"
-	"github.com/schollz/croc/v10/src/mnemonicode"
 	"github.com/schollz/croc/v10/src/models"
 	"github.com/schollz/croc/v10/src/tcp"
 	"github.com/schollz/croc/v10/src/utils"
@@ -168,7 +166,8 @@ access the shared secret and receive the files instead of the intended
 recipient.
 
 Do you wish to continue to DISABLE the classic mode? (y/N) `)
-				choice := strings.ToLower(utils.GetInput(""))
+				choice, _ := utils.GetInput("")
+				choice = strings.ToLower(choice)
 				if choice == "y" || choice == "yes" {
 					os.Remove(classicFile)
 					fmt.Print("\nClassic mode DISABLED.\n\n")
@@ -192,7 +191,8 @@ multi-user system, this could allow other local users to access the
 shared secret and receive the files instead of the intended recipient.
 
 Do you wish to continue to enable the classic mode? (y/N) `)
-				choice := strings.ToLower(utils.GetInput(""))
+				choice, _ := utils.GetInput("")
+				choice = strings.ToLower(choice)
 				if choice == "y" || choice == "yes" {
 					fmt.Print("\nClassic mode ENABLED.\n\n")
 					os.WriteFile(classicFile, []byte("enabled"), 0o644)
@@ -216,7 +216,11 @@ Do you wish to continue to enable the classic mode? (y/N) `)
 				fnames = append(fnames, "'"+basename+"'")
 			}
 			promptMessage := fmt.Sprintf("Did you mean to send %s? (Y/n) ", strings.Join(fnames, ", "))
-			choice := strings.ToLower(utils.GetInput(promptMessage))
+			choice, errInput := utils.GetInput(promptMessage)
+			if errInput != nil {
+				return fmt.Errorf("could not read confirmation (use 'croc send' to send without one): %w", errInput)
+			}
+			choice = strings.ToLower(choice)
 			if choice == "" || choice == "y" || choice == "yes" {
 				return send(c)
 			}
@@ -608,36 +612,6 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 	}
 }
 
-type TabComplete struct{}
-
-func (t TabComplete) Do(line []rune, pos int) ([][]rune, int) {
-	var words = strings.SplitAfter(string(line), "-")
-	var lastPartialWord = words[len(words)-1]
-	var nbCharacter = len(lastPartialWord)
-	if nbCharacter == 0 {
-		// No completion
-		return [][]rune{[]rune("")}, 0
-	}
-	if len(words) == 1 && nbCharacter == utils.NbPinNumbers {
-		// Check if word is indeed a number
-		_, err := strconv.Atoi(lastPartialWord)
-		if err == nil {
-			return [][]rune{[]rune("-")}, nbCharacter
-		}
-	}
-	var strArray [][]rune
-	for _, s := range mnemonicode.WordList {
-		if strings.HasPrefix(s, lastPartialWord) {
-			var completionCandidate = s[nbCharacter:]
-			if len(words) <= mnemonicode.WordsRequired(utils.NbBytesWords) {
-				completionCandidate += "-"
-			}
-			strArray = append(strArray, []rune(completionCandidate))
-		}
-	}
-	return strArray, nbCharacter
-}
-
 func receive(c *cli.Context) (err error) {
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
@@ -752,16 +726,9 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 		}
 	}
 	if crocOptions.SharedSecret == "" {
-		l, err := readline.NewEx(&readline.Config{
-			Prompt:       "Enter receive code: ",
-			AutoComplete: TabComplete{},
-		})
+		crocOptions.SharedSecret, err = utils.GetInput("Enter receive code: ")
 		if err != nil {
-			return err
-		}
-		crocOptions.SharedSecret, err = l.Readline()
-		if err != nil {
-			return err
+			return fmt.Errorf("could not read receive code: %w", err)
 		}
 	}
 	if c.String("out") != "" {

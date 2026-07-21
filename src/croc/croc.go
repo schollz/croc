@@ -2016,8 +2016,9 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 				fmt.Fprintf(os.Stderr, "\r%s %s (%s)? (Y/n) ", action, fname, utils.ByteCountDecimal(totalSize))
 			}
 		}
-		choice := strings.ToLower(utils.GetInput(""))
-		if choice != "" && choice != "y" && choice != "yes" {
+		choice, errInput := utils.GetInput("")
+		choice = strings.ToLower(choice)
+		if errInput != nil || (choice != "" && choice != "y" && choice != "yes") {
 			err = message.Send(c.conn[0], c.Key, message.Message{
 				Type:    message.TypeError,
 				Message: "refusing files",
@@ -2045,7 +2046,8 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 				log.Debug("asking to overwrite")
 				prompt := fmt.Sprintf("\n%s already has some content in it. \nDo you want"+
 					" to overwrite it with an empty folder? (y/N) ", c.EmptyFoldersToTransfer[i].FolderRemote)
-				choice := strings.ToLower(utils.GetInput(prompt))
+				choice, _ := utils.GetInput(prompt)
+				choice = strings.ToLower(choice)
 				if choice == "y" || choice == "yes" {
 					err = c.createEmptyFolder(i)
 					if err != nil {
@@ -2280,8 +2282,9 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 
 		if c.Options.Ask {
 			fmt.Fprintf(os.Stderr, "Send to machine '%s'? (Y/n) ", remoteFile.MachineID)
-			choice := strings.ToLower(utils.GetInput(""))
-			if choice != "" && choice != "y" && choice != "yes" {
+			choice, errInput := utils.GetInput("")
+			choice = strings.ToLower(choice)
+			if errInput != nil || (choice != "" && choice != "y" && choice != "yes") {
 				err = message.Send(c.conn[0], c.Key, message.Message{
 					Type:    message.TypeError,
 					Message: "refusing files",
@@ -2624,7 +2627,8 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 				if percentDone < 99 {
 					prompt = fmt.Sprintf("\nResume '%s' (%2.1f%%)? (y/N)   (use --overwrite to omit) ", path.Join(fileInfo.FolderRemote, fileInfo.Name), percentDone)
 				}
-				choice := strings.ToLower(utils.GetInput(prompt))
+				choice, _ := utils.GetInput(prompt)
+				choice = strings.ToLower(choice)
 				if choice != "y" && choice != "yes" {
 					fmt.Fprintf(os.Stderr, "Skipping '%s'\n", path.Join(fileInfo.FolderRemote, fileInfo.Name))
 					continue
