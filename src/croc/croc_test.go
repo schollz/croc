@@ -901,7 +901,7 @@ func TestCrocLocal(t *testing.T) {
 	wg.Wait()
 }
 
-func TestSenderWaitsForLocalRelayAfterExternalRelayCloses(t *testing.T) {
+func TestSenderAndReceiverPreferLocalRelayOverExternalRelay(t *testing.T) {
 	log.SetLevel("warn")
 	localIPs, err := utils.GetLocalIPs()
 	if err != nil || len(localIPs) == 0 {
@@ -965,10 +965,6 @@ func TestSenderWaitsForLocalRelayAfterExternalRelayCloses(t *testing.T) {
 		errc <- sender.Send(filesInfo, emptyFolders, totalNumberFolders)
 	}()
 	go func() {
-		if err := waitHashed(sender); err != nil {
-			errc <- err
-			return
-		}
 		errc <- receiver.Receive()
 	}()
 
@@ -977,6 +973,13 @@ func TestSenderWaitsForLocalRelayAfterExternalRelayCloses(t *testing.T) {
 			t.Fatalf("transfer failed: %v", err)
 		}
 	}
+
+	localControlAddress := net.JoinHostPort("127.0.0.1", sender.localRelayPort)
+	assert.Equal(t, localControlAddress, sender.currentRelayControlAddress())
+	_, receiverPort, err := net.SplitHostPort(receiver.currentRelayControlAddress())
+	assert.NoError(t, err)
+	assert.Equal(t, sender.localRelayPort, receiverPort)
+	assert.NotEqual(t, externalPorts[0], receiverPort)
 }
 
 func TestSenderLocalProbeDoesNotCorruptExternalRoute(t *testing.T) {
@@ -1496,25 +1499,23 @@ func TestReconnectFallsBackToRememberedRelay(t *testing.T) {
 	assert.Equal(t, relayAddress, receiver.Options.RelayAddress)
 }
 
-func TestSenderWaitsPastAlternateRouteTimeoutAfterTransferStarts(t *testing.T) {
+func TestSenderWaitsPastAlternateRouteTimeoutAfterRouteIsReady(t *testing.T) {
 	oldTimeout := alternateSenderRouteTimeout
-	oldPollInterval := alternateSenderRoutePollInterval
 	defer func() {
 		alternateSenderRouteTimeout = oldTimeout
-		alternateSenderRoutePollInterval = oldPollInterval
 	}()
 	alternateSenderRouteTimeout = 30 * time.Millisecond
-	alternateSenderRoutePollInterval = 5 * time.Millisecond
 
 	c := &Client{
-		stop: newStop(context.Background()),
+		stop:             newStop(context.Background()),
+		senderRouteReady: make(chan struct{}),
 	}
 	errchan := make(chan error, 1)
 	originalErr := fmt.Errorf("losing route EOF")
 
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		c.firstSend = true
+		c.markSenderRouteReady()
 		time.Sleep(60 * time.Millisecond)
 		errchan <- nil
 	}()
