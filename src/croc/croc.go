@@ -746,7 +746,11 @@ func isChild(parentPath, childPath string) bool {
 	if err != nil {
 		return false
 	}
-	return !strings.HasPrefix(relPath, "..")
+	// Only "." or a component that is exactly ".." (optionally followed by more
+	// path segments) means childPath is not under parentPath. A bare HasPrefix
+	// on ".." wrongly rejects legitimate children whose name merely starts with
+	// ".." (e.g. "..cache"), matching the pathWithin helper in utils.
+	return relPath != ".." && !strings.HasPrefix(relPath, ".."+string(os.PathSeparator))
 }
 
 // This function retrieves the important file information
