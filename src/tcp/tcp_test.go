@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -315,4 +316,75 @@ func TestServerReleasesPort(t *testing.T) {
 
 	err = RunCtx(ctx2, "trace", host, port, "pass123")
 	assert.Nil(t, err, "Second server should start (port was released)")
+}
+
+func TestDualStackRelayBridgesIPv4AndIPv6(t *testing.T) {
+	probe, err := net.Listen("tcp6", "[::1]:0")
+	if err != nil {
+		t.Skipf("IPv6 loopback is unavailable: %v", err)
+	}
+	_, port, err := net.SplitHostPort(probe.Addr().String())
+	if err != nil {
+		probe.Close()
+		t.Fatalf("split probe address: %v", err)
+	}
+	probe.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- RunCtx(ctx, "error", "", port, "pass123")
+	}()
+	defer func() {
+		cancel()
+		select {
+		case <-serverErr:
+		case <-time.After(time.Second):
+		}
+	}()
+
+	ipv4Address := net.JoinHostPort("127.0.0.1", port)
+	ipv6Address := net.JoinHostPort("::1", port)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if PingServer(ipv4Address) == nil && PingServer(ipv6Address) == nil {
+			break
+		}
+		select {
+		case err := <-serverErr:
+			t.Fatalf("dual-stack relay stopped during startup: %v", err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("relay did not become reachable over both IPv4 and IPv6")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	ipv4Client, _, _, err := ConnectToTCPServer(ipv4Address, "pass123", "dual-stack-room")
+	if err != nil {
+		t.Fatalf("connect IPv4 client: %v", err)
+	}
+	defer ipv4Client.Close()
+	ipv6Client, _, _, err := ConnectToTCPServer(ipv6Address, "pass123", "dual-stack-room")
+	if err != nil {
+		t.Fatalf("connect IPv6 client: %v", err)
+	}
+	defer ipv6Client.Close()
+
+	want := []byte("local relay payload")
+	if err := ipv4Client.Send(want); err != nil {
+		t.Fatalf("send IPv4 payload: %v", err)
+	}
+	var got []byte
+	for {
+		got, err = ipv6Client.Receive()
+		if err != nil {
+			t.Fatalf("receive IPv6 payload: %v", err)
+		}
+		if !bytes.Equal(got, []byte{1}) {
+			break
+		}
+	}
+	assert.Equal(t, want, got)
 }
