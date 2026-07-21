@@ -418,11 +418,16 @@ func GetLocalIPs() (ips []string, err error) {
 		}
 		return
 	}
-	ips = []string{}
+	return localIPsFromAddrs(addrs), nil
+}
+
+func localIPsFromAddrs(addrs []net.Addr) (ips []string) {
 	for _, address := range addrs {
-		// check the address type and if it is not a loopback the display it
+		// Return every routable interface address. IPv6 link-local addresses are
+		// discovered through multicast instead because dialing them also requires
+		// the receiver's local interface zone.
 		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
+			if ipnet.IP.To4() != nil || (ipnet.IP.To16() != nil && !ipnet.IP.IsLinkLocalUnicast()) {
 				ips = append(ips, ipnet.IP.String())
 			}
 		}
