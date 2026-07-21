@@ -16,8 +16,8 @@ func TestConstants(t *testing.T) {
 		t.Errorf("DEFAULT_PORT = %s, want %s", DEFAULT_PORT, "9009")
 	}
 
-	if DEFAULT_PASSPHRASE != "pass123" {
-		t.Errorf("DEFAULT_PASSPHRASE = %s, want %s", DEFAULT_PASSPHRASE, "pass123")
+	if DEFAULT_PASSPHRASE != "TJ2dLgQylnip63JE51YOCqnLO7TzcJBuny8t4nqLSw0AM/R7" {
+		t.Errorf("DEFAULT_PASSPHRASE = %s, want %s", DEFAULT_PASSPHRASE, "TJ2dLgQylnip63JE51YOCqnLO7TzcJBuny8t4nqLSw0AM/R7")
 	}
 }
 
