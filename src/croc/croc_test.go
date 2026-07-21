@@ -768,6 +768,40 @@ func TestGetFilesInfoZipFolderHonoursFilters(t *testing.T) {
 	}
 }
 
+func TestGetFilesInfoExactFileExclusion(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "root")
+	for _, rel := range []string{"a/image.jpg", "b/a/image.jpg", "photo.png"} {
+		file := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(file, []byte(rel), 0o644); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+
+	files, _, _, err := GetFilesInfoWithExactExclusions([]string{root}, false, false, nil, []string{"a/image.jpg"})
+	if err != nil {
+		t.Fatalf("GetFilesInfoWithExactExclusions: %v", err)
+	}
+	got := make(map[string]bool)
+	for _, file := range files {
+		rel, err := filepath.Rel(root, filepath.Join(file.FolderSource, file.Name))
+		if err != nil {
+			t.Fatalf("relative path: %v", err)
+		}
+		got[filepath.ToSlash(rel)] = true
+	}
+	if got["a/image.jpg"] {
+		t.Fatal("exactly excluded file was returned")
+	}
+	for _, want := range []string{"b/a/image.jpg", "photo.png"} {
+		if !got[want] {
+			t.Errorf("expected %q to be returned; got %v", want, got)
+		}
+	}
+}
+
 func TestGetFilesInfoZipFolderFromInsideSourceExcludesArchiveItself(t *testing.T) {
 	tmpDir := t.TempDir()
 	src := filepath.Join(tmpDir, "payload")
