@@ -508,6 +508,13 @@ func IsLocalIP(ipaddress string) bool {
 // any string in exclusions (case-insensitive) are also skipped, mirroring
 // the post-walk filter in cli.go for non-zip transfers.
 func ZipDirectory(destination string, source string, ignoredPaths map[string]bool, exclusions []string) (err error) {
+	return ZipDirectoryWithExactExclusions(destination, source, ignoredPaths, exclusions, nil)
+}
+
+// ZipDirectoryWithExactExclusions is ZipDirectory with support for exact
+// paths relative to source. Legacy exclusions remain case-insensitive
+// substring matches.
+func ZipDirectoryWithExactExclusions(destination string, source string, ignoredPaths map[string]bool, exclusions, exactExclusions []string) (err error) {
 	if _, err = os.Stat(destination); err == nil {
 		log.Errorf("%s file already exists!\n", destination)
 		return fmt.Errorf("file already exists: %s", destination)
@@ -618,6 +625,7 @@ func ZipDirectory(destination string, source string, ignoredPaths map[string]boo
 		// Create zip path with base name structure
 		zipPath := filepath.Join(baseName, relPath)
 		zipPath = filepath.ToSlash(zipPath)
+		relPath = NormalizeRelativePath(relPath)
 
 		// Honour --exclude: case-insensitive substring match against the zip
 		// path, mirroring the post-walk filter in cli.go.
@@ -625,6 +633,16 @@ func ZipDirectory(destination string, source string, ignoredPaths map[string]boo
 			zipPathLower := strings.ToLower(zipPath)
 			for _, exclusion := range exclusions {
 				if strings.Contains(zipPathLower, exclusion) {
+					if info.IsDir() {
+						return filepath.SkipDir
+					}
+					return nil
+				}
+			}
+		}
+		if len(exactExclusions) > 0 {
+			for _, exclusion := range exactExclusions {
+				if relPath == NormalizeRelativePath(exclusion) {
 					if info.IsDir() {
 						return filepath.SkipDir
 					}
@@ -696,6 +714,14 @@ func ZipDirectory(destination string, source string, ignoredPaths map[string]boo
 	}
 	fmt.Fprintf(os.Stderr, "\n")
 	return nil
+}
+
+// NormalizeRelativePath converts a path to a portable, clean relative-path
+// representation suitable for exact comparisons.
+func NormalizeRelativePath(p string) string {
+	p = filepath.ToSlash(filepath.Clean(p))
+	p = strings.TrimPrefix(p, "./")
+	return p
 }
 
 func pathWithin(parent string, child string) bool {

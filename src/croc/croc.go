@@ -99,6 +99,7 @@ type Options struct {
 	MulticastAddress  string
 	ShowQrCode        bool
 	Exclude           []string
+	ExcludeFile       []string
 	Quiet             bool
 	DisableClipboard  bool
 	ExtendedClipboard bool
@@ -770,6 +771,12 @@ func isChild(parentPath, childPath string) bool {
 // This function retrieves the important file information
 // for every file that will be transferred
 func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool, exclusions []string) (filesInfo []FileInfo, emptyFolders []FileInfo, totalNumberFolders int, err error) {
+	return GetFilesInfoWithExactExclusions(fnames, zipfolder, ignoreGit, exclusions, nil)
+}
+
+// GetFilesInfoWithExactExclusions retrieves file information while applying
+// both the legacy substring exclusions and exact relative-path exclusions.
+func GetFilesInfoWithExactExclusions(fnames []string, zipfolder bool, ignoreGit bool, exclusions, exactExclusions []string) (filesInfo []FileInfo, emptyFolders []FileInfo, totalNumberFolders int, err error) {
 	// fnames: the relative/absolute paths of files/folders that will be transferred
 	totalNumberFolders = 0
 	var paths []string
@@ -845,7 +852,7 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool, exclusions []
 			}
 			fpath = filepath.Dir(fpath)
 			dest := filepath.Base(fpath) + ".zip"
-			err = utils.ZipDirectory(dest, fpath, ignoredPaths, exclusions)
+			err = utils.ZipDirectoryWithExactExclusions(dest, fpath, ignoredPaths, exclusions, exactExclusions)
 			if err != nil {
 				return
 			}
@@ -891,6 +898,13 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool, exclusions []
 					if strings.HasSuffix(absPathWithSeparator, string(os.PathSeparator)+string(os.PathSeparator)) {
 						absPathWithSeparator = strings.TrimSuffix(absPathWithSeparator, string(os.PathSeparator))
 					}
+					relPath, relErr := filepath.Rel(absPath, pathName)
+					if relErr == nil && exactPathExcluded(exactExclusions, relPath) {
+						if info.IsDir() {
+							return filepath.SkipDir
+						}
+						return nil
+					}
 					remoteFolder := strings.TrimPrefix(filepath.Dir(pathName), absPathWithSeparator)
 					if !info.IsDir() {
 						fInfo := FileInfo{
@@ -929,6 +943,9 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool, exclusions []
 			}
 
 		} else {
+			if exactPathExcluded(exactExclusions, stat.Name()) {
+				continue
+			}
 			fInfo := FileInfo{
 				Name:         stat.Name(),
 				FolderRemote: "./",
@@ -947,6 +964,16 @@ func GetFilesInfo(fnames []string, zipfolder bool, ignoreGit bool, exclusions []
 		}
 	}
 	return
+}
+
+func exactPathExcluded(exclusions []string, candidate string) bool {
+	candidate = utils.NormalizeRelativePath(candidate)
+	for _, exclusion := range exclusions {
+		if candidate == utils.NormalizeRelativePath(exclusion) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {

@@ -79,6 +79,7 @@ func Run() (err error) {
 				&cli.IntFlag{Name: "transfers", Value: 4, Usage: "number of ports to use for transfers"},
 				&cli.BoolFlag{Name: "qrcode", Aliases: []string{"qr"}, Usage: "show receive code as a qrcode"},
 				&cli.StringFlag{Name: "exclude", Value: "", Usage: "exclude files if they contain any of the comma separated strings"},
+				&cli.StringFlag{Name: "exclude-file", Value: "", Usage: "exclude files matching any of the comma separated relative paths exactly"},
 				&cli.StringFlag{Name: "socks5", Value: "", Usage: "add a socks5 proxy", EnvVars: []string{"SOCKS5_PROXY"}},
 				&cli.StringFlag{Name: "connect", Value: "", Usage: "add a http proxy", EnvVars: []string{"HTTP_PROXY"}},
 			},
@@ -327,6 +328,13 @@ func send(c *cli.Context) (err error) {
 			excludeStrings = append(excludeStrings, v)
 		}
 	}
+	excludeFiles := []string{}
+	for _, v := range strings.Split(c.String("exclude-file"), ",") {
+		v = utils.NormalizeRelativePath(strings.TrimSpace(v))
+		if v != "" && v != "." {
+			excludeFiles = append(excludeFiles, v)
+		}
+	}
 
 	ports := make([]string, transfersParam+1)
 	for i := 0; i <= transfersParam; i++ {
@@ -359,6 +367,7 @@ func send(c *cli.Context) (err error) {
 		ShowQrCode:        c.Bool("qrcode"),
 		MulticastAddress:  c.String("multicast"),
 		Exclude:           excludeStrings,
+		ExcludeFile:       excludeFiles,
 		Quiet:             c.Bool("quiet"),
 		DisableClipboard:  c.Bool("disable-clipboard"),
 		ExtendedClipboard: c.Bool("extended-clipboard"),
@@ -475,7 +484,7 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 		// generate code phrase
 		crocOptions.SharedSecret = utils.GetRandomName()
 	}
-	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfo(fnames, crocOptions.ZipFolder, crocOptions.GitIgnore, crocOptions.Exclude)
+	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfoWithExactExclusions(fnames, crocOptions.ZipFolder, crocOptions.GitIgnore, crocOptions.Exclude, crocOptions.ExcludeFile)
 	if err != nil {
 		return
 	}
