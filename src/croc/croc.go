@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/denisbrodbeck/machineid"
@@ -46,8 +47,7 @@ var (
 	ipRequest        = []byte("ips?")
 	handshakeRequest = []byte("handshake")
 
-	alternateSenderRouteTimeout      = 10 * time.Second
-	alternateSenderRoutePollInterval = 50 * time.Millisecond
+	alternateSenderRouteTimeout = 10 * time.Second
 )
 
 const (
@@ -155,6 +155,9 @@ type Client struct {
 	reconnectRelayMu        sync.Mutex
 	reconnectVersion        int
 	peerReconnectVersion    int
+	senderRouteReady        chan struct{}
+	senderRouteReadyOnce    sync.Once
+	transferStarted         atomic.Bool
 	// localRelayPort is the control port of the ephemeral local relay started by
 	// setupLocalRelay(). It is captured before any goroutines that might
 	// overwrite c.Options.RelayPorts are launched.
@@ -291,6 +294,7 @@ func New(ops Options) (c *Client, err error) {
 	}
 
 	c.mutex = &sync.Mutex{}
+	c.senderRouteReady = make(chan struct{})
 	c.stop = newStop(context.Background())
 	return
 }
@@ -465,7 +469,17 @@ func (c *Client) currentRelayControlAddress() string {
 }
 
 func (c *Client) activeTransferStarted() bool {
-	return c.firstSend || c.Step3RecipientRequestFile || c.Step4FileTransferred
+	return c.transferStarted.Load()
+}
+
+func (c *Client) markTransferStarted() {
+	c.transferStarted.Store(true)
+}
+
+func (c *Client) markSenderRouteReady() {
+	c.senderRouteReadyOnce.Do(func() {
+		close(c.senderRouteReady)
+	})
 }
 
 func (c *Client) canRetryTransfer(err error, attempt int) bool {
@@ -747,7 +761,11 @@ func isChild(parentPath, childPath string) bool {
 	if err != nil {
 		return false
 	}
-	return !strings.HasPrefix(relPath, "..")
+	// Only "." or a component that is exactly ".." (optionally followed by more
+	// path segments) means childPath is not under parentPath. A bare HasPrefix
+	// on ".." wrongly rejects legitimate children whose name merely starts with
+	// ".." (e.g. "..cache"), matching the pathWithin helper in utils.
+	return relPath != ".." && !strings.HasPrefix(relPath, ".."+string(os.PathSeparator))
 }
 
 // This function retrieves the important file information
@@ -1039,7 +1057,7 @@ func (c *Client) setupLocalRelay() {
 			}
 			err := c.stop.run(
 				debugString,
-				"127.0.0.1",
+				"",
 				portStr,
 				c.Options.RelayPassword,
 				localRelayBanner)
@@ -1121,6 +1139,7 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
 	}
 	c.ExternalIP = ipaddr
+	c.markSenderRouteReady()
 	errchan <- c.transferWithReconnect(func(attempt int) error {
 		if attempt == 0 {
 			return nil
@@ -1227,30 +1246,23 @@ func isFatalSenderRouteError(err error) bool {
 
 func (c *Client) waitForAlternateSenderRoute(errchan <-chan error, originalErr error) error {
 	timeout := time.NewTimer(alternateSenderRouteTimeout)
-	ticker := time.NewTicker(alternateSenderRoutePollInterval)
 	defer timeout.Stop()
-	defer ticker.Stop()
 
-	for {
-		if c.activeTransferStarted() {
-			select {
-			case err := <-errchan:
-				return err
-			case <-c.stop.ctx.Done():
-				return c.stop.ctx.Err()
-			}
-		}
-
+	select {
+	case <-c.senderRouteReady:
 		select {
 		case err := <-errchan:
 			return err
-		case <-ticker.C:
-		case <-timeout.C:
-			log.Debug("timed out waiting for alternate sender route")
-			return originalErr
 		case <-c.stop.ctx.Done():
 			return c.stop.ctx.Err()
 		}
+	case err := <-errchan:
+		return err
+	case <-timeout.C:
+		log.Debug("timed out waiting for alternate sender route")
+		return originalErr
+	case <-c.stop.ctx.Done():
+		return c.stop.ctx.Err()
 	}
 }
 
@@ -1422,6 +1434,7 @@ On the other computer run:
 			}
 			c.ExternalIP = ipaddr
 			log.Debug("exchanged header message")
+			c.markSenderRouteReady()
 			errchan <- c.transferWithReconnect(func(attempt int) error {
 				if attempt == 0 {
 					return nil
@@ -2048,6 +2061,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 		c.SuccessfulTransfer = true
 		c.Step3RecipientRequestFile = true
 		c.Step4FileTransferred = true
+		c.markTransferStarted()
 		errStopTransfer := message.Send(c.conn[0], c.Key, message.Message{
 			Type: message.TypeFinished,
 		})
@@ -2262,6 +2276,7 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		}
 		c.mutex.Unlock()
 		c.Step3RecipientRequestFile = true
+		c.markTransferStarted()
 
 		if c.Options.Ask {
 			fmt.Fprintf(os.Stderr, "Send to machine '%s'? (Y/n) ", remoteFile.MachineID)
@@ -2457,6 +2472,7 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 		return
 	}
 	c.Step3RecipientRequestFile = true
+	c.markTransferStarted()
 	return
 }
 
@@ -2698,6 +2714,7 @@ func (c *Client) updateState(attempt *transferAttemptState) (err error) {
 			}
 		}
 		c.Step4FileTransferred = true
+		c.markTransferStarted()
 		// setup the progressbar
 		c.setBar()
 		c.TotalSent = 0

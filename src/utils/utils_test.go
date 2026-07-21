@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
@@ -271,6 +272,19 @@ func TestLocalIP(t *testing.T) {
 	ip := LocalIP()
 	fmt.Println(ip)
 	assert.True(t, strings.Contains(ip, ".") || strings.Contains(ip, ":"))
+}
+
+func TestLocalIPsFromAddrsIncludesRoutableIPv4AndIPv6(t *testing.T) {
+	addrs := []net.Addr{
+		&net.IPNet{IP: net.ParseIP("127.0.0.1"), Mask: net.CIDRMask(8, 32)},
+		&net.IPNet{IP: net.ParseIP("192.168.1.20"), Mask: net.CIDRMask(24, 32)},
+		&net.IPNet{IP: net.ParseIP("::1"), Mask: net.CIDRMask(128, 128)},
+		&net.IPNet{IP: net.ParseIP("fe80::20"), Mask: net.CIDRMask(64, 128)},
+		&net.IPNet{IP: net.ParseIP("fd00::20"), Mask: net.CIDRMask(64, 128)},
+		&net.IPNet{IP: net.ParseIP("2001:db8::20"), Mask: net.CIDRMask(64, 128)},
+	}
+
+	assert.Equal(t, []string{"192.168.1.20", "fd00::20", "2001:db8::20"}, localIPsFromAddrs(addrs))
 }
 
 func TestGetRandomName(t *testing.T) {
