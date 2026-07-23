@@ -129,6 +129,10 @@ a:focus-visible {
   padding-bottom: 30px;
 }
 
+.brand-link {
+  display: block;
+}
+
 .brand-illustration {
   display: block;
   width: clamp(132px, 18vw, 204px);
