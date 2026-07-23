@@ -48,6 +48,16 @@ func startEchoServer(t *testing.T) (host, port string) {
 	return
 }
 
+func TestNormalizeConfigAllowsPublicRelayPortPools(t *testing.T) {
+	config, err := normalizeConfig(Config{})
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		[]string{"9009", "9010", "9011", "9012", "9013", "9014", "9015", "9016", "9017"},
+		config.AllowedPorts,
+	)
+}
+
 func TestHealthAndMethod(t *testing.T) {
 	handler, err := Handler(Config{
 		RelayHost:    "127.0.0.1",

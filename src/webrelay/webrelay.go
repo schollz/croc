@@ -167,7 +167,11 @@ func normalizeConfig(config Config) (Config, error) {
 	}
 
 	if len(config.AllowedPorts) == 0 {
-		config.AllowedPorts = []string{"9009", "9010", "9011", "9012", "9013"}
+		config.AllowedPorts = []string{
+			"9009",
+			"9010", "9011", "9012", "9013",
+			"9014", "9015", "9016", "9017",
+		}
 	}
 	seen := make(map[string]struct{}, len(config.AllowedPorts))
 	ports := make([]string, 0, len(config.AllowedPorts))

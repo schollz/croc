@@ -110,7 +110,7 @@ func Run() (err error) {
 			Flags: []cli.Flag{
 				&cli.StringFlag{Name: "bind", Value: "127.0.0.1:9014", Usage: "local HTTP bind address"},
 				&cli.StringFlag{Name: "relay", Value: "croc.schollz.com", Usage: "fixed upstream croc relay host"},
-				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "allowed upstream relay ports"},
+				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013,9014,9015,9016,9017", Usage: "allowed upstream relay ports"},
 			},
 		},
 		{

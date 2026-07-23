@@ -72,7 +72,7 @@ cannot be used as an arbitrary network proxy:
 croc --pass YOUR_RELAY_PASSWORD serve \
   --bind 127.0.0.1:9014 \
   --relay relay.example.com \
-  --ports 9009,9010,9011,9012,9013 \
+  --ports 9009,9010,9011,9012,9013,9014,9015,9016,9017 \
   files.example.com
 ```
 
