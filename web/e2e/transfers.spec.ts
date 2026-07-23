@@ -316,9 +316,24 @@ test("help tour explains browser transfers and end-to-end encryption", async ({
     },
   );
   await page.goto("/");
-  await page
-    .getByRole("button", { name: "How to use croc web" })
-    .click();
+  const helpButton = page.getByRole("button", { name: "How to use croc web" });
+  const githubButton = page.getByRole("link", { name: "View croc on GitHub" });
+  const themeButton = page.getByRole("button", { name: /Switch to .* mode/ });
+  const [helpBox, githubBox, themeBox] = await Promise.all([
+    helpButton.boundingBox(),
+    githubButton.boundingBox(),
+    themeButton.boundingBox(),
+  ]);
+  expect([helpBox?.width, githubBox?.width, themeBox?.width]).toEqual([
+    42, 42, 42,
+  ]);
+  expect([helpBox?.height, githubBox?.height, themeBox?.height]).toEqual([
+    42, 42, 42,
+  ]);
+  await expect(
+    helpButton.locator("svg.lucide-circle-question-mark"),
+  ).toHaveCount(1);
+  await helpButton.click();
 
   const tour = page.locator(".driver-popover.croc-tour");
   const title = tour.locator(".driver-popover-title");

@@ -693,7 +693,7 @@ export function App() {
         </div>
         <div className="header-actions">
           <button
-            className="icon-button help-button"
+            className="icon-button"
             type="button"
             aria-label="How to use croc web"
             title="How to use croc web"

@@ -140,17 +140,6 @@ h1 {
   align-items: center;
 }
 
-.help-button {
-  width: 34px;
-  height: 34px;
-  border-color: var(--soft-border);
-}
-
-.help-button svg {
-  width: 15px;
-  height: 15px;
-}
-
 .security-strip {
   display: flex;
   gap: 10px;
