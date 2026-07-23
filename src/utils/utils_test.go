@@ -137,6 +137,17 @@ func TestExists(t *testing.T) {
 	assert.False(t, Exists("doesnotexist"))
 }
 
+func TestUnusedFilename(t *testing.T) {
+	folder := t.TempDir()
+	assert.Equal(t, "video.mkv", UnusedFilename(folder, "video.mkv"))
+	os.WriteFile(filepath.Join(folder, "video.mkv"), []byte("a"), 0o644)
+	assert.Equal(t, "video (1).mkv", UnusedFilename(folder, "video.mkv"))
+	os.WriteFile(filepath.Join(folder, "video (1).mkv"), []byte("b"), 0o644)
+	assert.Equal(t, "video (2).mkv", UnusedFilename(folder, "video.mkv"))
+	os.WriteFile(filepath.Join(folder, "noext"), []byte("c"), 0o644)
+	assert.Equal(t, "noext (1)", UnusedFilename(folder, "noext"))
+}
+
 func TestMD5HashFile(t *testing.T) {
 	bigFile()
 	defer os.Remove("bigfile.test")

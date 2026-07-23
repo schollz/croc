@@ -221,6 +221,14 @@ To automatically overwrite files without prompting, use the `--overwrite` flag:
 croc --yes --overwrite <code>
 ```
 
+#### Keep Both Files Without Prompt
+
+To keep an existing file and receive the incoming one under a new name (e.g. `video (1).mkv`), use the `--rename` flag:
+
+```bash
+croc --yes --rename <code>
+```
+
 #### Excluding Folders
 
 To exclude folders from being sent, use the `--exclude` flag with comma-delimited exclusions:

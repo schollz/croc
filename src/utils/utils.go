@@ -80,6 +80,23 @@ func Exists(name string) bool {
 	return true
 }
 
+// UnusedFilename returns a filename in folder that does not exist yet,
+// appending " (1)", " (2)", etc. before the extension of name until an
+// unused one is found.
+func UnusedFilename(folder, name string) string {
+	if !Exists(path.Join(folder, name)) {
+		return name
+	}
+	ext := path.Ext(name)
+	base := strings.TrimSuffix(name, ext)
+	for i := 1; ; i++ {
+		candidate := fmt.Sprintf("%s (%d)%s", base, i, ext)
+		if !Exists(path.Join(folder, candidate)) {
+			return candidate
+		}
+	}
+}
+
 // stdinReader is shared by all prompts so that piped or typed-ahead
 // answers buffered past one line survive to the next prompt.
 var stdinReader = bufio.NewReader(os.Stdin)

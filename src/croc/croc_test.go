@@ -506,6 +506,105 @@ func TestCrocNonASCIIFileName(t *testing.T) {
 	}
 }
 
+func TestCrocRenameExistingFile(t *testing.T) {
+	testDir := t.TempDir()
+	sourceDir := filepath.Join(testDir, "source")
+	receiveDir := filepath.Join(testDir, "receive")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("create source directory: %v", err)
+	}
+	if err := os.MkdirAll(receiveDir, 0o755); err != nil {
+		t.Fatalf("create receive directory: %v", err)
+	}
+
+	const fileName = "video.mkv"
+	want := bytes.Repeat([]byte("new"), 1000)
+	existing := []byte("existing content")
+	sourcePath := filepath.Join(sourceDir, fileName)
+	if err := os.WriteFile(sourcePath, want, 0o644); err != nil {
+		t.Fatalf("write source file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(receiveDir, fileName), existing, 0o644); err != nil {
+		t.Fatalf("write existing file: %v", err)
+	}
+
+	filesInfo, emptyFolders, totalNumberFolders, err := GetFilesInfo([]string{sourcePath}, false, false, nil)
+	if err != nil {
+		t.Fatalf("get source file info: %v", err)
+	}
+
+	originalCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory: %v", err)
+	}
+	if err := os.Chdir(receiveDir); err != nil {
+		t.Fatalf("change to receive directory: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(originalCwd); err != nil {
+			t.Errorf("restore working directory: %v", err)
+		}
+	})
+
+	secret := fmt.Sprintf("rename-existing-%d", time.Now().UnixNano())
+	sender, err := New(Options{
+		IsSender:      true,
+		SharedSecret:  secret,
+		RelayAddress:  "127.0.0.1:8281",
+		RelayPorts:    []string{"8281"},
+		RelayPassword: "pass123",
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		GitIgnore:     false,
+	})
+	if err != nil {
+		t.Fatalf("create sender: %v", err)
+	}
+	receiver, err := New(Options{
+		IsSender:      false,
+		SharedSecret:  secret,
+		RelayAddress:  "127.0.0.1:8281",
+		RelayPassword: "pass123",
+		NoPrompt:      true,
+		DisableLocal:  true,
+		Curve:         "siec",
+		Rename:        true,
+	})
+	if err != nil {
+		t.Fatalf("create receiver: %v", err)
+	}
+
+	errCh := make(chan error, 2)
+	go func() {
+		errCh <- sender.Send(filesInfo, emptyFolders, totalNumberFolders)
+	}()
+	time.Sleep(100 * time.Millisecond)
+	go func() {
+		errCh <- receiver.Receive()
+	}()
+	for i := 0; i < 2; i++ {
+		if err := <-errCh; err != nil {
+			t.Errorf("transfer failed: %v", err)
+		}
+	}
+
+	got, err := os.ReadFile(filepath.Join(receiveDir, "video (1).mkv"))
+	if err != nil {
+		t.Fatalf("read renamed file: %v", err)
+	}
+	if !bytes.Equal(want, got) {
+		t.Errorf("renamed file payload does not match source")
+	}
+	kept, err := os.ReadFile(filepath.Join(receiveDir, fileName))
+	if err != nil {
+		t.Fatalf("read original file: %v", err)
+	}
+	if !bytes.Equal(existing, kept) {
+		t.Errorf("original file was modified")
+	}
+}
+
 func TestCrocEmptyFolder(t *testing.T) {
 	pathName := "../../testEmpty"
 	defer os.RemoveAll(pathName)
