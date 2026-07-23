@@ -198,6 +198,10 @@ h1 {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.receive-panel {
+  scroll-margin-top: 12px;
+}
+
 .panel {
   display: flex;
   min-width: 0;
