@@ -6,6 +6,7 @@ import {
   Copy,
   Download,
   File as FileIcon,
+  Heart,
   Moon,
   RefreshCw,
   Settings2,
@@ -665,6 +666,23 @@ export function App() {
 
   return (
     <main className="site-shell">
+      <aside className="donation-banner" aria-label="Support croc">
+        <div className="donation-copy">
+          <Heart aria-hidden="true" />
+          <p>
+            <strong>croc is free, but depends on donations to keep going.</strong>{" "}
+            If just 1% of users donate $1, it will be sustainable.
+          </p>
+        </div>
+        <a
+          href="https://github.com/sponsors/schollz"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Donate $1
+        </a>
+      </aside>
+
       <header className="site-header">
         <img
           className="brand-illustration"

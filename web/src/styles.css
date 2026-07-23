@@ -71,6 +71,56 @@ a:focus-visible {
   padding: 52px 0 24px;
 }
 
+.donation-banner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  margin-bottom: 26px;
+  border: 1px solid var(--foreground);
+}
+
+.donation-copy {
+  display: flex;
+  min-width: 0;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 16px;
+}
+
+.donation-copy svg {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+
+.donation-copy p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.donation-copy strong {
+  font-weight: 800;
+}
+
+.donation-banner > a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid var(--foreground);
+  padding: 0 20px;
+  color: var(--background);
+  background: var(--foreground);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.donation-banner > a:hover {
+  color: var(--foreground);
+  background: var(--background);
+}
+
 .site-header {
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -951,6 +1001,16 @@ footer a:hover {
   .site-header {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .donation-banner {
+    grid-template-columns: 1fr;
+  }
+
+  .donation-banner > a {
+    border-top: 1px solid var(--foreground);
+    border-left: 0;
+    padding: 12px 16px;
   }
 
   .header-actions {
