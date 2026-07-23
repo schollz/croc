@@ -294,6 +294,7 @@ type staticHandler struct {
 	files      fs.FS
 	fileServer http.Handler
 	index      []byte
+	installer  []byte
 }
 
 func newStaticHandler(files fs.FS) (http.Handler, error) {
@@ -304,16 +305,35 @@ func newStaticHandler(files fs.FS) (http.Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("embedded web client is missing index.html: %w", err)
 	}
+	installer, err := fs.ReadFile(files, "default.txt")
+	if err != nil {
+		return nil, fmt.Errorf("embedded web client is missing default.txt: %w", err)
+	}
 	return &staticHandler{
 		files:      files,
 		fileServer: http.FileServer(http.FS(files)),
 		index:      index,
+		installer:  installer,
 	}, nil
 }
 
 func (h *staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if r.URL.Path == "/" {
+		w.Header().Set("Vary", "User-Agent")
+	}
+	if r.URL.Path == "/" && requestsInstaller(r.UserAgent()) {
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Content-Length", strconv.Itoa(len(h.installer)))
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		if r.Method == http.MethodGet {
+			_, _ = w.Write(h.installer)
+		}
 		return
 	}
 
@@ -344,4 +364,10 @@ func (h *staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	cloned := r.Clone(r.Context())
 	cloned.URL.Path = "/" + requested
 	h.fileServer.ServeHTTP(w, cloned)
+}
+
+func requestsInstaller(userAgent string) bool {
+	userAgent = strings.ToLower(strings.TrimSpace(userAgent))
+	return strings.HasPrefix(userAgent, "curl/") ||
+		strings.HasPrefix(userAgent, "wget/")
 }

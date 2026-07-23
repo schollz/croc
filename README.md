@@ -31,7 +31,7 @@ For more information about `croc`, see [my blog post](https://schollz.com/tinker
 You can download [the latest release for your system](https://github.com/schollz/croc/releases/latest), or install a release from the command-line:
 
 ```bash
-curl https://getcroc.schollz.com | bash
+curl https://getcroc.com | bash
 ```
 
 ### On macOS
@@ -89,7 +89,7 @@ First, install dependencies:
 
 ```bash
 apk add bash coreutils
-wget -qO- https://getcroc.schollz.com | bash
+wget -qO- https://getcroc.com | bash
 ```
 
 ### On Arch Linux

@@ -16,9 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testInstaller = "#!/bin/bash\nset -o nounset\n"
+
 func testSite() fstest.MapFS {
 	return fstest.MapFS{
 		"index.html":     {Data: []byte("<!doctype html><div id=\"root\"></div>")},
+		"default.txt":    {Data: []byte(testInstaller)},
 		"assets/app.js":  {Data: []byte("console.log('croc')")},
 		"assets/app.css": {Data: []byte("body { color: black; }")},
 	}
@@ -117,6 +120,66 @@ func TestServesSiteAndRuntimeConfig(t *testing.T) {
 			";\n",
 		),
 	)
+}
+
+func TestRootNegotiatesInstallerForCommandLineClients(t *testing.T) {
+	handler, err := Handler(Config{
+		RelayHost:    "127.0.0.1",
+		AllowedPorts: []string{"9009"},
+		StaticFiles:  testSite(),
+	})
+	require.NoError(t, err)
+
+	for _, userAgent := range []string{
+		"curl/8.10.1",
+		"Wget/1.24.5",
+	} {
+		t.Run(userAgent, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "/", nil)
+			request.Header.Set("User-Agent", userAgent)
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, request)
+
+			assert.Equal(t, http.StatusOK, recorder.Code)
+			assert.Equal(t, testInstaller, recorder.Body.String())
+			assert.Equal(t, "text/plain; charset=utf-8", recorder.Header().Get("Content-Type"))
+			assert.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
+			assert.Equal(t, "User-Agent", recorder.Header().Get("Vary"))
+			assert.Equal(t, "nosniff", recorder.Header().Get("X-Content-Type-Options"))
+		})
+	}
+
+	request := httptest.NewRequest(http.MethodHead, "/", nil)
+	request.Header.Set("User-Agent", "curl/8.10.1")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Empty(t, recorder.Body.String())
+	assert.Equal(t, int64(len(testInstaller)), recorder.Result().ContentLength)
+}
+
+func TestRootContinuesServingSiteToBrowsers(t *testing.T) {
+	handler, err := Handler(Config{
+		RelayHost:    "127.0.0.1",
+		AllowedPorts: []string{"9009"},
+		StaticFiles:  testSite(),
+	})
+	require.NoError(t, err)
+
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set("User-Agent", "Mozilla/5.0 Firefox/142.0")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `id="root"`)
+	assert.Equal(t, "User-Agent", recorder.Header().Get("Vary"))
+
+	request = httptest.NewRequest(http.MethodGet, "/send/files", nil)
+	request.Header.Set("User-Agent", "curl/8.10.1")
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `id="root"`)
 }
 
 func TestRejectsPortOutsideAllowlist(t *testing.T) {

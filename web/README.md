@@ -82,7 +82,8 @@ panel.
 
 The unified server exposes:
 
-- `GET /` and embedded static client assets
+- `GET /` and embedded static client assets; curl and wget receive the
+  installer script at `/` while browsers receive the web client
 - `GET /config.js`
 - `GET /healthz`
 - `GET /ws?port=<allowlisted-port>` upgraded to a binary WebSocket

@@ -275,6 +275,30 @@ test("publishes rich metadata and project links", async ({ page }) => {
   );
 });
 
+test("serves the installer to curl and the app to browsers", async ({
+  page,
+  request,
+}) => {
+  const installer = await request.get("/", {
+    headers: { "User-Agent": "curl/8.10.1" },
+  });
+  expect(installer.ok()).toBe(true);
+  expect(installer.headers()["content-type"]).toBe("text/plain; charset=utf-8");
+  expect(installer.headers()["cache-control"]).toBe("no-store");
+  expect(installer.headers()["vary"]).toBe("User-Agent");
+  expect(await installer.text()).toMatch(
+    /^#!\/bin\/bash[\s\S]*croc_version="/,
+  );
+
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Send files, secured end-to-end." }),
+  ).toBeVisible();
+  expect((await page.locator("html").textContent()) ?? "").not.toContain(
+    "croc Installer Script",
+  );
+});
+
 test("help tour explains browser transfers and end-to-end encryption", async ({
   page,
 }) => {
