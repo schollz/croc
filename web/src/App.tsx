@@ -991,7 +991,7 @@ export function App() {
                 disabled={receiveCode.trim().length < 6}
                 onClick={() => void startReceive()}
               >
-                <Download /> Connect and review
+                <Download /> Receive
               </button>
             ))}
         </article>

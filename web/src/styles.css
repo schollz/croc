@@ -96,7 +96,7 @@ a:focus-visible {
 .eyebrow {
   margin: 0 0 7px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -176,7 +176,7 @@ h1 {
   place-items: center;
   border: 1px solid var(--soft-border);
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .panel-heading h2 {
@@ -188,7 +188,7 @@ h1 {
 .panel-heading p {
   margin: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.55;
 }
 
@@ -220,7 +220,7 @@ h1 {
 
 .drop-zone small {
   color: var(--subtle);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .drop-zone:hover small,
@@ -240,7 +240,7 @@ h1 {
   justify-content: space-between;
   padding: 9px 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .file-list {
@@ -260,7 +260,7 @@ h1 {
   min-height: 36px;
   border-bottom: 1px solid var(--soft-border);
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .file-list svg {
@@ -295,7 +295,7 @@ h1 {
 .field-label {
   display: block;
   margin: 20px 0 7px;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 750;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -309,7 +309,7 @@ input {
   padding: 0 11px;
   color: var(--foreground);
   background: var(--background);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 input::placeholder {
@@ -368,7 +368,7 @@ button:disabled {
   top: calc(100% + 5px);
   right: 0;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -379,13 +379,13 @@ button:disabled {
 
 .large-code-input {
   height: 54px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .field-help {
   margin: 8px 0 20px;
   color: var(--subtle);
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.55;
 }
 
@@ -399,7 +399,7 @@ button:disabled {
   gap: 9px;
   border: 1px solid var(--foreground);
   padding: 11px 14px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
   cursor: pointer;
 }
@@ -445,7 +445,7 @@ button:disabled {
   margin: 16px 0;
   padding: 10px 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -467,7 +467,7 @@ button:disabled {
 
 .progress-block {
   margin: 18px 0;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .progress-copy,
@@ -525,7 +525,7 @@ button:disabled {
 
 .progress-metrics span {
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -533,7 +533,7 @@ button:disabled {
 .progress-metrics strong {
   overflow: hidden;
   color: var(--foreground);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -545,7 +545,7 @@ button:disabled {
   align-items: center;
   margin: 0 0 14px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .completed-count svg {
@@ -564,7 +564,7 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   margin-bottom: 12px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 750;
   text-transform: uppercase;
 }
@@ -585,7 +585,7 @@ button:disabled {
 .offer > p {
   margin: 13px 0;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.55;
 }
 
@@ -609,7 +609,7 @@ button:disabled {
   padding: 0;
   overflow: auto;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   list-style: none;
 }
 
@@ -645,7 +645,7 @@ button:disabled {
 .cli-download > div:first-child > p:not(.eyebrow) {
   margin: 10px 0 0;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.6;
 }
 
@@ -663,7 +663,7 @@ button:disabled {
   border: 1px solid var(--foreground);
   color: var(--background);
   background: var(--foreground);
-  font-size: 10px;
+  font-size: 11px;
   text-decoration: none;
 }
 
@@ -691,7 +691,7 @@ a.cli-download-primary:hover {
 
 .cli-download-primary small {
   opacity: 0.72;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .cli-download-alternatives {
@@ -699,7 +699,7 @@ a.cli-download-primary:hover {
   flex-wrap: wrap;
   gap: 5px 10px;
   color: var(--subtle);
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .cli-download-alternatives a {
@@ -713,7 +713,7 @@ a.cli-download-primary:hover {
 .other-releases {
   justify-self: start;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
   text-transform: uppercase;
 }
 
@@ -732,7 +732,7 @@ a.cli-download-primary:hover {
   justify-content: space-between;
   padding: 13px 15px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
   list-style: none;
 }
@@ -749,7 +749,7 @@ a.cli-download-primary:hover {
 
 .settings summary > span:last-child {
   color: var(--subtle);
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -775,14 +775,14 @@ a.cli-download-primary:hover {
   display: block;
   margin-bottom: 6px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .settings-grid input {
   height: 38px;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .settings-grid .checkbox-label {
@@ -802,7 +802,7 @@ a.cli-download-primary:hover {
 .settings-grid .checkbox-label span {
   margin: 0;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0;
   text-transform: none;
 }
@@ -829,14 +829,14 @@ a.cli-download-primary:hover {
   max-width: 760px;
   margin: 12px 0 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.7;
 }
 
 .about-croc > a {
   padding-bottom: 2px;
   border-bottom: 1px solid var(--foreground);
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.6;
   text-decoration: none;
   text-transform: uppercase;
@@ -851,7 +851,7 @@ footer {
   justify-content: space-between;
   padding: 18px 0;
   color: var(--subtle);
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -871,7 +871,7 @@ footer {
 
 .driver-popover.croc-tour .driver-popover-title {
   padding-right: 27px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 750;
   letter-spacing: -0.025em;
   line-height: 1.35;
@@ -903,7 +903,7 @@ footer {
 
 .driver-popover.croc-tour .driver-popover-progress-text {
   color: var(--subtle);
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.08em;
 }
 
@@ -915,7 +915,7 @@ footer {
   color: var(--foreground);
   background: var(--background);
   font-family: inherit;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   text-align: center;
   text-shadow: none;

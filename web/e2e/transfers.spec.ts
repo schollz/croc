@@ -155,7 +155,7 @@ async function prepareWebSender(
 async function connectWebReceiver(page: Page, secret: string) {
   const panel = page.locator(".receive-panel");
   await panel.getByLabel("Croc code").fill(secret);
-  await panel.getByRole("button", { name: "Connect and review" }).click();
+  await panel.getByRole("button", { name: "Receive", exact: true }).click();
   return panel;
 }
 
@@ -261,6 +261,13 @@ test("publishes rich metadata and project links", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Download croc for macOS." }),
   ).toBeVisible();
+  const receivePanel = page.locator(".receive-panel");
+  await expect(
+    receivePanel.getByRole("button", { name: "Receive", exact: true }),
+  ).toHaveCSS("font-size", "12px");
+  await expect(
+    receivePanel.getByText("Enter the sender’s code. Review before saving."),
+  ).toHaveCSS("font-size", "12px");
   await expect(
     page.getByText("Detected macOS. Release assets come directly from GitHub."),
   ).toHaveCount(0);
