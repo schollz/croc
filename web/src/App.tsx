@@ -607,16 +607,6 @@ export function App() {
         },
       },
       {
-        element: ".transfer-grid",
-        popover: {
-          title: "The gateway cannot read your files",
-          description:
-            "The WebSocket gateway and croc relay only match peers and forward encrypted protocol frames. They never receive the peer encryption key, so they cannot decrypt filenames or file contents.",
-          side: "bottom",
-          align: "start",
-        },
-      },
-      {
         element: '[data-tour="settings"]',
         popover: {
           title: "Use another relay when needed",

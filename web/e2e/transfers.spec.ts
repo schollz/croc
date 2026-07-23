@@ -351,7 +351,6 @@ test("help tour explains browser transfers and end-to-end encryption", async ({
     "Send one or several files",
     "Receive and review",
     "The code creates the encryption key",
-    "The gateway cannot read your files",
     "Use another relay when needed",
     "Works with the croc CLI",
     "Simple by design",
@@ -365,11 +364,6 @@ test("help tour explains browser transfers and end-to-end encryption", async ({
       );
       await expect(tour).toContainText(
         "encrypted before leaving the browser",
-      );
-    }
-    if (expectedTitle === "The gateway cannot read your files") {
-      await expect(tour).toContainText(
-        "cannot decrypt filenames or file contents",
       );
     }
     if (index < steps.length - 1) {
