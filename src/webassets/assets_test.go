@@ -16,7 +16,7 @@ func TestEmbeddedClientContainsEntryPointAndWasm(t *testing.T) {
 		t.Fatal("embedded index is empty")
 	}
 	for _, fragment := range [][]byte{
-		[]byte(`rel="canonical" href="https://share.schollz.com/"`),
+		[]byte(`rel="canonical" href="https://getcroc.com/"`),
 		[]byte(`property="og:title"`),
 		[]byte(`name="twitter:card"`),
 		[]byte(`type="application/ld+json"`),

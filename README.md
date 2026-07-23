@@ -267,7 +267,7 @@ To show QR code (for mobile devices), use:
 croc send --qr [file(s)-or-folder]
 ```
 
-The QR code opens `https://share.schollz.com/?code=...`, where the web client
+The QR code opens `https://getcroc.com/?code=...`, where the web client
 automatically connects in receive-only mode.
 
 #### Use a Proxy
@@ -362,7 +362,7 @@ runtime are embedded in every `croc` binary. One command serves both the site
 and its same-origin WebSocket relay:
 
 ```bash
-croc serve share.schollz.com
+croc serve getcroc.com
 ```
 
 This binds to `127.0.0.1:9014` by default for an HTTPS reverse proxy. `/`

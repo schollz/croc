@@ -242,7 +242,7 @@ test("publishes rich metadata and project links", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
-    "https://share.schollz.com/",
+    "https://getcroc.com/",
   );
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
     "content",

@@ -1476,7 +1476,7 @@ func showReceiveCommandQrCode(command string) {
 }
 
 func webReceiveURL(code string) string {
-	return "https://share.schollz.com/?code=" + url.QueryEscape(code)
+	return "https://getcroc.com/?code=" + url.QueryEscape(code)
 }
 
 type peerDiscoveryResult struct {

@@ -86,10 +86,10 @@ func TestResolveServeAddress(t *testing.T) {
 		},
 		{
 			name:          "public host uses default bind",
-			publicAddress: "share.schollz.com",
+			publicAddress: "getcroc.com",
 			bindAddress:   "127.0.0.1:9014",
 			wantBind:      "127.0.0.1:9014",
-			wantOrigin:    "share.schollz.com",
+			wantOrigin:    "getcroc.com",
 		},
 		{
 			name:          "local development host binds directly",
@@ -115,7 +115,7 @@ func TestResolveServeAddress(t *testing.T) {
 		},
 		{
 			name:          "rejects URL",
-			publicAddress: "https://share.schollz.com",
+			publicAddress: "https://getcroc.com",
 			bindAddress:   "127.0.0.1:9014",
 			wantError:     true,
 		},
@@ -127,7 +127,7 @@ func TestResolveServeAddress(t *testing.T) {
 		},
 		{
 			name:          "rejects invalid bind",
-			publicAddress: "share.schollz.com",
+			publicAddress: "getcroc.com",
 			bindAddress:   "localhost",
 			bindExplicit:  true,
 			wantError:     true,

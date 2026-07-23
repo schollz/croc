@@ -40,7 +40,7 @@ func init() {
 func TestWebReceiveURL(t *testing.T) {
 	assert.Equal(
 		t,
-		"https://share.schollz.com/?code=1234-word%2Fword%3F%26",
+		"https://getcroc.com/?code=1234-word%2Fword%3F%26",
 		webReceiveURL("1234-word/word?&"),
 	)
 }

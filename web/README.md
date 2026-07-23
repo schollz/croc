@@ -92,7 +92,7 @@ The unified server exposes:
 Run `croc serve` behind an HTTPS reverse proxy:
 
 ```bash
-croc serve --bind 127.0.0.1:9014 share.schollz.com
+croc serve --bind 127.0.0.1:9014 getcroc.com
 ```
 
 Proxy the complete origin—including WebSocket upgrades—to
