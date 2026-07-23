@@ -10,7 +10,6 @@ import {
   Moon,
   RefreshCw,
   Settings2,
-  ShieldCheck,
   Sun,
   Upload,
   X,
@@ -600,7 +599,7 @@ export function App() {
         },
       },
       {
-        element: '[data-tour="security"]',
+        element: ".transfer-grid",
         popover: {
           title: "The code creates the encryption key",
           description:
@@ -610,7 +609,7 @@ export function App() {
         },
       },
       {
-        element: '[data-tour="security"]',
+        element: ".transfer-grid",
         popover: {
           title: "The gateway cannot read your files",
           description:
@@ -723,12 +722,6 @@ export function App() {
           </button>
         </div>
       </header>
-
-      <div className="security-strip" data-tour="security">
-        <ShieldCheck aria-hidden="true" />
-        <span>End-to-end encrypted with croc PAKE</span>
-        <span className="security-route">{settings.relayAddress}</span>
-      </div>
 
       <section
         className={`transfer-grid${requestedReceiveCode ? " receive-only" : ""}`}

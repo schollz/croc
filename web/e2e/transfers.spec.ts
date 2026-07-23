@@ -137,7 +137,7 @@ async function configurePage(page: Page) {
   await page
     .getByRole("textbox", { name: "Relay password", exact: true })
     .fill(relayPassword);
-  await expect(page.locator(".security-route")).toHaveText(relayAddress);
+  await expect(page.getByLabel("CLI relay address")).toHaveValue(relayAddress);
 }
 
 async function prepareWebSender(

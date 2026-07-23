@@ -49,8 +49,7 @@ a {
 button,
 input,
 details,
-.panel,
-.security-strip {
+.panel {
   border-radius: 0;
 }
 
@@ -138,28 +137,6 @@ h1 {
   display: flex;
   gap: 8px;
   align-items: center;
-}
-
-.security-strip {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 16px;
-  padding: 11px 13px;
-  border: 1px solid var(--soft-border);
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.security-strip svg {
-  width: 16px;
-  height: 16px;
-  color: var(--foreground);
-}
-
-.security-route {
-  margin-left: auto;
-  color: var(--subtle);
 }
 
 .transfer-grid {
@@ -997,9 +974,6 @@ footer {
     align-items: start;
   }
 
-  .security-route {
-    display: none;
-  }
 }
 
 @media (max-width: 460px) {
