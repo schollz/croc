@@ -691,13 +691,15 @@ export function App() {
       </aside>
 
       <header className="site-header">
-        <img
-          className="brand-illustration"
-          src="/croc.jpg"
-          width="408"
-          height="196"
-          alt="Hand-drawn green crocodile floating in blue water"
-        />
+        <a className="brand-link" href="/" aria-label="Go to croc home">
+          <img
+            className="brand-illustration"
+            src="/croc.jpg"
+            width="408"
+            height="196"
+            alt="Hand-drawn green crocodile floating in blue water"
+          />
+        </a>
         <div>
           <p className="eyebrow">
             <strong>croc</strong> is a free and open-source tool to
