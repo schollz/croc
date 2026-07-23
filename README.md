@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://user-images.githubusercontent.com/6550035/46709024-9b23ad00-cbf6-11e8-9fb2-ca8b20b7dbec.jpg" width="408px" border="0" alt="croc">
+  <img src="web/public/croc.jpg" width="408px" border="0" alt="croc">
   <br>
   <a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/github/v/release/schollz/croc" alt="Version"></a>
   <a href="https://github.com/schollz/croc/actions/workflows/ci.yml"><img src="https://github.com/schollz/croc/actions/workflows/ci.yml/badge.svg" alt="Build Status"></a>
@@ -31,7 +31,7 @@ For more information about `croc`, see [my blog post](https://schollz.com/tinker
 You can download [the latest release for your system](https://github.com/schollz/croc/releases/latest), or install a release from the command-line:
 
 ```bash
-curl https://getcroc.schollz.com | bash
+curl https://getcroc.com | bash
 ```
 
 ### On macOS
@@ -89,7 +89,7 @@ First, install dependencies:
 
 ```bash
 apk add bash coreutils
-wget -qO- https://getcroc.schollz.com | bash
+wget -qO- https://getcroc.com | bash
 ```
 
 ### On Arch Linux
@@ -275,6 +275,9 @@ To show QR code (for mobile devices), use:
 croc send --qr [file(s)-or-folder]
 ```
 
+The QR code opens `https://getcroc.com/?code=...`, where the web client
+automatically connects in receive-only mode.
+
 #### Use a Proxy
 
 You can send files via a proxy by adding `--socks5`:
@@ -358,6 +361,26 @@ To use custom ports, set `CROC_PORTS` (comma-separated) or `CROC_PORT` (base por
 ```bash
 docker run -d -p 9010-9011:9010-9011 -e CROC_PORTS='9010,9011' -e CROC_PASS='YOURPASSWORD' docker.io/schollz/croc
 ```
+
+#### Web client
+
+The React/Vite client in [`web/`](web/) can send and receive multiple files
+with normal croc CLI peers. The production client and its WebAssembly protocol
+runtime are embedded in every `croc` binary. One command serves both the site
+and its same-origin WebSocket relay:
+
+```bash
+croc serve getcroc.com
+```
+
+This binds to `127.0.0.1:9014` by default for an HTTPS reverse proxy. `/`
+serves the website and `/ws` bridges to `croc.schollz.com`. For a directly
+accessible local development server, `croc serve localhost:5173` binds and
+serves on `localhost:5173`. Use `--bind`, `--relay`, and `--ports` before the
+website address to customize the local listener or upstream croc relay.
+
+See [`web/README.md`](web/README.md) for frontend development, embedded asset
+generation, custom relay, and reverse-proxy instructions.
 
 ## Acknowledgements
 

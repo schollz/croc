@@ -3,9 +3,9 @@
 #
 #          FILE: default.txt
 # 
-#         USAGE: curl https://getcroc.schollz.com | bash
+#         USAGE: curl https://getcroc.com | bash
 #                 OR
-#                wget -qO- https://getcroc.schollz.com | bash
+#                wget -qO- https://getcroc.com | bash
 # 
 #   DESCRIPTION: croc Installer Script.
 #
