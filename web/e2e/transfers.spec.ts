@@ -233,7 +233,13 @@ test("CLI → Web transfers and verifies multiple files", async ({
   const configDirectory = testInfo.outputPath("croc-config");
   await fs.mkdir(configDirectory, { recursive: true });
   await configurePage(page);
-  const receivePanel = await connectWebReceiver(page, secret);
+  await page.goto(`/?code=${encodeURIComponent(secret)}`);
+  await expect(page.locator(".send-panel")).toHaveCount(0);
+  const receivePanel = page.locator(".receive-panel");
+  await expect(receivePanel.getByLabel("Croc code")).toHaveValue(secret);
+  await expect(
+    receivePanel.getByRole("button", { name: "Cancel receive" }),
+  ).toBeVisible();
   const cli = runCroc(
     [...commonCLIArgs(), "send", "--no-local", ...fixtures.paths],
     secret,

@@ -43,6 +43,8 @@ type Theme = "dark" | "light";
 type CopyState = "idle" | "copied" | "error";
 
 const runtimeSettings = window.__CROC_RUNTIME_CONFIG__ ?? {};
+const requestedReceiveCode =
+  new URLSearchParams(window.location.search).get("code")?.trim() ?? "";
 const defaultSettings: TransferSettings = {
   gatewayURL:
     runtimeSettings.gatewayURL ||
@@ -205,7 +207,7 @@ export function App() {
   const [completedSend, setCompletedSend] = useState<string[]>([]);
   const [copyState, setCopyState] = useState<CopyState>("idle");
 
-  const [receiveCode, setReceiveCode] = useState("");
+  const [receiveCode, setReceiveCode] = useState(requestedReceiveCode);
   const [receiveActivity, setReceiveActivity] = useState<Activity>("idle");
   const [receiveStatus, setReceiveStatus] = useState("");
   const [receiveProgress, setReceiveProgress] = useState<FileProgress>();
@@ -277,6 +279,17 @@ export function App() {
       sendAbort.current?.abort();
       receiveAbort.current?.abort();
     };
+  }, []);
+
+  useEffect(() => {
+    if (!requestedReceiveCode) return;
+    if (requestedReceiveCode.length < 6) {
+      setReceiveActivity("error");
+      setReceiveStatus("The croc code in this link is too short");
+      return;
+    }
+    void startReceive();
+    return () => receiveAbort.current?.abort();
   }, []);
 
   function addFiles(files: File[]) {
@@ -432,7 +445,11 @@ export function App() {
         </div>
         <div>
           <p className="eyebrow">croc://web</p>
-          <h1>Send files, secured end-to-end.</h1>
+          <h1>
+            {requestedReceiveCode
+              ? "Receive files, secured end-to-end."
+              : "Send files, secured end-to-end."}
+          </h1>
         </div>
         <button
           className="icon-button theme-toggle"
@@ -450,8 +467,12 @@ export function App() {
         <span className="security-route">{settings.relayAddress}</span>
       </div>
 
-      <section className="transfer-grid" aria-label="File transfer controls">
-        <article className="panel send-panel">
+      <section
+        className={`transfer-grid${requestedReceiveCode ? " receive-only" : ""}`}
+        aria-label="File transfer controls"
+      >
+        {!requestedReceiveCode && (
+          <article className="panel send-panel">
           <div className="panel-heading">
             <span className="step">01</span>
             <div>
@@ -600,11 +621,12 @@ export function App() {
               {selectedFiles.length === 1 ? "" : "s"}
             </button>
           )}
-        </article>
+          </article>
+        )}
 
         <article className="panel receive-panel">
           <div className="panel-heading">
-            <span className="step">02</span>
+            <span className="step">{requestedReceiveCode ? "01" : "02"}</span>
             <div>
               <h2>Receive</h2>
               <p>Enter the sender’s code. Review before saving.</p>

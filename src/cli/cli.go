@@ -78,7 +78,7 @@ func Run() (err error) {
 				&cli.BoolFlag{Name: "git", Usage: "enable .gitignore respect / don't send ignored files"},
 				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay"},
 				&cli.IntFlag{Name: "transfers", Value: 4, Usage: "number of ports to use for transfers"},
-				&cli.BoolFlag{Name: "qrcode", Aliases: []string{"qr"}, Usage: "show receive code as a qrcode"},
+				&cli.BoolFlag{Name: "qrcode", Aliases: []string{"qr"}, Usage: "show the web receive URL as a qrcode"},
 				&cli.StringFlag{Name: "exclude", Value: "", Usage: "exclude files if they contain any of the comma separated strings"},
 				&cli.StringFlag{Name: "exclude-file", Value: "", Usage: "exclude files matching any of the comma separated relative paths exactly"},
 				&cli.StringFlag{Name: "socks5", Value: "", Usage: "add a socks5 proxy", EnvVars: []string{"SOCKS5_PROXY"}},

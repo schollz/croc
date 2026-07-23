@@ -267,6 +267,9 @@ To show QR code (for mobile devices), use:
 croc send --qr [file(s)-or-folder]
 ```
 
+The QR code opens `https://share.schollz.com/?code=...`, where the web client
+automatically connects in receive-only mode.
+
 #### Use a Proxy
 
 You can send files via a proxy by adding `--socks5`:

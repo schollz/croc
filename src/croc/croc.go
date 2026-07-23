@@ -13,6 +13,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -1343,6 +1344,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 	if c.Options.RelayPassword != models.DEFAULT_PASSPHRASE {
 		flags.WriteString("--pass " + c.Options.RelayPassword + " ")
 	}
+	webURL := webReceiveURL(c.Options.SharedSecret)
 	fmt.Fprintf(os.Stderr, `Code is: %[1]s
 
 On the other computer run:
@@ -1350,7 +1352,10 @@ On the other computer run:
     croc %[2]s%[1]s
 (For Linux/macOS)
     CROC_SECRET=%[1]q croc %[2]s
-`, c.Options.SharedSecret, flags.String())
+
+Or receive in a browser:
+    %[3]s
+`, c.Options.SharedSecret, flags.String(), webURL)
 	if !c.Options.DisableClipboard {
 		clipboardText := c.Options.SharedSecret
 		if c.Options.ExtendedClipboard {
@@ -1359,7 +1364,7 @@ On the other computer run:
 		copyToClipboard(clipboardText, c.Options.Quiet, c.Options.ExtendedClipboard)
 	}
 	if c.Options.ShowQrCode {
-		showReceiveCommandQrCode(fmt.Sprintf("%[1]s", c.Options.SharedSecret))
+		showReceiveCommandQrCode(webURL)
 	}
 	if c.Options.Ask {
 		machid, _ := machineid.ID()
@@ -1468,6 +1473,10 @@ func showReceiveCommandQrCode(command string) {
 	if err == nil {
 		fmt.Println(qrCode.ToSmallString(false))
 	}
+}
+
+func webReceiveURL(code string) string {
+	return "https://share.schollz.com/?code=" + url.QueryEscape(code)
 }
 
 type peerDiscoveryResult struct {

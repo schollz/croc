@@ -157,6 +157,10 @@ h1 {
   border-left: 1px solid var(--foreground);
 }
 
+.transfer-grid.receive-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .panel {
   display: flex;
   min-width: 0;
