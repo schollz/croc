@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -342,6 +342,7 @@ export function App() {
   const sendAbort = useRef<AbortController>(undefined);
   const receiveAbort = useRef<AbortController>(undefined);
   const fileInput = useRef<HTMLInputElement>(null);
+  const receivePanel = useRef<HTMLElement>(null);
   const copyReset = useRef<number>(undefined);
   const tour = useRef<Driver>(undefined);
 
@@ -414,6 +415,12 @@ export function App() {
     }
     void startReceive();
     return () => receiveAbort.current?.abort();
+  }, []);
+
+  useLayoutEffect(() => {
+    if (requestedReceiveCode) {
+      receivePanel.current?.scrollIntoView({ block: "start" });
+    }
   }, []);
 
   function addFiles(files: File[]) {
@@ -891,7 +898,12 @@ export function App() {
           </article>
         )}
 
-        <article className="panel receive-panel" data-tour="receive">
+        <article
+          id="receive"
+          ref={receivePanel}
+          className="panel receive-panel"
+          data-tour="receive"
+        >
           <div className="panel-heading">
             <span className="step">{requestedReceiveCode ? "01" : "02"}</span>
             <div>

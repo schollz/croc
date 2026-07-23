@@ -246,8 +246,9 @@ test("publishes rich metadata and project links", async ({ page }) => {
   );
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
     "content",
-    /croc web/i,
+    "croc — fast, simple, secure file transfer",
   );
+  await expect(page).toHaveTitle("croc — fast, simple, secure file transfer");
   const structuredData = JSON.parse(
     (await page.locator('script[type="application/ld+json"]').textContent()) ?? "{}",
   ) as { "@type"?: string };
@@ -313,6 +314,30 @@ test("serves the installer to curl and the app to browsers", async ({
   expect((await page.locator("html").textContent()) ?? "").not.toContain(
     "croc Installer Script",
   );
+});
+
+test("receive links open with the Receive panel at the top", async ({
+  page,
+}) => {
+  await page.goto("/?code=x");
+
+  const receivePanel = page.locator("#receive");
+  await expect(receivePanel).toBeVisible();
+  await expect(page.locator(".send-panel")).toHaveCount(0);
+  await expect
+    .poll(() =>
+      receivePanel.evaluate((element) =>
+        Math.round(element.getBoundingClientRect().top),
+      ),
+    )
+    .toBe(0);
+  await expect
+    .poll(() =>
+      page.locator(".site-header").evaluate((element) =>
+        element.getBoundingClientRect().bottom,
+      ),
+    )
+    .toBeLessThanOrEqual(0);
 });
 
 test("help tour explains browser transfers and end-to-end encryption", async ({
