@@ -844,7 +844,7 @@ func UnzipDirectory(destination string, source string) error {
 }
 
 func resolveUnzipPath(destination string, entryName string) (string, error) {
-	if filepath.IsAbs(entryName) || filepath.VolumeName(entryName) != "" {
+	if !filepath.IsLocal(entryName) {
 		return "", fmt.Errorf("path escapes destination")
 	}
 

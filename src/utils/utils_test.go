@@ -504,14 +504,55 @@ func TestUnzipDirectoryRejectsPathTraversal(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr), "pre-validation should prevent partial extraction")
 }
 
-func TestResolveUnzipPathRejectsAbsolutePathEntry(t *testing.T) {
+func TestResolveUnzipPathRejectsNonLocalEntries(t *testing.T) {
 	destination := t.TempDir()
-	absoluteEntry := filepath.Join(string(os.PathSeparator), "tmp", "croc-absolute-escape.txt")
+	tests := []struct {
+		name  string
+		entry string
+	}{
+		{
+			name:  "absolute path",
+			entry: filepath.Join(string(os.PathSeparator), "tmp", "croc-absolute-escape.txt"),
+		},
+		{
+			name:  "parent directory",
+			entry: "..",
+		},
+		{
+			name:  "parent traversal",
+			entry: filepath.Join("..", "croc-relative-escape.txt"),
+		},
+		{
+			name:  "nested parent traversal",
+			entry: filepath.Join("safe", "..", "..", "croc-relative-escape.txt"),
+		},
+		{
+			name:  "empty path",
+			entry: "",
+		},
+	}
 
-	_, err := resolveUnzipPath(destination, absoluteEntry)
-	assert.NotNil(t, err)
-	if err != nil {
-		assert.Contains(t, err.Error(), "path escapes destination")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := resolveUnzipPath(destination, tt.entry)
+			assert.ErrorContains(t, err, "path escapes destination")
+		})
+	}
+}
+
+func TestResolveUnzipPathAllowsLocalEntries(t *testing.T) {
+	destination := t.TempDir()
+
+	for _, entry := range []string{
+		"file.txt",
+		filepath.Join("directory", "file.txt"),
+		"directory..name",
+	} {
+		t.Run(entry, func(t *testing.T) {
+			resolved, err := resolveUnzipPath(destination, entry)
+			assert.NoError(t, err)
+			assert.Equal(t, filepath.Join(destination, entry), resolved)
+		})
 	}
 }
 
