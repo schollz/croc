@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "strict": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": [
+    "vite.config.ts",
+    "playwright.config.ts",
+    "scripts/**/*.mjs",
+    "e2e/**/*.ts",
+    "e2e/**/*.mjs"
+  ]
+}

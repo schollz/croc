@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.e2e/
+playwright-report/
+test-results/
+test-fixtures/
+.DS_Store
+.env
+.env.*
+!.env.example
+npm-debug.log*
+public/croc.wasm
+public/wasm_exec.js
+*.tsbuildinfo
