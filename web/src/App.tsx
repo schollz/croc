@@ -1086,7 +1086,7 @@ export function App() {
       </section>
 
       <footer>
-        <span>croc protocol · browser transport</span>
+        <span>end-to-end encrypted · browser transport</span>
         <span>
           open source · made by{" "}
           <a

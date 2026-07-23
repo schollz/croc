@@ -261,6 +261,9 @@ test("publishes rich metadata and project links", async ({ page }) => {
   await expect(
     page.getByRole("link", { name: "schollz", exact: true }),
   ).toHaveAttribute("href", "https://github.com/sponsors/schollz");
+  await expect(page.locator("footer")).toContainText(
+    "end-to-end encrypted · browser transport",
+  );
   await expect(
     page.getByRole("heading", { name: "Download croc for macOS." }),
   ).toBeVisible();
