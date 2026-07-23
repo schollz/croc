@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowLeftRight,
   Check,
+  CircleHelp,
   Copy,
   Download,
   File as FileIcon,
@@ -15,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
+import { driver, type DriveStep, type Driver } from "driver.js";
 import { errorMessage, formatBytes } from "./protocol/bytes";
 import {
   prepareFiles,
@@ -233,7 +235,11 @@ function CliDownload() {
     platform === "other" ? "your operating system" : platform;
 
   return (
-    <section className="cli-download" aria-labelledby="cli-download-title">
+    <section
+      className="cli-download"
+      aria-labelledby="cli-download-title"
+      data-tour="cli"
+    >
       <div>
         <p className="eyebrow">croc CLI</p>
         <h2 id="cli-download-title">Download croc for {platformLabel}.</h2>
@@ -340,6 +346,7 @@ export function App() {
   const receiveAbort = useRef<AbortController>(undefined);
   const fileInput = useRef<HTMLInputElement>(null);
   const copyReset = useRef<number>(undefined);
+  const tour = useRef<Driver>(undefined);
 
   const totalSelectedSize = useMemo(
     () => selectedFiles.reduce((total, file) => total + file.size, 0),
@@ -395,6 +402,7 @@ export function App() {
       if (copyReset.current !== undefined) {
         window.clearTimeout(copyReset.current);
       }
+      tour.current?.destroy();
       sendAbort.current?.abort();
       receiveAbort.current?.abort();
     };
@@ -553,6 +561,119 @@ export function App() {
     setOffer(undefined);
   }
 
+  function startTour() {
+    tour.current?.destroy();
+
+    const steps: DriveStep[] = [
+      {
+        popover: {
+          title: "Welcome to croc web",
+          description: requestedReceiveCode
+            ? "This receive link already filled its croc code and started connecting. You only need to review the incoming files and choose where to save them."
+            : "Send or receive files from this page with any compatible croc browser or command-line peer. This tour shows the complete flow.",
+        },
+      },
+    ];
+
+    if (!requestedReceiveCode) {
+      steps.push({
+        element: '[data-tour="send"]',
+        popover: {
+          title: "Send one or several files",
+          description:
+            "Choose files or drag them here, edit the generated croc code if you like, then press Send. Give that same code to the recipient while this page stays open.",
+          side: "right",
+          align: "start",
+        },
+      });
+    }
+
+    steps.push(
+      {
+        element: '[data-tour="receive"]',
+        popover: {
+          title: "Receive and review",
+          description:
+            "Paste the sender’s croc code and connect. Before anything is saved, you can inspect the names, paths, and sizes, then accept or refuse the transfer.",
+          side: requestedReceiveCode ? "top" : "left",
+          align: "start",
+        },
+      },
+      {
+        element: '[data-tour="security"]',
+        popover: {
+          title: "The code creates the encryption key",
+          description:
+            "croc uses password-authenticated key exchange (PAKE), so both peers derive a strong shared key from the croc code without sending that key through the relay. File metadata and chunks are encrypted before leaving the browser.",
+          side: "bottom",
+          align: "start",
+        },
+      },
+      {
+        element: '[data-tour="security"]',
+        popover: {
+          title: "The gateway cannot read your files",
+          description:
+            "The WebSocket gateway and croc relay only match peers and forward encrypted protocol frames. They never receive the peer encryption key, so they cannot decrypt filenames or file contents.",
+          side: "bottom",
+          align: "start",
+        },
+      },
+      {
+        element: '[data-tour="settings"]',
+        popover: {
+          title: "Use another relay when needed",
+          description:
+            "Most people can leave these advanced settings alone. Self-hosted setups can select their own WebSocket gateway, croc relay, and relay password.",
+          side: "top",
+          align: "start",
+        },
+      },
+      {
+        element: '[data-tour="cli"]',
+        popover: {
+          title: "Works with the croc CLI",
+          description:
+            "Browser transfers interoperate with normal croc command-line clients. Download the detected build here, or choose another release from GitHub.",
+          side: "top",
+          align: "start",
+        },
+      },
+      {
+        element: '[data-tour="about"]',
+        popover: {
+          title: "Simple by design",
+          description:
+            "No account, port forwarding, or local server is required. Follow the “Read how croc works” link for a deeper explanation of the protocol and its security model.",
+          side: "top",
+          align: "start",
+        },
+      },
+    );
+
+    tour.current = driver({
+      steps,
+      showProgress: true,
+      progressText: "{{current}} / {{total}}",
+      nextBtnText: "Next",
+      prevBtnText: "Back",
+      doneBtnText: "Done",
+      popoverClass: "croc-tour",
+      stagePadding: 8,
+      stageRadius: 0,
+      overlayOpacity: 0.76,
+      animate: !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
+      smoothScroll: true,
+      allowKeyboardControl: true,
+      disableActiveInteraction: true,
+      skipMissingElement: true,
+      onDestroyed: () => {
+        tour.current = undefined;
+      },
+    });
+    tour.current.drive();
+  }
+
   const sendBusy = sendActivity === "working";
   const receiveBusy = receiveActivity === "working";
 
@@ -571,6 +692,15 @@ export function App() {
           </h1>
         </div>
         <div className="header-actions">
+          <button
+            className="icon-button help-button"
+            type="button"
+            aria-label="How to use croc web"
+            title="How to use croc web"
+            onClick={startTour}
+          >
+            <CircleHelp aria-hidden="true" />
+          </button>
           <a
             className="icon-button"
             href="https://github.com/schollz/croc"
@@ -594,7 +724,7 @@ export function App() {
         </div>
       </header>
 
-      <div className="security-strip">
+      <div className="security-strip" data-tour="security">
         <ShieldCheck aria-hidden="true" />
         <span>End-to-end encrypted with croc PAKE</span>
         <span className="security-route">{settings.relayAddress}</span>
@@ -605,7 +735,7 @@ export function App() {
         aria-label="File transfer controls"
       >
         {!requestedReceiveCode && (
-          <article className="panel send-panel">
+          <article className="panel send-panel" data-tour="send">
           <div className="panel-heading">
             <span className="step">01</span>
             <div>
@@ -757,7 +887,7 @@ export function App() {
           </article>
         )}
 
-        <article className="panel receive-panel">
+        <article className="panel receive-panel" data-tour="receive">
           <div className="panel-heading">
             <span className="step">{requestedReceiveCode ? "01" : "02"}</span>
             <div>
@@ -888,7 +1018,7 @@ export function App() {
 
       <CliDownload />
 
-      <details className="settings">
+      <details className="settings" data-tour="settings">
         <summary>
           <span>
             <Settings2 /> Relay settings
@@ -949,7 +1079,11 @@ export function App() {
         </div>
       </details>
 
-      <section className="about-croc" aria-labelledby="about-croc-title">
+      <section
+        className="about-croc"
+        aria-labelledby="about-croc-title"
+        data-tour="about"
+      >
         <div>
           <p className="eyebrow">Why croc?</p>
           <h2 id="about-croc-title">

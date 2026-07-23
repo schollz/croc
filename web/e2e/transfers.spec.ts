@@ -275,6 +275,65 @@ test("publishes rich metadata and project links", async ({ page }) => {
   );
 });
 
+test("help tour explains browser transfers and end-to-end encryption", async ({
+  page,
+}) => {
+  await page.route(
+    "https://api.github.com/repos/schollz/croc/releases/latest",
+    async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          tag_name: "v99.0.0",
+          html_url: "https://github.com/schollz/croc/releases/tag/v99.0.0",
+          assets: [],
+        }),
+      });
+    },
+  );
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "How to use croc web" })
+    .click();
+
+  const tour = page.locator(".driver-popover.croc-tour");
+  const title = tour.locator(".driver-popover-title");
+  const next = tour.getByRole("button", { name: "Next" });
+  const steps = [
+    "Welcome to croc web",
+    "Send one or several files",
+    "Receive and review",
+    "The code creates the encryption key",
+    "The gateway cannot read your files",
+    "Use another relay when needed",
+    "Works with the croc CLI",
+    "Simple by design",
+  ];
+
+  for (const [index, expectedTitle] of steps.entries()) {
+    await expect(title).toHaveText(expectedTitle);
+    if (expectedTitle === "The code creates the encryption key") {
+      await expect(tour).toContainText(
+        "password-authenticated key exchange (PAKE)",
+      );
+      await expect(tour).toContainText(
+        "encrypted before leaving the browser",
+      );
+    }
+    if (expectedTitle === "The gateway cannot read your files") {
+      await expect(tour).toContainText(
+        "cannot decrypt filenames or file contents",
+      );
+    }
+    if (index < steps.length - 1) {
+      await next.click();
+    }
+  }
+
+  await tour.getByRole("button", { name: "Done" }).click();
+  await expect(tour).toHaveCount(0);
+});
+
 test("copying a croc code shows confirmation", async ({ page }) => {
   await configurePage(page);
   await page.evaluate(() => {

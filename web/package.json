@@ -21,6 +21,7 @@
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "arrival-time": "^1.0.6",
+    "driver.js": "^1.8.0",
     "lucide-react": "^1.26.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

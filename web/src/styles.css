@@ -137,6 +137,18 @@ h1 {
 .header-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+.help-button {
+  width: 34px;
+  height: 34px;
+  border-color: var(--soft-border);
+}
+
+.help-button svg {
+  width: 15px;
+  height: 15px;
 }
 
 .security-strip {
@@ -876,6 +888,84 @@ footer {
   font-size: 8px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.driver-popover.croc-tour {
+  min-width: min(320px, calc(100vw - 24px));
+  max-width: min(380px, calc(100vw - 24px));
+  border: 1px solid var(--foreground);
+  border-radius: 0;
+  padding: 17px;
+  color: var(--foreground);
+  background: var(--background);
+  box-shadow: none;
+  font-family:
+    "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+}
+
+.driver-popover.croc-tour .driver-popover-title {
+  padding-right: 27px;
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  line-height: 1.35;
+}
+
+.driver-popover.croc-tour .driver-popover-description {
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.driver-popover.croc-tour .driver-popover-close-btn {
+  top: 7px;
+  right: 6px;
+  color: var(--muted);
+  font-family: inherit;
+}
+
+.driver-popover.croc-tour .driver-popover-close-btn:hover,
+.driver-popover.croc-tour .driver-popover-close-btn:focus {
+  color: var(--foreground);
+}
+
+.driver-popover.croc-tour .driver-popover-footer {
+  margin-top: 18px;
+}
+
+.driver-popover.croc-tour .driver-popover-progress-text {
+  color: var(--subtle);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.driver-popover.croc-tour .driver-popover-footer-btn {
+  min-width: 58px;
+  border: 1px solid var(--foreground);
+  border-radius: 0;
+  padding: 7px 10px;
+  color: var(--foreground);
+  background: var(--background);
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  text-align: center;
+  text-shadow: none;
+}
+
+.driver-popover.croc-tour .driver-popover-footer-btn:hover,
+.driver-popover.croc-tour .driver-popover-footer-btn:focus {
+  color: var(--background);
+  background: var(--foreground);
+}
+
+.driver-popover.croc-tour .driver-popover-navigation-btns button + button {
+  margin-left: 6px;
+}
+
+.driver-popover.croc-tour .driver-popover-arrow {
+  display: none;
 }
 
 @media (max-width: 760px) {
