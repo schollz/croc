@@ -90,6 +90,7 @@ type Options struct {
 	NoCompress        bool
 	IP                string
 	Overwrite         bool
+	Rename            bool
 	Curve             string
 	HashAlgorithm     string
 	ThrottleUpload    string
@@ -2613,7 +2614,13 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		if !bytes.Equal(fileHash, fileInfo.Hash) {
 			log.Debugf("hashed %s to %x using %s", fileInfo.Name, fileHash, c.Options.HashAlgorithm)
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
-			if errHash == nil && !c.Options.Overwrite && errRecipientFile == nil && !strings.HasPrefix(fileInfo.Name, "croc-stdin-") && !c.Options.SendingText {
+			if errHash == nil && errRecipientFile == nil && !strings.HasPrefix(fileInfo.Name, "croc-stdin-") && !c.Options.SendingText && c.Options.Rename {
+				newName := utils.UnusedFilename(fileInfo.FolderRemote, fileInfo.Name)
+				fmt.Fprintf(os.Stderr, "Receiving '%s' as '%s'\n", fileInfo.Name, newName)
+				c.FilesToTransfer[i].Name = newName
+				fileInfo.Name = newName
+			}
+			if errHash == nil && !c.Options.Overwrite && !c.Options.Rename && errRecipientFile == nil && !strings.HasPrefix(fileInfo.Name, "croc-stdin-") && !c.Options.SendingText {
 
 				missingChunks := utils.ChunkRangesToChunks(utils.MissingChunks(
 					path.Join(fileInfo.FolderRemote, fileInfo.Name),

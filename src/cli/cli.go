@@ -123,6 +123,7 @@ func Run() (err error) {
 		&cli.BoolFlag{Name: "local", Usage: "force to use only local connections"},
 		&cli.BoolFlag{Name: "ignore-stdin", Usage: "ignore piped stdin"},
 		&cli.BoolFlag{Name: "overwrite", Usage: "do not prompt to overwrite or resume"},
+		&cli.BoolFlag{Name: "rename", Usage: "receive files that already exist under a new name instead of prompting"},
 		&cli.BoolFlag{Name: "testing", Usage: "flag for testing purposes"},
 		&cli.BoolFlag{Name: "quiet", Usage: "disable all output"},
 		&cli.BoolFlag{Name: "disable-clipboard", Usage: "disable copy to clipboard"},
@@ -363,6 +364,7 @@ func send(c *cli.Context) (err error) {
 		SendingText:       c.String("text") != "",
 		NoCompress:        c.Bool("no-compress"),
 		Overwrite:         c.Bool("overwrite"),
+		Rename:            c.Bool("rename"),
 		Curve:             c.String("curve"),
 		HashAlgorithm:     c.String("hash"),
 		ThrottleUpload:    c.String("throttleUpload"),
@@ -404,6 +406,9 @@ func send(c *cli.Context) (err error) {
 		}
 		if !c.IsSet("overwrite") {
 			crocOptions.Overwrite = rememberedOptions.Overwrite
+		}
+		if !c.IsSet("rename") {
+			crocOptions.Rename = rememberedOptions.Rename
 		}
 		if !c.IsSet("curve") && rememberedOptions.Curve != "" {
 			crocOptions.Curve = rememberedOptions.Curve
@@ -628,6 +633,7 @@ func receive(c *cli.Context) (err error) {
 		OnlyLocal:         c.Bool("local"),
 		IP:                c.String("ip"),
 		Overwrite:         c.Bool("overwrite"),
+		Rename:            c.Bool("rename"),
 		Curve:             c.String("curve"),
 		TestFlag:          c.Bool("testing"),
 		MulticastAddress:  c.String("multicast"),
@@ -681,6 +687,9 @@ func receive(c *cli.Context) (err error) {
 		}
 		if !c.IsSet("overwrite") {
 			crocOptions.Overwrite = rememberedOptions.Overwrite
+		}
+		if !c.IsSet("rename") {
+			crocOptions.Rename = rememberedOptions.Rename
 		}
 		if !c.IsSet("curve") && rememberedOptions.Curve != "" {
 			crocOptions.Curve = rememberedOptions.Curve
