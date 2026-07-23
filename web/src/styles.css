@@ -334,6 +334,7 @@ button:disabled {
 }
 
 .field-with-actions {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 42px 42px;
 }
@@ -367,6 +368,20 @@ button:disabled {
 .field-action svg {
   width: 15px;
   height: 15px;
+}
+
+.copy-feedback {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.copy-feedback.error {
+  color: var(--danger);
 }
 
 .large-code-input {

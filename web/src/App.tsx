@@ -40,6 +40,7 @@ import { wasm } from "./wasm/client";
 
 type Activity = "idle" | "working" | "done" | "error";
 type Theme = "dark" | "light";
+type CopyState = "idle" | "copied" | "error";
 
 const runtimeSettings = window.__CROC_RUNTIME_CONFIG__ ?? {};
 const defaultSettings: TransferSettings = {
@@ -202,6 +203,7 @@ export function App() {
   const [sendStatus, setSendStatus] = useState("");
   const [sendProgress, setSendProgress] = useState<FileProgress>();
   const [completedSend, setCompletedSend] = useState<string[]>([]);
+  const [copyState, setCopyState] = useState<CopyState>("idle");
 
   const [receiveCode, setReceiveCode] = useState("");
   const [receiveActivity, setReceiveActivity] = useState<Activity>("idle");
@@ -216,6 +218,7 @@ export function App() {
   const sendAbort = useRef<AbortController>(undefined);
   const receiveAbort = useRef<AbortController>(undefined);
   const fileInput = useRef<HTMLInputElement>(null);
+  const copyReset = useRef<number>(undefined);
 
   const totalSelectedSize = useMemo(
     () => selectedFiles.reduce((total, file) => total + file.size, 0),
@@ -268,6 +271,9 @@ export function App() {
       });
     return () => {
       active = false;
+      if (copyReset.current !== undefined) {
+        window.clearTimeout(copyReset.current);
+      }
       sendAbort.current?.abort();
       receiveAbort.current?.abort();
     };
@@ -286,11 +292,24 @@ export function App() {
 
   async function regenerateCode() {
     if (sendActivity === "working") return;
+    setCopyState("idle");
     setSendCode(await wasm().randomCode());
   }
 
-  async function copy(value: string) {
-    await navigator.clipboard.writeText(value);
+  async function copyCode() {
+    if (copyReset.current !== undefined) {
+      window.clearTimeout(copyReset.current);
+    }
+    try {
+      await navigator.clipboard.writeText(sendCode);
+      setCopyState("copied");
+    } catch {
+      setCopyState("error");
+    }
+    copyReset.current = window.setTimeout(() => {
+      setCopyState("idle");
+      copyReset.current = undefined;
+    }, 2_000);
   }
 
   async function startSend() {
@@ -515,7 +534,10 @@ export function App() {
               disabled={sendBusy}
               spellCheck={false}
               autoComplete="off"
-              onChange={(event) => setSendCode(event.target.value)}
+              onChange={(event) => {
+                setCopyState("idle");
+                setSendCode(event.target.value);
+              }}
             />
             <button
               className="field-action"
@@ -529,12 +551,23 @@ export function App() {
             <button
               className="field-action"
               type="button"
-              aria-label="Copy code"
+              aria-label={copyState === "copied" ? "Code copied" : "Copy code"}
               disabled={!sendCode}
-              onClick={() => void copy(sendCode)}
+              onClick={() => void copyCode()}
             >
-              <Copy />
+              {copyState === "copied" ? <Check /> : <Copy />}
             </button>
+            <span
+              className={`copy-feedback ${copyState}`}
+              role="status"
+              aria-live="polite"
+            >
+              {copyState === "copied"
+                ? "Copied"
+                : copyState === "error"
+                  ? "Copy failed"
+                  : ""}
+            </span>
           </div>
 
           {sendBusy || sendProgress ? (

@@ -210,6 +210,21 @@ async function expectTransferMetrics(panel: Locator) {
 
 test.describe.configure({ mode: "serial" });
 
+test("copying a croc code shows confirmation", async ({ page }) => {
+  await configurePage(page);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async () => undefined },
+    });
+  });
+  const panel = page.locator(".send-panel");
+  await panel.getByLabel("Croc code").fill("1234-copy-test-code");
+  await panel.getByRole("button", { name: "Copy code" }).click();
+  await expect(panel.getByRole("status")).toHaveText("Copied");
+  await expect(panel.getByRole("button", { name: "Code copied" })).toBeVisible();
+});
+
 test("CLI → Web transfers and verifies multiple files", async ({
   page,
 }, testInfo) => {
