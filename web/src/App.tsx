@@ -37,6 +37,17 @@ import {
   TransferEstimator,
   type TransferEstimate,
 } from "./progress";
+import {
+  assetArchitectureLabel,
+  assetsForPlatform,
+  detectArchitecture,
+  detectPlatform,
+  fetchLatestRelease,
+  latestReleasePage,
+  preferredAsset,
+  type DetectedArchitecture,
+  type GitHubRelease,
+} from "./releases";
 import { wasm } from "./wasm/client";
 
 type Activity = "idle" | "working" | "done" | "error";
@@ -176,6 +187,113 @@ function StatusMessage({
       {activity === "error" ? <AlertTriangle aria-hidden="true" /> : null}
       <span>{message}</span>
     </p>
+  );
+}
+
+function CliDownload() {
+  const [platform] = useState(detectPlatform);
+  const [architecture, setArchitecture] =
+    useState<DetectedArchitecture>("unknown");
+  const [release, setRelease] = useState<GitHubRelease>();
+  const [releaseFailed, setReleaseFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    void detectArchitecture().then((detected) => {
+      if (active) setArchitecture(detected);
+    });
+    void fetchLatestRelease(controller.signal)
+      .then((latest) => {
+        if (active) setRelease(latest);
+      })
+      .catch((error) => {
+        if (active && !(error instanceof DOMException && error.name === "AbortError")) {
+          setReleaseFailed(true);
+        }
+      });
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, []);
+
+  const matchingAssets = release
+    ? assetsForPlatform(release.assets, platform)
+    : [];
+  const selectedAsset = preferredAsset(
+    matchingAssets,
+    platform,
+    architecture,
+  );
+  const alternatives = matchingAssets.filter(
+    (asset) => asset !== selectedAsset,
+  );
+  const platformLabel =
+    platform === "other" ? "your operating system" : platform;
+
+  return (
+    <section className="cli-download" aria-labelledby="cli-download-title">
+      <div>
+        <p className="eyebrow">croc CLI</p>
+        <h2 id="cli-download-title">Download croc for {platformLabel}.</h2>
+        <p>
+          {platform === "other"
+            ? "Choose the latest build for your device on GitHub."
+            : `Detected ${platform}. Release assets come directly from GitHub.`}
+        </p>
+      </div>
+      <div className="cli-download-actions" aria-live="polite">
+        {selectedAsset && release ? (
+          <a
+            className="cli-download-primary"
+            href={selectedAsset.browser_download_url}
+          >
+            <Download aria-hidden="true" />
+            <span>
+              Download {release.tag_name}
+              <small>
+                {platform} · {assetArchitectureLabel(selectedAsset)}
+              </small>
+            </span>
+          </a>
+        ) : releaseFailed || platform === "other" ? (
+          <a className="cli-download-primary" href={latestReleasePage}>
+            <Download aria-hidden="true" />
+            <span>
+              Choose a download
+              <small>GitHub releases</small>
+            </span>
+          </a>
+        ) : (
+          <span className="cli-download-primary loading" aria-label="Loading latest croc release">
+            <Download aria-hidden="true" />
+            <span>
+              Finding latest release
+              <small>GitHub releases</small>
+            </span>
+          </span>
+        )}
+        {alternatives.length > 0 && (
+          <div className="cli-download-alternatives">
+            <span>Other {platform} builds:</span>
+            {alternatives.map((asset) => (
+              <a key={asset.name} href={asset.browser_download_url}>
+                {assetArchitectureLabel(asset)}
+              </a>
+            ))}
+          </div>
+        )}
+        <a
+          className="other-releases"
+          href={latestReleasePage}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Other releases <span aria-hidden="true">↗</span>
+        </a>
+      </div>
+    </section>
   );
 }
 
@@ -767,6 +885,8 @@ export function App() {
             ))}
         </article>
       </section>
+
+      <CliDownload />
 
       <details className="settings">
         <summary>

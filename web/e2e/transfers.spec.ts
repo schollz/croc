@@ -211,6 +211,34 @@ async function expectTransferMetrics(panel: Locator) {
 test.describe.configure({ mode: "serial" });
 
 test("publishes rich metadata and project links", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "platform", {
+      configurable: true,
+      value: "MacIntel",
+    });
+  });
+  await page.route(
+    "https://api.github.com/repos/schollz/croc/releases/latest",
+    async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          tag_name: "v99.0.0",
+          html_url: "https://github.com/schollz/croc/releases/tag/v99.0.0",
+          assets: [
+            {
+              name: "croc_v99.0.0_macOS-64bit.tar.gz",
+              browser_download_url: "https://example.test/croc-macos-intel",
+            },
+            {
+              name: "croc_v99.0.0_macOS-ARM64.tar.gz",
+              browser_download_url: "https://example.test/croc-macos-arm",
+            },
+          ],
+        }),
+      });
+    },
+  );
   await page.goto("/");
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
@@ -230,6 +258,21 @@ test("publishes rich metadata and project links", async ({ page }) => {
   await expect(
     page.getByRole("link", { name: /Read how croc works/i }),
   ).toHaveAttribute("href", "https://schollz.com/croc6/");
+  await expect(
+    page.getByRole("heading", { name: "Download croc for macOS." }),
+  ).toBeVisible();
+  await expect(
+    page.locator('a[href="https://example.test/croc-macos-intel"]'),
+  ).toBeVisible();
+  await expect(
+    page.locator('a[href="https://example.test/croc-macos-arm"]'),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Other releases" }),
+  ).toHaveAttribute(
+    "href",
+    "https://github.com/schollz/croc/releases/latest",
+  );
 });
 
 test("copying a croc code shows confirmation", async ({ page }) => {

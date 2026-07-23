@@ -647,6 +647,102 @@ button:disabled {
   height: 11px;
 }
 
+.cli-download {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
+  gap: 32px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 24px;
+  border: 1px solid var(--foreground);
+}
+
+.cli-download h2 {
+  margin: 0;
+  font-size: clamp(18px, 3vw, 28px);
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+}
+
+.cli-download > div:first-child > p:not(.eyebrow) {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+.cli-download-actions {
+  display: grid;
+  gap: 9px;
+}
+
+.cli-download-primary {
+  display: flex;
+  min-height: 52px;
+  gap: 11px;
+  align-items: center;
+  padding: 9px 12px;
+  border: 1px solid var(--foreground);
+  color: var(--background);
+  background: var(--foreground);
+  font-size: 10px;
+  text-decoration: none;
+}
+
+a.cli-download-primary:hover {
+  color: var(--foreground);
+  background: var(--background);
+}
+
+.cli-download-primary.loading {
+  color: var(--muted);
+  border-color: var(--soft-border);
+  background: var(--panel-tint);
+}
+
+.cli-download-primary svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+
+.cli-download-primary span {
+  display: grid;
+  gap: 3px;
+}
+
+.cli-download-primary small {
+  opacity: 0.72;
+  font-size: 8px;
+}
+
+.cli-download-alternatives {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  color: var(--subtle);
+  font-size: 8px;
+}
+
+.cli-download-alternatives a {
+  color: var(--muted);
+}
+
+.cli-download-alternatives a:hover {
+  color: var(--foreground);
+}
+
+.other-releases {
+  justify-self: start;
+  color: var(--muted);
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.other-releases:hover {
+  color: var(--foreground);
+}
+
 .settings {
   margin-top: 16px;
   border: 1px solid var(--soft-border);
@@ -812,6 +908,11 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  .cli-download {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
   .about-croc {
     grid-template-columns: 1fr;
     align-items: start;
@@ -845,6 +946,10 @@ footer {
 
   .button-pair {
     grid-template-columns: 1fr;
+  }
+
+  .cli-download {
+    padding: 20px;
   }
 
   footer {
