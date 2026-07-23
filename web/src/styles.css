@@ -879,9 +879,10 @@ footer {
 
 .driver-popover.croc-tour .driver-popover-description {
   margin-top: 9px;
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.7;
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.65;
 }
 
 .driver-popover.croc-tour .driver-popover-close-btn {

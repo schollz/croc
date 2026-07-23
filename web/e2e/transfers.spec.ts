@@ -305,6 +305,7 @@ test("serves the installer to curl and the app to browsers", async ({
 test("help tour explains browser transfers and end-to-end encryption", async ({
   page,
 }) => {
+  await page.emulateMedia({ colorScheme: "light" });
   await page.route(
     "https://api.github.com/repos/schollz/croc/releases/latest",
     async (route) => {
@@ -340,6 +341,10 @@ test("help tour explains browser transfers and end-to-end encryption", async ({
 
   const tour = page.locator(".driver-popover.croc-tour");
   const title = tour.locator(".driver-popover-title");
+  const description = tour.locator(".driver-popover-description");
+  await expect(description).toHaveCSS("font-size", "12px");
+  await expect(description).toHaveCSS("font-weight", "500");
+  await expect(description).toHaveCSS("color", "rgb(0, 0, 0)");
   const next = tour.getByRole("button", { name: "Next" });
   const steps = [
     "Welcome to croc web",
