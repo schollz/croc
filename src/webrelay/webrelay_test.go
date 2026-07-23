@@ -8,12 +8,21 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func testSite() fstest.MapFS {
+	return fstest.MapFS{
+		"index.html":     {Data: []byte("<!doctype html><div id=\"root\"></div>")},
+		"assets/app.js":  {Data: []byte("console.log('croc')")},
+		"assets/app.css": {Data: []byte("body { color: black; }")},
+	}
+}
 
 func startEchoServer(t *testing.T) (host, port string) {
 	t.Helper()
@@ -40,7 +49,11 @@ func startEchoServer(t *testing.T) (host, port string) {
 }
 
 func TestHealthAndMethod(t *testing.T) {
-	handler, err := Handler(Config{RelayHost: "127.0.0.1", AllowedPorts: []string{"9009"}})
+	handler, err := Handler(Config{
+		RelayHost:    "127.0.0.1",
+		AllowedPorts: []string{"9009"},
+		StaticFiles:  testSite(),
+	})
 	require.NoError(t, err)
 
 	recorder := httptest.NewRecorder()
@@ -53,8 +66,55 @@ func TestHealthAndMethod(t *testing.T) {
 	assert.Equal(t, http.StatusMethodNotAllowed, recorder.Code)
 }
 
+func TestServesSiteAndRuntimeConfig(t *testing.T) {
+	handler, err := Handler(Config{
+		RelayHost:     "relay.example.test",
+		AllowedPorts:  []string{"9109", "9110"},
+		RelayPassword: "relay-secret",
+		StaticFiles:   testSite(),
+	})
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `id="root"`)
+	assert.Equal(t, "no-cache", recorder.Header().Get("Cache-Control"))
+
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/send/files", nil))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `id="root"`)
+
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/assets/app.js", nil))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, "public, max-age=31536000, immutable", recorder.Header().Get("Cache-Control"))
+
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/missing.js", nil))
+	assert.Equal(t, http.StatusNotFound, recorder.Code)
+
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/config.js", nil))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
+	assert.JSONEq(
+		t,
+		`{"gatewayURL":"/ws","relayAddress":"relay.example.test:9109","relayPassword":"relay-secret"}`,
+		strings.TrimSuffix(
+			strings.TrimPrefix(recorder.Body.String(), "window.__CROC_RUNTIME_CONFIG__ = "),
+			";\n",
+		),
+	)
+}
+
 func TestRejectsPortOutsideAllowlist(t *testing.T) {
-	handler, err := Handler(Config{RelayHost: "127.0.0.1", AllowedPorts: []string{"9009"}})
+	handler, err := Handler(Config{
+		RelayHost:    "127.0.0.1",
+		AllowedPorts: []string{"9009"},
+		StaticFiles:  testSite(),
+	})
 	require.NoError(t, err)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/ws?port=22", nil))
@@ -67,6 +127,7 @@ func TestWebSocketForwardsBinaryStream(t *testing.T) {
 		RelayHost:      host,
 		AllowedPorts:   []string{port},
 		OriginPatterns: []string{"example.test"},
+		StaticFiles:    testSite(),
 	})
 	require.NoError(t, err)
 	server := httptest.NewServer(handler)
@@ -95,6 +156,7 @@ func TestRejectsUnexpectedOrigin(t *testing.T) {
 		RelayHost:      host,
 		AllowedPorts:   []string{port},
 		OriginPatterns: []string{"allowed.test"},
+		StaticFiles:    testSite(),
 	})
 	require.NoError(t, err)
 	server := httptest.NewServer(handler)

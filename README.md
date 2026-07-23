@@ -354,20 +354,22 @@ docker run -d -p 9010-9011:9010-9011 -e CROC_PORTS='9010,9011' -e CROC_PASS='YOU
 #### Web client
 
 The React/Vite client in [`web/`](web/) can send and receive multiple files
-with normal croc CLI peers. Browsers cannot connect to the TCP relay directly,
-so run the fixed-upstream WebSocket gateway alongside the site:
+with normal croc CLI peers. The production client and its WebAssembly protocol
+runtime are embedded in every `croc` binary. One command serves both the site
+and its same-origin WebSocket relay:
 
 ```bash
-croc webrelay \
-  --listen 127.0.0.1:9014 \
-  --relay croc.schollz.com \
-  --ports 9009,9010,9011,9012,9013 \
-  --origin '127.0.0.1:*'
+croc serve share.schollz.com
 ```
 
-For local development, `cd web && npm run dev:stack` starts both Vite and the
-gateway. See [`web/README.md`](web/README.md) for build, custom relay, and
-production reverse-proxy instructions.
+This binds to `127.0.0.1:9014` by default for an HTTPS reverse proxy. `/`
+serves the website and `/ws` bridges to `croc.schollz.com`. For a directly
+accessible local development server, `croc serve localhost:5173` binds and
+serves on `localhost:5173`. Use `--bind`, `--relay`, and `--ports` before the
+website address to customize the local listener or upstream croc relay.
+
+See [`web/README.md`](web/README.md) for frontend development, embedded asset
+generation, custom relay, and reverse-proxy instructions.
 
 ## Acknowledgements
 

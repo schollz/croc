@@ -1,0 +1,44 @@
+{
+  "name": "croc-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "npm run wasm && vite",
+    "serve": "go run .. serve localhost:5173",
+    "serve:backend": "go run .. serve localhost:5173 --bind 127.0.0.1:9014",
+    "dev:hot": "concurrently --kill-others --success first --names web,server 'npm:dev' 'npm:serve:backend'",
+    "dev:stack": "npm run embed && npm run serve",
+    "wasm": "node scripts/build-wasm.mjs",
+    "embed": "npm run build && node scripts/embed-dist.mjs",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:e2e": "npm run embed && playwright test",
+    "test:all": "npm test && npm run test:e2e",
+    "build": "npm run wasm && tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "arrival-time": "^1.0.6",
+    "lucide-react": "^1.26.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.1.0",
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.0.3",
+    "@types/react-dom": "^19.0.2",
+    "@types/ws": "^8.5.13",
+    "@vitejs/plugin-react": "^6.0.4",
+    "concurrently": "^9.2.4",
+    "jsdom": "^29.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10",
+    "ws": "^8.18.0"
+  }
+}

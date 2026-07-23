@@ -1,0 +1,295 @@
+import { spawn } from "node:child_process";
+import { promises as fs } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  expect,
+  test,
+  type Download,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
+
+const webDirectory = dirname(dirname(fileURLToPath(import.meta.url)));
+const crocBinary = join(
+  webDirectory,
+  ".e2e",
+  process.env.CROC_E2E_BINARY_NAME ?? "croc",
+);
+const relayPorts = process.env.CROC_E2E_RELAY_PORTS?.split(",") ?? [];
+const relayAddress = `127.0.0.1:${relayPorts[0]}`;
+const relayPassword = "pass123";
+const transferTimeout = 60_000;
+
+type FixtureSet = {
+  paths: string[];
+  contents: Map<string, Buffer>;
+};
+
+type RunningCroc = {
+  child: ReturnType<typeof spawn>;
+  done: Promise<void>;
+  stop(): void;
+};
+
+function patternedBytes(size: number, seed: number) {
+  const bytes = Buffer.alloc(size);
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = (index * 31 + seed * 47) % 251;
+  }
+  return bytes;
+}
+
+async function createFixtures(testInfo: TestInfo): Promise<FixtureSet> {
+  const directory = testInfo.outputPath("fixtures");
+  await fs.mkdir(directory, { recursive: true });
+  const contents = new Map<string, Buffer>([
+    // This file spans every advertised data connection at least once.
+    ["alpha.bin", patternedBytes(32 * 1024 * 6 + 137, 1)],
+    ["beta.bin", patternedBytes(32 * 1024 * 2 + 19, 2)],
+    ["empty.dat", Buffer.alloc(0)],
+  ]);
+  for (const [name, bytes] of contents) {
+    await fs.writeFile(join(directory, name), bytes);
+  }
+  return {
+    paths: [...contents.keys()].map((name) => join(directory, name)),
+    contents,
+  };
+}
+
+function runCroc(
+  args: string[],
+  secret: string,
+  configDirectory: string,
+): RunningCroc {
+  let output = "";
+  const child = spawn(crocBinary, args, {
+    cwd: webDirectory,
+    env: {
+      ...process.env,
+      CROC_CONFIG_DIR: configDirectory,
+      CROC_SECRET: secret,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout?.on("data", (chunk) => {
+    output += chunk.toString();
+  });
+  child.stderr?.on("data", (chunk) => {
+    output += chunk.toString();
+  });
+  const done = new Promise<void>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (code, signal) => {
+      if (code === 0) resolve();
+      else {
+        reject(
+          new Error(
+            `croc exited with ${signal ?? code ?? "unknown"}\n${output.trim()}`,
+          ),
+        );
+      }
+    });
+  });
+  return {
+    child,
+    done,
+    stop() {
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill("SIGTERM");
+      }
+    },
+  };
+}
+
+function commonCLIArgs() {
+  return [
+    "--relay",
+    relayAddress,
+    "--relay6",
+    "",
+    "--pass",
+    relayPassword,
+    "--yes",
+    "--overwrite",
+    "--ignore-stdin",
+    "--disable-clipboard",
+  ];
+}
+
+async function configurePage(page: Page) {
+  await page.goto("/");
+  await page.locator("details.settings > summary").click();
+  await page.getByLabel("CLI relay address").fill(relayAddress);
+  await page.getByLabel("WebSocket gateway").fill("/ws");
+  await page
+    .getByRole("textbox", { name: "Relay password", exact: true })
+    .fill(relayPassword);
+  await expect(page.locator(".security-route")).toHaveText(relayAddress);
+}
+
+async function prepareWebSender(
+  page: Page,
+  secret: string,
+  fixtures: FixtureSet,
+) {
+  const panel = page.locator(".send-panel");
+  await panel.locator('input[type="file"]').setInputFiles(fixtures.paths);
+  await panel.getByLabel("Croc code").fill(secret);
+  await expect(panel.getByText("3 files", { exact: true })).toBeVisible();
+  return panel;
+}
+
+async function connectWebReceiver(page: Page, secret: string) {
+  const panel = page.locator(".receive-panel");
+  await panel.getByLabel("Croc code").fill(secret);
+  await panel.getByRole("button", { name: "Connect and review" }).click();
+  return panel;
+}
+
+async function acceptAsDownloads(page: Page, panel: Locator) {
+  const downloads: Download[] = [];
+  page.on("download", (download) => downloads.push(download));
+  await expect(panel.getByText("Incoming transfer")).toBeVisible();
+  const fallback = panel.getByRole("button", { name: "Download", exact: true });
+  if (await fallback.isVisible()) {
+    await fallback.click();
+  } else {
+    await panel.getByRole("button", { name: "Accept files" }).click();
+  }
+  return downloads;
+}
+
+async function expectDownloads(
+  downloads: Download[],
+  fixtures: FixtureSet,
+) {
+  await expect
+    .poll(() => downloads.length, { timeout: transferTimeout })
+    .toBe(fixtures.contents.size);
+  const actual = new Map<string, Buffer>();
+  for (const download of downloads) {
+    const path = await download.path();
+    expect(path, `download path for ${download.suggestedFilename()}`).not.toBeNull();
+    actual.set(download.suggestedFilename(), await fs.readFile(path!));
+  }
+  expect([...actual.keys()].sort()).toEqual([...fixtures.contents.keys()].sort());
+  for (const [name, expected] of fixtures.contents) {
+    expect(actual.get(name)).toEqual(expected);
+  }
+}
+
+async function expectDirectory(
+  directory: string,
+  fixtures: FixtureSet,
+) {
+  expect((await fs.readdir(directory)).sort()).toEqual(
+    [...fixtures.contents.keys()].sort(),
+  );
+  for (const [name, expected] of fixtures.contents) {
+    expect(await fs.readFile(join(directory, name))).toEqual(expected);
+  }
+}
+
+async function expectTransferMetrics(panel: Locator) {
+  const metrics = panel.locator(".progress-metrics");
+  await expect(metrics).toContainText(/Rate.*\/s.*ETA/);
+}
+
+test.describe.configure({ mode: "serial" });
+
+test("CLI → Web transfers and verifies multiple files", async ({
+  page,
+}, testInfo) => {
+  const secret = "1111-cli-to-web-e2e";
+  const fixtures = await createFixtures(testInfo);
+  const configDirectory = testInfo.outputPath("croc-config");
+  await fs.mkdir(configDirectory, { recursive: true });
+  await configurePage(page);
+  const receivePanel = await connectWebReceiver(page, secret);
+  const cli = runCroc(
+    [...commonCLIArgs(), "send", "--no-local", ...fixtures.paths],
+    secret,
+    configDirectory,
+  );
+  try {
+    const downloads = await acceptAsDownloads(page, receivePanel);
+    const metricsVisible = expectTransferMetrics(receivePanel);
+    await expect(receivePanel).toContainText("All files received and verified", {
+      timeout: transferTimeout,
+    });
+    await cli.done;
+    await metricsVisible;
+    await expectDownloads(downloads, fixtures);
+  } finally {
+    cli.stop();
+    await cli.done.catch(() => undefined);
+  }
+});
+
+test("Web → CLI transfers and verifies multiple files", async ({
+  page,
+}, testInfo) => {
+  const secret = "2222-web-to-cli-e2e";
+  const fixtures = await createFixtures(testInfo);
+  const destination = testInfo.outputPath("received");
+  const configDirectory = testInfo.outputPath("croc-config");
+  await Promise.all([
+    fs.mkdir(destination, { recursive: true }),
+    fs.mkdir(configDirectory, { recursive: true }),
+  ]);
+  await configurePage(page);
+  const sendPanel = await prepareWebSender(page, secret, fixtures);
+  await sendPanel.getByRole("button", { name: "Send 3 files" }).click();
+  const cli = runCroc(
+    [...commonCLIArgs(), "--out", destination],
+    secret,
+    configDirectory,
+  );
+  try {
+    const metricsVisible = expectTransferMetrics(sendPanel);
+    await expect(sendPanel).toContainText("All files arrived safely", {
+      timeout: transferTimeout,
+    });
+    await cli.done;
+    await metricsVisible;
+    await expectDirectory(destination, fixtures);
+  } finally {
+    cli.stop();
+    await cli.done.catch(() => undefined);
+  }
+});
+
+test("Web → Web transfers and verifies multiple files", async ({
+  browser,
+}, testInfo) => {
+  const secret = "3333-web-to-web-e2e";
+  const fixtures = await createFixtures(testInfo);
+  const senderContext = await browser.newContext({ acceptDownloads: true });
+  const receiverContext = await browser.newContext({ acceptDownloads: true });
+  const senderPage = await senderContext.newPage();
+  const receiverPage = await receiverContext.newPage();
+  try {
+    await Promise.all([
+      configurePage(senderPage),
+      configurePage(receiverPage),
+    ]);
+    const sendPanel = await prepareWebSender(senderPage, secret, fixtures);
+    const receivePanel = await connectWebReceiver(receiverPage, secret);
+    await sendPanel.getByRole("button", { name: "Send 3 files" }).click();
+    const downloads = await acceptAsDownloads(receiverPage, receivePanel);
+    await Promise.all([
+      expect(sendPanel).toContainText("All files arrived safely", {
+        timeout: transferTimeout,
+      }),
+      expect(receivePanel).toContainText("All files received and verified", {
+        timeout: transferTimeout,
+      }),
+    ]);
+    await expectDownloads(downloads, fixtures);
+  } finally {
+    await Promise.all([senderContext.close(), receiverContext.close()]);
+  }
+});

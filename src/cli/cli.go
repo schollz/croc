@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
@@ -100,16 +101,16 @@ func Run() (err error) {
 			},
 		},
 		{
-			Name:        "webrelay",
-			Usage:       "bridge browser WebSockets to a croc relay",
-			Description: "start a fixed-upstream WebSocket-to-TCP gateway for croc web",
-			HelpName:    "croc webrelay",
-			Action:      runWebRelay,
+			Name:        "serve",
+			Usage:       "serve the embedded web client and browser relay",
+			Description: "serve the croc website and its fixed-upstream WebSocket relay from one HTTP server",
+			HelpName:    "croc serve",
+			ArgsUsage:   "[public-host[:port]]",
+			Action:      runServe,
 			Flags: []cli.Flag{
-				&cli.StringFlag{Name: "listen", Value: "127.0.0.1:9014", Usage: "HTTP listen address"},
-				&cli.StringFlag{Name: "relay", Value: "croc.schollz.com", Usage: "fixed upstream relay host"},
+				&cli.StringFlag{Name: "bind", Value: "127.0.0.1:9014", Usage: "local HTTP bind address"},
+				&cli.StringFlag{Name: "relay", Value: "croc.schollz.com", Usage: "fixed upstream croc relay host"},
 				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "allowed upstream relay ports"},
-				&cli.StringSliceFlag{Name: "origin", Usage: "allowed browser origin host pattern (repeatable)"},
 			},
 		},
 		{
@@ -832,15 +833,73 @@ func relay(c *cli.Context) (err error) {
 	return tcp.Run(debugString, host, ports[0], determinePass(c), tcpPorts)
 }
 
-func runWebRelay(c *cli.Context) error {
-	origins := c.StringSlice("origin")
-	if len(origins) == 0 {
-		origins = []string{"localhost:*", "127.0.0.1:*"}
+func runServe(c *cli.Context) error {
+	if c.Args().Len() > 1 {
+		return errors.New("serve accepts one public website address")
+	}
+	publicAddress := c.Args().First()
+	bindAddress, origin, err := resolveServeAddress(
+		publicAddress,
+		c.String("bind"),
+		c.IsSet("bind"),
+	)
+	if err != nil {
+		return err
 	}
 	return webrelay.Run(context.Background(), webrelay.Config{
-		ListenAddress:  c.String("listen"),
+		ListenAddress:  bindAddress,
+		PublicAddress:  origin,
 		RelayHost:      c.String("relay"),
+		RelayPassword:  determinePass(c),
 		AllowedPorts:   parseRelayPorts(c.String("ports")),
-		OriginPatterns: origins,
+		OriginPatterns: []string{origin},
 	})
+}
+
+func resolveServeAddress(publicAddress, bindAddress string, bindExplicit bool) (string, string, error) {
+	publicAddress = strings.TrimSpace(publicAddress)
+	publicExplicit := publicAddress != ""
+	if publicAddress == "" {
+		publicAddress = "localhost:5173"
+	}
+	if strings.Contains(publicAddress, "://") || strings.ContainsAny(publicAddress, "/?#") {
+		return "", "", fmt.Errorf("website address must be a host or host:port: %q", publicAddress)
+	}
+
+	host, port, err := net.SplitHostPort(publicAddress)
+	if err != nil {
+		if strings.Contains(publicAddress, ":") {
+			return "", "", fmt.Errorf("invalid website address %q: %w", publicAddress, err)
+		}
+		host = publicAddress
+		port = ""
+	}
+	host = strings.Trim(host, "[]")
+	if host == "" || strings.ContainsAny(host, " \t\r\n") {
+		return "", "", fmt.Errorf("invalid website host %q", host)
+	}
+	if port != "" {
+		portNumber, parseErr := strconv.ParseUint(port, 10, 16)
+		if parseErr != nil || portNumber == 0 {
+			return "", "", fmt.Errorf("invalid website port %q", port)
+		}
+	}
+
+	bindAddress = strings.TrimSpace(bindAddress)
+	if bindAddress == "" {
+		bindAddress = "127.0.0.1:9014"
+	}
+	if publicExplicit && !bindExplicit && port != "" {
+		ip := net.ParseIP(host)
+		if strings.EqualFold(host, "localhost") || (ip != nil && ip.IsLoopback()) {
+			bindAddress = publicAddress
+		}
+	}
+	if _, bindPort, splitErr := net.SplitHostPort(bindAddress); splitErr != nil {
+		return "", "", fmt.Errorf("invalid bind address %q: %w", bindAddress, splitErr)
+	} else if portNumber, parseErr := strconv.ParseUint(bindPort, 10, 16); parseErr != nil || portNumber == 0 {
+		return "", "", fmt.Errorf("invalid bind port %q", bindPort)
+	}
+
+	return bindAddress, publicAddress, nil
 }

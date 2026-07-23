@@ -67,6 +67,99 @@ func TestParseRelayPorts(t *testing.T) {
 	}
 }
 
+func TestResolveServeAddress(t *testing.T) {
+	tests := []struct {
+		name          string
+		publicAddress string
+		bindAddress   string
+		bindExplicit  bool
+		wantBind      string
+		wantOrigin    string
+		wantError     bool
+	}{
+		{
+			name:          "defaults",
+			publicAddress: "",
+			bindAddress:   "127.0.0.1:9014",
+			wantBind:      "127.0.0.1:9014",
+			wantOrigin:    "localhost:5173",
+		},
+		{
+			name:          "public host uses default bind",
+			publicAddress: "share.schollz.com",
+			bindAddress:   "127.0.0.1:9014",
+			wantBind:      "127.0.0.1:9014",
+			wantOrigin:    "share.schollz.com",
+		},
+		{
+			name:          "local development host binds directly",
+			publicAddress: "localhost:5173",
+			bindAddress:   "127.0.0.1:9014",
+			wantBind:      "localhost:5173",
+			wantOrigin:    "localhost:5173",
+		},
+		{
+			name:          "explicit bind wins for local host",
+			publicAddress: "localhost:5173",
+			bindAddress:   "0.0.0.0:8080",
+			bindExplicit:  true,
+			wantBind:      "0.0.0.0:8080",
+			wantOrigin:    "localhost:5173",
+		},
+		{
+			name:          "loopback IP binds directly",
+			publicAddress: "127.0.0.1:7000",
+			bindAddress:   "127.0.0.1:9014",
+			wantBind:      "127.0.0.1:7000",
+			wantOrigin:    "127.0.0.1:7000",
+		},
+		{
+			name:          "rejects URL",
+			publicAddress: "https://share.schollz.com",
+			bindAddress:   "127.0.0.1:9014",
+			wantError:     true,
+		},
+		{
+			name:          "rejects invalid public port",
+			publicAddress: "localhost:not-a-port",
+			bindAddress:   "127.0.0.1:9014",
+			wantError:     true,
+		},
+		{
+			name:          "rejects invalid bind",
+			publicAddress: "share.schollz.com",
+			bindAddress:   "localhost",
+			bindExplicit:  true,
+			wantError:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotBind, gotOrigin, err := resolveServeAddress(
+				tt.publicAddress,
+				tt.bindAddress,
+				tt.bindExplicit,
+			)
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("expected an error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if gotBind != tt.wantBind {
+				t.Fatalf("bind = %q, want %q", gotBind, tt.wantBind)
+			}
+			if gotOrigin != tt.wantOrigin {
+				t.Fatalf("origin = %q, want %q", gotOrigin, tt.wantOrigin)
+			}
+		})
+	}
+}
+
 func TestResolveSendSharedSecret(t *testing.T) {
 	t.Run("uses env secret", func(t *testing.T) {
 		got := resolveSendSharedSecret("generated-secret", "password-example")
@@ -85,12 +178,12 @@ func TestResolveSendSharedSecret(t *testing.T) {
 
 func TestShouldExitForUnixSendCode(t *testing.T) {
 	tests := []struct {
-		name               string
-		goos               string
-		codeFlagSet        bool
+		name                string
+		goos                string
+		codeFlagSet         bool
 		classicInsecureMode bool
-		envSecret          string
-		want               bool
+		envSecret           string
+		want                bool
 	}{
 		{
 			name:                "unix with code flag and no env exits",
