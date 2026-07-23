@@ -242,11 +242,9 @@ function CliDownload() {
       <div>
         <p className="eyebrow">croc CLI</p>
         <h2 id="cli-download-title">Download croc for {platformLabel}.</h2>
-        <p>
-          {platform === "other"
-            ? "Choose the latest build for your device on GitHub."
-            : `Detected ${platform}. Release assets come directly from GitHub.`}
-        </p>
+        {platform === "other" && (
+          <p>Choose the latest build for your device on GitHub.</p>
+        )}
       </div>
       <div className="cli-download-actions" aria-live="polite">
         {selectedAsset && release ? (

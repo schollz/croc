@@ -262,6 +262,9 @@ test("publishes rich metadata and project links", async ({ page }) => {
     page.getByRole("heading", { name: "Download croc for macOS." }),
   ).toBeVisible();
   await expect(
+    page.getByText("Detected macOS. Release assets come directly from GitHub."),
+  ).toHaveCount(0);
+  await expect(
     page.locator('a[href="https://example.test/croc-macos-intel"]'),
   ).toBeVisible();
   await expect(
