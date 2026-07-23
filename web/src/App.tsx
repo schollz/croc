@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
-  ArrowLeftRight,
   Check,
   CircleHelp,
   Copy,
@@ -667,11 +666,17 @@ export function App() {
   return (
     <main className="site-shell">
       <header className="site-header">
-        <div className="brand-mark" aria-hidden="true">
-          <ArrowLeftRight />
-        </div>
+        <img
+          className="brand-illustration"
+          src="/croc.jpg"
+          width="408"
+          height="196"
+          alt="Hand-drawn green crocodile floating in blue water"
+        />
         <div>
-          <p className="eyebrow">croc://web</p>
+          <p className="eyebrow">
+            <strong>croc</strong> is a free and open-source tool to
+          </p>
           <h1>
             {requestedReceiveCode
               ? "Receive files, secured end-to-end."
@@ -997,8 +1002,6 @@ export function App() {
         </article>
       </section>
 
-      <CliDownload />
-
       <details className="settings" data-tour="settings">
         <summary>
           <span>
@@ -1060,6 +1063,8 @@ export function App() {
         </div>
       </details>
 
+      <CliDownload />
+
       <section
         className="about-croc"
         aria-labelledby="about-croc-title"
@@ -1086,9 +1091,16 @@ export function App() {
       </section>
 
       <footer>
-        <span>end-to-end encrypted · browser transport</span>
+        <span>end-to-end encrypted · over 2 petabytes transferred</span>
         <span>
-          open source · made by{" "}
+          <a
+            href="https://github.com/schollz/croc"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            open-source
+          </a>{" "}
+          · made by{" "}
           <a
             href="https://github.com/sponsors/schollz"
             target="_blank"

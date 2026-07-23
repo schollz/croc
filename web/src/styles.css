@@ -79,18 +79,11 @@ a:focus-visible {
   padding-bottom: 30px;
 }
 
-.brand-mark {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  place-items: center;
-  color: var(--background);
-  background: var(--foreground);
-}
-
-.brand-mark svg {
-  width: 25px;
-  height: 25px;
+.brand-illustration {
+  display: block;
+  width: clamp(132px, 18vw, 204px);
+  height: auto;
+  border: 1px solid var(--foreground);
 }
 
 .eyebrow {
@@ -100,6 +93,11 @@ a:focus-visible {
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+}
+
+.eyebrow strong {
+  color: var(--foreground);
+  font-weight: 800;
 }
 
 h1 {
@@ -951,12 +949,17 @@ footer a:hover {
   }
 
   .site-header {
+    grid-template-columns: 1fr;
     gap: 12px;
   }
 
-  .brand-mark {
-    width: 40px;
-    height: 40px;
+  .header-actions {
+    display: none;
+  }
+
+  .brand-illustration {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .transfer-grid {
@@ -993,11 +996,7 @@ footer a:hover {
   }
 
   .site-header {
-    grid-template-columns: 1fr auto;
-  }
-
-  .brand-mark {
-    display: none;
+    grid-template-columns: 1fr;
   }
 
   .header-actions {
