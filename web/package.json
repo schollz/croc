@@ -23,7 +23,8 @@
     "arrival-time": "^1.0.6",
     "lucide-react": "^1.26.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-icons": "^5.7.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

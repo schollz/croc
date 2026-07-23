@@ -42,6 +42,10 @@ input {
   font: inherit;
 }
 
+a {
+  color: inherit;
+}
+
 button,
 input,
 details,
@@ -56,7 +60,8 @@ button {
 
 button:focus-visible,
 input:focus-visible,
-summary:focus-visible {
+summary:focus-visible,
+a:focus-visible {
   outline: 2px solid var(--foreground);
   outline-offset: 2px;
 }
@@ -116,6 +121,7 @@ h1 {
   color: var(--foreground);
   background: var(--background);
   cursor: pointer;
+  text-decoration: none;
 }
 
 .icon-button:hover {
@@ -126,6 +132,11 @@ h1 {
 .icon-button svg {
   width: 18px;
   height: 18px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .security-strip {
@@ -722,6 +733,45 @@ button:disabled {
   text-transform: none;
 }
 
+.about-croc {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 32px;
+  align-items: end;
+  margin-top: 16px;
+  padding: 24px;
+  border: 1px solid var(--soft-border);
+}
+
+.about-croc h2 {
+  max-width: 760px;
+  margin: 0;
+  font-size: clamp(18px, 3vw, 28px);
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+}
+
+.about-croc p:not(.eyebrow) {
+  max-width: 760px;
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.about-croc > a {
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--foreground);
+  font-size: 9px;
+  line-height: 1.6;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.about-croc > a:hover {
+  border-bottom-style: dashed;
+}
+
 footer {
   display: flex;
   justify-content: space-between;
@@ -762,6 +812,11 @@ footer {
     grid-template-columns: 1fr;
   }
 
+  .about-croc {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
   .security-route {
     display: none;
   }
@@ -778,6 +833,10 @@ footer {
 
   .brand-mark {
     display: none;
+  }
+
+  .header-actions {
+    gap: 6px;
   }
 
   .panel {

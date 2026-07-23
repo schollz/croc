@@ -14,6 +14,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { FaGithub } from "react-icons/fa";
 import { errorMessage, formatBytes } from "./protocol/bytes";
 import {
   prepareFiles,
@@ -451,14 +452,28 @@ export function App() {
               : "Send files, secured end-to-end."}
           </h1>
         </div>
-        <button
-          className="icon-button theme-toggle"
-          type="button"
-          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-          onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
-        >
-          {theme === "dark" ? <Sun /> : <Moon />}
-        </button>
+        <div className="header-actions">
+          <a
+            className="icon-button"
+            href="https://github.com/schollz/croc"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="View croc on GitHub"
+            title="View croc on GitHub"
+          >
+            <FaGithub aria-hidden="true" />
+          </a>
+          <button
+            className="icon-button theme-toggle"
+            type="button"
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            onClick={() =>
+              setTheme((current) => (current === "dark" ? "light" : "dark"))
+            }
+          >
+            {theme === "dark" ? <Sun /> : <Moon />}
+          </button>
+        </div>
       </header>
 
       <div className="security-strip">
@@ -814,9 +829,30 @@ export function App() {
         </div>
       </details>
 
+      <section className="about-croc" aria-labelledby="about-croc-title">
+        <div>
+          <p className="eyebrow">Why croc?</p>
+          <h2 id="about-croc-title">
+            Fast, simple, and secure file transfer between any two computers.
+          </h2>
+          <p>
+            croc relays files in real time, derives a strong end-to-end
+            encryption key with PAKE, and works without running a server or
+            configuring port forwarding.
+          </p>
+        </div>
+        <a
+          href="https://schollz.com/croc6/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Read how croc works <span aria-hidden="true">↗</span>
+        </a>
+      </section>
+
       <footer>
         <span>croc protocol · browser transport</span>
-        <span>files encrypted before the gateway</span>
+        <span>open source · files encrypted before the gateway</span>
       </footer>
     </main>
   );

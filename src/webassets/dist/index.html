@@ -4,13 +4,87 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="application-name" content="croc web" />
+    <meta name="author" content="Zackary Scholl" />
+    <meta
+      name="keywords"
+      content="croc, encrypted file transfer, secure file sharing, peer-to-peer file transfer, PAKE"
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta
       name="description"
-      content="Send and receive end-to-end encrypted files with croc from your browser."
+      content="Fast, simple, and secure file transfer between any two computers. Send and receive end-to-end encrypted files with croc from your browser."
     />
-    <title>croc web — encrypted file transfer</title>
-    <script type="module" crossorigin src="/assets/index-C9IPjipG.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-B_XE0SOr.css">
+    <link rel="canonical" href="https://share.schollz.com/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:site_name" content="croc" />
+    <meta property="og:url" content="https://share.schollz.com/" />
+    <meta
+      property="og:title"
+      content="croc web — fast, simple, secure file transfer"
+    />
+    <meta
+      property="og:description"
+      content="Fast, simple, and secure file transfer between any two computers. End-to-end encrypted with croc PAKE."
+    />
+
+    <meta name="twitter:card" content="summary" />
+    <meta
+      name="twitter:title"
+      content="croc web — fast, simple, secure file transfer"
+    />
+    <meta
+      name="twitter:description"
+      content="Fast, simple, and secure file transfer between any two computers. End-to-end encrypted with croc PAKE."
+    />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "@id": "https://share.schollz.com/#application",
+        "name": "croc web",
+        "alternateName": "croc",
+        "url": "https://share.schollz.com/",
+        "description": "Fast, simple, and secure file transfer between any two computers. Send and receive end-to-end encrypted files with croc from your browser.",
+        "applicationCategory": "UtilitiesApplication",
+        "applicationSubCategory": "File transfer",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires a modern web browser with WebAssembly and WebSocket support.",
+        "isAccessibleForFree": true,
+        "license": "https://github.com/schollz/croc/blob/main/LICENSE",
+        "featureList": [
+          "End-to-end encryption using password-authenticated key exchange",
+          "Real-time relay transfers without port forwarding",
+          "Multiple-file sending and receiving",
+          "Cross-platform croc CLI interoperability"
+        ],
+        "subjectOf": {
+          "@type": "SoftwareSourceCode",
+          "name": "croc source code",
+          "codeRepository": "https://github.com/schollz/croc",
+          "license": "https://github.com/schollz/croc/blob/main/LICENSE",
+          "programmingLanguage": ["Go", "TypeScript"]
+        },
+        "author": {
+          "@type": "Person",
+          "name": "Zackary Scholl",
+          "url": "https://schollz.com/"
+        },
+        "sameAs": [
+          "https://github.com/schollz/croc",
+          "https://schollz.com/croc6/"
+        ]
+      }
+    </script>
+
+    <title>croc web — fast, simple, secure file transfer</title>
+    <script type="module" crossorigin src="/assets/index-LOU5cnp3.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DBrVaTkV.css">
   </head>
   <body>
     <div id="root"></div>

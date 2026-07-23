@@ -210,6 +210,28 @@ async function expectTransferMetrics(panel: Locator) {
 
 test.describe.configure({ mode: "serial" });
 
+test("publishes rich metadata and project links", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    "href",
+    "https://share.schollz.com/",
+  );
+  await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
+    "content",
+    /croc web/i,
+  );
+  const structuredData = JSON.parse(
+    (await page.locator('script[type="application/ld+json"]').textContent()) ?? "{}",
+  ) as { "@type"?: string };
+  expect(structuredData["@type"]).toBe("WebApplication");
+  await expect(
+    page.getByRole("link", { name: "View croc on GitHub" }),
+  ).toHaveAttribute("href", "https://github.com/schollz/croc");
+  await expect(
+    page.getByRole("link", { name: /Read how croc works/i }),
+  ).toHaveAttribute("href", "https://schollz.com/croc6/");
+});
+
 test("copying a croc code shows confirmation", async ({ page }) => {
   await configurePage(page);
   await page.evaluate(() => {
