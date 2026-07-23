@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"github.com/schollz/croc/v10/src/models"
 	"github.com/schollz/croc/v10/src/tcp"
 	"github.com/schollz/croc/v10/src/utils"
+	"github.com/schollz/croc/v10/src/webrelay"
 	log "github.com/schollz/logger"
 	"github.com/schollz/pake/v3"
 )
@@ -95,6 +97,19 @@ func Run() (err error) {
 				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay", EnvVars: []string{"CROC_PORTS"}},
 				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay", EnvVars: []string{"CROC_PORT"}},
 				&cli.IntFlag{Name: "transfers", Value: 5, Usage: "number of ports to use for relay"},
+			},
+		},
+		{
+			Name:        "webrelay",
+			Usage:       "bridge browser WebSockets to a croc relay",
+			Description: "start a fixed-upstream WebSocket-to-TCP gateway for croc web",
+			HelpName:    "croc webrelay",
+			Action:      runWebRelay,
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "listen", Value: "127.0.0.1:9014", Usage: "HTTP listen address"},
+				&cli.StringFlag{Name: "relay", Value: "croc.schollz.com", Usage: "fixed upstream relay host"},
+				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "allowed upstream relay ports"},
+				&cli.StringSliceFlag{Name: "origin", Usage: "allowed browser origin host pattern (repeatable)"},
 			},
 		},
 		{
@@ -815,4 +830,17 @@ func relay(c *cli.Context) (err error) {
 		}(port)
 	}
 	return tcp.Run(debugString, host, ports[0], determinePass(c), tcpPorts)
+}
+
+func runWebRelay(c *cli.Context) error {
+	origins := c.StringSlice("origin")
+	if len(origins) == 0 {
+		origins = []string{"localhost:*", "127.0.0.1:*"}
+	}
+	return webrelay.Run(context.Background(), webrelay.Config{
+		ListenAddress:  c.String("listen"),
+		RelayHost:      c.String("relay"),
+		AllowedPorts:   parseRelayPorts(c.String("ports")),
+		OriginPatterns: origins,
+	})
 }

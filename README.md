@@ -351,6 +351,24 @@ To use custom ports, set `CROC_PORTS` (comma-separated) or `CROC_PORT` (base por
 docker run -d -p 9010-9011:9010-9011 -e CROC_PORTS='9010,9011' -e CROC_PASS='YOURPASSWORD' docker.io/schollz/croc
 ```
 
+#### Web client
+
+The React/Vite client in [`web/`](web/) can send and receive multiple files
+with normal croc CLI peers. Browsers cannot connect to the TCP relay directly,
+so run the fixed-upstream WebSocket gateway alongside the site:
+
+```bash
+croc webrelay \
+  --listen 127.0.0.1:9014 \
+  --relay croc.schollz.com \
+  --ports 9009,9010,9011,9012,9013 \
+  --origin '127.0.0.1:*'
+```
+
+For local development, `cd web && npm run dev:stack` starts both Vite and the
+gateway. See [`web/README.md`](web/README.md) for build, custom relay, and
+production reverse-proxy instructions.
+
 ## Acknowledgements
 
 `croc` has evolved through many iterations, and I am thankful for the contributions! Special thanks to:
