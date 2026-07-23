@@ -103,12 +103,12 @@ export interface ReceiveSink {
   writeAt(position: number, bytes: Uint8Array): Promise<void>;
   finalize(): Promise<void>;
   hash(): Promise<Uint8Array>;
+  commit(): Promise<void>;
   abort(): Promise<void>;
 }
 
 export interface ReceiveDestination {
   createEmptyFolder(path: string): Promise<void>;
-  createEmptyFile(file: OfferedFile): Promise<void>;
   openFile(file: OfferedFile): Promise<ReceiveSink>;
 }
 

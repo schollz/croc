@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   expect,
@@ -18,7 +18,9 @@ const crocBinary = join(
   process.env.CROC_E2E_BINARY_NAME ?? "croc",
 );
 const relayPorts = process.env.CROC_E2E_RELAY_PORTS?.split(",") ?? [];
-const relayAddress = `127.0.0.1:${relayPorts[0]}`;
+const relayAddress =
+  process.env.CROC_E2E_RELAY_ADDRESS ?? `127.0.0.1:${relayPorts[0]}`;
+const webAddress = process.env.CROC_E2E_WEB_ADDRESS ?? "/";
 const relayPassword = "pass123";
 const transferTimeout = 60_000;
 
@@ -59,13 +61,21 @@ async function createFixtures(testInfo: TestInfo): Promise<FixtureSet> {
   };
 }
 
+async function createCrocBinaryFixture(): Promise<FixtureSet> {
+  return {
+    paths: [crocBinary],
+    contents: new Map([[basename(crocBinary), await fs.readFile(crocBinary)]]),
+  };
+}
+
 function runCroc(
   args: string[],
   secret: string,
   configDirectory: string,
+  executable = crocBinary,
 ): RunningCroc {
   let output = "";
-  const child = spawn(crocBinary, args, {
+  const child = spawn(executable, args, {
     cwd: webDirectory,
     env: {
       ...process.env,
@@ -120,7 +130,7 @@ function commonCLIArgs() {
 }
 
 async function configurePage(page: Page) {
-  await page.goto("/");
+  await page.goto(webAddress);
   await page.locator("details.settings > summary").click();
   await page.getByLabel("CLI relay address").fill(relayAddress);
   await page.getByLabel("WebSocket gateway").fill("/ws");
@@ -213,6 +223,7 @@ test("CLI → Web transfers and verifies multiple files", async ({
     [...commonCLIArgs(), "send", "--no-local", ...fixtures.paths],
     secret,
     configDirectory,
+    process.env.CROC_E2E_SENDER_BINARY,
   );
   try {
     const downloads = await acceptAsDownloads(page, receivePanel);
@@ -222,6 +233,34 @@ test("CLI → Web transfers and verifies multiple files", async ({
     });
     await cli.done;
     await metricsVisible;
+    await expectDownloads(downloads, fixtures);
+  } finally {
+    cli.stop();
+    await cli.done.catch(() => undefined);
+  }
+});
+
+test("CLI → Web verifies a large croc executable", async ({
+  page,
+}, testInfo) => {
+  const secret = "1112-large-cli-to-web-e2e";
+  const fixtures = await createCrocBinaryFixture();
+  const configDirectory = testInfo.outputPath("croc-config");
+  await fs.mkdir(configDirectory, { recursive: true });
+  await configurePage(page);
+  const receivePanel = await connectWebReceiver(page, secret);
+  const cli = runCroc(
+    [...commonCLIArgs(), "send", "--no-local", ...fixtures.paths],
+    secret,
+    configDirectory,
+    process.env.CROC_E2E_SENDER_BINARY,
+  );
+  try {
+    const downloads = await acceptAsDownloads(page, receivePanel);
+    await expect(receivePanel).toContainText("All files received and verified", {
+      timeout: transferTimeout,
+    });
+    await cli.done;
     await expectDownloads(downloads, fixtures);
   } finally {
     cli.stop();

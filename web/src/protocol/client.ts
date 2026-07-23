@@ -660,8 +660,17 @@ export async function receiveFiles(options: {
       checkAbort(signal);
       const file = offer.files[fileIndex];
       if (file.size === 0) {
-        await destination.createEmptyFile(file);
-        callbacks.onFileComplete?.(file.path);
+        const sink = await destination.openFile(file);
+        try {
+          await sink.finalize();
+          callbacks.onStatus?.(`Verifying ${file.path}`);
+          await verifySink(sink, file.hash);
+          await sink.commit();
+          callbacks.onFileComplete?.(file.path);
+        } catch (error) {
+          await sink.abort();
+          throw error;
+        }
         continue;
       }
 
@@ -701,6 +710,7 @@ export async function receiveFiles(options: {
         }
         callbacks.onStatus?.(`Verifying ${file.path}`);
         await verifySink(sink, file.hash);
+        await sink.commit();
         totalTransferred = beforeFile + file.size;
         callbacks.onFileComplete?.(file.path);
       } catch (error) {

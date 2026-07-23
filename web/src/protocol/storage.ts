@@ -1,4 +1,4 @@
-import { bytesEqual } from "./bytes";
+import { bytesEqual, hex } from "./bytes";
 import type {
   OfferedFile,
   ReceiveDestination,
@@ -91,6 +91,8 @@ class DirectorySink implements ReceiveSink {
     return hashBlob(await this.handle.getFile());
   }
 
+  async commit() {}
+
   async abort() {
     if (this.closed) return;
     this.closed = true;
@@ -106,11 +108,6 @@ export class DirectoryDestination implements ReceiveDestination {
     await directoryAt(this.root, splitPath(path), true);
   }
 
-  async createEmptyFile(file: OfferedFile) {
-    const sink = await this.openFile(file);
-    await sink.finalize();
-  }
-
   async openFile(file: OfferedFile) {
     const segments = splitPath(file.path);
     const name = segments.pop()!;
@@ -124,6 +121,7 @@ export class DirectoryDestination implements ReceiveDestination {
 class DownloadSink implements ReceiveSink {
   private chunks = new Map<number, Uint8Array>();
   private blob?: Blob;
+  private committed = false;
 
   constructor(
     private name: string,
@@ -140,12 +138,18 @@ class DownloadSink implements ReceiveSink {
       .map(([, bytes]) => Uint8Array.from(bytes).buffer);
     this.blob = new Blob(ordered, { type: "application/octet-stream" });
     this.chunks.clear();
-    this.onDownload(this.name, this.blob);
   }
 
   async hash() {
     if (!this.blob) throw new Error("Destination must be finalized before hashing");
     return hashBlob(this.blob);
+  }
+
+  async commit() {
+    if (!this.blob) throw new Error("Destination must be finalized before download");
+    if (this.committed) return;
+    this.committed = true;
+    this.onDownload(this.name, this.blob);
   }
 
   async abort() {
@@ -159,10 +163,6 @@ export class DownloadDestination implements ReceiveDestination {
 
   async createEmptyFolder() {
     // Browser downloads cannot represent an empty folder.
-  }
-
-  async createEmptyFile(file: OfferedFile) {
-    this.download(this.uniqueName(file.name), new Blob());
   }
 
   async openFile(file: OfferedFile) {
@@ -227,6 +227,8 @@ export async function chooseReceiveDestination(offer: TransferOffer) {
 export async function verifySink(sink: ReceiveSink, expected: Uint8Array) {
   const actual = await sink.hash();
   if (!bytesEqual(actual, expected)) {
-    throw new Error("The received file did not match its croc hash");
+    throw new Error(
+      `The sender advertised xxhash ${hex(expected)}, but the received file hashes to ${hex(actual)}`,
+    );
   }
 }
