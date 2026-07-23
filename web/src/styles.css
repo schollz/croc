@@ -856,6 +856,16 @@ footer {
   text-transform: uppercase;
 }
 
+footer a {
+  color: var(--foreground);
+  text-decoration: none;
+  border-bottom: 1px solid var(--foreground);
+}
+
+footer a:hover {
+  border-bottom-style: dashed;
+}
+
 .driver-popover.croc-tour {
   min-width: min(320px, calc(100vw - 24px));
   max-width: min(380px, calc(100vw - 24px));

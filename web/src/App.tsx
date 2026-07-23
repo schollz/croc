@@ -1087,7 +1087,16 @@ export function App() {
 
       <footer>
         <span>croc protocol · browser transport</span>
-        <span>open source · files encrypted before the gateway</span>
+        <span>
+          open source · made by{" "}
+          <a
+            href="https://github.com/sponsors/schollz"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            schollz
+          </a>
+        </span>
       </footer>
     </main>
   );

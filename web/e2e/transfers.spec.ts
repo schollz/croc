@@ -259,6 +259,9 @@ test("publishes rich metadata and project links", async ({ page }) => {
     page.getByRole("link", { name: /Read how croc works/i }),
   ).toHaveAttribute("href", "https://schollz.com/croc6/");
   await expect(
+    page.getByRole("link", { name: "schollz", exact: true }),
+  ).toHaveAttribute("href", "https://github.com/sponsors/schollz");
+  await expect(
     page.getByRole("heading", { name: "Download croc for macOS." }),
   ).toBeVisible();
   const receivePanel = page.locator(".receive-panel");
