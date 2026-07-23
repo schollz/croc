@@ -7,11 +7,17 @@ import process from "node:process";
 const execFileAsync = promisify(execFile);
 const webRoot = path.resolve(import.meta.dirname, "..");
 const publicDir = path.join(webRoot, "public");
+const wasmGoToolchain = "go1.26.0";
+const goEnvironment = {
+  ...process.env,
+  GOTOOLCHAIN: wasmGoToolchain,
+};
 
 await mkdir(publicDir, { recursive: true });
 
 const { stdout } = await execFileAsync("go", ["env", "GOROOT"], {
   cwd: webRoot,
+  env: goEnvironment,
 });
 const goRoot = stdout.trim();
 const candidates = [
@@ -38,6 +44,7 @@ await execFileAsync(
   "go",
   [
     "build",
+    "-buildvcs=false",
     "-trimpath",
     "-ldflags=-s -w",
     "-o",
@@ -47,7 +54,7 @@ await execFileAsync(
   {
     cwd: webRoot,
     env: {
-      ...process.env,
+      ...goEnvironment,
       GOOS: "js",
       GOARCH: "wasm",
     },
