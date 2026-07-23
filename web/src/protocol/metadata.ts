@@ -45,6 +45,13 @@ export function normalizeFilePath(folderValue: string, nameValue: string) {
   return { folder, name, path };
 }
 
+export function normalizeOutgoingFileName(value: string) {
+  // Go's unicode.IsPrint accepts ASCII space but rejects the other Unicode
+  // separator characters commonly inserted into filenames by macOS.
+  const compatible = value.replace(/\p{Z}+/gu, " ");
+  return normalizeFilePath(".", compatible).name;
+}
+
 function finiteSize(file: WireFileInfo) {
   const size = file.s ?? 0;
   if (!Number.isSafeInteger(size) || size < 0) {

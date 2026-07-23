@@ -10,7 +10,7 @@ import {
   textEncoder,
 } from "./bytes";
 import { CrocSocket } from "./transport";
-import { validateSenderInfo } from "./metadata";
+import { normalizeOutgoingFileName, validateSenderInfo } from "./metadata";
 import { verifySink } from "./storage";
 import type {
   CrocMessage,
@@ -244,10 +244,13 @@ export async function prepareFiles(
 ) {
   if (selected.length === 0) throw new Error("Choose at least one file");
   const names = new Set<string>();
-  for (const file of selected) {
-    if (names.has(file.name)) throw new Error(`Duplicate filename: ${file.name}`);
+  const outgoingNames = selected.map((file) => normalizeOutgoingFileName(file.name));
+  for (let index = 0; index < selected.length; index += 1) {
+    const file = selected[index];
+    const outgoingName = outgoingNames[index];
+    if (names.has(outgoingName)) throw new Error(`Duplicate filename: ${outgoingName}`);
     if (!Number.isSafeInteger(file.size)) throw new Error(`File is too large: ${file.name}`);
-    names.add(file.name);
+    names.add(outgoingName);
   }
 
   const prepared: PreparedFile[] = [];
@@ -270,7 +273,7 @@ export async function prepareFiles(
     }
     prepared.push({
       file,
-      name: file.name,
+      name: outgoingNames[index],
       size: file.size,
       hash: await engine.hashFinal(hashHandle),
       modified: new Date(file.lastModified).toISOString(),

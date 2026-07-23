@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateSenderInfo } from "./metadata";
+import { normalizeOutgoingFileName, validateSenderInfo } from "./metadata";
 import type { SenderInfoWire } from "./types";
 
 function sender(
@@ -19,6 +19,16 @@ function sender(
 }
 
 describe("incoming croc metadata", () => {
+  it("normalizes Unicode separators in outgoing filenames for Go compatibility", () => {
+    expect(
+      normalizeOutgoingFileName("Screenshot 2026-07-22 at 8.59.57\u202fAM.png"),
+    ).toBe("Screenshot 2026-07-22 at 8.59.57 AM.png");
+    expect(normalizeOutgoingFileName("two\u00a0spaces.txt")).toBe("two spaces.txt");
+    expect(() => normalizeOutgoingFileName("hidden\u200bmark.txt")).toThrow(
+      /non-printable/i,
+    );
+  });
+
   it("normalizes safe nested paths", () => {
     const offer = validateSenderInfo(
       sender([
