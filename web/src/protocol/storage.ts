@@ -119,7 +119,9 @@ export class DirectoryDestination implements ReceiveDestination {
 }
 
 class DownloadSink implements ReceiveSink {
-  private chunks = new Map<number, Uint8Array>();
+  // Stored chunks own their backing ArrayBuffer (writeAt copies via slice()),
+  // which lets finalize() hand them straight to Blob without a second copy.
+  private chunks = new Map<number, Uint8Array<ArrayBuffer>>();
   private blob?: Blob;
   private committed = false;
 
@@ -133,9 +135,13 @@ class DownloadSink implements ReceiveSink {
   }
 
   async finalize() {
+    // Chunks are already private copies (see writeAt); hand them straight to
+    // Blob, which copies its parts internally. Wrapping each one in
+    // Uint8Array.from() first allocated a redundant second copy of the whole
+    // file before the Blob was even built.
     const ordered = [...this.chunks.entries()]
       .sort(([left], [right]) => left - right)
-      .map(([, bytes]) => Uint8Array.from(bytes).buffer);
+      .map(([, bytes]) => bytes);
     this.blob = new Blob(ordered, { type: "application/octet-stream" });
     this.chunks.clear();
   }
