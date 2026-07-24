@@ -15,7 +15,7 @@
 
 - Allows **any two computers** to transfer data (using a relay)
 - Provides **end-to-end encryption** (using PAKE)
-- Enables easy **cross-platform** transfers (Windows, Linux, Mac)
+- Enables easy **cross-platform** transfers (Windows, Linux, Mac, [Browser](https://getcroc.com))
 - Allows **multiple file** transfers
 - Allows **resuming transfers** that are interrupted
 - No need for local server or port-forwarding
@@ -25,6 +25,12 @@
 For more information about `croc`, see [my blog post](https://schollz.com/tinker/croc6/) or read a [recent interview I did](https://console.substack.com/p/console-91).
 
 ![Example](src/install/customization.gif)
+
+## No-install
+
+You can use croc without installing anything at [getcroc.com](https://getcroc.com).
+
+The browser version is fully compatible with the CLI, so you can send and receive files between them.
 
 ## Install
 
