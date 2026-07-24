@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="web/public/croc.jpg" width="408px" border="0" alt="croc">
+  <a href="https://getcroc.com"><img src="web/public/croc.jpg" width="408px" border="0" alt="croc"></a>
   <br>
   <a href="https://github.com/schollz/croc/releases/latest"><img src="https://img.shields.io/github/v/release/schollz/croc" alt="Version"></a>
   <a href="https://github.com/schollz/croc/actions/workflows/ci.yml"><img src="https://github.com/schollz/croc/actions/workflows/ci.yml/badge.svg" alt="Build Status"></a>
