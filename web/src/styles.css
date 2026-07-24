@@ -1,27 +1,29 @@
 :root {
   font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
   color: #fff;
-  background: #000;
+  background: #121411;
   font-synthesis: none;
   text-rendering: geometricPrecision;
-  --background: #000;
+  --canvas: #121411;
+  --background: #050605;
   --foreground: #fff;
   --muted: #a4a4a4;
   --subtle: #6f6f6f;
   --soft-border: #4b4b4b;
-  --panel-tint: #080808;
+  --panel-tint: #0d0f0d;
   --danger: #fff;
 }
 
 :root[data-theme="light"] {
   color: #000;
-  background: #fff;
+  background: #f2f1ec;
+  --canvas: #f2f1ec;
   --background: #fff;
   --foreground: #000;
   --muted: #555;
   --subtle: #777;
   --soft-border: #aaa;
-  --panel-tint: #f8f8f8;
+  --panel-tint: #f7f6f2;
   --danger: #000;
 }
 
@@ -34,7 +36,7 @@ body {
   min-height: 100vh;
   margin: 0;
   color: var(--foreground);
-  background: var(--background);
+  background: var(--canvas);
 }
 
 button,
@@ -76,6 +78,7 @@ a:focus-visible {
   grid-template-columns: 1fr auto;
   margin-bottom: 26px;
   border: 1px solid var(--foreground);
+  background: var(--background);
 }
 
 .donation-copy {
@@ -219,7 +222,7 @@ h1 {
 
 .panel-heading {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr;
   gap: 14px;
   align-items: start;
   margin-bottom: 24px;
@@ -235,6 +238,11 @@ h1 {
   font-size: 11px;
 }
 
+.panel-heading .step svg {
+  width: 14px;
+  height: 14px;
+}
+
 .panel-heading h2 {
   margin: 0 0 7px;
   font-size: 22px;
@@ -246,11 +254,6 @@ h1 {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.55;
-}
-
-.panel-heading > svg {
-  width: 21px;
-  height: 21px;
 }
 
 .drop-zone {
@@ -388,8 +391,20 @@ button:disabled {
   grid-template-columns: minmax(0, 1fr) 42px 42px;
 }
 
+.field-with-actions:focus-within {
+  box-shadow: 0 0 0 1px var(--foreground);
+}
+
 .field-with-actions input {
   border-right: 0;
+}
+
+.field-with-actions input:focus {
+  border-color: var(--subtle);
+}
+
+.field-with-actions input:focus-visible {
+  outline: 0;
 }
 
 .field-action {
@@ -431,11 +446,6 @@ button:disabled {
 
 .copy-feedback.error {
   color: var(--danger);
-}
-
-.large-code-input {
-  height: 54px;
-  font-size: 14px;
 }
 
 .field-help {
@@ -688,7 +698,8 @@ button:disabled {
   align-items: center;
   margin-top: 16px;
   padding: 24px;
-  border: 1px solid var(--foreground);
+  border: 1px solid var(--soft-border);
+  background: var(--background);
 }
 
 .cli-download h2 {
@@ -780,6 +791,7 @@ a.cli-download-primary:hover {
 .settings {
   margin-top: 16px;
   border: 1px solid var(--soft-border);
+  background: var(--background);
 }
 
 .settings summary {
@@ -871,6 +883,7 @@ a.cli-download-primary:hover {
   margin-top: 16px;
   padding: 24px;
   border: 1px solid var(--soft-border);
+  background: var(--background);
 }
 
 .about-croc h2 {

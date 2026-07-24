@@ -356,7 +356,7 @@ export function App() {
     document.documentElement.style.colorScheme = theme;
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", theme === "dark" ? "#000000" : "#ffffff");
+      ?.setAttribute("content", theme === "dark" ? "#121411" : "#f2f1ec");
     try {
       localStorage.setItem("croc-web-theme", theme);
     } catch {
@@ -750,12 +750,13 @@ export function App() {
         {!requestedReceiveCode && (
           <article className="panel send-panel" data-tour="send">
           <div className="panel-heading">
-            <span className="step">01</span>
+            <span className="step">
+              <Upload aria-hidden="true" />
+            </span>
             <div>
               <h2>Send</h2>
               <p>Choose several files. Share one croc code.</p>
             </div>
-            <Upload aria-hidden="true" />
           </div>
 
           <button
@@ -822,7 +823,7 @@ export function App() {
           )}
 
           <label className="field-label" htmlFor="send-code">
-            Croc code
+            Code
           </label>
           <div className="field-with-actions">
             <input
@@ -907,20 +908,20 @@ export function App() {
           data-tour="receive"
         >
           <div className="panel-heading">
-            <span className="step">{requestedReceiveCode ? "01" : "02"}</span>
+            <span className="step">
+              <Download aria-hidden="true" />
+            </span>
             <div>
               <h2>Receive</h2>
               <p>Enter the sender’s code. Review before saving.</p>
             </div>
-            <Download aria-hidden="true" />
           </div>
 
           <label className="field-label" htmlFor="receive-code">
-            Croc code
+            Code
           </label>
           <input
             id="receive-code"
-            className="large-code-input"
             value={receiveCode}
             disabled={receiveBusy}
             placeholder="1234-word-word-word"

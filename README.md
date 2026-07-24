@@ -11,7 +11,7 @@
 
 ## About
 
-`croc` is a tool that allows any two computers to simply and securely transfer files and folders. AFAIK, *croc* is the only CLI file-transfer tool that does **all** of the following:
+`croc` is a tool that allows any two computers to simply and securely transfer files and folders. AFAIK, _croc_ is the only CLI file-transfer tool that does **all** of the following:
 
 - Allows **any two computers** to transfer data (using a relay)
 - Provides **end-to-end encryption** (using PAKE)
@@ -146,7 +146,7 @@ Or install into a particular environment with [`conda`](https://docs.conda.io/pr
 conda install --channel conda-forge croc
 ```
 
-### On Linux, macOS via Docker 
+### On Linux, macOS via Docker
 
 Add the following one-liner function to your ~/.profile (works with any POSIX-compliant shell):
 
