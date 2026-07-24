@@ -624,7 +624,7 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 			log.Error(err)
 			return
 		}
-		err = os.WriteFile(configFile, bConfig, 0o644)
+		err = os.WriteFile(configFile, bConfig, 0o600)
 		if err != nil {
 			log.Error(err)
 			return
@@ -786,7 +786,7 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 			log.Error(err)
 			return
 		}
-		err = os.WriteFile(configFile, bConfig, 0o644)
+		err = os.WriteFile(configFile, bConfig, 0o600)
 		if err != nil {
 			log.Error(err)
 			return
