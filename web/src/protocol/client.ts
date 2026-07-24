@@ -483,9 +483,10 @@ type ActiveReceive = {
   reject(error: Error): void;
 };
 
-class DataReceiver {
+export class DataReceiver {
   private active?: ActiveReceive;
   private stopped = false;
+  private failure?: Error;
 
   constructor(
     private sockets: CrocSocket[],
@@ -500,6 +501,9 @@ class DataReceiver {
     sink: ReceiveSink,
     progress: (fileBytes: number) => void,
   ) {
+    // A data socket can fail before the next file is requested, so surface the
+    // recorded failure instead of waiting for data that will never arrive.
+    if (this.failure) return Promise.reject(this.failure);
     if (this.active) throw new Error("A receive file is already active");
     return new Promise<void>((resolve, reject) => {
       this.active = {
@@ -517,8 +521,7 @@ class DataReceiver {
 
   stop() {
     this.stopped = true;
-    this.active?.reject(new Error("Data receiver stopped"));
-    this.active = undefined;
+    this.fail(new Error("Data receiver stopped"));
   }
 
   private async read(socket: CrocSocket) {
@@ -541,12 +544,16 @@ class DataReceiver {
         await this.accept(position, bytes);
       } catch (error) {
         if (this.stopped) return;
-        const normalized = error instanceof Error ? error : new Error(String(error));
-        this.active?.reject(normalized);
-        this.active = undefined;
         this.stopped = true;
+        this.fail(error instanceof Error ? error : new Error(String(error)));
       }
     }
+  }
+
+  private fail(error: Error) {
+    this.failure ??= error;
+    this.active?.reject(error);
+    this.active = undefined;
   }
 
   private accept(position: number, bytes: Uint8Array) {
