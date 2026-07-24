@@ -2,11 +2,61 @@ package cli
 
 import (
 	"flag"
+	"os"
+	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/schollz/cli/v2"
 )
+
+func TestWritePrivateConfigFile(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing bool
+	}{
+		{name: "new config"},
+		{name: "existing permissive config", existing: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configPath := filepath.Join(t.TempDir(), "config.json")
+			if tt.existing {
+				if err := os.WriteFile(configPath, []byte("old secret"), 0o644); err != nil {
+					t.Fatalf("create existing config: %v", err)
+				}
+				if err := os.Chmod(configPath, 0o644); err != nil {
+					t.Fatalf("make existing config permissive: %v", err)
+				}
+			}
+
+			want := []byte(`{"RelayPassword":"new secret"}`)
+			if err := writePrivateConfigFile(configPath, want); err != nil {
+				t.Fatalf("write private config: %v", err)
+			}
+
+			got, err := os.ReadFile(configPath)
+			if err != nil {
+				t.Fatalf("read config: %v", err)
+			}
+			if string(got) != string(want) {
+				t.Fatalf("config contents = %q, want %q", got, want)
+			}
+
+			if runtime.GOOS != "windows" {
+				info, err := os.Stat(configPath)
+				if err != nil {
+					t.Fatalf("stat config: %v", err)
+				}
+				if gotMode := info.Mode().Perm(); gotMode != 0o600 {
+					t.Fatalf("config permissions = %o, want 600", gotMode)
+				}
+			}
+		})
+	}
+}
 
 // determinePass should trim a pass from --pass/CROC_PASS, not just from a file.
 func TestDeterminePassTrimsEnvValue(t *testing.T) {

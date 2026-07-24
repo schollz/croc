@@ -600,6 +600,30 @@ func makeTempFileWithString(s string) (fnames []string, err error) {
 	return
 }
 
+// writePrivateConfigFile writes configuration only after enforcing owner-only
+// permissions. os.WriteFile's permission argument applies only to newly created
+// files, so it does not harden configs created by older croc versions.
+func writePrivateConfigFile(name string, data []byte) (err error) {
+	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := f.Close(); err == nil {
+			err = closeErr
+		}
+	}()
+
+	if err = f.Chmod(0o600); err != nil {
+		return err
+	}
+	if err = f.Truncate(0); err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	return err
+}
+
 func saveConfig(c *cli.Context, crocOptions croc.Options) {
 	if c.Bool("remember") {
 		configFile := getSendConfigFile(true)
@@ -624,7 +648,7 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 			log.Error(err)
 			return
 		}
-		err = os.WriteFile(configFile, bConfig, 0o600)
+		err = writePrivateConfigFile(configFile, bConfig)
 		if err != nil {
 			log.Error(err)
 			return
@@ -786,7 +810,7 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 			log.Error(err)
 			return
 		}
-		err = os.WriteFile(configFile, bConfig, 0o600)
+		err = writePrivateConfigFile(configFile, bConfig)
 		if err != nil {
 			log.Error(err)
 			return
