@@ -761,6 +761,47 @@ func pathWithin(parent string, child string) bool {
 	return rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
+// RejectSymlinkPath rejects existing symlinks in target and its path
+// components below root. This prevents writes through a pre-existing symlink
+// from escaping the intended destination directory.
+func RejectSymlinkPath(root, target string) error {
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return fmt.Errorf("failed to resolve destination root: %w", err)
+	}
+	targetAbs, err := filepath.Abs(target)
+	if err != nil {
+		return fmt.Errorf("failed to resolve destination path: %w", err)
+	}
+
+	rel, err := filepath.Rel(rootAbs, targetAbs)
+	if err != nil {
+		return fmt.Errorf("failed to resolve destination path: %w", err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return fmt.Errorf("destination path escapes root: '%s'", target)
+	}
+	if rel == "." {
+		return nil
+	}
+
+	current := rootAbs
+	for _, component := range strings.Split(rel, string(os.PathSeparator)) {
+		current = filepath.Join(current, component)
+		info, statErr := os.Lstat(current)
+		if os.IsNotExist(statErr) {
+			return nil
+		}
+		if statErr != nil {
+			return fmt.Errorf("failed to inspect destination path '%s': %w", current, statErr)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("refusing to open symlink destination path component: '%s'", current)
+		}
+	}
+	return nil
+}
+
 func UnzipDirectory(destination string, source string) error {
 	archive, err := zip.OpenReader(source)
 	if err != nil {
@@ -774,6 +815,10 @@ func UnzipDirectory(destination string, source string) error {
 	for i, f := range archive.File {
 		filePath, pathErr := resolveUnzipPath(destination, f.Name)
 		if pathErr != nil {
+			log.Errorf("Invalid file path %s: %v\n", f.Name, pathErr)
+			return fmt.Errorf("invalid file path in zip entry %q: %w", f.Name, pathErr)
+		}
+		if pathErr = RejectSymlinkPath(destination, filePath); pathErr != nil {
 			log.Errorf("Invalid file path %s: %v\n", f.Name, pathErr)
 			return fmt.Errorf("invalid file path in zip entry %q: %w", f.Name, pathErr)
 		}
@@ -799,6 +844,9 @@ func UnzipDirectory(destination string, source string) error {
 		}
 
 		if f.FileInfo().IsDir() {
+			if err := RejectSymlinkPath(destination, filePath); err != nil {
+				return fmt.Errorf("refusing to extract zip entry %q: %w", f.Name, err)
+			}
 			if err := os.MkdirAll(filePath, os.ModePerm); err != nil {
 				log.Error(err)
 			}
@@ -808,6 +856,9 @@ func UnzipDirectory(destination string, source string) error {
 		if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
 			log.Error(err)
 			continue
+		}
+		if err := RejectSymlinkPath(destination, filePath); err != nil {
+			return fmt.Errorf("refusing to extract zip entry %q: %w", f.Name, err)
 		}
 
 		// check if file exists

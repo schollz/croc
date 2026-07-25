@@ -712,17 +712,7 @@ func validateReceiveMetadata(files []FileInfo, emptyFolders []FileInfo) ([]FileI
 }
 
 func rejectSymlinkDestination(pathToFile string) error {
-	info, err := os.Lstat(pathToFile)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("refusing to open symlink destination: '%s'", pathToFile)
-	}
-	return nil
+	return utils.RejectSymlinkPath(".", pathToFile)
 }
 
 // helper function to walk each subfolder and parses against an ignore file.
@@ -1928,6 +1918,9 @@ func (c *Client) createEmptyFolder(i int) (err error) {
 		return
 	}
 	c.EmptyFoldersToTransfer[i].FolderRemote = folderRemote
+	if err = utils.RejectSymlinkPath(".", folderRemote); err != nil {
+		return
+	}
 	err = os.MkdirAll(c.EmptyFoldersToTransfer[i].FolderRemote, os.ModePerm)
 	if err != nil {
 		return
@@ -2385,6 +2378,9 @@ func (c *Client) recipientInitializeFile() (err error) {
 	c.FilesToTransfer[c.FilesToTransferCurrentNum].Name = path.Base(pathToFile)
 	folderForFile, _ := filepath.Split(pathToFile)
 	folderForFileBase := filepath.Base(folderForFile)
+	if err = utils.RejectSymlinkPath(".", folderForFile); err != nil {
+		return
+	}
 	if folderForFileBase != "." && folderForFileBase != "" {
 		if err := os.MkdirAll(folderForFile, os.ModePerm); err != nil {
 			log.Errorf("can't create %s: %v", folderForFile, err)
@@ -2532,6 +2528,9 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	}
 	fileInfo.FolderRemote = folderRemote
 	fileInfo.Name = path.Base(pathToFile)
+	if err = utils.RejectSymlinkPath(".", filepath.Dir(pathToFile)); err != nil {
+		return
+	}
 	if !utils.Exists(fileInfo.FolderRemote) {
 		err = os.MkdirAll(fileInfo.FolderRemote, os.ModePerm)
 		if err != nil {
