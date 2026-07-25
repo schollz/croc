@@ -330,6 +330,61 @@ func TestHostileExistingSymlinkDestinationRejected(t *testing.T) {
 	assert.Equal(t, original, got)
 }
 
+func TestHostileExistingSymlinkParentRejected(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation requires elevated privileges on some Windows setups")
+	}
+
+	tmpDir := t.TempDir()
+	receiveDir := filepath.Join(tmpDir, "receive")
+	outsideDir := filepath.Join(tmpDir, "outside")
+	if err := os.MkdirAll(receiveDir, 0o755); err != nil {
+		t.Fatalf("mkdir receive dir: %v", err)
+	}
+	if err := os.MkdirAll(outsideDir, 0o755); err != nil {
+		t.Fatalf("mkdir outside dir: %v", err)
+	}
+	if err := os.Symlink(outsideDir, filepath.Join(receiveDir, "nested")); err != nil {
+		t.Fatalf("create symlink parent: %v", err)
+	}
+
+	originalCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(receiveDir); err != nil {
+		t.Fatalf("chdir receive dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(originalCwd); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	}()
+
+	client := &Client{
+		Options: Options{
+			SendingText: true,
+			Overwrite:   true,
+		},
+		FilesHasFinished: make(map[int]struct{}),
+		FilesToTransfer: []FileInfo{
+			{
+				Name:         "payload.txt",
+				FolderRemote: "nested",
+				Size:         1,
+				Mode:         0o644,
+			},
+		},
+	}
+
+	err = client.recipientInitializeFile()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "symlink destination path component")
+
+	_, err = os.Stat(filepath.Join(outsideDir, "payload.txt"))
+	assert.True(t, os.IsNotExist(err), "receive must not write through a symlink parent")
+}
+
 func TestCrocReadme(t *testing.T) {
 	defer os.Remove("README.md")
 
