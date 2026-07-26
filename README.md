@@ -172,12 +172,11 @@ go install github.com/schollz/croc/v10@latest
 
 ### On Android
 
-There are two F-Droid apps available:
+There are F-Droid apps available:
 
 - [crocgui](https://f-droid.org/packages/com.github.howeyc.crocgui/) — original port (Go, basic UI)
 - [croc-app](https://f-droid.org/en/packages/com.dking.crocapp/) — native Kotlin/Jetpack Compose client with a modern, mobile-first interface
-
-[FlCroc](https://github.com/576576/FlCroc) is a cross-platform Flutter GUI (Android, Windows, Linux) that wraps the `croc` binary as its transfer core.
+- [FlCroc](https://github.com/576576/FlCroc) is a cross-platform Flutter GUI (Android, Windows, Linux) that wraps the `croc` binary as its transfer core.
 
 ## Usage
 
