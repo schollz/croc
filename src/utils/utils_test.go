@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -513,6 +514,37 @@ func TestUnzipDirectoryRejectsPathTraversal(t *testing.T) {
 
 	_, statErr = os.Stat(filepath.Join(extractDir, "safe", "file.txt"))
 	assert.True(t, os.IsNotExist(statErr), "pre-validation should prevent partial extraction")
+}
+
+func TestUnzipDirectoryRejectsSymlinkParentEscape(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation requires elevated privileges on some Windows setups")
+	}
+
+	tmpDir := t.TempDir()
+	zipPath := filepath.Join(tmpDir, "symlink-parent.zip")
+	extractDir := filepath.Join(tmpDir, "extract")
+	outsideDir := filepath.Join(tmpDir, "outside")
+	if err := os.MkdirAll(extractDir, 0o755); err != nil {
+		t.Fatalf("Failed to create extraction directory: %v", err)
+	}
+	if err := os.MkdirAll(outsideDir, 0o755); err != nil {
+		t.Fatalf("Failed to create outside directory: %v", err)
+	}
+	if err := os.Symlink(outsideDir, filepath.Join(extractDir, "linked")); err != nil {
+		t.Fatalf("Failed to create symlink parent: %v", err)
+	}
+	if err := createZipWithEntries(zipPath, []zipTestEntry{
+		{name: "linked/escaped.txt", content: "escape"},
+	}); err != nil {
+		t.Fatalf("Failed to create malicious zip: %v", err)
+	}
+
+	err := UnzipDirectory(extractDir, zipPath)
+	assert.ErrorContains(t, err, "symlink destination path component")
+
+	_, statErr := os.Stat(filepath.Join(outsideDir, "escaped.txt"))
+	assert.True(t, os.IsNotExist(statErr), "zip extraction must not write through a symlink parent")
 }
 
 func TestResolveUnzipPathRejectsNonLocalEntries(t *testing.T) {
