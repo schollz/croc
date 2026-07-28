@@ -889,38 +889,41 @@ func (c *Client) renewClaim(
 	return writeState(session.statePath, session.state)
 }
 
+func withFreshClaim[T any](
+	ctx context.Context,
+	client *Client,
+	session *downloadSession,
+	operation func(string) (T, error),
+) (T, error) {
+	value, err := operation(session.state.ClaimToken)
+	if err == nil || !expiredClaim(err) {
+		return value, err
+	}
+	if err = client.renewClaim(ctx, session); err != nil {
+		var zero T
+		return zero, err
+	}
+	return operation(session.state.ClaimToken)
+}
+
 func (c *Client) getChunkWithClaimRetry(
 	ctx context.Context,
 	session *downloadSession,
 	index int,
 ) ([]byte, error) {
-	ciphertext, err := c.getChunk(
-		ctx,
-		session.share,
-		session.state.ClaimToken,
-		index,
-	)
-	if err == nil || !expiredClaim(err) {
-		return ciphertext, err
-	}
-	if err = c.renewClaim(ctx, session); err != nil {
-		return nil, err
-	}
-	return c.getChunk(ctx, session.share, session.state.ClaimToken, index)
+	return withFreshClaim(ctx, c, session, func(token string) ([]byte, error) {
+		return c.getChunk(ctx, session.share, token, index)
+	})
 }
 
 func (c *Client) commitWithClaimRetry(
 	ctx context.Context,
 	session *downloadSession,
 ) error {
-	err := c.commit(ctx, session.share, session.state.ClaimToken)
-	if err == nil || !expiredClaim(err) {
-		return err
-	}
-	if err = c.renewClaim(ctx, session); err != nil {
-		return err
-	}
-	return c.commit(ctx, session.share, session.state.ClaimToken)
+	_, err := withFreshClaim(ctx, c, session, func(token string) (struct{}, error) {
+		return struct{}{}, c.commit(ctx, session.share, token)
+	})
+	return err
 }
 
 func readDownloadState(path string) (downloadState, error) {
@@ -988,10 +991,7 @@ func (c *Client) claim(ctx context.Context, share storecrypto.Share) (string, er
 	if err = decodeResponse(response, &claimed); err != nil {
 		return "", err
 	}
-	capability, decodeErr := storecrypto.DecodeBase64URL(claimed.ClaimToken)
-	if decodeErr != nil ||
-		len(capability) != 32 ||
-		storecrypto.EncodeBase64URL(capability) != claimed.ClaimToken {
+	if !validCapability(claimed.ClaimToken) {
 		return "", errors.New("storage service returned an invalid claim capability")
 	}
 	return claimed.ClaimToken, nil
