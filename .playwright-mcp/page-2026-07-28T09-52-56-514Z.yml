@@ -1,0 +1,15 @@
+- generic [ref=e1]:
+  - status:
+    - generic: Updated from another editor
+  - generic [ref=e2]:
+    - button "Open paste actions" [expanded] [ref=e6] [cursor=pointer]
+    - menu [ref=e14]:
+      - menuitem "Copy paste URL" [active] [ref=e15] [cursor=pointer]
+      - menuitem "Encrypt paste" [ref=e19] [cursor=pointer]
+      - menuitem "Lock page" [ref=e23] [cursor=pointer]
+    - status [ref=e3]: page not found
+  - main [ref=e4]:
+    - generic: browser lock integration text
+    - textbox "Paste content" [ref=e5]:
+      - /placeholder: type...
+      - text: browser lock integration text

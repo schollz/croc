@@ -1,0 +1,9 @@
+- generic [ref=f3e1]:
+  - status:
+    - generic: Updated from another editor
+  - generic [ref=f3e2]:
+    - button "Open paste actions"
+    - status [ref=f3e3]: Saved
+  - main [ref=f3e4]:
+    - textbox "Paste content" [active] [ref=f3e5]:
+      - /placeholder: type...

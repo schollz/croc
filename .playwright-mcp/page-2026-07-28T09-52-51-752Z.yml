@@ -1,0 +1,11 @@
+- generic [ref=e1]:
+  - status:
+    - generic: Updated from another editor
+  - generic [ref=e2]:
+    - button "Open paste actions" [ref=e6] [cursor=pointer]
+    - status [ref=e3]: page not found
+  - main [ref=e4]:
+    - generic: browser lock integration text
+    - textbox "Paste content" [active] [ref=e5]:
+      - /placeholder: type...
+      - text: browser lock integration text

@@ -437,6 +437,73 @@ button:disabled {
   line-height: 1.55;
 }
 
+.send-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 16px;
+  border: 1px solid var(--foreground);
+}
+
+.send-mode-switch button {
+  min-height: 38px;
+  border: 0;
+  padding: 8px 10px;
+  color: var(--foreground);
+  background: var(--background);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.send-mode-switch button + button {
+  border-left: 1px solid var(--foreground);
+}
+
+.send-mode-switch button.active {
+  color: var(--background);
+  background: var(--foreground);
+}
+
+.stored-privacy-note {
+  margin-top: 4px;
+  border-top: 1px dashed var(--soft-border);
+  border-bottom: 1px dashed var(--soft-border);
+  padding: 10px 0;
+}
+
+.stored-share {
+  display: grid;
+  gap: 12px;
+  margin: 4px 0 18px;
+  border: 1px solid var(--foreground);
+  padding: 14px;
+  background: var(--panel-tint);
+}
+
+.stored-share label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.stored-share-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.stored-share-row input {
+  border-right: 0;
+}
+
+.stored-share-row .secondary-button {
+  width: auto;
+  min-height: 42px;
+}
+
+.stored-share .revoke-button {
+  margin-top: 2px;
+}
+
 .primary-button,
 .secondary-button {
   display: flex;

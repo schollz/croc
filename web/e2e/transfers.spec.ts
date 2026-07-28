@@ -32,6 +32,7 @@ type FixtureSet = {
 type RunningCroc = {
   child: ReturnType<typeof spawn>;
   done: Promise<void>;
+  output(): string;
   stop(): void;
 };
 
@@ -73,6 +74,7 @@ function runCroc(
   secret: string,
   configDirectory: string,
   executable = crocBinary,
+  extraEnvironment: NodeJS.ProcessEnv = {},
 ): RunningCroc {
   let output = "";
   const child = spawn(executable, args, {
@@ -81,6 +83,7 @@ function runCroc(
       ...process.env,
       CROC_CONFIG_DIR: configDirectory,
       CROC_SECRET: secret,
+      ...extraEnvironment,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -106,6 +109,9 @@ function runCroc(
   return {
     child,
     done,
+    output() {
+      return output;
+    },
     stop() {
       if (child.exitCode === null && child.signalCode === null) {
         child.kill("SIGTERM");
@@ -262,7 +268,7 @@ test("publishes rich metadata and project links", async ({ page }) => {
     page.getByRole("link", { name: "schollz", exact: true }),
   ).toHaveAttribute("href", "https://github.com/sponsors/schollz");
   await expect(page.locator("footer")).toContainText(
-    "end-to-end encrypted · browser transport",
+    "end-to-end encrypted · over 2 petabytes transferred",
   );
   await expect(
     page.getByRole("heading", { name: "Download croc for macOS." }),
@@ -272,7 +278,9 @@ test("publishes rich metadata and project links", async ({ page }) => {
     receivePanel.getByRole("button", { name: "Receive", exact: true }),
   ).toHaveCSS("font-size", "12px");
   await expect(
-    receivePanel.getByText("Enter the sender’s code. Review before saving."),
+    receivePanel.getByText(
+      "Enter a croc code or encrypted stored link. Review before saving.",
+    ),
   ).toHaveCSS("font-size", "12px");
   await expect(
     page.getByText("Detected macOS. Release assets come directly from GitHub."),
@@ -363,7 +371,7 @@ test("help tour explains browser transfers and end-to-end encryption", async ({
     "Welcome to croc web",
     "Send one or several files",
     "Receive and review",
-    "The code creates the encryption key",
+    "The code or link provides the key",
     "Use another relay when needed",
     "Works with the croc CLI",
     "Simple by design",
@@ -371,13 +379,14 @@ test("help tour explains browser transfers and end-to-end encryption", async ({
 
   for (const [index, expectedTitle] of steps.entries()) {
     await expect(title).toHaveText(expectedTitle);
-    if (expectedTitle === "The code creates the encryption key") {
+    if (expectedTitle === "The code or link provides the key") {
       await expect(tour).toContainText(
         "password-authenticated key exchange (PAKE)",
       );
       await expect(tour).toContainText(
         "encrypted before leaving the browser",
       );
+      await expect(tour).toContainText("not sent to the server");
     }
     if (index < steps.length - 1) {
       await next.click();
@@ -529,5 +538,88 @@ test("Web → Web transfers and verifies multiple files", async ({
     await expectDownloads(downloads, fixtures);
   } finally {
     await Promise.all([senderContext.close(), receiverContext.close()]);
+  }
+});
+
+test("Web stored upload → CLI download consumes the transfer", async ({
+  page,
+}, testInfo) => {
+  const fixtures = await createFixtures(testInfo);
+  const destination = testInfo.outputPath("stored-received");
+  const configDirectory = testInfo.outputPath("stored-croc-config");
+  await Promise.all([
+    fs.mkdir(destination, { recursive: true }),
+    fs.mkdir(configDirectory, { recursive: true }),
+  ]);
+  await configurePage(page);
+  const panel = page.locator(".send-panel");
+  await panel.getByRole("button", { name: "Store for 24 hours" }).click();
+  await panel.locator('input[type="file"]').setInputFiles(fixtures.paths);
+  await panel.getByRole("button", { name: "Store 3 files" }).click();
+  await expect(panel.getByText("Encrypted link ready")).toBeVisible({
+    timeout: transferTimeout,
+  });
+  const token = await panel.getByLabel("CLI token").inputValue();
+  const receiver = runCroc(
+    [...commonCLIArgs(), "--out", destination],
+    "unused-for-stored-transfer",
+    configDirectory,
+    crocBinary,
+    { CROC_STORE_TOKEN: token },
+  );
+  try {
+    await receiver.done;
+    await expectDirectory(destination, fixtures);
+    await expect(panel).toContainText("Encrypted upload ready to share");
+  } finally {
+    receiver.stop();
+    await receiver.done.catch(() => undefined);
+  }
+});
+
+test("CLI stored upload → Web download verifies and consumes files", async ({
+  page,
+}, testInfo) => {
+  const fixtures = await createFixtures(testInfo);
+  const configDirectory = testInfo.outputPath("stored-croc-config");
+  await fs.mkdir(configDirectory, { recursive: true });
+  await configurePage(page);
+  const origin = new URL(page.url()).origin;
+  const sender = runCroc(
+    [
+      ...commonCLIArgs(),
+      "send",
+      "--store",
+      "--store-url",
+      origin,
+      ...fixtures.paths,
+    ],
+    "unused-for-stored-transfer",
+    configDirectory,
+  );
+  try {
+    await sender.done;
+    const browserURL = sender.output().match(
+      /https?:\/\/\S+\/s\/[A-Za-z0-9_-]{22}#v1\.[A-Za-z0-9_-]+/,
+    )?.[0];
+    expect(browserURL, sender.output()).toBeTruthy();
+    await page.goto(browserURL!);
+    const panel = page.locator(".receive-panel");
+    const downloads = await acceptAsDownloads(page, panel);
+    await expect(panel).toContainText(
+      "All files received, verified, and removed from storage",
+      { timeout: transferTimeout },
+    );
+    await expectDownloads(downloads, fixtures);
+
+    await page.goto("about:blank");
+    await page.goto(browserURL!);
+    await expect(page.locator(".receive-panel")).toContainText(
+      /expired or was already downloaded/i,
+      { timeout: transferTimeout },
+    );
+  } finally {
+    sender.stop();
+    await sender.done.catch(() => undefined);
   }
 });

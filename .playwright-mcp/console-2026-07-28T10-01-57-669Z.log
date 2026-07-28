@@ -1,0 +1,2 @@
+[     253ms] [VERBOSE] [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:18002/final-smoke:0
+[     254ms] [INFO] Autofocus processing was blocked because a document already has a focused element. @ http://127.0.0.1:18002/final-smoke:0

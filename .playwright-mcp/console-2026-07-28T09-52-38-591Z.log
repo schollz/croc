@@ -1,0 +1,11 @@
+[     259ms] [VERBOSE] [DOM] Password forms should have (optionally hidden) username fields for accessibility: (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:18001/lock-test:0
+[     527ms] [INFO] Autofocus processing was blocked because a document already has a focused element. @ http://127.0.0.1:18001/lock-test:0
+[   63183ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:18001/ws?place=lock-test' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:18001/static/index-Cxw_Uhog.js:5
+[   63937ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:18001/ws?place=lock-test' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:18001/static/index-Cxw_Uhog.js:5
+[   64690ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:18001/ws?place=lock-test' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:18001/static/index-Cxw_Uhog.js:5
+[   65444ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:18001/ws?place=lock-test' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:18001/static/index-Cxw_Uhog.js:5
+[   66198ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:18001/ws?place=lock-test' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:18001/static/index-Cxw_Uhog.js:5
+[   66953ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:18001/ws?place=lock-test' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:18001/static/index-Cxw_Uhog.js:5
+[   67707ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:18001/ws?place=lock-test' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:18001/static/index-Cxw_Uhog.js:5
+[   68460ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:18001/ws?place=lock-test' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:18001/static/index-Cxw_Uhog.js:5
+[   69217ms] [ERROR] WebSocket connection to 'ws://127.0.0.1:18001/ws?place=lock-test' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:18001/static/index-Cxw_Uhog.js:5

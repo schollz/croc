@@ -160,6 +160,29 @@ func TestResolveServeAddress(t *testing.T) {
 	}
 }
 
+func TestParseByteSize(t *testing.T) {
+	tests := map[string]int64{
+		"1":      1,
+		"512MiB": 512 << 20,
+		"5GB":    5_000_000_000,
+		"2 GiB":  2 << 30,
+	}
+	for input, expected := range tests {
+		actual, err := parseByteSize(input)
+		if err != nil {
+			t.Fatalf("parseByteSize(%q): %v", input, err)
+		}
+		if actual != expected {
+			t.Fatalf("parseByteSize(%q) = %d, want %d", input, actual, expected)
+		}
+	}
+	for _, input := range []string{"", "-1", "1.5GiB", "999999999999999999999TiB"} {
+		if _, err := parseByteSize(input); err == nil {
+			t.Fatalf("parseByteSize(%q) unexpectedly succeeded", input)
+		}
+	}
+}
+
 func TestResolveSendSharedSecret(t *testing.T) {
 	t.Run("uses env secret", func(t *testing.T) {
 		got := resolveSendSharedSecret("generated-secret", "password-example")

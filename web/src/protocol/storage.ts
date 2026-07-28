@@ -15,17 +15,21 @@ declare global {
   }
 }
 
-async function hashBlob(blob: Blob) {
+async function hashBlob(blob: Blob, algorithm: "xxhash" | "sha256" = "xxhash") {
   const engine = wasm();
-  const handle = await engine.hashInit();
+  const handle =
+    algorithm === "sha256" ? await engine.sha256Init() : await engine.hashInit();
   const reader = blob.stream().getReader();
   try {
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
-      await engine.hashUpdate(handle, value);
+      if (algorithm === "sha256") await engine.sha256Update(handle, value);
+      else await engine.hashUpdate(handle, value);
     }
-    return await engine.hashFinal(handle);
+    return algorithm === "sha256"
+      ? await engine.sha256Final(handle)
+      : await engine.hashFinal(handle);
   } finally {
     reader.releaseLock();
   }
@@ -86,9 +90,9 @@ class DirectorySink implements ReceiveSink {
     await this.writable.close();
   }
 
-  async hash() {
+  async hash(algorithm: "xxhash" | "sha256" = "xxhash") {
     if (!this.closed) throw new Error("Destination must be closed before hashing");
-    return hashBlob(await this.handle.getFile());
+    return hashBlob(await this.handle.getFile(), algorithm);
   }
 
   async commit() {}
@@ -140,9 +144,9 @@ class DownloadSink implements ReceiveSink {
     this.chunks.clear();
   }
 
-  async hash() {
+  async hash(algorithm: "xxhash" | "sha256" = "xxhash") {
     if (!this.blob) throw new Error("Destination must be finalized before hashing");
-    return hashBlob(this.blob);
+    return hashBlob(this.blob, algorithm);
   }
 
   async commit() {
@@ -155,6 +159,126 @@ class DownloadSink implements ReceiveSink {
   async abort() {
     this.chunks.clear();
     this.blob = undefined;
+  }
+}
+
+let downloadWorker: Promise<ServiceWorker> | undefined;
+
+async function streamingWorker() {
+  downloadWorker ??= (async () => {
+    if (!("serviceWorker" in navigator) || typeof MessageChannel === "undefined") {
+      throw new Error("Streaming browser downloads are unavailable");
+    }
+    const registration = await navigator.serviceWorker.register(
+      `${import.meta.env.BASE_URL}croc-download-sw.js`,
+      { scope: import.meta.env.BASE_URL },
+    );
+    await navigator.serviceWorker.ready;
+    const worker =
+      navigator.serviceWorker.controller ??
+      registration.active ??
+      registration.waiting ??
+      registration.installing;
+    if (!worker) throw new Error("Streaming download service did not start");
+    return worker;
+  })();
+  return downloadWorker;
+}
+
+class StreamingDownloadSink implements ReceiveSink {
+  private offset = 0;
+  private closed = false;
+  private digest?: Uint8Array;
+  private pending?: {
+    resolve(): void;
+    reject(error: Error): void;
+  };
+
+  private constructor(
+    private port: MessagePort,
+    private hashHandle: number,
+  ) {
+    this.port.addEventListener("message", (event) => {
+      const pending = this.pending;
+      if (!pending) return;
+      this.pending = undefined;
+      if (event.data?.error) pending.reject(new Error(event.data.error));
+      else pending.resolve();
+    });
+    this.port.start();
+  }
+
+  static async create(name: string) {
+    const worker = await streamingWorker();
+    const id = crypto.randomUUID();
+    const channel = new MessageChannel();
+    const hashHandle = await wasm().sha256Init();
+    const sink = new StreamingDownloadSink(channel.port1, hashHandle);
+    await sink.send({ type: "prepare", id, name }, [channel.port2], worker);
+
+    const anchor = document.createElement("a");
+    anchor.href = `${import.meta.env.BASE_URL}__croc_download__/${id}`;
+    anchor.download = name;
+    anchor.hidden = true;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    return sink;
+  }
+
+  private send(
+    message: Record<string, unknown>,
+    transfer: Transferable[] = [],
+    target?: ServiceWorker,
+  ) {
+    if (this.pending) throw new Error("Streaming download write is already pending");
+    return new Promise<void>((resolve, reject) => {
+      this.pending = { resolve, reject };
+      if (target) target.postMessage(message, transfer);
+      else this.port.postMessage(message, transfer);
+    });
+  }
+
+  async writeAt(position: number, bytes: Uint8Array) {
+    if (this.closed) throw new Error("Destination file is already closed");
+    if (position !== this.offset) {
+      throw new Error("Streaming browser downloads require sequential chunks");
+    }
+    await wasm().sha256Update(this.hashHandle, bytes);
+    const copy = Uint8Array.from(bytes);
+    await this.send({ type: "chunk", bytes: copy.buffer }, [copy.buffer]);
+    this.offset += bytes.byteLength;
+  }
+
+  async finalize() {
+    if (this.closed) return;
+    this.closed = true;
+    this.digest = await wasm().sha256Final(this.hashHandle);
+    await this.send({ type: "end" });
+  }
+
+  async hash(algorithm: "xxhash" | "sha256" = "sha256") {
+    if (algorithm !== "sha256") {
+      throw new Error("Streaming downloads support SHA-256 verification only");
+    }
+    if (!this.digest) throw new Error("Destination must be finalized before hashing");
+    return this.digest;
+  }
+
+  async commit() {}
+
+  async abort() {
+    if (this.closed) return;
+    this.closed = true;
+    await this.send({ type: "abort" }).catch(() => undefined);
+  }
+}
+
+export class StreamingDownloadDestination implements ReceiveDestination {
+  async createEmptyFolder() {}
+
+  async openFile(file: OfferedFile) {
+    return StreamingDownloadSink.create(file.name);
   }
 }
 
@@ -206,6 +330,16 @@ export function supportsDirectoryDestination() {
   return typeof window.showDirectoryPicker === "function";
 }
 
+export function supportsStreamingDownloadDestination() {
+  return (
+    "serviceWorker" in navigator &&
+    typeof MessageChannel !== "undefined" &&
+    (window.isSecureContext ||
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1")
+  );
+}
+
 export async function chooseReceiveDestination(offer: TransferOffer) {
   if (!window.showDirectoryPicker) return new DownloadDestination();
   const directory = await window.showDirectoryPicker({ mode: "readwrite" });
@@ -224,11 +358,42 @@ export async function chooseReceiveDestination(offer: TransferOffer) {
   return new DirectoryDestination(directory);
 }
 
+export async function chooseStoredReceiveDestination(offer: TransferOffer) {
+  if (window.showDirectoryPicker) {
+    return chooseReceiveDestination(offer);
+  }
+  if (supportsStreamingDownloadDestination()) {
+    return new StreamingDownloadDestination();
+  }
+  const largest = offer.files.reduce(
+    (maximum, file) => Math.max(maximum, file.size),
+    0,
+  );
+  if (largest > 256 * 1024 * 1024) {
+    throw new Error(
+      "This browser cannot stream a file this large. Receive it with the croc CLI instead.",
+    );
+  }
+  return new DownloadDestination();
+}
+
 export async function verifySink(sink: ReceiveSink, expected: Uint8Array) {
   const actual = await sink.hash();
   if (!bytesEqual(actual, expected)) {
     throw new Error(
       `The sender advertised xxhash ${hex(expected)}, but the received file hashes to ${hex(actual)}`,
+    );
+  }
+}
+
+export async function verifySinkSHA256(
+  sink: ReceiveSink,
+  expected: Uint8Array,
+) {
+  const actual = await sink.hash("sha256");
+  if (!bytesEqual(actual, expected)) {
+    throw new Error(
+      `The stored file failed SHA-256 verification (${hex(actual)} != ${hex(expected)})`,
     );
   }
 }

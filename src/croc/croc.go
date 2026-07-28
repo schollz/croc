@@ -1475,6 +1475,11 @@ func showReceiveCommandQrCode(command string) {
 	}
 }
 
+// ShowReceiveCommandQrCode prints a QR code for a share URL.
+func ShowReceiveCommandQrCode(command string) {
+	showReceiveCommandQrCode(command)
+}
+
 func webReceiveURL(code string) string {
 	return "https://getcroc.com/?code=" + url.QueryEscape(code)
 }
@@ -3037,4 +3042,9 @@ func copyToClipboard(str string, quiet bool, extendedClipboard bool) {
 			fmt.Fprintf(os.Stderr, "Code copied to clipboard!\n")
 		}
 	}
+}
+
+// CopyToClipboard copies a croc share value using the platform clipboard helper.
+func CopyToClipboard(value string, quiet bool, extended bool) {
+	copyToClipboard(value, quiet, extended)
 }

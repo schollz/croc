@@ -1,0 +1,15 @@
+- generic [ref=f1e1]:
+  - status:
+    - generic: Updated from another editor
+  - generic [ref=f1e2]:
+    - button "Open paste actions" [expanded] [ref=f1e6] [cursor=pointer]
+    - menu [ref=f1e14]:
+      - menuitem "Copy paste URL" [active] [ref=f1e15] [cursor=pointer]
+      - menuitem "Encrypt paste" [ref=f1e19] [cursor=pointer]
+      - menuitem "Lock page" [ref=f1e23] [cursor=pointer]
+    - status [ref=f1e3]: Saved
+  - main [ref=f1e4]:
+    - generic: browser lock integration text ready
+    - textbox "Paste content" [ref=f1e5]:
+      - /placeholder: type...
+      - text: browser lock integration text ready

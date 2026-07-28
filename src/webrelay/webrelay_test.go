@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/schollz/croc/v10/src/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,6 +23,9 @@ func testSite() fstest.MapFS {
 	return fstest.MapFS{
 		"index.html":     {Data: []byte("<!doctype html><div id=\"root\"></div>")},
 		"default.txt":    {Data: []byte(testInstaller)},
+		"croc-download-sw.js": {
+			Data: []byte("self.addEventListener('fetch', () => {})"),
+		},
 		"assets/app.js":  {Data: []byte("console.log('croc')")},
 		"assets/app.css": {Data: []byte("body { color: black; }")},
 	}
@@ -105,6 +109,14 @@ func TestServesSiteAndRuntimeConfig(t *testing.T) {
 	assert.Equal(t, "public, max-age=31536000, immutable", recorder.Header().Get("Cache-Control"))
 
 	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/croc-download-sw.js", nil),
+	)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, "no-cache", recorder.Header().Get("Cache-Control"))
+
+	recorder = httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/missing.js", nil))
 	assert.Equal(t, http.StatusNotFound, recorder.Code)
 
@@ -114,12 +126,45 @@ func TestServesSiteAndRuntimeConfig(t *testing.T) {
 	assert.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
 	assert.JSONEq(
 		t,
-		`{"gatewayURL":"/ws","relayAddress":"relay.example.test:9109","relayPassword":"relay-secret"}`,
+		`{"gatewayURL":"/ws","relayAddress":"relay.example.test:9109","relayPassword":"relay-secret","store":{"enabled":false,"maxTransferBytes":0,"maxFiles":0,"expiresSeconds":0}}`,
 		strings.TrimSuffix(
 			strings.TrimPrefix(recorder.Body.String(), "window.__CROC_RUNTIME_CONFIG__ = "),
 			";\n",
 		),
 	)
+}
+
+func TestEnablesStoredTransferRuntimeAndAPI(t *testing.T) {
+	storage, err := store.New(store.Config{
+		Root:             t.TempDir(),
+		MaxTransferBytes: 8 << 20,
+		MaxTotalBytes:    32 << 20,
+		MinFreeBytes:     1,
+		MaxFiles:         7,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, storage.Close()) })
+	handler, err := Handler(Config{
+		RelayHost:    "relay.example.test",
+		AllowedPorts: []string{"9109"},
+		StaticFiles:  testSite(),
+		StoreService: storage,
+	})
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/config.js", nil))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"enabled":true`)
+	assert.Contains(t, recorder.Body.String(), `"maxTransferBytes":8388608`)
+	assert.Contains(t, recorder.Body.String(), `"maxFiles":7`)
+
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/api/v1/store/transfers", nil),
+	)
+	assert.Equal(t, http.StatusMethodNotAllowed, recorder.Code)
 }
 
 func TestRootNegotiatesInstallerForCommandLineClients(t *testing.T) {
