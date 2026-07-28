@@ -81,6 +81,7 @@ export interface TransferSettings {
   gatewayURL: string;
   relayAddress: string;
   relayPassword: string;
+  storeAPI: string;
 }
 
 export interface FileProgress {
@@ -102,7 +103,7 @@ export interface TransferCallbacks {
 export interface ReceiveSink {
   writeAt(position: number, bytes: Uint8Array): Promise<void>;
   finalize(): Promise<void>;
-  hash(): Promise<Uint8Array>;
+  hash(algorithm?: "xxhash" | "sha256"): Promise<Uint8Array>;
   commit(): Promise<void>;
   abort(): Promise<void>;
 }

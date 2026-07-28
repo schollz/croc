@@ -108,6 +108,84 @@ export class CrocWasm {
   randomCode() {
     return this.call<string>("randomCode");
   }
+
+  sha256Init() {
+    return this.call<number>("sha256Init");
+  }
+
+  sha256Update(handle: number, input: Uint8Array) {
+    return this.call<void>("sha256Update", [handle, input]);
+  }
+
+  sha256Final(handle: number) {
+    return this.call<Uint8Array>("sha256Final", [handle]);
+  }
+
+  storeGenerateKey() {
+    return this.call<Uint8Array>("storeGenerateKey");
+  }
+
+  storeRedeemCapability(key: Uint8Array) {
+    return this.call<Uint8Array>("storeRedeemCapability", [key]);
+  }
+
+  storeSealManifest(key: Uint8Array, id: string, json: Uint8Array) {
+    return this.call<Uint8Array>("storeSealManifest", [key, id, json]);
+  }
+
+  storeOpenManifest(
+    key: Uint8Array,
+    id: string,
+    ciphertext: Uint8Array,
+    maxBytes: number,
+  ) {
+    return this.call<Uint8Array>("storeOpenManifest", [
+      key,
+      id,
+      ciphertext,
+      maxBytes,
+    ]);
+  }
+
+  storeSealChunk(
+    key: Uint8Array,
+    id: string,
+    objectIndex: number,
+    fileIndex: number,
+    fileChunk: number,
+    plainSize: number,
+    plaintext: Uint8Array,
+  ) {
+    return this.call<Uint8Array>("storeSealChunk", [
+      key,
+      id,
+      objectIndex,
+      fileIndex,
+      fileChunk,
+      plainSize,
+      plaintext,
+    ]);
+  }
+
+  storeOpenChunk(
+    key: Uint8Array,
+    id: string,
+    objectIndex: number,
+    fileIndex: number,
+    fileChunk: number,
+    plainSize: number,
+    ciphertext: Uint8Array,
+  ) {
+    return this.call<Uint8Array>("storeOpenChunk", [
+      key,
+      id,
+      objectIndex,
+      fileIndex,
+      fileChunk,
+      plainSize,
+      ciphertext,
+    ]);
+  }
 }
 
 let shared: CrocWasm | undefined;

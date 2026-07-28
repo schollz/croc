@@ -15,5 +15,11 @@ interface Window {
     gatewayURL?: string;
     relayAddress?: string;
     relayPassword?: string;
+    store?: {
+      enabled?: boolean;
+      maxTransferBytes?: number;
+      maxFiles?: number;
+      expiresSeconds?: number;
+    };
   };
 }
