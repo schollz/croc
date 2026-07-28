@@ -1,5 +1,5 @@
-//go:build !windows
-// +build !windows
+//go:build !windows && !netbsd
+// +build !windows,!netbsd
 
 package diskusage
 
