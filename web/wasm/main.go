@@ -4,7 +4,9 @@ package main
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
+	"hash"
 	"math/big"
 	"strconv"
 	"sync"
@@ -14,6 +16,7 @@ import (
 	croccompress "github.com/schollz/croc/v10/src/compress"
 	"github.com/schollz/croc/v10/src/crypt"
 	"github.com/schollz/croc/v10/src/mnemonicode"
+	"github.com/schollz/croc/v10/src/storecrypto"
 	"github.com/schollz/pake/v3"
 )
 
@@ -22,13 +25,15 @@ type bridge struct {
 	nextHandle int
 	pakes      map[int]*pake.Pake
 	hashes     map[int]*xxhash.Digest
+	sha256s    map[int]hash.Hash
 	funcs      []js.Func
 }
 
 func main() {
 	b := &bridge{
-		pakes:  make(map[int]*pake.Pake),
-		hashes: make(map[int]*xxhash.Digest),
+		pakes:   make(map[int]*pake.Pake),
+		hashes:  make(map[int]*xxhash.Digest),
+		sha256s: make(map[int]hash.Hash),
 	}
 	api := js.Global().Get("Object").New()
 	b.expose(api, "pakeInit", b.pakeInit)
@@ -42,6 +47,15 @@ func main() {
 	b.expose(api, "hashUpdate", b.hashUpdate)
 	b.expose(api, "hashFinal", b.hashFinal)
 	b.expose(api, "randomCode", b.randomCode)
+	b.expose(api, "sha256Init", b.sha256Init)
+	b.expose(api, "sha256Update", b.sha256Update)
+	b.expose(api, "sha256Final", b.sha256Final)
+	b.expose(api, "storeGenerateKey", b.storeGenerateKey)
+	b.expose(api, "storeRedeemCapability", b.storeRedeemCapability)
+	b.expose(api, "storeSealManifest", b.storeSealManifest)
+	b.expose(api, "storeOpenManifest", b.storeOpenManifest)
+	b.expose(api, "storeSealChunk", b.storeSealChunk)
+	b.expose(api, "storeOpenChunk", b.storeOpenChunk)
 	js.Global().Set("crocWasm", api)
 	select {}
 }
@@ -291,6 +305,176 @@ func (b *bridge) randomCode(args []js.Value) (any, error) {
 		return nil, err
 	}
 	return pin + "-" + joinWords(mnemonicode.EncodeWordList(nil, entropy)), nil
+}
+
+func (b *bridge) sha256Init(args []js.Value) (any, error) {
+	if len(args) != 0 {
+		return nil, fmt.Errorf("sha256Init expects no arguments")
+	}
+	b.mu.Lock()
+	handle := b.allocateHandle()
+	b.sha256s[handle] = sha256.New()
+	b.mu.Unlock()
+	return handle, nil
+}
+
+func (b *bridge) sha256Update(args []js.Value) (any, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("sha256Update expects handle and bytes")
+	}
+	input, err := bytesFromJS(args[1])
+	if err != nil {
+		return nil, err
+	}
+	b.mu.Lock()
+	digest, exists := b.sha256s[args[0].Int()]
+	b.mu.Unlock()
+	if !exists {
+		return nil, fmt.Errorf("unknown SHA-256 handle")
+	}
+	_, err = digest.Write(input)
+	return nil, err
+}
+
+func (b *bridge) sha256Final(args []js.Value) (any, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("sha256Final expects handle")
+	}
+	handle := args[0].Int()
+	b.mu.Lock()
+	digest, exists := b.sha256s[handle]
+	delete(b.sha256s, handle)
+	b.mu.Unlock()
+	if !exists {
+		return nil, fmt.Errorf("unknown SHA-256 handle")
+	}
+	return bytesToJS(digest.Sum(nil)), nil
+}
+
+func (b *bridge) storeGenerateKey(args []js.Value) (any, error) {
+	if len(args) != 0 {
+		return nil, fmt.Errorf("storeGenerateKey expects no arguments")
+	}
+	key, err := storecrypto.GenerateKey()
+	if err != nil {
+		return nil, err
+	}
+	return bytesToJS(key), nil
+}
+
+func (b *bridge) storeRedeemCapability(args []js.Value) (any, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("storeRedeemCapability expects a master key")
+	}
+	key, err := bytesFromJS(args[0])
+	if err != nil {
+		return nil, err
+	}
+	capability, err := storecrypto.RedeemCapability(key)
+	if err != nil {
+		return nil, err
+	}
+	return bytesToJS(capability), nil
+}
+
+func (b *bridge) storeSealManifest(args []js.Value) (any, error) {
+	if len(args) != 3 {
+		return nil, fmt.Errorf("storeSealManifest expects key, id, and JSON")
+	}
+	key, err := bytesFromJS(args[0])
+	if err != nil {
+		return nil, err
+	}
+	plaintext, err := bytesFromJS(args[2])
+	if err != nil {
+		return nil, err
+	}
+	ciphertext, err := storecrypto.SealManifestJSON(key, args[1].String(), plaintext)
+	if err != nil {
+		return nil, err
+	}
+	return bytesToJS(ciphertext), nil
+}
+
+func (b *bridge) storeOpenManifest(args []js.Value) (any, error) {
+	if len(args) != 4 {
+		return nil, fmt.Errorf("storeOpenManifest expects key, id, ciphertext, and byte limit")
+	}
+	key, err := bytesFromJS(args[0])
+	if err != nil {
+		return nil, err
+	}
+	ciphertext, err := bytesFromJS(args[2])
+	if err != nil {
+		return nil, err
+	}
+	plaintext, err := storecrypto.OpenManifestJSON(
+		key,
+		args[1].String(),
+		ciphertext,
+		int64(args[3].Float()),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return bytesToJS(plaintext), nil
+}
+
+func storeChunkRef(args []js.Value) storecrypto.ChunkRef {
+	return storecrypto.ChunkRef{
+		ObjectIndex: args[2].Int(),
+		FileIndex:   args[3].Int(),
+		FileChunk:   args[4].Int(),
+		PlainSize:   args[5].Int(),
+	}
+}
+
+func (b *bridge) storeSealChunk(args []js.Value) (any, error) {
+	if len(args) != 7 {
+		return nil, fmt.Errorf("storeSealChunk expects key, id, indexes, size, and plaintext")
+	}
+	key, err := bytesFromJS(args[0])
+	if err != nil {
+		return nil, err
+	}
+	plaintext, err := bytesFromJS(args[6])
+	if err != nil {
+		return nil, err
+	}
+	ciphertext, err := storecrypto.SealChunk(
+		key,
+		args[1].String(),
+		storeChunkRef(args),
+		plaintext,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return bytesToJS(ciphertext), nil
+}
+
+func (b *bridge) storeOpenChunk(args []js.Value) (any, error) {
+	if len(args) != 7 {
+		return nil, fmt.Errorf("storeOpenChunk expects key, id, indexes, size, and ciphertext")
+	}
+	key, err := bytesFromJS(args[0])
+	if err != nil {
+		return nil, err
+	}
+	ciphertext, err := bytesFromJS(args[6])
+	if err != nil {
+		return nil, err
+	}
+	plaintext, err := storecrypto.OpenChunk(
+		key,
+		args[1].String(),
+		storeChunkRef(args),
+		ciphertext,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return bytesToJS(plaintext), nil
 }
 
 func joinWords(words []string) string {

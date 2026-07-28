@@ -7,6 +7,13 @@ health check, and opaque WebSocket-to-TCP bridge from one HTTP address. File
 metadata and contents remain encrypted between the browser and the other croc
 client.
 
+When the server is started with `--store-dir`, the UI also offers an explicit
+**Store for 24 hours** mode. It encrypts file names, metadata, and 4 MiB chunks
+in the browser, uploads only ciphertext, and produces both a browser link and a
+CLI token. The transfer is deleted after one fully verified download or 24
+hours, whichever comes first. The normal direct-transfer mode remains the
+default.
+
 The security-sensitive protocol operations are compiled from this repository's
 Go packages into WebAssembly:
 
@@ -59,9 +66,10 @@ static files.
 
 The Playwright suite builds a real `croc` binary, starts an isolated local croc
 relay and unified embedded server on temporary ports, then verifies CLI → Web,
-Web → CLI, and Web → Web transfers byte-for-byte. Install its browser once with
-`npx playwright install chromium`. Test processes use an isolated
-`CROC_CONFIG_DIR` and do not read or change remembered croc settings.
+Web → CLI, Web → Web, CLI stored → Web, and Web stored → CLI transfers
+byte-for-byte. Install its browser once with `npx playwright install chromium`.
+Test processes use an isolated `CROC_CONFIG_DIR` and storage directory and do
+not read or change remembered croc settings.
 
 ## Custom relay
 
@@ -87,6 +95,7 @@ The unified server exposes:
 - `GET /config.js`
 - `GET /healthz`
 - `GET /ws?port=<allowlisted-port>` upgraded to a binary WebSocket
+- `/api/v1/store/transfers` and its descendants when `--store-dir` is set
 
 ## Production topology
 
@@ -102,6 +111,26 @@ site at `/` and the WebSocket bridge at `/ws`, so no split routing or external
 static file deployment is required. TLS certificates remain at the reverse
 proxy.
 
+Temporary storage is disabled unless a directory is explicitly configured:
+
+```bash
+croc serve \
+  --bind 127.0.0.1:9014 \
+  --store-dir /var/lib/croc/store \
+  --store-max-transfer 1GiB \
+  --store-quota 5GiB \
+  --store-min-free 512MiB \
+  getcroc.com
+```
+
+The store directory is locked to one server process and should be persistent,
+private, writable only by the croc service account, and excluded from backups.
+If a trusted reverse proxy supplies `X-Forwarded-For`, identify its network
+with repeatable `--store-trusted-proxy CIDR` flags; untrusted forwarding
+headers are ignored. See
+[`src/docs/STORED_TRANSFERS.md`](../src/docs/STORED_TRANSFERS.md) for all
+limits and operational details.
+
 `--bind` defaults to `127.0.0.1:9014`. When an explicit loopback website
 address with a port is used, such as `localhost:5173`, the local shortcut binds
 there unless `--bind` is explicitly provided.
@@ -114,6 +143,9 @@ there unless `--bind` is explicitly provided.
 - Nested folders and empty folders sent by a CLI can be received when the
   browser supports directory access. The individual-download fallback flattens
   names and adds numeric suffixes for collisions.
-- Local multicast, direct browser-to-browser transfers, reconnect/resume,
-  symlinks, text mode, and non-xxhash transfers are not implemented.
+- Local multicast, direct browser-to-browser transfers, and non-xxhash live
+  transfers are not implemented.
+- Stored uploads accept regular files only. CLI stored downloads can resume
+  completed chunks; browser stored downloads stream when supported and do not
+  resume after the tab closes.
 - Current evergreen desktop browsers are targeted.

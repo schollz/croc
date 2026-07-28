@@ -198,6 +198,43 @@ The code phrase is used to establish password-authenticated key agreement ([PAKE
 
 ### Customizations & Options
 
+#### Encrypted temporary storage
+
+When an immediate peer-to-peer transfer is inconvenient, `croc` can upload
+regular files as client-side encrypted ciphertext:
+
+```bash
+croc send --store [file1] [file2]
+```
+
+The command prints a browser link and a CLI token. The transfer expires after
+24 hours or after the first receiver downloads, authenticates, and verifies
+every file—whichever happens first. Run `croc` with no arguments and paste the
+token at the prompt to receive it. For automation, keep the token out of the
+process list:
+
+```bash
+CROC_STORE_TOKEN='croc-store-v1....' croc --out ./downloads
+```
+
+The browser link has the form
+`https://host/s/id#v1.decryption-key`. The decryption key is after `#` because
+URL fragments are not included in HTTP requests, so the storage service gets
+the opaque transfer ID but not the key. The full link is still a secret: anyone
+who has it can decrypt and claim the one allowed download.
+
+Until a transfer is downloaded or expires, its sender can delete it with the
+locally saved revoke receipt:
+
+```bash
+croc revoke [transfer-id]
+```
+
+Stored mode is opt-in and separate from croc's normal live relay transfers. A
+self-hosted service can be selected with `--store-url` or `CROC_STORE_URL`.
+See [the stored-transfer design and operator guide](src/docs/STORED_TRANSFERS.md)
+for protocol, privacy, limits, and deployment details.
+
 #### Using `croc` on Linux or macOS
 
 On Linux and macOS, the sending and receiving process is slightly different to avoid [leaking the secret via the process name](https://nvd.nist.gov/vuln/detail/CVE-2023-43621). You will need to run `croc` with the secret as an environment variable. For example, to receive with the secret `***`:
