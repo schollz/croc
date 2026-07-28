@@ -1,4 +1,4 @@
-//go:build !windows && !openbsd
+//go:build !windows && !netbsd && !openbsd
 
 package diskusage
 
