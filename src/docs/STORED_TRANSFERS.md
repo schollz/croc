@@ -28,7 +28,7 @@ The sender receives:
 - a browser link, `https://files.example.com/s/<id>#v1.<key>`;
 - a `croc-store-v1...` CLI token;
 - the precise expiration time; and
-- a transfer ID that can be passed to `croc revoke`.
+- a transfer ID that can be passed to `croc --revoke`.
 
 On the receiving CLI, run `croc` and paste the token or link at the prompt.
 This avoids exposing its decryption key in the UNIX process list. Noninteractive
@@ -52,7 +52,7 @@ support neither streaming path, the UI directs the recipient to the CLI.
 The sender can revoke an unconsumed transfer:
 
 ```bash
-croc revoke <transfer-id>
+croc --revoke <transfer-id>
 ```
 
 CLI revoke capabilities are stored with mode `0600` in the croc configuration

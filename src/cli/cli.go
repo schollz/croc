@@ -37,6 +37,10 @@ func Run() (err error) {
 	// use all of the processors
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
+	return newApp().Run(os.Args)
+}
+
+func newApp() *cli.App {
 	app := cli.NewApp()
 	app.Name = "croc"
 	if Version == "" {
@@ -91,13 +95,6 @@ func Run() (err error) {
 			},
 			HelpName: "croc send",
 			Action:   send,
-		},
-		{
-			Name:        "revoke",
-			Usage:       "revoke a stored transfer using its local sender receipt",
-			Description: "delete an encrypted stored transfer before it is downloaded or expires",
-			ArgsUsage:   "[transfer-id]",
-			Action:      revokeStored,
 		},
 		{
 			Name:        "relay",
@@ -164,6 +161,7 @@ func Run() (err error) {
 		&cli.BoolFlag{Name: "quiet", Usage: "disable all output"},
 		&cli.BoolFlag{Name: "disable-clipboard", Usage: "disable copy to clipboard"},
 		&cli.BoolFlag{Name: "extended-clipboard", Usage: "copy full command with secret as env variable to clipboard"},
+		&cli.StringFlag{Name: "revoke", Usage: "revoke a stored transfer using its local sender receipt"},
 		&cli.StringFlag{Name: "multicast", Value: "239.255.255.250", Usage: "multicast address to use for local discovery"},
 		&cli.StringFlag{Name: "curve", Value: "p256", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
 		&cli.StringFlag{Name: "ip", Value: "", Usage: "set sender ip if known e.g. 10.0.0.1:9009, [::1]:9009"},
@@ -179,6 +177,10 @@ func Run() (err error) {
 	app.HideHelp = false
 	app.HideVersion = false
 	app.Action = func(c *cli.Context) error {
+		if c.IsSet("revoke") {
+			return revokeStored(c, c.String("revoke"))
+		}
+
 		allStringsAreFiles := func(strs []string) bool {
 			for _, str := range strs {
 				if !utils.Exists(str) {
@@ -266,7 +268,7 @@ Do you wish to continue to enable the classic mode? (y/N) `)
 		return receive(c)
 	}
 
-	return app.Run(os.Args)
+	return app
 }
 
 func setDebugLevel(c *cli.Context) {

@@ -227,7 +227,7 @@ Until a transfer is downloaded or expires, its sender can delete it with the
 locally saved revoke receipt:
 
 ```bash
-croc revoke [transfer-id]
+croc --revoke [transfer-id]
 ```
 
 Stored mode is opt-in and separate from croc's normal live relay transfers. A

@@ -74,6 +74,27 @@ func TestDeterminePassTrimsEnvValue(t *testing.T) {
 	}
 }
 
+func TestRevokeIsRootFlag(t *testing.T) {
+	app := newApp()
+	var revoke string
+	app.Action = func(ctx *cli.Context) error {
+		revoke = ctx.String("revoke")
+		return nil
+	}
+
+	if err := app.Run([]string{"croc", "--revoke", "transfer-id"}); err != nil {
+		t.Fatalf("parse --revoke: %v", err)
+	}
+	if revoke != "transfer-id" {
+		t.Fatalf("--revoke = %q, want transfer-id", revoke)
+	}
+	for _, command := range app.Commands {
+		if command.Name == "revoke" {
+			t.Fatal("revoke should not be registered as a subcommand")
+		}
+	}
+}
+
 func TestParseRelayPorts(t *testing.T) {
 	tests := []struct {
 		name string
