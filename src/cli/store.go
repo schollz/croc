@@ -197,7 +197,7 @@ CLI recipient:
     %[3]s
 
 Revoke before download:
-    croc revoke %[4]s
+    croc --revoke %[4]s
 `, result.ExpiresAt.Local().Format(time.RFC1123), browserURL, token, result.Share.ID)
 	if !c.Bool("disable-clipboard") {
 		croc.CopyToClipboard(browserURL, c.Bool("quiet"), false)
@@ -272,12 +272,12 @@ func receiveStored(c *cli.Context, value string) error {
 	return err
 }
 
-func revokeStored(c *cli.Context) error {
+func revokeStored(c *cli.Context, transferID string) error {
 	setDebugLevel(c)
-	if c.Args().Len() != 1 {
-		return errors.New("usage: croc revoke [transfer-id]")
+	id := strings.TrimSpace(transferID)
+	if id == "" || c.Args().Present() {
+		return errors.New("usage: croc --revoke [transfer-id]")
 	}
-	id := strings.TrimSpace(c.Args().First())
 	receipts, err := readStoreReceipts()
 	if err != nil {
 		return err
