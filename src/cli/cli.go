@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"os"
 	"path"
 	"path/filepath"
@@ -19,6 +20,8 @@ import (
 	"github.com/schollz/croc/v10/src/comm"
 	"github.com/schollz/croc/v10/src/croc"
 	"github.com/schollz/croc/v10/src/models"
+	storeapi "github.com/schollz/croc/v10/src/store"
+	"github.com/schollz/croc/v10/src/storeclient"
 	"github.com/schollz/croc/v10/src/tcp"
 	"github.com/schollz/croc/v10/src/utils"
 	"github.com/schollz/croc/v10/src/webrelay"
@@ -34,6 +37,10 @@ func Run() (err error) {
 	// use all of the processors
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
+	return newApp().Run(os.Args)
+}
+
+func newApp() *cli.App {
 	app := cli.NewApp()
 	app.Name = "croc"
 	if Version == "" {
@@ -83,6 +90,8 @@ func Run() (err error) {
 				&cli.StringFlag{Name: "exclude-file", Value: "", Usage: "exclude files matching any of the comma separated relative paths exactly"},
 				&cli.StringFlag{Name: "socks5", Value: "", Usage: "add a socks5 proxy", EnvVars: []string{"SOCKS5_PROXY"}},
 				&cli.StringFlag{Name: "connect", Value: "", Usage: "add a http proxy", EnvVars: []string{"HTTP_PROXY"}},
+				&cli.BoolFlag{Name: "store", Usage: "upload encrypted files for 24 hours or one verified download"},
+				&cli.StringFlag{Name: "store-url", Value: "https://getcroc.com", Usage: "stored-transfer service origin", EnvVars: []string{"CROC_STORE_URL"}},
 			},
 			HelpName: "croc send",
 			Action:   send,
@@ -111,6 +120,14 @@ func Run() (err error) {
 				&cli.StringFlag{Name: "bind", Value: "127.0.0.1:9014", Usage: "local HTTP bind address"},
 				&cli.StringFlag{Name: "relay", Value: "croc.schollz.com", Usage: "fixed upstream croc relay host"},
 				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013,9014,9015,9016,9017", Usage: "allowed upstream relay ports"},
+				&cli.StringFlag{Name: "store-dir", Usage: "enable encrypted temporary storage in this directory"},
+				&cli.StringFlag{Name: "store-max-transfer", Value: "1GiB", Usage: "maximum plaintext bytes per stored transfer"},
+				&cli.StringFlag{Name: "store-quota", Value: "5GiB", Usage: "maximum managed stored-transfer bytes"},
+				&cli.StringFlag{Name: "store-min-free", Value: "512MiB", Usage: "disk space to keep free"},
+				&cli.IntFlag{Name: "store-max-files", Value: 100, Usage: "maximum files per stored transfer"},
+				&cli.IntFlag{Name: "store-create-rate", Value: 5, Usage: "stored transfers created per client IP per hour"},
+				&cli.IntFlag{Name: "store-active-uploads", Value: 2, Usage: "concurrent uploads per client IP"},
+				&cli.StringSliceFlag{Name: "store-trusted-proxy", Usage: "trusted reverse-proxy CIDR for client IP forwarding"},
 			},
 		},
 		{
@@ -144,6 +161,7 @@ func Run() (err error) {
 		&cli.BoolFlag{Name: "quiet", Usage: "disable all output"},
 		&cli.BoolFlag{Name: "disable-clipboard", Usage: "disable copy to clipboard"},
 		&cli.BoolFlag{Name: "extended-clipboard", Usage: "copy full command with secret as env variable to clipboard"},
+		&cli.StringFlag{Name: "revoke", Usage: "revoke a stored transfer using its local sender receipt"},
 		&cli.StringFlag{Name: "multicast", Value: "239.255.255.250", Usage: "multicast address to use for local discovery"},
 		&cli.StringFlag{Name: "curve", Value: "p256", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
 		&cli.StringFlag{Name: "ip", Value: "", Usage: "set sender ip if known e.g. 10.0.0.1:9009, [::1]:9009"},
@@ -159,6 +177,10 @@ func Run() (err error) {
 	app.HideHelp = false
 	app.HideVersion = false
 	app.Action = func(c *cli.Context) error {
+		if c.IsSet("revoke") {
+			return revokeStored(c, c.String("revoke"))
+		}
+
 		allStringsAreFiles := func(strs []string) bool {
 			for _, str := range strs {
 				if !utils.Exists(str) {
@@ -246,7 +268,7 @@ Do you wish to continue to enable the classic mode? (y/N) `)
 		return receive(c)
 	}
 
-	return app.Run(os.Args)
+	return app
 }
 
 func setDebugLevel(c *cli.Context) {
@@ -333,6 +355,9 @@ func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
+	if c.Bool("store") {
+		return sendStored(c)
+	}
 
 	portParam := c.Int("port")
 	if portParam == 0 {
@@ -660,6 +685,10 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 func receive(c *cli.Context) (err error) {
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
+	if storedToken := strings.TrimSpace(os.Getenv("CROC_STORE_TOKEN")); storedToken != "" {
+		setDebugLevel(c)
+		return receiveStored(c, storedToken)
+	}
 	crocOptions := croc.Options{
 		SharedSecret:      c.String("code"),
 		IsSender:          false,
@@ -697,6 +726,22 @@ func receive(c *cli.Context) (err error) {
 		phrase = append(phrase, c.Args().First())
 		phrase = append(phrase, c.Args().Tail()...)
 		crocOptions.SharedSecret = strings.Join(phrase, "-")
+	}
+	if storeclient.IsStoredValue(crocOptions.SharedSecret) {
+		setDebugLevel(c)
+		if runtime.GOOS != "windows" && !utils.Exists(getClassicConfigFile(true)) {
+			fmt.Print(`For security, stored-transfer links are not accepted as command-line
+arguments on UNIX systems because their decryption key would be visible in
+the process list.
+
+Run croc with no argument and paste the link at the prompt, or use:
+
+  CROC_STORE_TOKEN='croc-store-v1....' croc
+
+`)
+			return nil
+		}
+		return receiveStored(c, crocOptions.SharedSecret)
 	}
 
 	// load options here
@@ -779,6 +824,9 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 		if err != nil {
 			return fmt.Errorf("could not read receive code: %w", err)
 		}
+	}
+	if storeclient.IsStoredValue(crocOptions.SharedSecret) {
+		return receiveStored(c, crocOptions.SharedSecret)
 	}
 	if c.String("out") != "" {
 		if err = os.Chdir(c.String("out")); err != nil {
@@ -879,6 +927,44 @@ func runServe(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	var storeService *storeapi.Service
+	storeDirectory := strings.TrimSpace(c.String("store-dir"))
+	if storeDirectory != "" {
+		maxTransfer, parseErr := parseByteSize(c.String("store-max-transfer"))
+		if parseErr != nil {
+			return fmt.Errorf("invalid --store-max-transfer: %w", parseErr)
+		}
+		maxTotal, parseErr := parseByteSize(c.String("store-quota"))
+		if parseErr != nil {
+			return fmt.Errorf("invalid --store-quota: %w", parseErr)
+		}
+		minFree, parseErr := parseByteSize(c.String("store-min-free"))
+		if parseErr != nil {
+			return fmt.Errorf("invalid --store-min-free: %w", parseErr)
+		}
+		var trusted []netip.Prefix
+		for _, value := range c.StringSlice("store-trusted-proxy") {
+			prefix, prefixErr := netip.ParsePrefix(strings.TrimSpace(value))
+			if prefixErr != nil {
+				return fmt.Errorf("invalid --store-trusted-proxy %q: %w", value, prefixErr)
+			}
+			trusted = append(trusted, prefix)
+		}
+		storeService, err = storeapi.New(storeapi.Config{
+			Root:             storeDirectory,
+			MaxTransferBytes: maxTransfer,
+			MaxTotalBytes:    maxTotal,
+			MinFreeBytes:     minFree,
+			MaxFiles:         c.Int("store-max-files"),
+			CreatePerHour:    c.Int("store-create-rate"),
+			MaxActiveUploads: c.Int("store-active-uploads"),
+			TrustedProxies:   trusted,
+		})
+		if err != nil {
+			return err
+		}
+		defer storeService.Close()
+	}
 	return webrelay.Run(context.Background(), webrelay.Config{
 		ListenAddress:  bindAddress,
 		PublicAddress:  origin,
@@ -886,7 +972,43 @@ func runServe(c *cli.Context) error {
 		RelayPassword:  determinePass(c),
 		AllowedPorts:   parseRelayPorts(c.String("ports")),
 		OriginPatterns: []string{origin},
+		StoreService:   storeService,
 	})
+}
+
+func parseByteSize(value string) (int64, error) {
+	normalized := strings.TrimSpace(strings.ToUpper(value))
+	if normalized == "" {
+		return 0, errors.New("size cannot be empty")
+	}
+	multipliers := []struct {
+		suffix     string
+		multiplier int64
+	}{
+		{"TIB", 1 << 40},
+		{"GIB", 1 << 30},
+		{"MIB", 1 << 20},
+		{"KIB", 1 << 10},
+		{"TB", 1_000_000_000_000},
+		{"GB", 1_000_000_000},
+		{"MB", 1_000_000},
+		{"KB", 1_000},
+		{"B", 1},
+	}
+	multiplier := int64(1)
+	number := normalized
+	for _, candidate := range multipliers {
+		if strings.HasSuffix(normalized, candidate.suffix) {
+			multiplier = candidate.multiplier
+			number = strings.TrimSpace(strings.TrimSuffix(normalized, candidate.suffix))
+			break
+		}
+	}
+	parsed, err := strconv.ParseInt(number, 10, 64)
+	if err != nil || parsed < 0 || (parsed > 0 && parsed > (1<<63-1)/multiplier) {
+		return 0, fmt.Errorf("invalid byte size %q", value)
+	}
+	return parsed * multiplier, nil
 }
 
 func resolveServeAddress(publicAddress, bindAddress string, bindExplicit bool) (string, string, error) {

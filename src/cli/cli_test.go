@@ -74,6 +74,27 @@ func TestDeterminePassTrimsEnvValue(t *testing.T) {
 	}
 }
 
+func TestRevokeIsRootFlag(t *testing.T) {
+	app := newApp()
+	var revoke string
+	app.Action = func(ctx *cli.Context) error {
+		revoke = ctx.String("revoke")
+		return nil
+	}
+
+	if err := app.Run([]string{"croc", "--revoke", "transfer-id"}); err != nil {
+		t.Fatalf("parse --revoke: %v", err)
+	}
+	if revoke != "transfer-id" {
+		t.Fatalf("--revoke = %q, want transfer-id", revoke)
+	}
+	for _, command := range app.Commands {
+		if command.Name == "revoke" {
+			t.Fatal("revoke should not be registered as a subcommand")
+		}
+	}
+}
+
 func TestParseRelayPorts(t *testing.T) {
 	tests := []struct {
 		name string
@@ -207,6 +228,29 @@ func TestResolveServeAddress(t *testing.T) {
 				t.Fatalf("origin = %q, want %q", gotOrigin, tt.wantOrigin)
 			}
 		})
+	}
+}
+
+func TestParseByteSize(t *testing.T) {
+	tests := map[string]int64{
+		"1":      1,
+		"512MiB": 512 << 20,
+		"5GB":    5_000_000_000,
+		"2 GiB":  2 << 30,
+	}
+	for input, expected := range tests {
+		actual, err := parseByteSize(input)
+		if err != nil {
+			t.Fatalf("parseByteSize(%q): %v", input, err)
+		}
+		if actual != expected {
+			t.Fatalf("parseByteSize(%q) = %d, want %d", input, actual, expected)
+		}
+	}
+	for _, input := range []string{"", "-1", "1.5GiB", "999999999999999999999TiB"} {
+		if _, err := parseByteSize(input); err == nil {
+			t.Fatalf("parseByteSize(%q) unexpectedly succeeded", input)
+		}
 	}
 }
 

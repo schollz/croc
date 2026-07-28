@@ -16,6 +16,9 @@ export default defineConfig({
       "/healthz": {
         target: gatewayProxy.replace(/^ws/, "http"),
       },
+      "/api": {
+        target: gatewayProxy.replace(/^ws/, "http"),
+      },
     },
   },
   test: {

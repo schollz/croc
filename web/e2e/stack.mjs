@@ -8,6 +8,10 @@ const webDirectory = dirname(dirname(fileURLToPath(import.meta.url)));
 const artifactDirectory = join(webDirectory, ".e2e");
 const binaryName = process.env.CROC_E2E_BINARY_NAME;
 const binaryPath = join(artifactDirectory, binaryName ?? "croc");
+const storeDirectory = join(
+  artifactDirectory,
+  `${binaryName ?? "croc"}-store`,
+);
 const relayPorts = process.env.CROC_E2E_RELAY_PORTS;
 const vitePort = process.env.CROC_E2E_VITE_PORT;
 
@@ -16,6 +20,8 @@ if (!relayPorts || !vitePort || !binaryName) {
 }
 
 mkdirSync(artifactDirectory, { recursive: true });
+rmSync(storeDirectory, { recursive: true, force: true });
+mkdirSync(storeDirectory, { recursive: true });
 execFileSync("go", ["build", "-o", binaryPath, ".."], {
   cwd: webDirectory,
   stdio: "inherit",
@@ -106,7 +112,10 @@ async function waitForHTTP(url, timeoutMs = 20_000) {
 process.once("SIGINT", () => shutdown(130));
 process.once("SIGTERM", () => shutdown(0));
 process.once("SIGHUP", () => shutdown(0));
-process.once("exit", () => rmSync(binaryPath, { force: true }));
+process.once("exit", () => {
+  rmSync(binaryPath, { force: true });
+  rmSync(storeDirectory, { recursive: true, force: true });
+});
 
 const [controlPort] = relayPorts.split(",");
 start("relay", binaryPath, [
@@ -128,6 +137,10 @@ start("server", binaryPath, [
   "127.0.0.1",
   "--ports",
   relayPorts,
+  "--store-dir",
+  storeDirectory,
+  "--store-min-free",
+  "1B",
   `127.0.0.1:${vitePort}`,
 ]);
 await waitForHTTP(`http://127.0.0.1:${vitePort}/healthz`);
