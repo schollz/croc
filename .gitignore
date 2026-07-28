@@ -24,6 +24,9 @@ go.work.sum
 # Environment variables file
 .env
 
+# Browser automation debug artifacts
+/.playwright-mcp/
+
 # Croc builds
 /croc
 croc_v*

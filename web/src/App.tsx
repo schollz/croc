@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
 import { driver, type DriveStep, type Driver } from "driver.js";
+import { formatGeneratedCode } from "./codes";
 import { errorMessage, formatBytes } from "./protocol/bytes";
 import {
   prepareFiles,
@@ -23,12 +24,26 @@ import {
   sendFiles,
 } from "./protocol/client";
 import {
+  formatStoredCLIToken,
+  inspectStoredTransfer,
+  isStoredShareValue,
+  parseStoredShare,
+  prepareStoredFiles,
+  receiveStoredTransfer,
+  revokeStoredTransfer,
+  uploadStoredFiles,
+  type StoredSettings,
+  type StoredUploadResult,
+} from "./protocol/stored";
+import {
   DownloadDestination,
+  chooseStoredReceiveDestination,
   chooseReceiveDestination,
   supportsDirectoryDestination,
 } from "./protocol/storage";
 import type {
   FileProgress,
+  ReceiveCallbacks,
   ReceiveDestination,
   TransferOffer,
   TransferSettings,
@@ -38,6 +53,11 @@ import {
   TransferEstimator,
   type TransferEstimate,
 } from "./progress";
+import {
+  StoredModeSwitch,
+  StoredShareCard,
+  type SendMode,
+} from "./stored-ui";
 import {
   assetArchitectureLabel,
   assetsForPlatform,
@@ -55,9 +75,21 @@ type Activity = "idle" | "working" | "done" | "error";
 type Theme = "dark" | "light";
 type CopyState = "idle" | "copied" | "error";
 
+const compactCodeQuery = "(max-width: 460px)";
 const runtimeSettings = window.__CROC_RUNTIME_CONFIG__ ?? {};
 const requestedReceiveCode =
   new URLSearchParams(window.location.search).get("code")?.trim() ?? "";
+const requestedStoredURL = /^\/s\/[A-Za-z0-9_-]{22}$/.test(
+  window.location.pathname,
+)
+  ? window.location.href
+  : "";
+const requestedReceiveValue = requestedReceiveCode || requestedStoredURL;
+const receiveOnly = requestedReceiveValue !== "";
+const storeRuntime = runtimeSettings.store ?? {};
+const storeEnabled = storeRuntime.enabled === true;
+const storeMaxTransferBytes = storeRuntime.maxTransferBytes || 1024 ** 3;
+const storeMaxFiles = storeRuntime.maxFiles || 100;
 const defaultSettings: TransferSettings = {
   gatewayURL:
     runtimeSettings.gatewayURL ||
@@ -71,6 +103,7 @@ const defaultSettings: TransferSettings = {
     runtimeSettings.relayPassword ||
     import.meta.env.VITE_CROC_RELAY_PASSWORD ||
     "pass123",
+  storeAPI: "/api/v1/store",
 };
 
 function storedValue(key: string, fallback: string) {
@@ -78,6 +111,56 @@ function storedValue(key: string, fallback: string) {
     return localStorage.getItem(key) || fallback;
   } catch {
     return fallback;
+  }
+}
+
+function restoreStoredUpload() {
+  if (!storeEnabled) return undefined;
+  try {
+    let restored: StoredUploadResult | undefined;
+    for (let index = 0; index < sessionStorage.length; index += 1) {
+      const storageKey = sessionStorage.key(index);
+      if (!storageKey?.startsWith("croc-store-upload:")) continue;
+      try {
+        const raw = sessionStorage.getItem(storageKey);
+        if (!raw) continue;
+        const receipt = JSON.parse(raw) as {
+          browserURL?: string;
+          uploadToken?: string;
+          expiresAt?: string;
+        };
+        const expiresAt = new Date(receipt.expiresAt ?? "");
+        if (
+          !receipt.browserURL ||
+          !receipt.uploadToken ||
+          !Number.isFinite(expiresAt.getTime()) ||
+          expiresAt.getTime() <= Date.now()
+        ) {
+          throw new Error("expired or invalid stored-upload receipt");
+        }
+        const share = parseStoredShare(receipt.browserURL);
+        const candidate: StoredUploadResult = {
+          share,
+          uploadToken: receipt.uploadToken,
+          expiresAt: expiresAt.toISOString(),
+          browserURL: receipt.browserURL,
+          cliToken: formatStoredCLIToken(share),
+        };
+        if (
+          !restored ||
+          new Date(candidate.expiresAt).getTime() >
+            new Date(restored.expiresAt).getTime()
+        ) {
+          restored = candidate;
+        }
+      } catch {
+        sessionStorage.removeItem(storageKey);
+        index -= 1;
+      }
+    }
+    return restored;
+  } catch {
+    return undefined;
   }
 }
 
@@ -91,6 +174,25 @@ function initialTheme(): Theme {
   return window.matchMedia?.("(prefers-color-scheme: light)").matches
     ? "light"
     : "dark";
+}
+
+function useCompactCodes() {
+  const [compact, setCompact] = useState(
+    () =>
+      typeof window.matchMedia === "function" &&
+      window.matchMedia(compactCodeQuery).matches,
+  );
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mediaQuery = window.matchMedia(compactCodeQuery);
+    const updateCompact = () => setCompact(mediaQuery.matches);
+    updateCompact();
+    mediaQuery.addEventListener("change", updateCompact);
+    return () => mediaQuery.removeEventListener("change", updateCompact);
+  }, []);
+
+  return compact;
 }
 
 function ProgressBlock({
@@ -301,7 +403,9 @@ function CliDownload() {
 }
 
 export function App() {
+  const restoredStoredUpload = useMemo(restoreStoredUpload, []);
   const [theme, setTheme] = useState<Theme>(initialTheme);
+  const compactCodes = useCompactCodes();
   const [settings, setSettings] = useState<TransferSettings>(() => ({
     gatewayURL: storedValue("croc-web-gateway", defaultSettings.gatewayURL),
     relayAddress: storedValue(
@@ -312,6 +416,7 @@ export function App() {
       "croc-web-relay-password",
       defaultSettings.relayPassword,
     ),
+    storeAPI: defaultSettings.storeAPI,
   }));
   const [rememberPassword, setRememberPassword] = useState(() => {
     try {
@@ -322,19 +427,26 @@ export function App() {
   });
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [sendMode, setSendMode] = useState<SendMode>(
+    restoredStoredUpload ? "stored" : "direct",
+  );
   const [sendCode, setSendCode] = useState("");
   const [sendActivity, setSendActivity] = useState<Activity>("idle");
   const [sendStatus, setSendStatus] = useState("");
   const [sendProgress, setSendProgress] = useState<FileProgress>();
   const [completedSend, setCompletedSend] = useState<string[]>([]);
   const [copyState, setCopyState] = useState<CopyState>("idle");
+  const [storedUpload, setStoredUpload] =
+    useState<StoredUploadResult | undefined>(restoredStoredUpload);
 
-  const [receiveCode, setReceiveCode] = useState(requestedReceiveCode);
+  const [receiveCode, setReceiveCode] = useState(requestedReceiveValue);
   const [receiveActivity, setReceiveActivity] = useState<Activity>("idle");
   const [receiveStatus, setReceiveStatus] = useState("");
   const [receiveProgress, setReceiveProgress] = useState<FileProgress>();
   const [completedReceive, setCompletedReceive] = useState<string[]>([]);
   const [offer, setOffer] = useState<TransferOffer>();
+  const [storedReceiveActive, setStoredReceiveActive] = useState(false);
+  const [storedReceiveExpiresAt, setStoredReceiveExpiresAt] = useState("");
   const offerResolver = useRef<
     ((destination: ReceiveDestination | false) => void) | undefined
   >(undefined);
@@ -349,6 +461,14 @@ export function App() {
   const totalSelectedSize = useMemo(
     () => selectedFiles.reduce((total, file) => total + file.size, 0),
     [selectedFiles],
+  );
+  const storedSettings = useMemo<StoredSettings>(
+    () => ({
+      storeAPI: settings.storeAPI,
+      maxTransferBytes: storeMaxTransferBytes,
+      maxFiles: storeMaxFiles,
+    }),
+    [settings.storeAPI],
   );
 
   useEffect(() => {
@@ -387,7 +507,11 @@ export function App() {
     void wasm()
       .randomCode()
       .then((code) => {
-        if (active) setSendCode((current) => current || code);
+        if (active) {
+          setSendCode(
+            (current) => current || formatGeneratedCode(code, compactCodes),
+          );
+        }
       })
       .catch((error) => {
         if (active) {
@@ -407,8 +531,8 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (!requestedReceiveCode) return;
-    if (requestedReceiveCode.length < 6) {
+    if (!requestedReceiveValue) return;
+    if (!isStoredShareValue(requestedReceiveValue) && requestedReceiveValue.length < 6) {
       setReceiveActivity("error");
       setReceiveStatus("The croc code in this link is too short");
       return;
@@ -437,15 +561,17 @@ export function App() {
   async function regenerateCode() {
     if (sendActivity === "working") return;
     setCopyState("idle");
-    setSendCode(await wasm().randomCode());
+    setSendCode(
+      formatGeneratedCode(await wasm().randomCode(), compactCodes),
+    );
   }
 
-  async function copyCode() {
+  async function copyValue(value: string) {
     if (copyReset.current !== undefined) {
       window.clearTimeout(copyReset.current);
     }
     try {
-      await navigator.clipboard.writeText(sendCode);
+      await navigator.clipboard.writeText(value);
       setCopyState("copied");
     } catch {
       setCopyState("error");
@@ -456,6 +582,61 @@ export function App() {
     }, 2_000);
   }
 
+  function rememberStoredUpload(result: StoredUploadResult) {
+    setStoredUpload(result);
+    try {
+      sessionStorage.setItem(
+        `croc-store-upload:${result.share.id}`,
+        JSON.stringify({
+          browserURL: result.browserURL,
+          uploadToken: result.uploadToken,
+          expiresAt: result.expiresAt,
+        }),
+      );
+    } catch {
+      // Revocation remains available while this component is mounted.
+    }
+  }
+
+  async function sendStored(signal: AbortSignal) {
+    const prepared = await prepareStoredFiles(
+      selectedFiles,
+      storedSettings,
+      { onStatus: setSendStatus },
+      signal,
+    );
+    const result = await uploadStoredFiles({
+      files: prepared,
+      settings: storedSettings,
+      signal,
+      callbacks: {
+        onStatus: setSendStatus,
+        onProgress: setSendProgress,
+      },
+    });
+    rememberStoredUpload(result);
+  }
+
+  async function sendDirect(signal: AbortSignal) {
+    const prepared = await prepareFiles(
+      selectedFiles,
+      { onStatus: setSendStatus },
+      signal,
+    );
+    await sendFiles({
+      files: prepared,
+      secret: sendCode.trim(),
+      settings,
+      signal,
+      callbacks: {
+        onStatus: setSendStatus,
+        onProgress: setSendProgress,
+        onFileComplete: (name) =>
+          setCompletedSend((current) => [...current, name]),
+      },
+    });
+  }
+
   async function startSend() {
     sendAbort.current?.abort();
     const controller = new AbortController();
@@ -464,28 +645,17 @@ export function App() {
     setSendStatus("Preparing files…");
     setSendProgress(undefined);
     setCompletedSend([]);
+    setStoredUpload(undefined);
     try {
-      const prepared = await prepareFiles(
-        selectedFiles,
-        {
-          onStatus: setSendStatus,
-        },
-        controller.signal,
-      );
-      await sendFiles({
-        files: prepared,
-        secret: sendCode.trim(),
-        settings,
-        signal: controller.signal,
-        callbacks: {
-          onStatus: setSendStatus,
-          onProgress: setSendProgress,
-          onFileComplete: (name) =>
-            setCompletedSend((current) => [...current, name]),
-        },
-      });
+      await (sendMode === "stored"
+        ? sendStored(controller.signal)
+        : sendDirect(controller.signal));
       setSendActivity("done");
-      setSendStatus("All files arrived safely");
+      setSendStatus(
+        sendMode === "stored"
+          ? "Encrypted upload ready to share"
+          : "All files arrived safely",
+      );
     } catch (error) {
       if (controller.signal.aborted) {
         setSendActivity("idle");
@@ -497,6 +667,48 @@ export function App() {
     }
   }
 
+  function receiveCallbacks(): ReceiveCallbacks {
+    return {
+      onStatus: setReceiveStatus,
+      onProgress: setReceiveProgress,
+      onFileComplete: (name) =>
+        setCompletedReceive((current) => [...current, name]),
+      onOffer: (incoming) =>
+        new Promise((resolve) => {
+          offerResolver.current = resolve;
+          setOffer(incoming);
+        }),
+    };
+  }
+
+  async function receiveStored(signal: AbortSignal) {
+    setStoredReceiveActive(true);
+    const share = parseStoredShare(receiveCode);
+    setReceiveStatus("Opening encrypted manifest…");
+    const inspection = await inspectStoredTransfer(
+      share,
+      storedSettings,
+      signal,
+    );
+    setStoredReceiveExpiresAt(inspection.expiresAt ?? "");
+    await receiveStoredTransfer({
+      inspection,
+      settings: storedSettings,
+      signal,
+      callbacks: receiveCallbacks(),
+    });
+    window.history.replaceState({}, "", "/");
+  }
+
+  async function receiveDirect(signal: AbortSignal) {
+    await receiveFiles({
+      secret: receiveCode.trim(),
+      settings,
+      signal,
+      callbacks: receiveCallbacks(),
+    });
+  }
+
   async function startReceive() {
     receiveAbort.current?.abort();
     const controller = new AbortController();
@@ -506,26 +718,20 @@ export function App() {
     setReceiveProgress(undefined);
     setCompletedReceive([]);
     setOffer(undefined);
+    setStoredReceiveActive(false);
+    setStoredReceiveExpiresAt("");
     try {
-      await receiveFiles({
-        secret: receiveCode.trim(),
-        settings,
-        signal: controller.signal,
-        callbacks: {
-          onStatus: setReceiveStatus,
-          onProgress: setReceiveProgress,
-          onFileComplete: (name) =>
-            setCompletedReceive((current) => [...current, name]),
-          onOffer: (incoming) =>
-            new Promise((resolve) => {
-              offerResolver.current = resolve;
-              setOffer(incoming);
-            }),
-        },
-      });
+      const stored = isStoredShareValue(receiveCode);
+      await (stored
+        ? receiveStored(controller.signal)
+        : receiveDirect(controller.signal));
       setOffer(undefined);
       setReceiveActivity("done");
-      setReceiveStatus("All files received and verified");
+      setReceiveStatus(
+        stored
+          ? "All files received, verified, and removed from storage"
+          : "All files received and verified",
+      );
     } catch (error) {
       setOffer(undefined);
       offerResolver.current = undefined;
@@ -539,12 +745,38 @@ export function App() {
     }
   }
 
+  async function revokeCurrentStoredUpload() {
+    if (!storedUpload) return;
+    setSendActivity("working");
+    setSendStatus("Revoking encrypted upload…");
+    try {
+      await revokeStoredTransfer(
+        storedUpload.share,
+        storedUpload.uploadToken,
+        storedSettings,
+      );
+      try {
+        sessionStorage.removeItem(`croc-store-upload:${storedUpload.share.id}`);
+      } catch {
+        // The remote revocation still succeeded.
+      }
+      setStoredUpload(undefined);
+      setSendActivity("done");
+      setSendStatus("Stored transfer revoked");
+    } catch (error) {
+      setSendActivity("error");
+      setSendStatus(errorMessage(error));
+    }
+  }
+
   async function acceptOffer(downloadSeparately = false) {
     if (!offer || !offerResolver.current) return;
     try {
       const destination = downloadSeparately
         ? new DownloadDestination()
-        : await chooseReceiveDestination(offer);
+        : storedReceiveActive
+          ? await chooseStoredReceiveDestination(offer)
+          : await chooseReceiveDestination(offer);
       const resolve = offerResolver.current;
       offerResolver.current = undefined;
       setOffer(undefined);
@@ -572,20 +804,22 @@ export function App() {
       {
         popover: {
           title: "Welcome to croc web",
-          description: requestedReceiveCode
-            ? "This receive link already filled its croc code and started connecting. You only need to review the incoming files and choose where to save them."
+          description: receiveOnly
+            ? requestedStoredURL
+              ? "This encrypted stored link is opening its manifest. Review the incoming files, then choose where to save them before claiming its one download."
+              : "This receive link already filled its croc code and started connecting. You only need to review the incoming files and choose where to save them."
             : "Send or receive files from this page with any compatible croc browser or command-line peer. This tour shows the complete flow.",
         },
       },
     ];
 
-    if (!requestedReceiveCode) {
+    if (!receiveOnly) {
       steps.push({
         element: '[data-tour="send"]',
         popover: {
           title: "Send one or several files",
           description:
-            "Choose files or drag them here, edit the generated croc code if you like, then press Send. Give that same code to the recipient while this page stays open.",
+            "Use Direct for a live croc-code transfer, or Store for an encrypted link that lasts up to 24 hours or one verified download. Choose files or drag them here to begin.",
           side: "right",
           align: "start",
         },
@@ -598,17 +832,17 @@ export function App() {
         popover: {
           title: "Receive and review",
           description:
-            "Paste the sender’s croc code and connect. Before anything is saved, you can inspect the names, paths, and sizes, then accept or refuse the transfer.",
-          side: requestedReceiveCode ? "top" : "left",
+            "Paste the sender’s croc code, encrypted browser link, or CLI token. Before anything is saved, inspect the names, paths, and sizes, then accept or refuse.",
+          side: receiveOnly ? "top" : "left",
           align: "start",
         },
       },
       {
         element: ".transfer-grid",
         popover: {
-          title: "The code creates the encryption key",
+          title: "The code or link provides the key",
           description:
-            "croc uses password-authenticated key exchange (PAKE), so both peers derive a strong shared key from the croc code without sending that key through the relay. File metadata and chunks are encrypted before leaving the browser.",
+            "Direct transfers use password-authenticated key exchange (PAKE) so both peers derive a strong shared key from the croc code. Stored links carry a separate random key after #, which is not sent to the server. File metadata and chunks are encrypted before leaving the browser.",
           side: "bottom",
           align: "start",
         },
@@ -628,7 +862,7 @@ export function App() {
         popover: {
           title: "Works with the croc CLI",
           description:
-            "Browser transfers interoperate with normal croc command-line clients. Download the detected build here, or choose another release from GitHub.",
+            "Direct browser transfers interoperate with normal croc command-line clients, and stored transfers include a pasteable CLI token. Download the detected build here, or choose another release from GitHub.",
           side: "top",
           align: "start",
         },
@@ -705,7 +939,7 @@ export function App() {
             <strong>croc</strong> is a free and open-source tool to
           </p>
           <h1>
-            {requestedReceiveCode
+            {receiveOnly
               ? "Receive files, secured end-to-end."
               : "Send files, secured end-to-end."}
           </h1>
@@ -744,10 +978,10 @@ export function App() {
       </header>
 
       <section
-        className={`transfer-grid${requestedReceiveCode ? " receive-only" : ""}`}
+        className={`transfer-grid${receiveOnly ? " receive-only" : ""}`}
         aria-label="File transfer controls"
       >
-        {!requestedReceiveCode && (
+        {!receiveOnly && (
           <article className="panel send-panel" data-tour="send">
           <div className="panel-heading">
             <span className="step">
@@ -755,9 +989,26 @@ export function App() {
             </span>
             <div>
               <h2>Send</h2>
-              <p>Choose several files. Share one croc code.</p>
+              <p>
+                {sendMode === "stored"
+                  ? "Upload encrypted files for 24 hours or one download."
+                  : "Choose several files. Share one croc code."}
+              </p>
             </div>
           </div>
+
+          {storeEnabled && (
+            <StoredModeSwitch
+              mode={sendMode}
+              disabled={sendBusy}
+              onChange={(mode) => {
+                setSendMode(mode);
+                setStoredUpload(undefined);
+                setSendStatus("");
+                setSendActivity("idle");
+              }}
+            />
+          )}
 
           <button
             className="drop-zone"
@@ -822,10 +1073,12 @@ export function App() {
             </ul>
           )}
 
-          <label className="field-label" htmlFor="send-code">
-            Code
-          </label>
-          <div className="field-with-actions">
+          {sendMode === "direct" && (
+            <>
+            <label className="field-label" htmlFor="send-code">
+              Croc code
+            </label>
+            <div className="field-with-actions">
             <input
               id="send-code"
               value={sendCode}
@@ -851,7 +1104,7 @@ export function App() {
               type="button"
               aria-label={copyState === "copied" ? "Code copied" : "Copy code"}
               disabled={!sendCode}
-              onClick={() => void copyCode()}
+              onClick={() => void copyValue(sendCode)}
             >
               {copyState === "copied" ? <Check /> : <Copy />}
             </button>
@@ -866,7 +1119,24 @@ export function App() {
                   ? "Copy failed"
                   : ""}
             </span>
-          </div>
+            </div>
+            </>
+          )}
+
+          {sendMode === "stored" && (
+            <p className="field-help stored-privacy-note">
+              Files and names are encrypted in this browser. The server never
+              receives the decryption key.
+            </p>
+          )}
+
+          {storedUpload && (
+            <StoredShareCard
+              upload={storedUpload}
+              onCopy={(value) => void copyValue(value)}
+              onRevoke={() => void revokeCurrentStoredUpload()}
+            />
+          )}
 
           {sendBusy || sendProgress ? (
             <ProgressBlock progress={sendProgress} status={sendStatus} />
@@ -891,10 +1161,17 @@ export function App() {
             <button
               className="primary-button"
               type="button"
-              disabled={selectedFiles.length === 0 || sendCode.trim().length < 6}
+              disabled={
+                selectedFiles.length === 0 ||
+                (sendMode === "direct" && sendCode.trim().length < 6) ||
+                (sendMode === "stored" &&
+                  (selectedFiles.length > storeMaxFiles ||
+                    totalSelectedSize > storeMaxTransferBytes))
+              }
               onClick={() => void startSend()}
             >
-              <Upload /> Send {selectedFiles.length || ""} file
+              <Upload /> {sendMode === "stored" ? "Store" : "Send"}{" "}
+              {selectedFiles.length || ""} file
               {selectedFiles.length === 1 ? "" : "s"}
             </button>
           )}
@@ -913,24 +1190,26 @@ export function App() {
             </span>
             <div>
               <h2>Receive</h2>
-              <p>Enter the sender’s code. Review before saving.</p>
+              <p>Enter a croc code or encrypted stored link. Review before saving.</p>
             </div>
           </div>
 
           <label className="field-label" htmlFor="receive-code">
-            Code
+            Croc code or stored link
           </label>
           <input
             id="receive-code"
             value={receiveCode}
             disabled={receiveBusy}
-            placeholder="1234-word-word-word"
+            placeholder={
+              compactCodes ? "1234-word-word or link" : "1234-word-word-word or encrypted link"
+            }
             spellCheck={false}
             autoComplete="off"
             onChange={(event) => setReceiveCode(event.target.value)}
           />
           <p className="field-help">
-            Paste the same code shown by the sender’s browser or terminal.
+            Paste the same code, stored link, or CLI token shown by the sender.
           </p>
 
           {offer && (
@@ -957,6 +1236,13 @@ export function App() {
                   </li>
                 ))}
               </ul>
+              {storedReceiveActive && storedReceiveExpiresAt && (
+                <p>
+                  Encrypted storage expires{" "}
+                  {new Date(storedReceiveExpiresAt).toLocaleString()} and is
+                  removed after this verified download.
+                </p>
+              )}
               <p>
                 {supportsDirectoryDestination()
                   ? "Choose a destination folder. Existing files require confirmation."

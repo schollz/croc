@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/schollz/croc/v10/src/store"
 	"github.com/schollz/croc/v10/src/webassets"
 	log "github.com/schollz/logger"
 )
@@ -39,6 +40,7 @@ type Config struct {
 	PublicAddress  string
 	RelayPassword  string
 	StaticFiles    fs.FS
+	StoreService   *store.Service
 }
 
 type handler struct {
@@ -51,9 +53,10 @@ type handler struct {
 }
 
 type runtimeConfig struct {
-	GatewayURL    string `json:"gatewayURL"`
-	RelayAddress  string `json:"relayAddress"`
-	RelayPassword string `json:"relayPassword"`
+	GatewayURL    string             `json:"gatewayURL"`
+	RelayAddress  string             `json:"relayAddress"`
+	RelayPassword string             `json:"relayPassword"`
+	Store         store.PublicConfig `json:"store"`
 }
 
 // Handler returns the unified croc web handler. It serves the embedded client,
@@ -77,6 +80,12 @@ func Handler(config Config) (http.Handler, error) {
 			GatewayURL:    "/ws",
 			RelayAddress:  net.JoinHostPort(normalized.RelayHost, normalized.AllowedPorts[0]),
 			RelayPassword: normalized.RelayPassword,
+			Store: func() store.PublicConfig {
+				if normalized.StoreService == nil {
+					return store.PublicConfig{}
+				}
+				return normalized.StoreService.PublicConfig()
+			}(),
 		},
 		static: static,
 	}
@@ -88,6 +97,10 @@ func Handler(config Config) (http.Handler, error) {
 	mux.HandleFunc("/healthz", h.health)
 	mux.HandleFunc("/ws", h.websocket)
 	mux.HandleFunc("/config.js", h.config)
+	if normalized.StoreService != nil {
+		mux.Handle("/api/v1/store/transfers", normalized.StoreService)
+		mux.Handle("/api/v1/store/transfers/", normalized.StoreService)
+	}
 	mux.Handle("/", h.static)
 	return mux, nil
 }
@@ -114,6 +127,9 @@ func Run(ctx context.Context, config Config) error {
 	}
 
 	errc := make(chan error, 1)
+	if normalized.StoreService != nil {
+		go normalized.StoreService.RunCleanup(ctx)
+	}
 	go func() {
 		log.Infof(
 			"starting croc web server on %s for %s via %s (%s)",
@@ -358,6 +374,8 @@ func (h *staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write(h.index)
 		}
 		return
+	} else if requested == "croc-download-sw.js" || requested == "croc-worker.js" {
+		w.Header().Set("Cache-Control", "no-cache")
 	} else if strings.HasPrefix(requested, "assets/") {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	}
