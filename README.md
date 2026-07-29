@@ -425,7 +425,7 @@ croc serve getcroc.com
 ```
 
 This binds to `127.0.0.1:9014` by default for an HTTPS reverse proxy. `/`
-serves the website and `/ws` bridges to `croc.schollz.com`. For a directly
+serves the website and `/ws` bridges to `ipv4.getcroc.com`. For a directly
 accessible local development server, `croc serve localhost:5173` binds and
 serves on `localhost:5173`. Use `--bind`, `--relay`, and `--ports` before the
 website address to customize the local listener or upstream croc relay.
