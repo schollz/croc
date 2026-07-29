@@ -91,6 +91,18 @@ const storeRuntime = runtimeSettings.store ?? {};
 const storeEnabled = storeRuntime.enabled === true;
 const storeMaxTransferBytes = storeRuntime.maxTransferBytes || 1024 ** 3;
 const storeMaxFiles = storeRuntime.maxFiles || 100;
+const otherTools = [
+  {
+    description: "local weather, minus clutter",
+    href: "https://wthrtxt.com",
+    name: "wthrtxt",
+  },
+  {
+    description: "write, read anywhere",
+    href: "https://cowyo.com",
+    name: "cowyo",
+  },
+];
 const defaultSettings: TransferSettings = {
   gatewayURL:
     runtimeSettings.gatewayURL ||
@@ -1424,25 +1436,45 @@ export function App() {
         </a>
       </section>
 
-      <footer>
-        <span>end-to-end encrypted · over 2 petabytes transferred</span>
-        <span>
+      <footer className="site-footer">
+        <div className="site-footer-links">
+          <span>
+            made by{" "}
+            <a
+              href="https://github.com/sponsors/schollz"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              schollz
+            </a>
+          </span>
+          <span aria-hidden="true">·</span>
           <a
             href="https://github.com/schollz/croc"
             target="_blank"
             rel="noopener noreferrer"
           >
-            open-source
-          </a>{" "}
-          · made by{" "}
-          <a
-            href="https://github.com/sponsors/schollz"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            schollz
+            github
           </a>
-        </span>
+        </div>
+
+        <details className="tools-menu">
+          <summary>other tools</summary>
+          <ul>
+            {otherTools.map((tool) => (
+              <li key={tool.href}>
+                <a
+                  href={tool.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <strong>{tool.name}</strong>
+                  <span>{tool.description}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </details>
       </footer>
     </main>
   );

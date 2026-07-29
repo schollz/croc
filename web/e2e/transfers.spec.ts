@@ -268,8 +268,21 @@ test("publishes rich metadata and project links", async ({ page }) => {
   await expect(
     page.getByRole("link", { name: "schollz", exact: true }),
   ).toHaveAttribute("href", "https://github.com/sponsors/schollz");
-  await expect(page.locator("footer")).toContainText(
-    "end-to-end encrypted · over 2 petabytes transferred",
+  const toolsMenu = page.locator("footer details.tools-menu");
+  await expect(toolsMenu.locator("summary")).toHaveText("other tools");
+  await toolsMenu.locator("summary").click();
+  await expect(toolsMenu).toHaveAttribute("open", "");
+  await expect(
+    page.locator('footer a[href="https://wthrtxt.com"]'),
+  ).toContainText("wthrtxt");
+  await expect(
+    page.locator('footer a[href="https://cowyo.com"]'),
+  ).toContainText("cowyo");
+  await expect(
+    page.getByRole("link", { name: "github", exact: true }),
+  ).toHaveAttribute(
+    "href",
+    "https://github.com/schollz/croc",
   );
   await expect(
     page.getByRole("heading", { name: "Download croc for macOS." }),

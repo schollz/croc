@@ -1,0 +1,55 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "make build"
+entrypoint = ["./croc", "serve"]
+include_ext = [
+  "go",
+  "html",
+  "js",
+  "mjs",
+  "ts",
+  "tsx",
+  "css",
+  "json",
+  "wasm",
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "svg",
+  "woff",
+  "woff2",
+  "txt",
+]
+include_file = ["Makefile", "go.mod", "go.sum"]
+exclude_file = [
+  "web/public/croc.wasm",
+  "web/public/wasm_exec.js",
+]
+exclude_dir = [
+  ".git",
+  "src/webassets/dist",
+  "web/.e2e",
+  "web/coverage",
+  "web/dist",
+  "web/node_modules",
+  "web/playwright-report",
+  "web/test-fixtures",
+  "web/test-results",
+  "tmp",
+]
+exclude_unchanged = true
+delay = 300
+stop_on_error = true
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = true
+
+[screen]
+clear_on_rebuild = false
+keep_scroll = true
