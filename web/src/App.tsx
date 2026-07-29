@@ -454,7 +454,7 @@ export function App() {
   const sendAbort = useRef<AbortController>(undefined);
   const receiveAbort = useRef<AbortController>(undefined);
   const fileInput = useRef<HTMLInputElement>(null);
-  const receivePanel = useRef<HTMLElement>(null);
+  const receivePanel = useRef<HTMLFormElement>(null);
   const copyReset = useRef<number>(undefined);
   const tour = useRef<Driver>(undefined);
 
@@ -1178,11 +1178,16 @@ export function App() {
           </article>
         )}
 
-        <article
+        <form
           id="receive"
           ref={receivePanel}
           className="panel receive-panel"
           data-tour="receive"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (receiveBusy || receiveCode.trim().length < 6) return;
+            void startReceive();
+          }}
         >
           <div className="panel-heading">
             <span className="step">
@@ -1209,7 +1214,8 @@ export function App() {
             onChange={(event) => setReceiveCode(event.target.value)}
           />
           <p className="field-help">
-            Paste the same code, stored link, or CLI token shown by the sender.
+            Paste or type the code, stored link, or CLI token, then press Enter
+            or select Receive.
           </p>
 
           {offer && (
@@ -1311,14 +1317,13 @@ export function App() {
             ) : (
               <button
                 className="primary-button"
-                type="button"
+                type="submit"
                 disabled={receiveCode.trim().length < 6}
-                onClick={() => void startReceive()}
               >
                 <Download /> Receive
               </button>
             ))}
-        </article>
+        </form>
       </section>
 
       <details className="settings" data-tour="settings">

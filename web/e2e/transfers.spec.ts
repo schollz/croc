@@ -161,7 +161,7 @@ async function prepareWebSender(
 async function connectWebReceiver(page: Page, secret: string) {
   const panel = page.locator(".receive-panel");
   await panel.getByLabel("Croc code").fill(secret);
-  await panel.getByRole("button", { name: "Receive", exact: true }).click();
+  await panel.getByLabel("Croc code").press("Enter");
   return panel;
 }
 
@@ -628,8 +628,9 @@ test("CLI stored upload → Web download verifies and consumes files", async ({
       /https?:\/\/\S+\/s\/[A-Za-z0-9_-]{22}#v1\.[A-Za-z0-9_-]+/,
     )?.[0];
     expect(browserURL, sender.output()).toBeTruthy();
-    await page.goto(browserURL!);
     const panel = page.locator(".receive-panel");
+    await panel.getByLabel("Croc code").fill(browserURL!);
+    await panel.getByLabel("Croc code").press("Enter");
     const downloads = await acceptAsDownloads(page, panel);
     await expect(panel).toContainText(
       "All files received, verified, and removed from storage",
