@@ -14,6 +14,10 @@ CLI token. The transfer is deleted after one fully verified download or 24
 hours, whichever comes first. The normal direct-transfer mode remains the
 default.
 
+Both send modes can display a QR code for the browser receive URL. Direct-mode
+codes open the receive page with the croc code filled in and connecting, while
+stored-mode codes contain the complete encrypted share link.
+
 The security-sensitive protocol operations are compiled from this repository's
 Go packages into WebAssembly:
 
