@@ -1,0 +1,23 @@
+name: Lock Closed Threads
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: lock-closed-threads
+
+jobs:
+  lock-closed-issues:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Lock closed issues
+        uses: dessant/lock-threads@v6
+        with:
+          issue-comment: 'This issue has been automatically locked since it was closed. Please open a new issue for related bugs.'
+          issue-inactive-days: '0'
+          process-only: 'issues'
