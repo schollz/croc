@@ -166,7 +166,7 @@ func normalizeConfig(config Config) (Config, error) {
 		config.PublicAddress = config.ListenAddress
 	}
 	if config.RelayHost == "" {
-		config.RelayHost = "croc.schollz.com"
+		config.RelayHost = "ipv4.getcroc.com"
 	}
 	if config.RelayPassword == "" {
 		config.RelayPassword = "pass123"
