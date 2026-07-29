@@ -102,6 +102,11 @@ const otherTools = [
     href: "https://cowyo.com",
     name: "cowyo",
   },
+  {
+    description: "yes/no alerts when websites change",
+    href: "https://yesnotice.com",
+    name: "yesnotice",
+  },
 ];
 const defaultSettings: TransferSettings = {
   gatewayURL:

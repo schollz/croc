@@ -279,6 +279,9 @@ test("publishes rich metadata and project links", async ({ page }) => {
     page.locator('footer a[href="https://cowyo.com"]'),
   ).toContainText("cowyo");
   await expect(
+    page.locator('footer a[href="https://yesnotice.com"]'),
+  ).toContainText("yesnotice");
+  await expect(
     page.getByRole("link", { name: "github", exact: true }),
   ).toHaveAttribute(
     "href",
