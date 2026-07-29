@@ -1021,24 +1021,95 @@ a.cli-download-primary:hover {
   border-bottom-style: dashed;
 }
 
-footer {
+.site-footer {
+  position: relative;
   display: flex;
+  align-items: center;
   justify-content: space-between;
   padding: 18px 0;
   color: var(--subtle);
   font-size: 10px;
   letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
-footer a {
+.site-footer a,
+.tools-menu summary {
   color: var(--foreground);
-  text-decoration: none;
-  border-bottom: 1px solid var(--foreground);
+  text-decoration: underline;
+  text-decoration-color: var(--soft-border);
+  text-underline-offset: 3px;
 }
 
-footer a:hover {
-  border-bottom-style: dashed;
+.site-footer a:hover,
+.site-footer a:focus-visible,
+.tools-menu summary:hover,
+.tools-menu summary:focus-visible {
+  text-decoration-color: currentcolor;
+}
+
+.site-footer-links {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tools-menu {
+  position: relative;
+}
+
+.tools-menu summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.tools-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.tools-menu summary::before {
+  content: "+ ";
+}
+
+.tools-menu[open] summary::before {
+  content: "− ";
+}
+
+.tools-menu ul {
+  position: absolute;
+  z-index: 20;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  min-width: 238px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--foreground);
+  background: var(--background);
+  box-shadow: 4px 4px 0 color-mix(in srgb, var(--foreground) 14%, transparent);
+  list-style: none;
+}
+
+.tools-menu li + li {
+  border-top: 1px dotted var(--soft-border);
+}
+
+.tools-menu li a {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  gap: 10px;
+  padding: 8px 10px;
+  text-decoration: none;
+}
+
+.tools-menu li a:hover,
+.tools-menu li a:focus-visible {
+  background: var(--panel-tint);
+}
+
+.tools-menu strong {
+  color: var(--foreground);
+  font-weight: 700;
 }
 
 .driver-popover.croc-tour {
@@ -1202,9 +1273,15 @@ footer a:hover {
     padding: 20px;
   }
 
-  footer {
+  .site-footer {
     flex-direction: column;
+    align-items: flex-start;
     gap: 6px;
+  }
+
+  .tools-menu ul {
+    right: auto;
+    left: 0;
   }
 }
 

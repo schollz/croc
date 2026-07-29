@@ -32,3 +32,4 @@ go.work.sum
 croc_v*
 bin/
 src/croc/test-*
+tmp/
