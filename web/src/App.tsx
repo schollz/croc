@@ -58,6 +58,7 @@ import {
   StoredShareCard,
   type SendMode,
 } from "./stored-ui";
+import { makeDirectReceiveURL, ShareQRCode } from "./share-qr";
 import {
   assetArchitectureLabel,
   assetsForPlatform,
@@ -461,6 +462,10 @@ export function App() {
   const totalSelectedSize = useMemo(
     () => selectedFiles.reduce((total, file) => total + file.size, 0),
     [selectedFiles],
+  );
+  const directReceiveURL = useMemo(
+    () => makeDirectReceiveURL(sendCode),
+    [sendCode],
   );
   const storedSettings = useMemo<StoredSettings>(
     () => ({
@@ -1120,6 +1125,11 @@ export function App() {
                   : ""}
             </span>
             </div>
+            <ShareQRCode
+              value={directReceiveURL}
+              disabled={sendCode.trim().length < 6}
+              description="Scan with a phone to open the receive page. Keep this browser open while the direct transfer runs."
+            />
             </>
           )}
 

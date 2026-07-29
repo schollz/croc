@@ -1,5 +1,6 @@
 import { Copy, X } from "lucide-react";
 import type { StoredUploadResult } from "./protocol/stored";
+import { ShareQRCode } from "./share-qr";
 
 export type SendMode = "direct" | "stored";
 
@@ -68,6 +69,10 @@ export function StoredShareCard({
           </button>
         </div>
       </label>
+      <ShareQRCode
+        value={upload.browserURL}
+        description="Scan with a phone to open this encrypted link and receive the files."
+      />
       <label>
         <span>CLI token</span>
         <div className="stored-share-row">
