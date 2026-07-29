@@ -39,7 +39,16 @@ if (!wasmExecSource) {
   throw new Error(`Could not find wasm_exec.js below ${goRoot}`);
 }
 
-await copyFile(wasmExecSource, path.join(publicDir, "wasm_exec.js"));
+const wasmExecDestination = path.join(publicDir, "wasm_exec.js");
+try {
+  await chmod(wasmExecDestination, 0o644);
+} catch (error) {
+  if (error.code !== "ENOENT") {
+    throw error;
+  }
+}
+await copyFile(wasmExecSource, wasmExecDestination);
+await chmod(wasmExecDestination, 0o644);
 await execFileAsync(
   "go",
   [
