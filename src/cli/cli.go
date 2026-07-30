@@ -973,6 +973,8 @@ func runServe(c *cli.Context) error {
 		AllowedPorts:   parseRelayPorts(c.String("ports")),
 		OriginPatterns: []string{origin},
 		StoreService:   storeService,
+		UmamiURL:       os.Getenv("UMAMI_URL"),
+		UmamiWebsiteID: os.Getenv("UMAMI_WEBSITE_ID"),
 	})
 }
 

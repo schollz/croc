@@ -9,10 +9,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"io/fs"
 	"net"
 	"net/http"
+	"net/url"
 	"path"
 	"strconv"
 	"strings"
@@ -41,6 +43,8 @@ type Config struct {
 	RelayPassword  string
 	StaticFiles    fs.FS
 	StoreService   *store.Service
+	UmamiURL       string
+	UmamiWebsiteID string
 }
 
 type handler struct {
@@ -66,7 +70,11 @@ func Handler(config Config) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	static, err := newStaticHandler(normalized.StaticFiles)
+	static, err := newStaticHandler(
+		normalized.StaticFiles,
+		normalized.UmamiURL,
+		normalized.UmamiWebsiteID,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +321,11 @@ type staticHandler struct {
 	installer  []byte
 }
 
-func newStaticHandler(files fs.FS) (http.Handler, error) {
+func newStaticHandler(
+	files fs.FS,
+	umamiURL string,
+	umamiWebsiteID string,
+) (http.Handler, error) {
 	if files == nil {
 		return nil, errors.New("static file system cannot be empty")
 	}
@@ -321,6 +333,7 @@ func newStaticHandler(files fs.FS) (http.Handler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("embedded web client is missing index.html: %w", err)
 	}
+	index = injectUmamiTracker(index, umamiURL, umamiWebsiteID)
 	installer, err := fs.ReadFile(files, "default.txt")
 	if err != nil {
 		return nil, fmt.Errorf("embedded web client is missing default.txt: %w", err)
@@ -331,6 +344,34 @@ func newStaticHandler(files fs.FS) (http.Handler, error) {
 		index:      index,
 		installer:  installer,
 	}, nil
+}
+
+func injectUmamiTracker(index []byte, baseURL, websiteID string) []byte {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	websiteID = strings.TrimSpace(websiteID)
+	if baseURL == "" || websiteID == "" {
+		return index
+	}
+
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil || parsedURL.Scheme != "https" || parsedURL.Host == "" {
+		return index
+	}
+	scriptURL, err := url.JoinPath(baseURL, "script.js")
+	if err != nil {
+		return index
+	}
+
+	const closingBody = "</body>"
+	if !strings.Contains(string(index), closingBody) {
+		return index
+	}
+	script := `<script defer data-website-id="` +
+		html.EscapeString(websiteID) +
+		`" src="` +
+		html.EscapeString(scriptURL) +
+		`"></script>`
+	return []byte(strings.Replace(string(index), closingBody, script+closingBody, 1))
 }
 
 func (h *staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

@@ -21,8 +21,8 @@ const testInstaller = "#!/bin/bash\nset -o nounset\n"
 
 func testSite() fstest.MapFS {
 	return fstest.MapFS{
-		"index.html":     {Data: []byte("<!doctype html><div id=\"root\"></div>")},
-		"default.txt":    {Data: []byte(testInstaller)},
+		"index.html":  {Data: []byte("<!doctype html><body><div id=\"root\"></div></body>")},
+		"default.txt": {Data: []byte(testInstaller)},
 		"croc-download-sw.js": {
 			Data: []byte("self.addEventListener('fetch', () => {})"),
 		},
@@ -132,6 +132,49 @@ func TestServesSiteAndRuntimeConfig(t *testing.T) {
 			";\n",
 		),
 	)
+}
+
+func TestUmamiTrackerRequiresBothEnvironmentValues(t *testing.T) {
+	for _, testCase := range []struct {
+		name      string
+		url       string
+		websiteID string
+		tracked   bool
+	}{
+		{name: "unset"},
+		{name: "URL only", url: "https://umami.schollz.com"},
+		{name: "website ID only", websiteID: "website-uuid"},
+		{
+			name:      "both values",
+			url:       "https://umami.schollz.com/",
+			websiteID: "website-uuid",
+			tracked:   true,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			handler, err := Handler(Config{
+				RelayHost:      "127.0.0.1",
+				AllowedPorts:   []string{"9009"},
+				StaticFiles:    testSite(),
+				UmamiURL:       testCase.url,
+				UmamiWebsiteID: testCase.websiteID,
+			})
+			require.NoError(t, err)
+
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(
+				recorder,
+				httptest.NewRequest(http.MethodGet, "/", nil),
+			)
+
+			script := `<script defer data-website-id="website-uuid" src="https://umami.schollz.com/script.js"></script>`
+			assert.Equal(
+				t,
+				testCase.tracked,
+				strings.Contains(recorder.Body.String(), script),
+			)
+		})
+	}
 }
 
 func TestEnablesStoredTransferRuntimeAndAPI(t *testing.T) {
