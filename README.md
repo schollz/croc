@@ -444,6 +444,36 @@ website address to customize the local listener or upstream croc relay.
 See [`web/README.md`](web/README.md) for frontend development, embedded asset
 generation, custom relay, and reverse-proxy instructions.
 
+## Deployment
+
+### Disco
+
+[Disco](https://disco.cloud/) is used to deploy. The root [`Dockerfile`](Dockerfile) and [`disco.json`](disco.json) deploy the
+web client and TCP relay as two Disco services built from the same image.
+Disco serves the website over HTTPS, while relay ports 9009-9017 are published
+directly as TCP ports.
+
+Set the deployment environment variables with:
+
+```bash
+disco env:set \
+  STORE_DIR=/www/croc/storage \
+  SITE_URL=yoururl.com \
+  CROC_RELAY_PORTS=9009,9010,9011,9012,9013,9014,9015,9016,9017 \
+  CROC_PASS=yourpass \
+  --project croc
+```
+
+`SITE_URL` must be the public website hostname without `https://`. Change the
+project name if it is not `croc`. The storage directory is intentionally not
+attached to a Disco volume, so stored transfers are erased whenever the
+container is replaced.
+
+The ports in `CROC_RELAY_PORTS` must match the `publishedPorts` entries in
+[`disco.json`](disco.json); Disco cannot generate host port mappings from an
+environment variable. Make sure the same TCP ports are also open in the
+server's firewall or cloud security group.
+
 ## Acknowledgements
 
 `croc` has evolved through many iterations, and I am thankful for the contributions! Special thanks to:
