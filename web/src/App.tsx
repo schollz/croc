@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
 import { driver, type DriveStep, type Driver } from "driver.js";
+import { trackTransferEvent, transferEvents } from "./analytics";
 import { formatGeneratedCode } from "./codes";
 import { errorMessage, formatBytes } from "./protocol/bytes";
 import {
@@ -662,6 +663,7 @@ export function App() {
   async function startSend() {
     sendAbort.current?.abort();
     const controller = new AbortController();
+    const currentSendMode = sendMode;
     sendAbort.current = controller;
     setSendActivity("working");
     setSendStatus("Preparing files…");
@@ -669,12 +671,17 @@ export function App() {
     setCompletedSend([]);
     setStoredUpload(undefined);
     try {
-      await (sendMode === "stored"
+      await (currentSendMode === "stored"
         ? sendStored(controller.signal)
         : sendDirect(controller.signal));
+      trackTransferEvent(
+        currentSendMode === "stored"
+          ? transferEvents.sendWithStorage
+          : transferEvents.sendDirect,
+      );
       setSendActivity("done");
       setSendStatus(
-        sendMode === "stored"
+        currentSendMode === "stored"
           ? "Encrypted upload ready to share"
           : "All files arrived safely",
       );
@@ -747,6 +754,7 @@ export function App() {
       await (stored
         ? receiveStored(controller.signal)
         : receiveDirect(controller.signal));
+      trackTransferEvent(transferEvents.receive);
       setOffer(undefined);
       setReceiveActivity("done");
       setReceiveStatus(

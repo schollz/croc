@@ -11,6 +11,9 @@ interface ImportMeta {
 }
 
 interface Window {
+  umami?: {
+    track(event: string): void;
+  };
   __CROC_RUNTIME_CONFIG__?: {
     gatewayURL?: string;
     relayAddress?: string;
