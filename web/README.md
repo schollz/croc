@@ -109,6 +109,14 @@ Run `croc serve` behind an HTTPS reverse proxy:
 croc serve --bind 127.0.0.1:9014 getcroc.com
 ```
 
+Optional Umami analytics are enabled only when both runtime variables are set:
+
+```bash
+UMAMI_URL=https://umami.schollz.com \
+UMAMI_WEBSITE_ID=website-uuid \
+croc serve --bind 127.0.0.1:9014 getcroc.com
+```
+
 Proxy the complete origin—including WebSocket upgrades—to
 `127.0.0.1:9014`, preserving the original `Host` header. The server returns the
 site at `/` and the WebSocket bridge at `/ws`, so no split routing or external
