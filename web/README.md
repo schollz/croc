@@ -117,6 +117,10 @@ UMAMI_WEBSITE_ID=website-uuid \
 croc serve --bind 127.0.0.1:9014 getcroc.com
 ```
 
+Successful browser transfers emit the custom events `send-direct`,
+`send-with-storage`, and `receive`. When Umami is not configured, event
+tracking is disabled and transfers behave identically.
+
 Proxy the complete origin—including WebSocket upgrades—to
 `127.0.0.1:9014`, preserving the original `Host` header. The server returns the
 site at `/` and the WebSocket bridge at `/ws`, so no split routing or external
