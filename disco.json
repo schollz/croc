@@ -1,0 +1,65 @@
+{
+  "version": "1.0",
+  "services": {
+    "relay": {
+      "command": "--debug relay",
+      "publishedPorts": [
+        {
+          "publishedAs": 9009,
+          "fromContainerPort": 9009,
+          "protocol": "tcp"
+        },
+        {
+          "publishedAs": 9010,
+          "fromContainerPort": 9010,
+          "protocol": "tcp"
+        },
+        {
+          "publishedAs": 9011,
+          "fromContainerPort": 9011,
+          "protocol": "tcp"
+        },
+        {
+          "publishedAs": 9012,
+          "fromContainerPort": 9012,
+          "protocol": "tcp"
+        },
+        {
+          "publishedAs": 9013,
+          "fromContainerPort": 9013,
+          "protocol": "tcp"
+        },
+        {
+          "publishedAs": 9014,
+          "fromContainerPort": 9014,
+          "protocol": "tcp"
+        },
+        {
+          "publishedAs": 9015,
+          "fromContainerPort": 9015,
+          "protocol": "tcp"
+        },
+        {
+          "publishedAs": 9016,
+          "fromContainerPort": 9016,
+          "protocol": "tcp"
+        },
+        {
+          "publishedAs": 9017,
+          "fromContainerPort": 9017,
+          "protocol": "tcp"
+        }
+      ],
+      "health": {
+        "command": "P=\"${CROC_RELAY_PORTS:-${CROC_PORTS:-9009,9010,9011,9012,9013,9014,9015,9016,9017}}\"; IFS=,; set -- $P; for p in \"$@\"; do nc -z -w 3 127.0.0.1 \"$p\" || exit 1; done"
+      }
+    },
+    "web": {
+      "port": 8080,
+      "command": "--debug serve --bind 0.0.0.0:8080 --relay relay",
+      "health": {
+        "command": "wget -qO- http://127.0.0.1:8080/healthz >/dev/null"
+      }
+    }
+  }
+}
