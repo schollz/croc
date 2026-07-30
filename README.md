@@ -5,11 +5,7 @@
   <a href="https://github.com/schollz/croc/actions/workflows/ci.yml"><img src="https://github.com/schollz/croc/actions/workflows/ci.yml/badge.svg" alt="Build Status"></a>
   <a href="https://github.com/sponsors/schollz"><img alt="GitHub Sponsors" src="https://img.shields.io/github/sponsors/schollz"></a>
   <img
-  src="https://umami.schollz.com/p/IUnjwcjaW"
-  width="1"
-  height="1"
-  alt=""
-/>
+  src="https://umami.schollz.com/p/IUnjwcjaW"/>
 </p>
 <p align="center">
   <strong>This project’s future depends on community support. <a href="https://github.com/sponsors/schollz">Become a sponsor today</a>.</strong>
