@@ -41,6 +41,30 @@ func WithMaxRoomsOpen(maxRoomsOpen int) serverOptsFunc {
 	}
 }
 
+// WithMaxPendingHandshakes sets the maximum number of connections that may be
+// performing the initial relay handshake at the same time.
+func WithMaxPendingHandshakes(maxPendingHandshakes int) serverOptsFunc {
+	return func(s *server) error {
+		if maxPendingHandshakes <= 0 {
+			return fmt.Errorf("max pending handshakes must be positive")
+		}
+		s.maxPendingHandshakes = maxPendingHandshakes
+		return nil
+	}
+}
+
+// WithHandshakeTimeout sets the absolute time allowed for the initial relay
+// handshake to complete.
+func WithHandshakeTimeout(timeout time.Duration) serverOptsFunc {
+	return func(s *server) error {
+		if timeout <= 0 {
+			return fmt.Errorf("handshake timeout must be positive")
+		}
+		s.handshakeTimeout = timeout
+		return nil
+	}
+}
+
 func WithRoomCleanupInterval(interval time.Duration) serverOptsFunc {
 	return func(s *server) error {
 		s.roomCleanupInterval = interval
