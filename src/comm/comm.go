@@ -148,13 +148,20 @@ func (c *Comm) Write(b []byte) (n int, err error) {
 }
 
 func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
-	// long read deadline in case waiting for file
-	if err = c.connection.SetReadDeadline(time.Now().Add(3 * time.Hour)); err != nil {
-		log.Warnf("error setting read deadline: %v", err)
+	return c.readWithDeadline(time.Now().Add(3 * time.Hour))
+}
+
+func (c *Comm) readWithDeadline(readDeadline time.Time) (buf []byte, numBytes int, bs []byte, err error) {
+	// Clear stale connection deadlines before applying the deadline for this
+	// read. The previous ordering cleared the read deadline immediately after
+	// setting it, leaving header reads unbounded.
+	if err = c.connection.SetDeadline(time.Time{}); err != nil {
+		err = fmt.Errorf("failed to clear deadline: %w", err)
+		return
 	}
-	// must clear the timeout setting
-	if err := c.connection.SetDeadline(time.Time{}); err != nil {
-		log.Warnf("failed to clear deadline: %v", err)
+	if err = c.connection.SetReadDeadline(readDeadline); err != nil {
+		err = fmt.Errorf("error setting read deadline: %w", err)
+		return
 	}
 
 	// read until we get 4 bytes for the magic
@@ -194,8 +201,13 @@ func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
 
 	// Shorten the reading deadline in case getting weird data, while still
 	// allowing large resume-control messages to cross slower relays.
-	if err = c.connection.SetReadDeadline(time.Now().Add(messageBodyReadTimeout)); err != nil {
-		log.Warnf("error setting read deadline: %v", err)
+	bodyReadDeadline := time.Now().Add(messageBodyReadTimeout)
+	if !readDeadline.IsZero() && readDeadline.Before(bodyReadDeadline) {
+		bodyReadDeadline = readDeadline
+	}
+	if err = c.connection.SetReadDeadline(bodyReadDeadline); err != nil {
+		err = fmt.Errorf("error setting message body read deadline: %w", err)
+		return
 	}
 	buf = make([]byte, numBytes)
 	_, err = io.ReadFull(c.connection, buf)
@@ -215,5 +227,12 @@ func (c *Comm) Send(message []byte) (err error) {
 // Receive a message
 func (c *Comm) Receive() (b []byte, err error) {
 	b, _, _, err = c.Read()
+	return
+}
+
+// ReceiveWithDeadline receives one framed message without allowing any part
+// of the read to extend beyond the supplied absolute deadline.
+func (c *Comm) ReceiveWithDeadline(deadline time.Time) (b []byte, err error) {
+	b, _, _, err = c.readWithDeadline(deadline)
 	return
 }

@@ -109,6 +109,8 @@ func newApp() *cli.App {
 				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay", EnvVars: []string{"CROC_PORT"}},
 				&cli.IntFlag{Name: "transfers", Value: 5, Usage: "number of ports to use for relay"},
 				&cli.IntFlag{Name: "max-rooms-open", Value: tcp.DEFAULT_MAX_ROOMS_OPEN, Usage: "maximum waiting rooms per relay port", EnvVars: []string{"CROC_MAX_ROOMS_OPEN"}},
+				&cli.IntFlag{Name: "max-pending-handshakes", Value: tcp.DEFAULT_MAX_PENDING_HANDSHAKES, Usage: "maximum incomplete handshakes per relay port", EnvVars: []string{"CROC_MAX_PENDING_HANDSHAKES"}},
+				&cli.DurationFlag{Name: "handshake-timeout", Value: tcp.DEFAULT_HANDSHAKE_TIMEOUT, Usage: "maximum time for an initial relay handshake", EnvVars: []string{"CROC_HANDSHAKE_TIMEOUT"}},
 			},
 		},
 		{
@@ -881,6 +883,14 @@ func relay(c *cli.Context) (err error) {
 	if maxRoomsOpen <= 0 {
 		return fmt.Errorf("--max-rooms-open must be positive")
 	}
+	maxPendingHandshakes := c.Int("max-pending-handshakes")
+	if maxPendingHandshakes <= 0 {
+		return fmt.Errorf("--max-pending-handshakes must be positive")
+	}
+	handshakeTimeout := c.Duration("handshake-timeout")
+	if handshakeTimeout <= 0 {
+		return fmt.Errorf("--handshake-timeout must be positive")
+	}
 	debugString := "info"
 	if c.Bool("debug") {
 		debugString = "debug"
@@ -920,6 +930,8 @@ func relay(c *cli.Context) (err error) {
 				determinePass(c),
 				tcp.WithLogLevel(debugString),
 				tcp.WithMaxRoomsOpen(maxRoomsOpen),
+				tcp.WithMaxPendingHandshakes(maxPendingHandshakes),
+				tcp.WithHandshakeTimeout(handshakeTimeout),
 			)
 			if err != nil {
 				panic(err)
@@ -933,6 +945,8 @@ func relay(c *cli.Context) (err error) {
 		tcp.WithBanner(tcpPorts),
 		tcp.WithLogLevel(debugString),
 		tcp.WithMaxRoomsOpen(maxRoomsOpen),
+		tcp.WithMaxPendingHandshakes(maxPendingHandshakes),
+		tcp.WithHandshakeTimeout(handshakeTimeout),
 	)
 }
 
