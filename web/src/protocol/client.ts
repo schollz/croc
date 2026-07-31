@@ -28,6 +28,7 @@ import { wasm } from "../wasm/client";
 
 const CONTROL_PORT = "9009";
 const CHUNK_SIZE = 32 * 1024;
+const MAX_DECOMPRESSED_CHUNK_SIZE = CHUNK_SIZE + 8;
 const HANDSHAKE = textEncoder.encode("handshake");
 const IP_REQUEST = textEncoder.encode("ips?");
 const WEAK_RELAY_KEY = new Uint8Array([1, 2, 3]);
@@ -579,7 +580,9 @@ export class DataReceiver {
     while (!this.stopped) {
       try {
         let payload = await engine.decrypt(await socket.receive(), this.key);
-        if (!this.noCompress) payload = await engine.decompress(payload);
+        if (!this.noCompress) {
+          payload = await engine.decompress(payload, MAX_DECOMPRESSED_CHUNK_SIZE);
+        }
         if (payload.byteLength < 9) throw new Error("Received an invalid file chunk");
         const positionBig = new DataView(
           payload.buffer,

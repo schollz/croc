@@ -1,12 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// The receiver spins up a WASM worker to decrypt data; none of these tests
-// reach a decrypt, so a stub keeps them off the (jsdom-less) Worker path.
+const wasmMocks = vi.hoisted(() => ({
+  decrypt: vi.fn(),
+  decompress: vi.fn(),
+}));
+
+// Keep receiver tests off the (jsdom-less) Worker path.
 vi.mock("../wasm/client", () => ({
-  wasm: () => ({
-    decrypt: () => Promise.reject(new Error("unused")),
-    decompress: () => Promise.reject(new Error("unused")),
-  }),
+  wasm: () => wasmMocks,
 }));
 
 import { DataReceiver } from "./client";
@@ -43,6 +44,11 @@ const sink = {
   abort: () => Promise.resolve(),
 } satisfies ReceiveSink;
 
+beforeEach(() => {
+  wasmMocks.decrypt.mockReset().mockRejectedValue(new Error("unused"));
+  wasmMocks.decompress.mockReset().mockRejectedValue(new Error("unused"));
+});
+
 describe("DataReceiver failure handling", () => {
   it("rejects a receive requested after a socket already failed", async () => {
     const receiver = new DataReceiver([failingSocket(new Error("relay closed"))], key, true);
@@ -70,5 +76,27 @@ describe("DataReceiver failure handling", () => {
     await expect(receiver.receive(file, sink, () => {})).rejects.toThrow(
       "Data receiver stopped",
     );
+  });
+
+  it("bounds decompressed chunks to the payload and position header", async () => {
+    const encrypted = new Uint8Array([1]);
+    const compressed = new Uint8Array([2]);
+    const chunk = new Uint8Array(12);
+    chunk.set([1, 2, 3, 4], 8);
+    wasmMocks.decrypt.mockResolvedValueOnce(compressed);
+    wasmMocks.decompress.mockResolvedValueOnce(chunk);
+
+    const socket = {
+      receive: vi
+        .fn()
+        .mockResolvedValueOnce(encrypted)
+        .mockImplementation(() => new Promise<Uint8Array>(() => {})),
+    } as unknown as CrocSocket;
+    const receiver = new DataReceiver([socket], key, false);
+
+    await receiver.receive(file, sink, () => {});
+
+    expect(wasmMocks.decompress).toHaveBeenCalledWith(compressed, 32 * 1024 + 8);
+    receiver.stop();
   });
 });

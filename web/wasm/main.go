@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"hash"
+	"math"
 	"sync"
 	"syscall/js"
 
@@ -318,14 +319,27 @@ func (b *bridge) compress(args []js.Value) (any, error) {
 }
 
 func (b *bridge) decompress(args []js.Value) (any, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("decompress expects bytes")
+	if len(args) != 2 {
+		return nil, fmt.Errorf("decompress expects bytes and a byte limit")
+	}
+	if args[1].Type() != js.TypeNumber {
+		return nil, fmt.Errorf("decompress byte limit must be a non-negative safe integer")
+	}
+	maxOutputSize := args[1].Float()
+	const maxSafeInteger = 1<<53 - 1
+	if math.IsNaN(maxOutputSize) || math.IsInf(maxOutputSize, 0) ||
+		maxOutputSize < 0 || maxOutputSize > maxSafeInteger || math.Trunc(maxOutputSize) != maxOutputSize {
+		return nil, fmt.Errorf("decompress byte limit must be a non-negative safe integer")
 	}
 	input, err := bytesFromJS(args[0])
 	if err != nil {
 		return nil, err
 	}
-	return bytesToJS(croccompress.Decompress(input)), nil
+	decompressed, err := croccompress.Decompress(input, int64(maxOutputSize))
+	if err != nil {
+		return nil, err
+	}
+	return bytesToJS(decompressed), nil
 }
 
 func (b *bridge) hashInit(args []js.Value) (any, error) {
