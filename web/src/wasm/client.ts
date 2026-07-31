@@ -8,6 +8,12 @@ export interface PakeFinish {
   key: Uint8Array;
 }
 
+export interface PeerKeys {
+	key: Uint8Array;
+	confirmationA: Uint8Array;
+	confirmationB: Uint8Array;
+}
+
 export interface CodeComponents {
   room: string;
   passphrase: string;
@@ -75,12 +81,52 @@ export class CrocWasm {
     return this.call<PakeStart>("pakeInit", [password, role, curve]);
   }
 
+  pakeInitWithIdentities(
+    password: Uint8Array,
+    role: 0 | 1,
+    curve: string,
+    purpose: string,
+    room: string,
+  ) {
+    return this.call<PakeStart>("pakeInitWithIdentities", [
+      password,
+      role,
+      curve,
+      purpose,
+      room,
+    ]);
+  }
+
   pakeUpdate(handle: number, peerBytes: Uint8Array) {
     return this.call<PakeFinish>("pakeUpdate", [handle, peerBytes]);
   }
 
   deriveKey(passphrase: Uint8Array, salt: Uint8Array) {
     return this.call<Uint8Array>("deriveKey", [passphrase, salt]);
+  }
+
+  derivePeerKeys(
+    sharedKey: Uint8Array,
+    salt: Uint8Array,
+    purpose: string,
+    room: string,
+    curve: string,
+    initiator: Uint8Array,
+    responder: Uint8Array,
+  ) {
+    return this.call<PeerKeys>("derivePeerKeys", [
+      sharedKey,
+      salt,
+      purpose,
+      room,
+      curve,
+      initiator,
+      responder,
+    ]);
+  }
+
+  confirmPeerKey(expected: Uint8Array, received: Uint8Array) {
+    return this.call<boolean>("confirmPeerKey", [expected, received]);
   }
 
   encrypt(plaintext: Uint8Array, key: Uint8Array) {

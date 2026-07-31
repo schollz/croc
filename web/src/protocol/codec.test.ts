@@ -18,6 +18,7 @@ describe("control message codec", () => {
       engine,
       {
         t: "pake",
+        v: 2,
         b: new Uint8Array([0, 1, 2, 255]),
         b2: new Uint8Array([9, 8]),
       },
@@ -26,6 +27,7 @@ describe("control message codec", () => {
     const decoded = await decodeMessage(engine, encoded, new Uint8Array(32));
     expect(decoded).toEqual({
       t: "pake",
+      v: 2,
       m: undefined,
       b: new Uint8Array([0, 1, 2, 255]),
       b2: new Uint8Array([9, 8]),

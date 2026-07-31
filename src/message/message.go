@@ -14,6 +14,7 @@ type Type string
 
 const (
 	TypePAKE           Type = "pake"
+	TypePAKEConfirm    Type = "pake-confirm"
 	TypeExternalIP     Type = "externalip"
 	TypeFinished       Type = "finished"
 	TypeError          Type = "error"
@@ -26,6 +27,7 @@ const (
 // Message is the possible payload for messaging
 type Message struct {
 	Type    Type   `json:"t,omitempty"`
+	Version int    `json:"v,omitempty"`
 	Message string `json:"m,omitempty"`
 	Bytes   []byte `json:"b,omitempty"`
 	Bytes2  []byte `json:"b2,omitempty"`

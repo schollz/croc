@@ -31,6 +31,10 @@ const CHUNK_SIZE = 32 * 1024;
 const HANDSHAKE = textEncoder.encode("handshake");
 const IP_REQUEST = textEncoder.encode("ips?");
 const WEAK_RELAY_KEY = new Uint8Array([1, 2, 3]);
+const PAKE_PROTOCOL_VERSION = 2;
+const PAKE_SALT_SIZE = 32;
+const PAKE_PURPOSE_TRANSFER = "peer-transfer";
+const PAKE_PURPOSE_LOCAL_PROBE = "local-ip-probe";
 
 type RelayConnection = {
   socket: CrocSocket;
@@ -44,6 +48,14 @@ function abortError() {
 
 function checkAbort(signal?: AbortSignal) {
   if (signal?.aborted) throw abortError();
+}
+
+function requirePakeVersion(version: number | undefined) {
+  if (version !== PAKE_PROTOCOL_VERSION) {
+    throw new Error(
+      `Peer uses unsupported PAKE protocol version ${version ?? 0}; upgrade both croc clients`,
+    );
+  }
 }
 
 function validateSecret(secret: string) {
@@ -138,6 +150,7 @@ async function receiveControl(socket: CrocSocket, key?: Uint8Array) {
 
 async function waitForHandshake(
   socket: CrocSocket,
+  room: string,
   passphrase: string,
   signal?: AbortSignal,
 ) {
@@ -163,33 +176,53 @@ async function waitForHandshake(
       continue;
     }
 
+    let probe: {
+      Bytes?: string;
+      Bytes2?: string;
+      Kind?: string;
+      Version?: number;
+      Curve?: string;
+    };
     try {
-      const probe = JSON.parse(textDecoder.decode(plain)) as {
-        Bytes?: string;
-        Kind?: string;
-      };
-      if (probe.Kind !== "pake1" || !probe.Bytes) throw new Error("not a probe");
-      const pake = await engine.pakeInit(
-        textEncoder.encode(passphrase),
-        1,
-        "p256",
-      );
-      const finished = await engine.pakeUpdate(
-        pake.handle,
-        base64ToBytes(probe.Bytes),
-      );
-      localKey = finished.key;
-      await socket.send(
-        textEncoder.encode(
-          JSON.stringify({
-            Bytes: bytesToBase64(finished.bytes),
-            Kind: "pake2",
-          }),
-        ),
-      );
+      probe = JSON.parse(textDecoder.decode(plain)) as typeof probe;
     } catch {
       throw new Error("Peer sent an unexpected control handshake");
     }
+    if (probe.Kind !== "pake1" || !probe.Bytes || !probe.Curve) {
+      throw new Error("Peer sent an unexpected control handshake");
+    }
+    requirePakeVersion(probe.Version);
+    const initiator = base64ToBytes(probe.Bytes);
+    const pake = await engine.pakeInitWithIdentities(
+      textEncoder.encode(passphrase),
+      1,
+      probe.Curve,
+      PAKE_PURPOSE_LOCAL_PROBE,
+      room,
+    );
+    const finished = await engine.pakeUpdate(pake.handle, initiator);
+    const salt = randomBytes(PAKE_SALT_SIZE);
+    const keys = await engine.derivePeerKeys(
+      finished.key,
+      salt,
+      PAKE_PURPOSE_LOCAL_PROBE,
+      room,
+      probe.Curve,
+      initiator,
+      finished.bytes,
+    );
+    localKey = keys.key;
+    await socket.send(
+      textEncoder.encode(
+        JSON.stringify({
+          Bytes: bytesToBase64(finished.bytes),
+          Bytes2: bytesToBase64(salt),
+          Kind: "pake2",
+          Version: PAKE_PROTOCOL_VERSION,
+          Curve: probe.Curve,
+        }),
+      ),
+    );
   }
 }
 
@@ -369,26 +402,52 @@ export async function sendFiles(options: {
     );
     control = relay.socket;
     callbacks.onStatus?.("Waiting for recipient…");
-    await waitForHandshake(control, passphrase, signal);
+    await waitForHandshake(control, room, passphrase, signal);
 
     const peerPake = await receiveControl(control);
     if (peerPake.t !== "pake" || !peerPake.b || !peerPake.b2) {
       throw new Error("Recipient did not start a croc PAKE handshake");
     }
+    requirePakeVersion(peerPake.v);
     const curve = textDecoder.decode(peerPake.b2);
-    const pake = await wasm().pakeInit(
+    const pake = await wasm().pakeInitWithIdentities(
       textEncoder.encode(passphrase),
       1,
       curve,
+      PAKE_PURPOSE_TRANSFER,
+      room,
     );
     const finished = await wasm().pakeUpdate(pake.handle, peerPake.b);
-    const salt = randomBytes(8);
+    const salt = randomBytes(PAKE_SALT_SIZE);
+    const peerKeys = await wasm().derivePeerKeys(
+      finished.key,
+      salt,
+      PAKE_PURPOSE_TRANSFER,
+      room,
+      curve,
+      peerPake.b,
+      finished.bytes,
+    );
     await sendControl(control, {
       t: "pake",
+      v: PAKE_PROTOCOL_VERSION,
       b: finished.bytes,
       b2: salt,
     });
-    key = await wasm().deriveKey(finished.key, salt);
+    const confirmationA = await receiveControl(control);
+    if (confirmationA.t !== "pake-confirm" || !confirmationA.b) {
+      throw new Error("Recipient did not confirm the croc PAKE handshake");
+    }
+    requirePakeVersion(confirmationA.v);
+    if (!(await wasm().confirmPeerKey(peerKeys.confirmationA, confirmationA.b))) {
+      throw new Error("Recipient PAKE confirmation failed");
+    }
+    await sendControl(control, {
+      t: "pake-confirm",
+      v: PAKE_PROTOCOL_VERSION,
+      b: peerKeys.confirmationB,
+    });
+    key = peerKeys.key;
 
     callbacks.onStatus?.("Opening encrypted data channels…");
     data = await openDataConnections(
@@ -605,22 +664,52 @@ export async function receiveFiles(options: {
     await control.send(HANDSHAKE);
 
     callbacks.onStatus?.("Securing channel…");
-    const pake = await wasm().pakeInit(
+    const curve = "p256";
+    const pake = await wasm().pakeInitWithIdentities(
       textEncoder.encode(passphrase),
       0,
-      "p256",
+      curve,
+      PAKE_PURPOSE_TRANSFER,
+      room,
     );
     await sendControl(control, {
       t: "pake",
+      v: PAKE_PROTOCOL_VERSION,
       b: pake.bytes,
-      b2: textEncoder.encode("p256"),
+      b2: textEncoder.encode(curve),
     });
     const peerPake = await receiveControl(control);
     if (peerPake.t !== "pake" || !peerPake.b || !peerPake.b2) {
       throw new Error("Sender did not complete the croc PAKE handshake");
     }
+    requirePakeVersion(peerPake.v);
+    if (peerPake.b2.byteLength !== PAKE_SALT_SIZE) {
+      throw new Error(`Sender provided an invalid ${peerPake.b2.byteLength}-byte PAKE salt`);
+    }
     const finished = await wasm().pakeUpdate(pake.handle, peerPake.b);
-    key = await wasm().deriveKey(finished.key, peerPake.b2);
+    const peerKeys = await wasm().derivePeerKeys(
+      finished.key,
+      peerPake.b2,
+      PAKE_PURPOSE_TRANSFER,
+      room,
+      curve,
+      pake.bytes,
+      peerPake.b,
+    );
+    await sendControl(control, {
+      t: "pake-confirm",
+      v: PAKE_PROTOCOL_VERSION,
+      b: peerKeys.confirmationA,
+    });
+    const confirmationB = await receiveControl(control);
+    if (confirmationB.t !== "pake-confirm" || !confirmationB.b) {
+      throw new Error("Sender did not confirm the croc PAKE handshake");
+    }
+    requirePakeVersion(confirmationB.v);
+    if (!(await wasm().confirmPeerKey(peerKeys.confirmationB, confirmationB.b))) {
+      throw new Error("Sender PAKE confirmation failed");
+    }
+    key = peerKeys.key;
     data = await openDataConnections(
       settings,
       room,

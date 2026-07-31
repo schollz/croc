@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -43,6 +44,37 @@ func TestWebReceiveURL(t *testing.T) {
 		"https://getcroc.com/?code=1234-word%2Fword%3F%26",
 		webReceiveURL("1234-word/word?&"),
 	)
+}
+
+func TestRejectsUnsupportedPeerPakeVersion(t *testing.T) {
+	client := &Client{}
+	for _, test := range []struct {
+		name string
+		call func() error
+	}{
+		{
+			name: "setup",
+			call: func() error {
+				return client.processMessagePake(message.Message{Type: message.TypePAKE}, nil)
+			},
+		},
+		{
+			name: "confirmation",
+			call: func() error {
+				return client.processMessagePakeConfirm(message.Message{Type: message.TypePAKEConfirm}, nil)
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var versionErr incompatiblePakeVersionError
+			if err := test.call(); !errors.As(err, &versionErr) {
+				t.Fatalf("expected incompatible version error, got %v", err)
+			}
+			if !strings.Contains(versionErr.Error(), "upgrade both croc clients") {
+				t.Fatalf("version error is not actionable: %v", versionErr)
+			}
+		})
+	}
 }
 
 func TestDiscoverReceivePeersTimesOut(t *testing.T) {

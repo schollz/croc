@@ -22,7 +22,8 @@ The security-sensitive protocol operations are compiled from this repository's
 Go packages into WebAssembly:
 
 - croc PAKE for both relay and peer handshakes
-- PBKDF2 and AES-GCM encryption
+- identity- and session-bound HKDF plus mutual confirmation for peer channels
+- PBKDF2 for the legacy-compatible relay hop and AES-GCM encryption
 - raw DEFLATE compression
 - xxhash verification
 - Orchard Street four-word code generation and compatibility parsing

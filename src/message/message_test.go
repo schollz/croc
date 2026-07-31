@@ -46,6 +46,19 @@ func TestMessageNoPass(t *testing.T) {
 	assert.Equal(t, `{"t":"message","m":"hello, world"}`, m.String())
 }
 
+func TestPakeVersionAndConfirmationRoundTrip(t *testing.T) {
+	want := Message{
+		Type:    TypePAKEConfirm,
+		Version: 2,
+		Bytes:   []byte("confirmation-tag"),
+	}
+	encoded, err := Encode(nil, want)
+	assert.NoError(t, err)
+	got, err := Decode(nil, encoded)
+	assert.NoError(t, err)
+	assert.Equal(t, want, got)
+}
+
 func TestSend(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
 	defer clientConn.Close()
