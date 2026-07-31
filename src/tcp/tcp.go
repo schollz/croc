@@ -25,6 +25,7 @@ type server struct {
 	password   string
 	rooms      roomMap
 
+	maxRoomsOpen        int
 	roomCleanupInterval time.Duration
 	roomTTL             time.Duration
 
@@ -45,17 +46,75 @@ type roomMap struct {
 	sync.Mutex
 }
 
+type roomAdmission struct {
+	created           bool
+	full              bool
+	otherConnection   *comm.Comm
+	evicted           bool
+	evictedRoom       string
+	evictedConnection *comm.Comm
+}
+
 const pingRoom = "pinglkasjdlfjsaldjf"
 
 // newDefaultServer initializes a new server, with some default configuration options
 func newDefaultServer() *server {
 	s := new(server)
+	s.maxRoomsOpen = DEFAULT_MAX_ROOMS_OPEN
 	s.roomCleanupInterval = DEFAULT_ROOM_CLEANUP_INTERVAL
 	s.roomTTL = DEFAULT_ROOM_TTL
 	s.debugLevel = DEFAULT_LOG_LEVEL
 	// s.stopRoomCleanup = make(chan struct{}) replaced by stop
 	s.stop = newStop(context.Background())
 	return s
+}
+
+// admitToRoom atomically creates a waiting room, joins an existing waiting
+// room, or reports that an existing room is already full. When creating a room
+// at capacity, it removes the oldest waiting room before inserting the new one.
+func (s *server) admitToRoom(room string, c *comm.Comm) roomAdmission {
+	s.rooms.Lock()
+	defer s.rooms.Unlock()
+
+	roomData, ok := s.rooms.rooms[room]
+	if ok {
+		if roomData.full {
+			return roomAdmission{full: true}
+		}
+		roomData.second = c
+		roomData.full = true
+		s.rooms.rooms[room] = roomData
+		return roomAdmission{otherConnection: roomData.first}
+	}
+
+	waitingRooms := 0
+	oldestRoomFound := false
+	oldestRoom := ""
+	var oldestRoomData roomInfo
+	for candidate, candidateData := range s.rooms.rooms {
+		if candidateData.full {
+			continue
+		}
+		waitingRooms++
+		if !oldestRoomFound || candidateData.opened.Before(oldestRoomData.opened) {
+			oldestRoomFound = true
+			oldestRoom = candidate
+			oldestRoomData = candidateData
+		}
+	}
+
+	result := roomAdmission{created: true}
+	if waitingRooms >= s.maxRoomsOpen && oldestRoomFound {
+		delete(s.rooms.rooms, oldestRoom)
+		result.evicted = true
+		result.evictedRoom = oldestRoom
+		result.evictedConnection = oldestRoomData.first
+	}
+	s.rooms.rooms[room] = roomInfo{
+		first:  c,
+		opened: time.Now(),
+	}
+	return result
 }
 
 // RunWithOptionsAsync asynchronously starts a TCP listener.
@@ -361,14 +420,16 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 	}
 	room = string(roomBytes)
 
-	s.rooms.Lock()
-	// create the room if it is new
-	if _, ok := s.rooms.rooms[room]; !ok {
-		s.rooms.rooms[room] = roomInfo{
-			first:  c,
-			opened: time.Now(),
+	admission := s.admitToRoom(room, c)
+	if admission.evicted {
+		log.Debugf("evicting oldest waiting room at capacity: %s", admission.evictedRoom)
+		if admission.evictedConnection != nil {
+			admission.evictedConnection.Close()
 		}
-		s.rooms.Unlock()
+	}
+
+	// create the room if it is new
+	if admission.created {
 		// tell the client that they got the room
 
 		bSend, err = crypt.Encrypt([]byte("ok"), strongKeyForEncryption)
@@ -384,8 +445,7 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 		log.Debugf("room %s has 1", room)
 		return
 	}
-	if s.rooms.rooms[room].full {
-		s.rooms.Unlock()
+	if admission.full {
 		bSend, err = crypt.Encrypt([]byte("room full"), strongKeyForEncryption)
 		if err != nil {
 			return
@@ -398,14 +458,7 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 		return
 	}
 	log.Debugf("room %s has 2", room)
-	s.rooms.rooms[room] = roomInfo{
-		first:  s.rooms.rooms[room].first,
-		second: c,
-		opened: s.rooms.rooms[room].opened,
-		full:   true,
-	}
-	otherConnection := s.rooms.rooms[room].first
-	s.rooms.Unlock()
+	otherConnection := admission.otherConnection
 
 	// second connection is the sender, time to staple connections
 	var wg sync.WaitGroup

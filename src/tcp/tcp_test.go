@@ -5,12 +5,233 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
 	log "github.com/schollz/logger"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestMaxRoomsOpenOption(t *testing.T) {
+	s := newDefaultServer()
+	defer s.stop.Cancel()
+
+	assert.Equal(t, DEFAULT_MAX_ROOMS_OPEN, s.maxRoomsOpen)
+	assert.NoError(t, WithMaxRoomsOpen(7)(s))
+	assert.Equal(t, 7, s.maxRoomsOpen)
+	assert.Error(t, WithMaxRoomsOpen(0)(s))
+	assert.Error(t, WithMaxRoomsOpen(-1)(s))
+	assert.Equal(t, 7, s.maxRoomsOpen)
+}
+
+func TestAdmitToRoomEvictsOldestWaitingRoom(t *testing.T) {
+	s := newDefaultServer()
+	defer s.stop.Cancel()
+	s.maxRoomsOpen = 2
+	s.rooms.rooms = map[string]roomInfo{
+		"oldest": {
+			opened: time.Now().Add(-2 * time.Minute),
+		},
+		"newer": {
+			opened: time.Now().Add(-time.Minute),
+		},
+	}
+
+	result := s.admitToRoom("incoming", nil)
+
+	assert.True(t, result.created)
+	assert.True(t, result.evicted)
+	assert.Equal(t, "oldest", result.evictedRoom)
+	assert.NotContains(t, s.rooms.rooms, "oldest")
+	assert.Contains(t, s.rooms.rooms, "newer")
+	assert.Contains(t, s.rooms.rooms, "incoming")
+}
+
+func TestAdmitToRoomJoinsAtCapacityAndExcludesFullRooms(t *testing.T) {
+	s := newDefaultServer()
+	defer s.stop.Cancel()
+	s.maxRoomsOpen = 1
+	s.rooms.rooms = map[string]roomInfo{
+		"joining": {
+			opened: time.Now().Add(-time.Minute),
+		},
+	}
+
+	joined := s.admitToRoom("joining", nil)
+	assert.False(t, joined.created)
+	assert.False(t, joined.full)
+	assert.False(t, joined.evicted)
+	assert.True(t, s.rooms.rooms["joining"].full)
+
+	created := s.admitToRoom("waiting", nil)
+	assert.True(t, created.created)
+	assert.False(t, created.evicted)
+	assert.Contains(t, s.rooms.rooms, "joining")
+	assert.Contains(t, s.rooms.rooms, "waiting")
+
+	evicted := s.admitToRoom("replacement", nil)
+	assert.True(t, evicted.evicted)
+	assert.Equal(t, "waiting", evicted.evictedRoom)
+	assert.Contains(t, s.rooms.rooms, "joining")
+	assert.NotContains(t, s.rooms.rooms, "waiting")
+	assert.Contains(t, s.rooms.rooms, "replacement")
+}
+
+func TestConcurrentRoomAdmissionRespectsWaitingRoomLimit(t *testing.T) {
+	s := newDefaultServer()
+	defer s.stop.Cancel()
+	s.maxRoomsOpen = 8
+	s.rooms.rooms = make(map[string]roomInfo)
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < 64; i++ {
+		wg.Add(1)
+		go func(room int) {
+			defer wg.Done()
+			<-start
+			s.admitToRoom(fmt.Sprintf("room-%d", room), nil)
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+
+	s.rooms.Lock()
+	defer s.rooms.Unlock()
+	waitingRooms := 0
+	for _, roomData := range s.rooms.rooms {
+		if !roomData.full {
+			waitingRooms++
+		}
+	}
+	assert.Equal(t, s.maxRoomsOpen, waitingRooms)
+	assert.Len(t, s.rooms.rooms, s.maxRoomsOpen)
+}
+
+func TestWaitingRoomCapacityDisconnectsOldestOccupant(t *testing.T) {
+	address, stopServer := startTestServer(t, 1)
+	defer stopServer()
+
+	oldest, _, _, err := ConnectToTCPServer(address, "pass123", "oldest")
+	if err != nil {
+		t.Fatalf("connect oldest room: %v", err)
+	}
+	defer oldest.Close()
+
+	replacement, _, _, err := ConnectToTCPServer(address, "pass123", "replacement")
+	if err != nil {
+		t.Fatalf("connect replacement room: %v", err)
+	}
+	defer replacement.Close()
+
+	waitForConnectionClose(t, oldest)
+
+	peer, _, _, err := ConnectToTCPServer(address, "pass123", "replacement")
+	if err != nil {
+		t.Fatalf("join replacement room: %v", err)
+	}
+	defer peer.Close()
+
+	want := []byte("replacement room remains usable")
+	if err := peer.Send(want); err != nil {
+		t.Fatalf("send through replacement room: %v", err)
+	}
+	for {
+		got, receiveErr := replacement.Receive()
+		if receiveErr != nil {
+			t.Fatalf("receive through replacement room: %v", receiveErr)
+		}
+		if bytes.Equal(got, []byte{1}) {
+			continue
+		}
+		assert.Equal(t, want, got)
+		break
+	}
+}
+
+func startTestServer(t *testing.T, maxRoomsOpen int) (string, func()) {
+	t.Helper()
+	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve test port: %v", err)
+	}
+	_, port, err := net.SplitHostPort(probe.Addr().String())
+	if err != nil {
+		probe.Close()
+		t.Fatalf("split test address: %v", err)
+	}
+	probe.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- RunWithOptionsAsync(
+			"127.0.0.1",
+			port,
+			"pass123",
+			WithCtx(ctx),
+			WithLogLevel("error"),
+			WithMaxRoomsOpen(maxRoomsOpen),
+		)
+	}()
+
+	address := net.JoinHostPort("127.0.0.1", port)
+	deadline := time.Now().Add(2 * time.Second)
+	for PingServer(address) != nil {
+		select {
+		case runErr := <-serverErr:
+			cancel()
+			t.Fatalf("test server stopped during startup: %v", runErr)
+		default:
+		}
+		if time.Now().After(deadline) {
+			cancel()
+			t.Fatal("test server did not become reachable")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	var once sync.Once
+	return address, func() {
+		once.Do(func() {
+			cancel()
+			select {
+			case runErr := <-serverErr:
+				if runErr != nil {
+					t.Errorf("stop test server: %v", runErr)
+				}
+			case <-time.After(2 * time.Second):
+				t.Error("test server did not stop")
+			}
+		})
+	}
+}
+
+func waitForConnectionClose(t *testing.T, c interface {
+	Receive() ([]byte, error)
+	Close()
+}) {
+	t.Helper()
+	closed := make(chan error, 1)
+	go func() {
+		for {
+			_, err := c.Receive()
+			if err != nil {
+				closed <- err
+				return
+			}
+		}
+	}()
+
+	select {
+	case err := <-closed:
+		assert.Error(t, err)
+	case <-time.After(2 * time.Second):
+		c.Close()
+		t.Fatal("oldest waiting-room occupant remained connected")
+	}
+}
 
 func BenchmarkConnection(b *testing.B) {
 	log.SetLevel("trace")
