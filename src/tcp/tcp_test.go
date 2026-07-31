@@ -539,6 +539,32 @@ func TestServerReleasesPort(t *testing.T) {
 	assert.Nil(t, err, "Second server should start (port was released)")
 }
 
+func TestServerHonorsIPv4LoopbackBind(t *testing.T) {
+	probe, err := net.Listen("tcp4", "127.0.0.2:0")
+	if err != nil {
+		t.Skipf("alternate IPv4 loopback address is unavailable: %v", err)
+	}
+	probe.Close()
+
+	address, stopServer := startTestServer(t, DEFAULT_MAX_ROOMS_OPEN)
+	defer stopServer()
+
+	if err := PingServer(address); err != nil {
+		t.Fatalf("server is not reachable on its configured loopback address: %v", err)
+	}
+	_, port, err := net.SplitHostPort(address)
+	if err != nil {
+		t.Fatalf("split server address: %v", err)
+	}
+
+	alternateAddress := net.JoinHostPort("127.0.0.2", port)
+	connection, err := net.DialTimeout("tcp4", alternateAddress, 100*time.Millisecond)
+	if err == nil {
+		connection.Close()
+		t.Fatalf("server configured for %s also accepted a connection on %s", address, alternateAddress)
+	}
+}
+
 func TestDualStackRelayBridgesIPv4AndIPv6(t *testing.T) {
 	probe, err := net.Listen("tcp6", "[::1]:0")
 	if err != nil {
