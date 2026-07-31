@@ -40,6 +40,7 @@ import (
 	"github.com/schollz/croc/v10/src/crypt"
 	"github.com/schollz/croc/v10/src/message"
 	"github.com/schollz/croc/v10/src/models"
+	"github.com/schollz/croc/v10/src/pakekey"
 	"github.com/schollz/croc/v10/src/tcp"
 	"github.com/schollz/croc/v10/src/termui"
 	"github.com/schollz/croc/v10/src/utils"
@@ -110,8 +111,11 @@ type Options struct {
 }
 
 type SimpleMessage struct {
-	Bytes []byte
-	Kind  string
+	Bytes   []byte
+	Bytes2  []byte
+	Kind    string
+	Version int
+	Curve   string
 }
 
 // Client holds the state of the croc transfer
@@ -154,6 +158,11 @@ type Client struct {
 	conn                    []*comm.Comm
 	baseRoomName            string
 	pakePassphrase          string
+	pakeInitiator           []byte
+	pakeResponder           []byte
+	pakeCurve               string
+	pakeKeys                pakekey.Keys
+	pakeConfirmationPending bool
 	nextReconnectRoom       string
 	relayControlAddress     string
 	reconnectRelayAddresses []string
@@ -290,7 +299,13 @@ func New(ops Options) (c *Client, err error) {
 
 	// initialize pake for recipient
 	if !c.Options.IsSender {
-		c.Pake, err = pake.InitCurve([]byte(c.pakePassphrase), 0, c.Options.Curve)
+		c.Pake, err = pakekey.Init(
+			[]byte(c.pakePassphrase),
+			0,
+			c.Options.Curve,
+			pakekey.PurposeTransfer,
+			c.Options.RoomName,
+		)
 	}
 	if err != nil {
 		return
@@ -316,6 +331,17 @@ func (e transferDisconnectError) Unwrap() error {
 
 type pakeHandshakeError struct {
 	err error
+}
+
+type incompatiblePakeVersionError struct {
+	got int
+}
+
+func (e incompatiblePakeVersionError) Error() string {
+	return fmt.Sprintf(
+		"peer uses unsupported PAKE protocol version %d; upgrade both croc clients",
+		e.got,
+	)
 }
 
 func (e pakeHandshakeError) Error() string {
@@ -538,6 +564,11 @@ func (c *Client) resetForReconnectAttempt(attempt int) error {
 	c.Step4FileTransferred = false
 	c.SuccessfulTransfer = false
 	c.Key = nil
+	c.pakeInitiator = nil
+	c.pakeResponder = nil
+	c.pakeCurve = ""
+	c.pakeKeys = pakekey.Keys{}
+	c.pakeConfirmationPending = false
 	c.CurrentFileChunkRanges = nil
 	c.CurrentFileChunks = nil
 	c.TotalSent = 0
@@ -545,7 +576,13 @@ func (c *Client) resetForReconnectAttempt(attempt int) error {
 	c.chunkMap = nil
 	c.numfinished = 0
 	if !c.Options.IsSender {
-		pakeInstance, err := pake.InitCurve([]byte(c.pakePassphrase), 0, c.Options.Curve)
+		pakeInstance, err := pakekey.Init(
+			[]byte(c.pakePassphrase),
+			0,
+			c.Options.Curve,
+			pakekey.PurposeTransfer,
+			c.Options.RoomName,
+		)
 		if err != nil {
 			return err
 		}
@@ -1153,7 +1190,6 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 
 func (c *Client) senderWaitForHandshake(conn *comm.Comm) error {
 	var kB []byte
-	B, _ := pake.InitCurve([]byte(c.pakePassphrase), 1, c.Options.Curve)
 	for {
 		if err := c.ctxErr(); err != nil {
 			return err
@@ -1167,8 +1203,7 @@ func (c *Client) senderWaitForHandshake(conn *comm.Comm) error {
 		}
 		json.Unmarshal(data, &dataMessage)
 		log.Tracef("data: %+v '%s'", data, data)
-		log.Tracef("dataMessage: %s", dataMessage)
-		log.Tracef("kB: %x", kB)
+		log.Tracef("dataMessage: %+v", dataMessage)
 		if kB != nil {
 			var decryptErr error
 			var dataDecrypt []byte
@@ -1208,13 +1243,49 @@ func (c *Client) senderWaitForHandshake(conn *comm.Comm) error {
 			}
 		} else if dataMessage.Kind == "pake1" {
 			log.Trace("got pake1")
-			pakeError := B.Update(dataMessage.Bytes)
+			if dataMessage.Version != pakekey.ProtocolVersion {
+				return incompatiblePakeVersionError{got: dataMessage.Version}
+			}
+			if dataMessage.Curve == "" {
+				return pakeHandshakeError{err: fmt.Errorf("local probe did not specify a curve")}
+			}
+			B, pakeError := pakekey.Init(
+				[]byte(c.pakePassphrase),
+				1,
+				dataMessage.Curve,
+				pakekey.PurposeLocalProbe,
+				c.Options.RoomName,
+			)
+			initiator := append([]byte(nil), dataMessage.Bytes...)
 			if pakeError == nil {
-				kB, pakeError = B.SessionKey()
+				pakeError = B.Update(initiator)
+			}
+			if pakeError == nil {
+				var sharedKey []byte
+				sharedKey, pakeError = B.SessionKey()
 				if pakeError == nil {
-					log.Tracef("dataMessage kB: %x", kB)
-					dataMessage.Bytes = B.Bytes()
+					responder := B.Bytes()
+					salt := make([]byte, pakekey.SaltSize)
+					if _, pakeError = rand.Read(salt); pakeError != nil {
+						return pakeError
+					}
+					var keys pakekey.Keys
+					keys, pakeError = pakekey.Derive(sharedKey, pakekey.Context{
+						Purpose:   pakekey.PurposeLocalProbe,
+						Room:      c.Options.RoomName,
+						Curve:     dataMessage.Curve,
+						Initiator: initiator,
+						Responder: responder,
+						Salt:      salt,
+					})
+					if pakeError != nil {
+						return pakeError
+					}
+					kB = keys.EncryptionKey
+					dataMessage.Bytes = responder
+					dataMessage.Bytes2 = salt
 					dataMessage.Kind = "pake2"
+					dataMessage.Version = pakekey.ProtocolVersion
 					data, _ = json.Marshal(dataMessage)
 					if pakeError = conn.Send(data); pakeError != nil {
 						return pakeError
@@ -1655,13 +1726,22 @@ func (c *Client) Receive() (err error) {
 		err = func() (err error) {
 			var A *pake.Pake
 			var data []byte
-			A, err = pake.InitCurve([]byte(c.pakePassphrase), 0, c.Options.Curve)
+			A, err = pakekey.Init(
+				[]byte(c.pakePassphrase),
+				0,
+				c.Options.Curve,
+				pakekey.PurposeLocalProbe,
+				c.Options.RoomName,
+			)
 			if err != nil {
 				return err
 			}
+			initiator := A.Bytes()
 			dataMessage := SimpleMessage{
-				Bytes: A.Bytes(),
-				Kind:  "pake1",
+				Bytes:   initiator,
+				Kind:    "pake1",
+				Version: pakekey.ProtocolVersion,
+				Curve:   c.Options.Curve,
 			}
 			data, _ = json.Marshal(dataMessage)
 			if err = c.conn[0].Send(data); err != nil {
@@ -1677,16 +1757,36 @@ func (c *Client) Receive() (err error) {
 				log.Debugf("data: %s", data)
 				return fmt.Errorf("dataMessage %s pake failed", ipRequest)
 			}
+			if dataMessage.Version != pakekey.ProtocolVersion {
+				return incompatiblePakeVersionError{got: dataMessage.Version}
+			}
+			if dataMessage.Curve != c.Options.Curve {
+				return fmt.Errorf("local PAKE curve changed from %s to %s", c.Options.Curve, dataMessage.Curve)
+			}
+			if len(dataMessage.Bytes2) != pakekey.SaltSize {
+				return fmt.Errorf("invalid local PAKE salt length %d", len(dataMessage.Bytes2))
+			}
 			err = A.Update(dataMessage.Bytes)
 			if err != nil {
 				return
 			}
-			var kA []byte
-			kA, err = A.SessionKey()
+			var sharedKey []byte
+			sharedKey, err = A.SessionKey()
 			if err != nil {
 				return
 			}
-			log.Debugf("dataMessage kA: %x", kA)
+			keys, err := pakekey.Derive(sharedKey, pakekey.Context{
+				Purpose:   pakekey.PurposeLocalProbe,
+				Room:      c.Options.RoomName,
+				Curve:     c.Options.Curve,
+				Initiator: initiator,
+				Responder: dataMessage.Bytes,
+				Salt:      dataMessage.Bytes2,
+			})
+			if err != nil {
+				return err
+			}
+			kA := keys.EncryptionKey
 
 			// secure ipRequest
 			data, err = crypt.Encrypt([]byte(ipRequest), kA)
@@ -1803,10 +1903,13 @@ func (c *Client) transfer() (err error) {
 	// if recipient, initialize with sending pake information
 	log.Debug("ready")
 	if !c.Options.IsSender && !c.Step1ChannelSecured {
+		c.pakeInitiator = append([]byte(nil), c.Pake.Bytes()...)
+		c.pakeCurve = c.Options.Curve
 		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:   message.TypePAKE,
-			Bytes:  c.Pake.Bytes(),
-			Bytes2: []byte(c.Options.Curve),
+			Type:    message.TypePAKE,
+			Version: pakekey.ProtocolVersion,
+			Bytes:   c.pakeInitiator,
+			Bytes2:  []byte(c.Options.Curve),
 		})
 		if err != nil {
 			return
@@ -2105,56 +2208,138 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 		}
 	}()
 	log.Debug("received pake payload")
+	if m.Version != pakekey.ProtocolVersion {
+		return incompatiblePakeVersionError{got: m.Version}
+	}
+	if c.pakeConfirmationPending || c.Key != nil {
+		return pakeHandshakeError{err: fmt.Errorf("unexpected duplicate PAKE payload")}
+	}
 
 	var salt []byte
 	if c.Options.IsSender {
 		// initialize curve based on the recipient's choice
-		log.Debugf("using curve %s", string(m.Bytes2))
-		c.Pake, err = pake.InitCurve([]byte(c.pakePassphrase), 1, string(m.Bytes2))
+		c.pakeCurve = string(m.Bytes2)
+		log.Debugf("using curve %s", c.pakeCurve)
+		c.Pake, err = pakekey.Init(
+			[]byte(c.pakePassphrase),
+			1,
+			c.pakeCurve,
+			pakekey.PurposeTransfer,
+			c.Options.RoomName,
+		)
 		if err != nil {
 			log.Error(err)
 			return pakeHandshakeError{err: err}
 		}
 
 		// update the pake
+		c.pakeInitiator = append([]byte(nil), m.Bytes...)
 		err = c.Pake.Update(m.Bytes)
 		if err != nil {
 			return pakeHandshakeError{err: err}
 		}
+		c.pakeResponder = append([]byte(nil), c.Pake.Bytes()...)
 
 		// generate salt and send it back to recipient
 		log.Debug("generating salt")
-		salt = make([]byte, 8)
+		salt = make([]byte, pakekey.SaltSize)
 		if _, rerr := rand.Read(salt); rerr != nil {
 			log.Errorf("can't generate random numbers: %v", rerr)
 			return pakeHandshakeError{err: rerr}
 		}
+		if err = c.derivePakeKeys(salt); err != nil {
+			return pakeHandshakeError{err: err}
+		}
+		c.pakeConfirmationPending = true
 		log.Debug("sender sending pake+salt")
-		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:   message.TypePAKE,
-			Bytes:  c.Pake.Bytes(),
-			Bytes2: salt,
+		err = message.Send(c.conn[0], nil, message.Message{
+			Type:    message.TypePAKE,
+			Version: pakekey.ProtocolVersion,
+			Bytes:   c.pakeResponder,
+			Bytes2:  salt,
 		})
 		if err != nil {
 			return pakeHandshakeError{err: err}
 		}
 	} else {
+		if len(c.pakeInitiator) == 0 || c.pakeCurve == "" {
+			return pakeHandshakeError{err: fmt.Errorf("PAKE response arrived before initialization")}
+		}
+		if len(m.Bytes2) != pakekey.SaltSize {
+			return pakeHandshakeError{err: fmt.Errorf("invalid PAKE salt length %d", len(m.Bytes2))}
+		}
+		c.pakeResponder = append([]byte(nil), m.Bytes...)
 		err = c.Pake.Update(m.Bytes)
 		if err != nil {
 			return pakeHandshakeError{err: err}
 		}
-		salt = m.Bytes2
+		salt = append([]byte(nil), m.Bytes2...)
+		if err = c.derivePakeKeys(salt); err != nil {
+			return pakeHandshakeError{err: err}
+		}
+		c.pakeConfirmationPending = true
+		err = message.Send(c.conn[0], nil, message.Message{
+			Type:    message.TypePAKEConfirm,
+			Version: pakekey.ProtocolVersion,
+			Bytes:   c.pakeKeys.ConfirmationA,
+		})
+		if err != nil {
+			return pakeHandshakeError{err: err}
+		}
 	}
-	// generate key
-	key, err := c.Pake.SessionKey()
+	return nil
+}
+
+func (c *Client) derivePakeKeys(salt []byte) error {
+	sharedKey, err := c.Pake.SessionKey()
 	if err != nil {
-		return pakeHandshakeError{err: err}
+		return err
 	}
-	c.Key, _, err = crypt.New(key, salt)
+	c.pakeKeys, err = pakekey.Derive(sharedKey, pakekey.Context{
+		Purpose:   pakekey.PurposeTransfer,
+		Room:      c.Options.RoomName,
+		Curve:     c.pakeCurve,
+		Initiator: c.pakeInitiator,
+		Responder: c.pakeResponder,
+		Salt:      salt,
+	})
 	if err != nil {
-		return pakeHandshakeError{err: err}
+		return err
 	}
-	log.Debugf("generated key = %+x with salt %x", c.Key, salt)
+	return nil
+}
+
+func (c *Client) processMessagePakeConfirm(m message.Message, attempt *transferAttemptState) error {
+	if m.Version != pakekey.ProtocolVersion {
+		return incompatiblePakeVersionError{got: m.Version}
+	}
+	if !c.pakeConfirmationPending || len(c.pakeKeys.EncryptionKey) == 0 || c.Key != nil {
+		return pakeHandshakeError{err: fmt.Errorf("unexpected PAKE confirmation")}
+	}
+
+	if c.Options.IsSender {
+		if !pakekey.Confirm(c.pakeKeys.ConfirmationA, m.Bytes) {
+			return pakeHandshakeError{err: fmt.Errorf("recipient PAKE confirmation failed")}
+		}
+		if err := message.Send(c.conn[0], nil, message.Message{
+			Type:    message.TypePAKEConfirm,
+			Version: pakekey.ProtocolVersion,
+			Bytes:   c.pakeKeys.ConfirmationB,
+		}); err != nil {
+			return pakeHandshakeError{err: err}
+		}
+	} else if !pakekey.Confirm(c.pakeKeys.ConfirmationB, m.Bytes) {
+		return pakeHandshakeError{err: fmt.Errorf("sender PAKE confirmation failed")}
+	}
+
+	c.Key = append([]byte(nil), c.pakeKeys.EncryptionKey...)
+	c.pakeKeys = pakekey.Keys{}
+	c.pakeConfirmationPending = false
+	return c.activateSecureChannel(attempt)
+}
+
+func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error) {
+	log.Debug("PAKE key confirmation succeeded")
 
 	// connects to the other ports of the server for transfer
 	var wg sync.WaitGroup
@@ -2210,7 +2395,7 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:    message.TypeExternalIP,
 			Message: c.ExternalIP,
-			Bytes:   m.Bytes,
+			Bytes:   c.pakeResponder,
 		})
 	}
 	return
@@ -2244,10 +2429,8 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		return
 	}
 
-	// only "pake" messages should be unencrypted
-	// if a non-"pake" message is received unencrypted something
-	// is weird
-	if m.Type != message.TypePAKE && c.Key == nil {
+	// Only PAKE setup and confirmation messages may be unencrypted.
+	if m.Type != message.TypePAKE && m.Type != message.TypePAKEConfirm && c.Key == nil {
 		err = fmt.Errorf("unencrypted communication rejected")
 		done = true
 		return
@@ -2263,6 +2446,11 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		return
 	case message.TypePAKE:
 		err = c.processMessagePake(m, attempt)
+		if err != nil {
+			log.Debug(err)
+		}
+	case message.TypePAKEConfirm:
+		err = c.processMessagePakeConfirm(m, attempt)
 		if err != nil {
 			log.Debug(err)
 		}

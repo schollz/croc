@@ -1,5 +1,6 @@
 export type MessageType =
   | "pake"
+  | "pake-confirm"
   | "externalip"
   | "finished"
   | "error"
@@ -10,6 +11,7 @@ export type MessageType =
 
 export interface CrocMessage {
   t: MessageType;
+  v?: number;
   m?: string;
   b?: Uint8Array;
   b2?: Uint8Array;
