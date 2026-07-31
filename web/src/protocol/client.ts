@@ -4,7 +4,6 @@ import {
   bytesEqual,
   bytesToBase64,
   errorMessage,
-  hex,
   randomBytes,
   textDecoder,
   textEncoder,
@@ -52,14 +51,6 @@ function validateSecret(secret: string) {
   if (!/^[\x20-\x7e]+$/.test(secret)) {
     throw new Error("Custom codes must use printable ASCII characters");
   }
-}
-
-async function roomForSecret(secret: string) {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    textEncoder.encode(`${secret.slice(0, 4)}croc`),
-  );
-  return hex(new Uint8Array(digest));
 }
 
 function controlPort(relayAddress: string) {
@@ -147,7 +138,7 @@ async function receiveControl(socket: CrocSocket, key?: Uint8Array) {
 
 async function waitForHandshake(
   socket: CrocSocket,
-  secret: string,
+  passphrase: string,
   signal?: AbortSignal,
 ) {
   const engine = wasm();
@@ -179,7 +170,7 @@ async function waitForHandshake(
       };
       if (probe.Kind !== "pake1" || !probe.Bytes) throw new Error("not a probe");
       const pake = await engine.pakeInit(
-        textEncoder.encode(secret.slice(5)),
+        textEncoder.encode(passphrase),
         1,
         "p256",
       );
@@ -364,7 +355,7 @@ export async function sendFiles(options: {
   validateSecret(secret);
   if (files.length === 0) throw new Error("Choose at least one file");
   const totalSize = files.reduce((total, file) => total + file.size, 0);
-  const room = await roomForSecret(secret);
+  const { room, passphrase } = await wasm().codeComponents(secret);
   let control: CrocSocket | undefined;
   let data: CrocSocket[] = [];
   let key: Uint8Array | undefined;
@@ -378,7 +369,7 @@ export async function sendFiles(options: {
     );
     control = relay.socket;
     callbacks.onStatus?.("Waiting for recipient…");
-    await waitForHandshake(control, secret, signal);
+    await waitForHandshake(control, passphrase, signal);
 
     const peerPake = await receiveControl(control);
     if (peerPake.t !== "pake" || !peerPake.b || !peerPake.b2) {
@@ -386,7 +377,7 @@ export async function sendFiles(options: {
     }
     const curve = textDecoder.decode(peerPake.b2);
     const pake = await wasm().pakeInit(
-      textEncoder.encode(secret.slice(5)),
+      textEncoder.encode(passphrase),
       1,
       curve,
     );
@@ -597,7 +588,7 @@ export async function receiveFiles(options: {
 }) {
   const { secret, settings, callbacks, signal } = options;
   validateSecret(secret);
-  const room = await roomForSecret(secret);
+  const { room, passphrase } = await wasm().codeComponents(secret);
   let control: CrocSocket | undefined;
   let data: CrocSocket[] = [];
   let key: Uint8Array | undefined;
@@ -615,7 +606,7 @@ export async function receiveFiles(options: {
 
     callbacks.onStatus?.("Securing channel…");
     const pake = await wasm().pakeInit(
-      textEncoder.encode(secret.slice(5)),
+      textEncoder.encode(passphrase),
       0,
       "p256",
     );
