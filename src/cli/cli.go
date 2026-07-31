@@ -45,7 +45,7 @@ func newApp() *cli.App {
 	app := cli.NewApp()
 	app.Name = "croc"
 	if Version == "" {
-		Version = "11.0.0"
+		Version = "11.0.1"
 	}
 	app.Version = Version
 	app.Compiled = time.Now()
