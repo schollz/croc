@@ -26,13 +26,12 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/kalafut/imohash"
 	"github.com/minio/highwayhash"
-	"github.com/schollz/croc/v10/src/mnemonicode"
+	"github.com/schollz/croc/v10/src/codephrase"
 	log "github.com/schollz/logger"
 	"github.com/schollz/progressbar/v3"
 )
 
 const NbPinNumbers = 4
-const NbBytesWords = 4
 
 const maxProgressFilenameRunes = 20
 
@@ -326,13 +325,16 @@ func GenerateRandomPin() string {
 	return s
 }
 
-// GetRandomName returns mnemonicoded random name
+// GetRandomName returns a random four-word croc code.
+//
+// It retains its historical signature for callers outside croc. New code that
+// needs to handle a random-source failure should call codephrase.Generate.
 func GetRandomName() string {
-	var result []string
-	bs := make([]byte, NbBytesWords)
-	rand.Read(bs)
-	result = mnemonicode.EncodeWordList(result, bs)
-	return GenerateRandomPin() + "-" + strings.Join(result, "-")
+	name, err := codephrase.Generate()
+	if err != nil {
+		panic(err)
+	}
+	return name
 }
 
 // ByteCountDecimal converts bytes to human readable byte string

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -35,6 +34,7 @@ import (
 	"golang.org/x/term"
 	"golang.org/x/time/rate"
 
+	"github.com/schollz/croc/v10/src/codephrase"
 	"github.com/schollz/croc/v10/src/comm"
 	"github.com/schollz/croc/v10/src/compress"
 	"github.com/schollz/croc/v10/src/crypt"
@@ -151,6 +151,7 @@ type Client struct {
 	// tcp connections
 	conn                    []*comm.Comm
 	baseRoomName            string
+	pakePassphrase          string
 	nextReconnectRoom       string
 	relayControlAddress     string
 	reconnectRelayAddresses []string
@@ -242,14 +243,12 @@ func New(ops Options) (c *Client, err error) {
 		}
 	}
 
-	if len(c.Options.SharedSecret) < 6 {
-		err = fmt.Errorf("code is too short (must be at least 6 characters)")
+	codeComponents, err := codephrase.Parse(c.Options.SharedSecret)
+	if err != nil {
 		return
 	}
-	// Create a hash of part of the shared secret to use as the room name
-	hashExtra := "croc"
-	roomNameBytes := sha256.Sum256([]byte(c.Options.SharedSecret[:4] + hashExtra))
-	c.Options.RoomName = hex.EncodeToString(roomNameBytes[:])
+	c.Options.RoomName = codeComponents.RoomName
+	c.pakePassphrase = codeComponents.PAKEPassphrase
 	c.baseRoomName = c.Options.RoomName
 	c.reconnectVersion = ReconnectVersion
 
@@ -289,7 +288,7 @@ func New(ops Options) (c *Client, err error) {
 
 	// initialize pake for recipient
 	if !c.Options.IsSender {
-		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, c.Options.Curve)
+		c.Pake, err = pake.InitCurve([]byte(c.pakePassphrase), 0, c.Options.Curve)
 	}
 	if err != nil {
 		return
@@ -544,7 +543,7 @@ func (c *Client) resetForReconnectAttempt(attempt int) error {
 	c.chunkMap = nil
 	c.numfinished = 0
 	if !c.Options.IsSender {
-		pakeInstance, err := pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, c.Options.Curve)
+		pakeInstance, err := pake.InitCurve([]byte(c.pakePassphrase), 0, c.Options.Curve)
 		if err != nil {
 			return err
 		}
@@ -1142,7 +1141,7 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 
 func (c *Client) senderWaitForHandshake(conn *comm.Comm) error {
 	var kB []byte
-	B, _ := pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, c.Options.Curve)
+	B, _ := pake.InitCurve([]byte(c.pakePassphrase), 1, c.Options.Curve)
 	for {
 		if err := c.ctxErr(); err != nil {
 			return err
@@ -1655,7 +1654,7 @@ func (c *Client) Receive() (err error) {
 		err = func() (err error) {
 			var A *pake.Pake
 			var data []byte
-			A, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, c.Options.Curve)
+			A, err = pake.InitCurve([]byte(c.pakePassphrase), 0, c.Options.Curve)
 			if err != nil {
 				return err
 			}
@@ -2101,7 +2100,7 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 	if c.Options.IsSender {
 		// initialize curve based on the recipient's choice
 		log.Debugf("using curve %s", string(m.Bytes2))
-		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, string(m.Bytes2))
+		c.Pake, err = pake.InitCurve([]byte(c.pakePassphrase), 1, string(m.Bytes2))
 		if err != nil {
 			log.Error(err)
 			return pakeHandshakeError{err: err}
