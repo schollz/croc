@@ -13,6 +13,7 @@ import (
 	"github.com/schollz/croc/v10/src/codephrase"
 	croccompress "github.com/schollz/croc/v10/src/compress"
 	"github.com/schollz/croc/v10/src/crypt"
+	"github.com/schollz/croc/v10/src/pakekey"
 	"github.com/schollz/croc/v10/src/storecrypto"
 	"github.com/schollz/pake/v3"
 )
@@ -34,8 +35,11 @@ func main() {
 	}
 	api := js.Global().Get("Object").New()
 	b.expose(api, "pakeInit", b.pakeInit)
+	b.expose(api, "pakeInitWithIdentities", b.pakeInitWithIdentities)
 	b.expose(api, "pakeUpdate", b.pakeUpdate)
 	b.expose(api, "deriveKey", b.deriveKey)
+	b.expose(api, "derivePeerKeys", b.derivePeerKeys)
+	b.expose(api, "confirmPeerKey", b.confirmPeerKey)
 	b.expose(api, "encrypt", b.encrypt)
 	b.expose(api, "decrypt", b.decrypt)
 	b.expose(api, "compress", b.compress)
@@ -132,6 +136,36 @@ func (b *bridge) pakeInit(args []js.Value) (any, error) {
 	return result, nil
 }
 
+func (b *bridge) pakeInitWithIdentities(args []js.Value) (any, error) {
+	if len(args) != 5 {
+		return nil, fmt.Errorf("pakeInitWithIdentities expects password, role, curve, purpose, and room")
+	}
+	password, err := bytesFromJS(args[0])
+	if err != nil {
+		return nil, err
+	}
+	instance, err := pakekey.Init(
+		password,
+		args[1].Int(),
+		args[2].String(),
+		args[3].String(),
+		args[4].String(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	b.mu.Lock()
+	handle := b.allocateHandle()
+	b.pakes[handle] = instance
+	b.mu.Unlock()
+
+	result := js.Global().Get("Object").New()
+	result.Set("handle", handle)
+	result.Set("bytes", bytesToJS(instance.Bytes()))
+	return result, nil
+}
+
 func (b *bridge) pakeUpdate(args []js.Value) (any, error) {
 	if len(args) != 2 {
 		return nil, fmt.Errorf("pakeUpdate expects handle and peer bytes")
@@ -179,6 +213,59 @@ func (b *bridge) deriveKey(args []js.Value) (any, error) {
 		return nil, err
 	}
 	return bytesToJS(key), nil
+}
+
+func (b *bridge) derivePeerKeys(args []js.Value) (any, error) {
+	if len(args) != 7 {
+		return nil, fmt.Errorf("derivePeerKeys expects session key, salt, purpose, room, curve, initiator, and responder")
+	}
+	sharedKey, err := bytesFromJS(args[0])
+	if err != nil {
+		return nil, err
+	}
+	salt, err := bytesFromJS(args[1])
+	if err != nil {
+		return nil, err
+	}
+	initiator, err := bytesFromJS(args[5])
+	if err != nil {
+		return nil, err
+	}
+	responder, err := bytesFromJS(args[6])
+	if err != nil {
+		return nil, err
+	}
+	keys, err := pakekey.Derive(sharedKey, pakekey.Context{
+		Purpose:   args[2].String(),
+		Room:      args[3].String(),
+		Curve:     args[4].String(),
+		Initiator: initiator,
+		Responder: responder,
+		Salt:      salt,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := js.Global().Get("Object").New()
+	result.Set("key", bytesToJS(keys.EncryptionKey))
+	result.Set("confirmationA", bytesToJS(keys.ConfirmationA))
+	result.Set("confirmationB", bytesToJS(keys.ConfirmationB))
+	return result, nil
+}
+
+func (b *bridge) confirmPeerKey(args []js.Value) (any, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("confirmPeerKey expects expected and received tags")
+	}
+	expected, err := bytesFromJS(args[0])
+	if err != nil {
+		return nil, err
+	}
+	received, err := bytesFromJS(args[1])
+	if err != nil {
+		return nil, err
+	}
+	return pakekey.Confirm(expected, received), nil
 }
 
 func (b *bridge) encrypt(args []js.Value) (any, error) {
