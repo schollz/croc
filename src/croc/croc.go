@@ -41,6 +41,7 @@ import (
 	"github.com/schollz/croc/v10/src/message"
 	"github.com/schollz/croc/v10/src/models"
 	"github.com/schollz/croc/v10/src/tcp"
+	"github.com/schollz/croc/v10/src/termui"
 	"github.com/schollz/croc/v10/src/utils"
 )
 
@@ -59,6 +60,7 @@ const (
 
 func init() {
 	log.SetLevel("debug")
+	log.SetOutput(termui.LoggerOutput(os.Stdout))
 }
 
 // Debug toggles debug mode
@@ -586,7 +588,8 @@ func (c *Client) transferWithReconnect(connectAttempt func(attempt int) error) e
 		if c.Options.IsSender {
 			role = "Sender"
 		}
-		fmt.Fprintf(os.Stderr, "\n%s detected a transfer interruption. Retrying securely...\n", role)
+		output, colorEnabled := termui.Output(os.Stderr)
+		fmt.Fprintf(output, "\n%s detected a transfer interruption. %s\n", role, termui.Warning("Retrying securely...", colorEnabled))
 		lastDisconnectErr = lastErr
 		c.closeAttempt()
 	}
@@ -1001,26 +1004,35 @@ func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {
 		}
 		log.Debugf("file %d info: %+v", i, c.FilesToTransfer[i])
 		fmt.Fprintf(os.Stderr, "\r                                 ")
-		fmt.Fprintf(os.Stderr, "\rSending %d files (%s)", i, utils.ByteCountDecimal(totalFilesSize))
+		output, _ := termui.Output(os.Stderr)
+		fmt.Fprintf(output, "\rSending %d files (%s)", i, utils.ByteCountDecimal(totalFilesSize))
 	}
 	log.Debugf("longestFilename: %+v", c.longestFilename)
 	fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
 	folderName := fmt.Sprintf("%d folders", c.TotalNumberFolders)
+	displayName := ""
 	if len(c.FilesToTransfer) == 1 {
-		fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
+		displayName = c.FilesToTransfer[0].Name
+		fname = quotedFilename(displayName, false)
 	}
-	if strings.HasPrefix(fname, "'croc-stdin-") {
-		fname = "'stdin'"
+	if strings.HasPrefix(displayName, "croc-stdin-") {
+		displayName = "stdin"
+		fname = quotedFilename(displayName, false)
 		if c.Options.SendingText {
-			fname = "'text'"
+			displayName = "text"
+			fname = quotedFilename(displayName, false)
 		}
 	}
 
 	fmt.Fprintf(os.Stderr, "\r                                 ")
+	output, colorEnabled := termui.Output(os.Stderr)
+	if displayName != "" {
+		fname = quotedFilename(displayName, colorEnabled)
+	}
 	if c.TotalNumberFolders > 0 {
-		fmt.Fprintf(os.Stderr, "\rSending %s and %s (%s)\n", fname, folderName, utils.ByteCountDecimal(totalFilesSize))
+		fmt.Fprintf(output, "\rSending %s and %s (%s)\n", fname, folderName, utils.ByteCountDecimal(totalFilesSize))
 	} else {
-		fmt.Fprintf(os.Stderr, "\rSending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
+		fmt.Fprintf(output, "\rSending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
 	}
 	return
 }
@@ -1335,22 +1347,10 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 		flags.WriteString("--pass " + c.Options.RelayPassword + " ")
 	}
 	webURL := webReceiveURL(c.Options.SharedSecret)
-	fmt.Fprintf(os.Stderr, `Code is: %[1]s
-
-On the other computer run:
-(For Windows)
-    croc %[2]s%[1]s
-(For Linux/macOS)
-    CROC_SECRET=%[1]q croc %[2]s
-
-Or receive in a browser:
-    %[3]s
-`, c.Options.SharedSecret, flags.String(), webURL)
+	output, colorEnabled := termui.Output(os.Stderr)
+	fmt.Fprint(output, formatSendInstructions(c.Options.SharedSecret, flags.String(), webURL, colorEnabled))
 	if !c.Options.DisableClipboard {
-		clipboardText := c.Options.SharedSecret
-		if c.Options.ExtendedClipboard {
-			clipboardText = fmt.Sprintf("CROC_SECRET=%q croc %s", c.Options.SharedSecret, strings.TrimSpace(flags.String()))
-		}
+		clipboardText := formatClipboardText(c.Options.SharedSecret, flags.String(), c.Options.ExtendedClipboard)
 		copyToClipboard(clipboardText, c.Options.Quiet, c.Options.ExtendedClipboard)
 	}
 	if c.Options.ShowQrCode {
@@ -1554,7 +1554,8 @@ func (c *Client) discoverReceivePeers() (discoveries []peerdiscovery.Discovered)
 func (c *Client) Receive() (err error) {
 	go c.stop.done()
 	defer c.stop.Cancel()
-	fmt.Fprintf(os.Stderr, "connecting...")
+	output, _ := termui.Output(os.Stderr)
+	fmt.Fprint(output, "connecting...")
 	// recipient will look for peers first
 	// and continue if it doesn't find any within 100 ms
 	usingLocal := false
@@ -1770,7 +1771,8 @@ func (c *Client) Receive() (err error) {
 		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
 	}
 	log.Debug("exchanged header message")
-	fmt.Fprintf(os.Stderr, "\rsecuring channel...")
+	output, _ = termui.Output(os.Stderr)
+	fmt.Fprint(output, "\rsecuring channel...")
 	err = c.transferWithReconnect(func(attempt int) error {
 		if attempt == 0 {
 			return nil
@@ -1779,7 +1781,8 @@ func (c *Client) Receive() (err error) {
 	})
 	if err == nil {
 		if c.numberOfTransferredFiles+len(c.EmptyFoldersToTransfer) == 0 {
-			fmt.Fprintf(os.Stderr, "\rNo files transferred.\n")
+			output, _ = termui.Output(os.Stderr)
+			fmt.Fprint(output, "\rNo files transferred.\n")
 		}
 	} else if !isTransferDisconnectError(err) {
 		c.SendError()
@@ -1929,19 +1932,9 @@ func (c *Client) createEmptyFolder(i int) (err error) {
 	if err != nil {
 		return
 	}
-	fmt.Fprintf(os.Stderr, "%s\n", c.EmptyFoldersToTransfer[i].FolderRemote)
-	c.bar = progressbar.NewOptions64(1,
-		progressbar.OptionOnCompletion(func() {
-			c.fmtPrintUpdate()
-		}),
-		progressbar.OptionSetWidth(20),
-		progressbar.OptionSetDescription(" "),
-		progressbar.OptionSetRenderBlankState(true),
-		progressbar.OptionShowBytes(true),
-		progressbar.OptionShowCount(),
-		progressbar.OptionSetWriter(os.Stderr),
-		progressbar.OptionSetVisibility(!c.Options.SendingText),
-	)
+	output, colorEnabled := termui.Output(os.Stderr)
+	fmt.Fprintln(output, termui.Filename(c.EmptyFoldersToTransfer[i].FolderRemote, colorEnabled))
+	c.bar = c.newProgressBar(1, " ", 0)
 	c.bar.Finish()
 	return
 }
@@ -1984,8 +1977,10 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 
 	fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
 	folderName := fmt.Sprintf("%d folders", c.TotalNumberFolders)
+	displayName := ""
 	if len(c.FilesToTransfer) == 1 {
-		fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
+		displayName = c.FilesToTransfer[0].Name
+		fname = quotedFilename(displayName, false)
 	}
 	totalSize := int64(0)
 	for i, fi := range c.FilesToTransfer {
@@ -2011,16 +2006,22 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	if c.Options.SendingText {
 		action = "Display"
 		fname = "text message"
+		displayName = ""
 	}
 	if !c.Options.NoPrompt || c.Options.Ask || senderInfo.Ask {
+		output, colorEnabled := termui.Output(os.Stderr)
+		if displayName != "" {
+			fname = quotedFilename(displayName, colorEnabled)
+		}
+		choicePrompt := termui.Emphasis("(Y/n)", colorEnabled)
 		if c.Options.Ask || senderInfo.Ask {
 			machID, _ := machineid.ID()
-			fmt.Fprintf(os.Stderr, "\rYour machine id is '%s'.\n%s %s (%s) from '%s'? (Y/n) ", machID, action, fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
+			fmt.Fprintf(output, "\rYour machine id is '%s'.\n%s %s (%s) from '%s'? %s ", machID, action, fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID, choicePrompt)
 		} else {
 			if c.TotalNumberFolders > 0 {
-				fmt.Fprintf(os.Stderr, "\r%s %s and %s (%s)? (Y/n) ", action, fname, folderName, utils.ByteCountDecimal(totalSize))
+				fmt.Fprintf(output, "\r%s %s and %s (%s)? %s ", action, fname, folderName, utils.ByteCountDecimal(totalSize), choicePrompt)
 			} else {
-				fmt.Fprintf(os.Stderr, "\r%s %s (%s)? (Y/n) ", action, fname, utils.ByteCountDecimal(totalSize))
+				fmt.Fprintf(output, "\r%s %s (%s)? %s ", action, fname, utils.ByteCountDecimal(totalSize), choicePrompt)
 			}
 		}
 		choice, errInput := utils.GetInput("")
@@ -2036,9 +2037,14 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 			return true, fmt.Errorf("refused files")
 		}
 	} else {
-		fmt.Fprintf(os.Stderr, "\rReceiving %s (%s) \n", fname, utils.ByteCountDecimal(totalSize))
+		output, colorEnabled := termui.Output(os.Stderr)
+		if displayName != "" {
+			fname = quotedFilename(displayName, colorEnabled)
+		}
+		fmt.Fprintf(output, "\rReceiving %s (%s) \n", fname, utils.ByteCountDecimal(totalSize))
 	}
-	fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)\n", c.ExternalIPConnected)
+	output, _ := termui.Output(os.Stderr)
+	fmt.Fprintf(output, "\nReceiving (<-%s)\n", c.ExternalIPConnected)
 
 	for i := 0; i < len(c.EmptyFoldersToTransfer); i += 1 {
 		_, errExists := os.Stat(c.EmptyFoldersToTransfer[i].FolderRemote)
@@ -2051,9 +2057,13 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 			isEmpty, _ := isEmptyFolder(c.EmptyFoldersToTransfer[i].FolderRemote)
 			if !isEmpty {
 				log.Debug("asking to overwrite")
-				prompt := fmt.Sprintf("\n%s already has some content in it. \nDo you want"+
-					" to overwrite it with an empty folder? (y/N) ", c.EmptyFoldersToTransfer[i].FolderRemote)
-				choice, _ := utils.GetInput(prompt)
+				output, colorEnabled := termui.Output(os.Stderr)
+				fmt.Fprintf(output, "\n%s already has some content in it. \nDo you want to %s it with an empty folder? %s ",
+					termui.Filename(c.EmptyFoldersToTransfer[i].FolderRemote, colorEnabled),
+					termui.Warning("overwrite", colorEnabled),
+					termui.Warning("(y/N)", colorEnabled),
+				)
+				choice, _ := utils.GetInput("")
 				choice = strings.ToLower(choice)
 				if choice == "y" || choice == "yes" {
 					err = c.createEmptyFolder(i)
@@ -2288,7 +2298,11 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		c.markTransferStarted()
 
 		if c.Options.Ask {
-			fmt.Fprintf(os.Stderr, "Send to machine '%s'? (Y/n) ", remoteFile.MachineID)
+			output, colorEnabled := termui.Output(os.Stderr)
+			fmt.Fprintf(output, "Send to machine '%s'? %s ",
+				remoteFile.MachineID,
+				termui.Emphasis("(Y/n)", colorEnabled),
+			)
 			choice, errInput := utils.GetInput("")
 			choice = strings.ToLower(choice)
 			if errInput != nil || (choice != "" && choice != "y" && choice != "yes") {
@@ -2575,18 +2589,7 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	} else {
 		description = " " + description
 	}
-	c.bar = progressbar.NewOptions64(1,
-		progressbar.OptionOnCompletion(func() {
-			c.fmtPrintUpdate()
-		}),
-		progressbar.OptionSetWidth(20),
-		progressbar.OptionSetDescription(formatDescription(description)),
-		progressbar.OptionSetRenderBlankState(true),
-		progressbar.OptionShowBytes(true),
-		progressbar.OptionShowCount(),
-		progressbar.OptionSetWriter(os.Stderr),
-		progressbar.OptionSetVisibility(!c.Options.SendingText),
-	)
+	c.bar = c.newProgressBar(1, formatDescription(description), 0)
 	c.bar.Finish()
 	return
 }
@@ -2628,7 +2631,8 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
 			if errHash == nil && errRecipientFile == nil && !strings.HasPrefix(fileInfo.Name, "croc-stdin-") && !c.Options.SendingText && c.Options.Rename {
 				newName := utils.UnusedFilename(fileInfo.FolderRemote, fileInfo.Name)
-				fmt.Fprintf(os.Stderr, "Receiving '%s' as '%s'\n", fileInfo.Name, newName)
+				output, colorEnabled := termui.Output(os.Stderr)
+				fmt.Fprintf(output, "Receiving %s as %s\n", quotedFilename(fileInfo.Name, colorEnabled), quotedFilename(newName, colorEnabled))
 				c.FilesToTransfer[i].Name = newName
 				fileInfo.Name = newName
 			}
@@ -2642,14 +2646,32 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 				percentDone := 100 - float64(len(missingChunks)*models.TCP_BUFFER_SIZE/2)/float64(fileInfo.Size)*100
 
 				log.Debug("asking to overwrite")
-				prompt := fmt.Sprintf("\nOverwrite '%s'? (y/N) (use --overwrite to omit) ", path.Join(fileInfo.FolderRemote, fileInfo.Name))
+				action := "Overwrite"
+				promptDetail := ""
+				promptSpacing := " "
 				if percentDone < 99 {
-					prompt = fmt.Sprintf("\nResume '%s' (%2.1f%%)? (y/N)   (use --overwrite to omit) ", path.Join(fileInfo.FolderRemote, fileInfo.Name), percentDone)
+					action = "Resume"
+					promptDetail = fmt.Sprintf(" (%2.1f%%)", percentDone)
+					promptSpacing = "   "
 				}
-				choice, _ := utils.GetInput(prompt)
+				output, colorEnabled := termui.Output(os.Stderr)
+				styledAction := termui.Warning(action, colorEnabled)
+				styledChoice := termui.Warning("(y/N)", colorEnabled)
+				if action == "Resume" {
+					styledAction = action
+					styledChoice = termui.Emphasis("(y/N)", colorEnabled)
+				}
+				fmt.Fprintf(output, "\n%s %s%s? %s%s(use --overwrite to omit) ",
+					styledAction,
+					quotedFilename(path.Join(fileInfo.FolderRemote, fileInfo.Name), colorEnabled),
+					promptDetail,
+					styledChoice,
+					promptSpacing,
+				)
+				choice, _ := utils.GetInput("")
 				choice = strings.ToLower(choice)
 				if choice != "y" && choice != "yes" {
-					fmt.Fprintf(os.Stderr, "Skipping '%s'\n", path.Join(fileInfo.FolderRemote, fileInfo.Name))
+					fmt.Fprintf(output, "Skipping %s\n", quotedFilename(path.Join(fileInfo.FolderRemote, fileInfo.Name), colorEnabled))
 					continue
 				}
 			}
@@ -2674,7 +2696,8 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			c.numberOfTransferredFiles++
 			newFolder, _ := filepath.Split(fileInfo.FolderRemote)
 			if newFolder != c.LastFolder && len(c.FilesToTransfer) > 0 && !c.Options.SendingText && newFolder != "./" {
-				fmt.Fprintf(os.Stderr, "\r%s\n", newFolder)
+				output, colorEnabled := termui.Output(os.Stderr)
+				fmt.Fprintf(output, "\r%s\n", termui.Filename(newFolder, colorEnabled))
 			}
 			c.LastFolder = newFolder
 			break
@@ -2687,7 +2710,8 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 func (c *Client) fmtPrintUpdate() {
 	c.finishedNum++
 	if c.TotalNumberOfContents > 1 {
-		fmt.Fprintf(os.Stderr, " %d/%d\n", c.finishedNum, c.TotalNumberOfContents)
+		output, colorEnabled := termui.Output(os.Stderr)
+		fmt.Fprintln(output, termui.Success(fmt.Sprintf(" %d/%d", c.finishedNum, c.TotalNumberOfContents), colorEnabled))
 	} else {
 		fmt.Fprintf(os.Stderr, "\n")
 	}
@@ -2708,7 +2732,8 @@ func (c *Client) updateState(attempt *transferAttemptState) (err error) {
 		log.Debug("start sending data!")
 
 		if !c.firstSend {
-			fmt.Fprintf(os.Stderr, "\nSending (->%s)\n", c.ExternalIPConnected)
+			output, _ := termui.Output(os.Stderr)
+			fmt.Fprintf(output, "\nSending (->%s)\n", c.ExternalIPConnected)
 			c.firstSend = true
 			// if there are empty files, show them as already have been transferred now
 			for i := range c.FilesToTransfer {
@@ -2720,18 +2745,7 @@ func (c *Client) updateState(attempt *transferAttemptState) (err error) {
 						// description = ""
 					}
 
-					c.bar = progressbar.NewOptions64(1,
-						progressbar.OptionOnCompletion(func() {
-							c.fmtPrintUpdate()
-						}),
-						progressbar.OptionSetWidth(20),
-						progressbar.OptionSetDescription(formatDescription(description)),
-						progressbar.OptionSetRenderBlankState(true),
-						progressbar.OptionShowBytes(true),
-						progressbar.OptionShowCount(),
-						progressbar.OptionSetWriter(os.Stderr),
-						progressbar.OptionSetVisibility(!c.Options.SendingText),
-					)
+					c.bar = c.newProgressBar(1, formatDescription(description), 0)
 					c.bar.Finish()
 				}
 			}
@@ -2768,19 +2782,10 @@ func (c *Client) setBar() {
 	} else if !c.Options.IsSender {
 		description = " " + description
 	}
-	c.bar = progressbar.NewOptions64(
+	c.bar = c.newProgressBar(
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
-		progressbar.OptionOnCompletion(func() {
-			c.fmtPrintUpdate()
-		}),
-		progressbar.OptionSetWidth(20),
-		progressbar.OptionSetDescription(formatDescription(description)),
-		progressbar.OptionSetRenderBlankState(true),
-		progressbar.OptionShowBytes(true),
-		progressbar.OptionShowCount(),
-		progressbar.OptionSetWriter(os.Stderr),
-		progressbar.OptionThrottle(100*time.Millisecond),
-		progressbar.OptionSetVisibility(!c.Options.SendingText),
+		formatDescription(description),
+		100*time.Millisecond,
 	)
 	byteToDo := int64(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
 	if byteToDo > 0 {
@@ -3041,10 +3046,11 @@ func copyToClipboard(str string, quiet bool, extendedClipboard bool) {
 		return
 	}
 	if !quiet {
+		output, colorEnabled := termui.Output(os.Stderr)
 		if extendedClipboard {
-			fmt.Fprintf(os.Stderr, "Command copied to clipboard!\n")
+			fmt.Fprintln(output, termui.Success("Command copied to clipboard!", colorEnabled))
 		} else {
-			fmt.Fprintf(os.Stderr, "Code copied to clipboard!\n")
+			fmt.Fprintln(output, termui.Success("Code copied to clipboard!", colorEnabled))
 		}
 	}
 }
