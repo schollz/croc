@@ -107,6 +107,7 @@ func newApp() *cli.App {
 				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay", EnvVars: []string{"CROC_PORTS"}},
 				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay", EnvVars: []string{"CROC_PORT"}},
 				&cli.IntFlag{Name: "transfers", Value: 5, Usage: "number of ports to use for relay"},
+				&cli.IntFlag{Name: "max-rooms-open", Value: tcp.DEFAULT_MAX_ROOMS_OPEN, Usage: "maximum waiting rooms per relay port", EnvVars: []string{"CROC_MAX_ROOMS_OPEN"}},
 			},
 		},
 		{
@@ -872,6 +873,10 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 
 func relay(c *cli.Context) (err error) {
 	log.Infof("starting croc relay version %v", Version)
+	maxRoomsOpen := c.Int("max-rooms-open")
+	if maxRoomsOpen <= 0 {
+		return fmt.Errorf("--max-rooms-open must be positive")
+	}
 	debugString := "info"
 	if c.Bool("debug") {
 		debugString = "debug"
@@ -905,13 +910,26 @@ func relay(c *cli.Context) (err error) {
 			continue
 		}
 		go func(portStr string) {
-			err := tcp.Run(debugString, host, portStr, determinePass(c))
+			err := tcp.RunWithOptionsAsync(
+				host,
+				portStr,
+				determinePass(c),
+				tcp.WithLogLevel(debugString),
+				tcp.WithMaxRoomsOpen(maxRoomsOpen),
+			)
 			if err != nil {
 				panic(err)
 			}
 		}(port)
 	}
-	return tcp.Run(debugString, host, ports[0], determinePass(c), tcpPorts)
+	return tcp.RunWithOptionsAsync(
+		host,
+		ports[0],
+		determinePass(c),
+		tcp.WithBanner(tcpPorts),
+		tcp.WithLogLevel(debugString),
+		tcp.WithMaxRoomsOpen(maxRoomsOpen),
+	)
 }
 
 func runServe(c *cli.Context) error {

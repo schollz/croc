@@ -9,7 +9,90 @@ import (
 	"testing"
 
 	"github.com/schollz/cli/v2"
+	"github.com/schollz/croc/v10/src/tcp"
 )
+
+func TestRelayMaxRoomsOpenConfiguration(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		unsetEnv(t, "CROC_MAX_ROOMS_OPEN")
+		got := runRelayWithCapturedMaxRooms(t, []string{"croc", "relay"})
+		if got != tcp.DEFAULT_MAX_ROOMS_OPEN {
+			t.Fatalf("default max rooms open = %d, want %d", got, tcp.DEFAULT_MAX_ROOMS_OPEN)
+		}
+	})
+
+	t.Run("flag", func(t *testing.T) {
+		unsetEnv(t, "CROC_MAX_ROOMS_OPEN")
+		got := runRelayWithCapturedMaxRooms(t, []string{"croc", "relay", "--max-rooms-open", "17"})
+		if got != 17 {
+			t.Fatalf("flag max rooms open = %d, want 17", got)
+		}
+	})
+
+	t.Run("environment", func(t *testing.T) {
+		t.Setenv("CROC_MAX_ROOMS_OPEN", "23")
+		got := runRelayWithCapturedMaxRooms(t, []string{"croc", "relay"})
+		if got != 23 {
+			t.Fatalf("environment max rooms open = %d, want 23", got)
+		}
+	})
+}
+
+func TestRelayRejectsNonPositiveMaxRoomsOpen(t *testing.T) {
+	for _, value := range []string{"0", "-1"} {
+		t.Run(value, func(t *testing.T) {
+			unsetEnv(t, "CROC_MAX_ROOMS_OPEN")
+			app := newApp()
+			err := app.Run([]string{"croc", "relay", "--max-rooms-open=" + value})
+			if err == nil {
+				t.Fatalf("--max-rooms-open=%s unexpectedly succeeded", value)
+			}
+			if got := err.Error(); got != "--max-rooms-open must be positive" {
+				t.Fatalf("unexpected error: %q", got)
+			}
+		})
+	}
+}
+
+func runRelayWithCapturedMaxRooms(t *testing.T, args []string) int {
+	t.Helper()
+	app := newApp()
+	var got int
+	for _, command := range app.Commands {
+		if command.Name != "relay" {
+			continue
+		}
+		command.Action = func(ctx *cli.Context) error {
+			got = ctx.Int("max-rooms-open")
+			return nil
+		}
+		if err := app.Run(args); err != nil {
+			t.Fatalf("parse relay configuration: %v", err)
+		}
+		return got
+	}
+	t.Fatal("relay command not found")
+	return 0
+}
+
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+	oldValue, wasSet := os.LookupEnv(key)
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatalf("unset %s: %v", key, err)
+	}
+	t.Cleanup(func() {
+		if wasSet {
+			if err := os.Setenv(key, oldValue); err != nil {
+				t.Errorf("restore %s: %v", key, err)
+			}
+			return
+		}
+		if err := os.Unsetenv(key); err != nil {
+			t.Errorf("clear %s: %v", key, err)
+		}
+	})
+}
 
 func TestWritePrivateConfigFile(t *testing.T) {
 	tests := []struct {
