@@ -2,12 +2,15 @@ package message
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/schollz/croc/v10/src/comm"
 	"github.com/schollz/croc/v10/src/compress"
 	"github.com/schollz/croc/v10/src/crypt"
 	log "github.com/schollz/logger"
 )
+
+const maxDecompressedMessageSize = 64 * 1024 * 1024
 
 // Type is a message type
 type Type string
@@ -73,7 +76,11 @@ func Decode(key []byte, b []byte) (m Message, err error) {
 			return
 		}
 	}
-	b = compress.Decompress(b)
+	b, err = compress.Decompress(b, maxDecompressedMessageSize)
+	if err != nil {
+		err = fmt.Errorf("decompress message: %w", err)
+		return
+	}
 	err = json.Unmarshal(b, &m)
 	if err == nil {
 		if key != nil {

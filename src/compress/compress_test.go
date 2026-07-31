@@ -1,6 +1,7 @@
 package compress
 
 import (
+	"bytes"
 	"crypto/rand"
 	"fmt"
 	"testing"
@@ -74,7 +75,9 @@ func TestCompress(t *testing.T) {
 	dataRateSavings := 100 * (1.0 - float64(len(compressedB))/float64(len(fable)))
 	fmt.Printf("Level 9: %2.0f%% percent space savings\n", dataRateSavings)
 	assert.True(t, len(compressedB) < len(fable))
-	assert.Equal(t, fable, Decompress(compressedB))
+	decompressedB, err := Decompress(compressedB, int64(len(fable)))
+	assert.NoError(t, err)
+	assert.Equal(t, fable, decompressedB)
 
 	compressedB = CompressWithOption(fable, -2)
 	dataRateSavings = 100 * (1.0 - float64(len(compressedB))/float64(len(fable)))
@@ -102,4 +105,45 @@ func TestCompress(t *testing.T) {
 
 	fmt.Printf("random, Level 9: %2.0f%% percent space savings\n", dataRateSavings)
 
+}
+
+func TestDecompressWithinLimit(t *testing.T) {
+	src := []byte("bounded decompression")
+	compressed := Compress(src)
+
+	for _, limit := range []int64{int64(len(src)), int64(len(src) + 1)} {
+		decompressed, err := Decompress(compressed, limit)
+		assert.NoError(t, err)
+		assert.Equal(t, src, decompressed)
+	}
+}
+
+func TestDecompressRejectsOversizedOutput(t *testing.T) {
+	src := bytes.Repeat([]byte("a"), 2*1024*1024)
+	decompressed, err := Decompress(Compress(src), 1024*1024)
+
+	assert.Nil(t, decompressed)
+	assert.ErrorIs(t, err, ErrDecompressedSizeExceeded)
+}
+
+func TestDecompressRejectsMalformedInput(t *testing.T) {
+	decompressed, err := Decompress([]byte("not a deflate stream"), 1024)
+
+	assert.Nil(t, decompressed)
+	assert.Error(t, err)
+	assert.NotErrorIs(t, err, ErrDecompressedSizeExceeded)
+}
+
+func TestDecompressAllowsEmptyOutputAtZeroLimit(t *testing.T) {
+	decompressed, err := Decompress(Compress(nil), 0)
+
+	assert.NoError(t, err)
+	assert.Empty(t, decompressed)
+}
+
+func TestDecompressRejectsNegativeLimit(t *testing.T) {
+	decompressed, err := Decompress(nil, -1)
+
+	assert.Nil(t, decompressed)
+	assert.Error(t, err)
 }

@@ -4,6 +4,7 @@ import {
   textDecoder,
   textEncoder,
 } from "./bytes";
+import { MAX_FRAME_SIZE } from "./framing";
 import type { CrocMessage } from "./types";
 import type { CrocWasm } from "../wasm/client";
 
@@ -39,7 +40,7 @@ export async function decodeMessage(
 ) {
   let bytes = payload;
   if (key) bytes = await wasm.decrypt(bytes, key);
-  bytes = await wasm.decompress(bytes);
+  bytes = await wasm.decompress(bytes, MAX_FRAME_SIZE);
   const wire = JSON.parse(textDecoder.decode(bytes)) as WireMessage;
   if (!wire.t) throw new Error("Peer message did not include a type");
   return {

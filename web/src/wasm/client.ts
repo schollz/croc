@@ -141,8 +141,8 @@ export class CrocWasm {
     return this.call<Uint8Array>("compress", [input]);
   }
 
-  decompress(input: Uint8Array) {
-    return this.call<Uint8Array>("decompress", [input]);
+  decompress(input: Uint8Array, maxOutputSize: number) {
+    return this.call<Uint8Array>("decompress", [input, maxOutputSize]);
   }
 
   hashInit() {
