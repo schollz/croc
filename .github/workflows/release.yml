@@ -176,9 +176,9 @@ jobs:
       - name: Create archive
         run: |
           if [ "${{ matrix.archive }}" = "zip" ]; then
-            zip croc_${{ github.event.release.name }}_${{ matrix.name }}.zip croc${{ matrix.ext }} LICENSE
+            zip croc_${{ github.event.release.name }}_${{ matrix.name }}.zip croc${{ matrix.ext }} LICENSE THIRD_PARTY_NOTICES.md src/codephrase/wordlists/LICENSE.txt
           else
-            tar -czvf croc_${{ github.event.release.name }}_${{ matrix.name }}.tar.gz croc${{ matrix.ext }} LICENSE
+            tar -czvf croc_${{ github.event.release.name }}_${{ matrix.name }}.tar.gz croc${{ matrix.ext }} LICENSE THIRD_PARTY_NOTICES.md src/codephrase/wordlists/LICENSE.txt
           fi
 
       - name: Upload build artifact

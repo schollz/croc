@@ -17,7 +17,6 @@ import {
 import { FaGithub } from "react-icons/fa";
 import { driver, type DriveStep, type Driver } from "driver.js";
 import { trackTransferEvent, transferEvents } from "./analytics";
-import { formatGeneratedCode } from "./codes";
 import { errorMessage, formatBytes } from "./protocol/bytes";
 import {
   prepareFiles,
@@ -77,7 +76,6 @@ type Activity = "idle" | "working" | "done" | "error";
 type Theme = "dark" | "light";
 type CopyState = "idle" | "copied" | "error";
 
-const compactCodeQuery = "(max-width: 460px)";
 const runtimeSettings = window.__CROC_RUNTIME_CONFIG__ ?? {};
 const requestedReceiveCode =
   new URLSearchParams(window.location.search).get("code")?.trim() ?? "";
@@ -193,25 +191,6 @@ function initialTheme(): Theme {
   return window.matchMedia?.("(prefers-color-scheme: light)").matches
     ? "light"
     : "dark";
-}
-
-function useCompactCodes() {
-  const [compact, setCompact] = useState(
-    () =>
-      typeof window.matchMedia === "function" &&
-      window.matchMedia(compactCodeQuery).matches,
-  );
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const mediaQuery = window.matchMedia(compactCodeQuery);
-    const updateCompact = () => setCompact(mediaQuery.matches);
-    updateCompact();
-    mediaQuery.addEventListener("change", updateCompact);
-    return () => mediaQuery.removeEventListener("change", updateCompact);
-  }, []);
-
-  return compact;
 }
 
 function ProgressBlock({
@@ -424,7 +403,6 @@ function CliDownload() {
 export function App() {
   const restoredStoredUpload = useMemo(restoreStoredUpload, []);
   const [theme, setTheme] = useState<Theme>(initialTheme);
-  const compactCodes = useCompactCodes();
   const [settings, setSettings] = useState<TransferSettings>(() => ({
     gatewayURL: storedValue("croc-web-gateway", defaultSettings.gatewayURL),
     relayAddress: storedValue(
@@ -531,9 +509,7 @@ export function App() {
       .randomCode()
       .then((code) => {
         if (active) {
-          setSendCode(
-            (current) => current || formatGeneratedCode(code, compactCodes),
-          );
+          setSendCode((current) => current || code);
         }
       })
       .catch((error) => {
@@ -584,9 +560,7 @@ export function App() {
   async function regenerateCode() {
     if (sendActivity === "working") return;
     setCopyState("idle");
-    setSendCode(
-      formatGeneratedCode(await wasm().randomCode(), compactCodes),
-    );
+    setSendCode(await wasm().randomCode());
   }
 
   async function copyValue(value: string) {
@@ -1105,56 +1079,60 @@ export function App() {
 
           {sendMode === "direct" && (
             <>
-            <label className="field-label" htmlFor="send-code">
-              Croc code
-            </label>
-            <div className="field-with-actions">
-            <input
-              id="send-code"
-              value={sendCode}
-              disabled={sendBusy}
-              spellCheck={false}
-              autoComplete="off"
-              onChange={(event) => {
-                setCopyState("idle");
-                setSendCode(event.target.value);
-              }}
-            />
-            <button
-              className="field-action"
-              type="button"
-              aria-label="Generate a new code"
-              disabled={sendBusy}
-              onClick={() => void regenerateCode()}
-            >
-              <RefreshCw />
-            </button>
-            <button
-              className="field-action"
-              type="button"
-              aria-label={copyState === "copied" ? "Code copied" : "Copy code"}
-              disabled={!sendCode}
-              onClick={() => void copyValue(sendCode)}
-            >
-              {copyState === "copied" ? <Check /> : <Copy />}
-            </button>
-            <span
-              className={`copy-feedback ${copyState}`}
-              role="status"
-              aria-live="polite"
-            >
-              {copyState === "copied"
-                ? "Copied"
-                : copyState === "error"
-                  ? "Copy failed"
-                  : ""}
-            </span>
-            </div>
-            <ShareQRCode
-              value={directReceiveURL}
-              disabled={sendCode.trim().length < 6}
-              description="Scan with a phone to open the receive page. Keep this browser open while the direct transfer runs."
-            />
+              <label className="field-label" htmlFor="send-code">
+                Croc code
+              </label>
+              <div className="field-with-actions">
+                <input
+                  id="send-code"
+                  value={sendCode}
+                  disabled={sendBusy}
+                  spellCheck={false}
+                  autoComplete="off"
+                  onChange={(event) => {
+                    setCopyState("idle");
+                    setSendCode(event.target.value);
+                  }}
+                />
+                <button
+                  className="field-action"
+                  type="button"
+                  aria-label="Generate a new code"
+                  disabled={sendBusy}
+                  onClick={() => void regenerateCode()}
+                >
+                  <RefreshCw />
+                </button>
+                <button
+                  className="field-action"
+                  type="button"
+                  aria-label={copyState === "copied" ? "Code copied" : "Copy code"}
+                  disabled={!sendCode}
+                  onClick={() => void copyValue(sendCode)}
+                >
+                  {copyState === "copied" ? <Check /> : <Copy />}
+                </button>
+                <span
+                  className={`copy-feedback ${copyState}`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {copyState === "copied"
+                    ? "Copied"
+                    : copyState === "error"
+                      ? "Copy failed"
+                      : ""}
+                </span>
+              </div>
+              <p className="field-help">
+                Generated codes use the first two words to find the transfer
+                and the last two words to secure it.
+              </p>
+              <ShareQRCode
+                value={directReceiveURL}
+                disabled={sendCode.trim().length < 6}
+                description="Scan with a phone to open the receive page. Keep this browser open while the direct transfer runs."
+              />
             </>
           )}
 
@@ -1241,9 +1219,7 @@ export function App() {
             id="receive-code"
             value={receiveCode}
             disabled={receiveBusy}
-            placeholder={
-              compactCodes ? "1234-word-word or link" : "1234-word-word-word or encrypted link"
-            }
+            placeholder="word-word-word-word or encrypted link"
             spellCheck={false}
             autoComplete="off"
             onChange={(event) => setReceiveCode(event.target.value)}

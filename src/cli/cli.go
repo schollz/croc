@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/schollz/cli/v2"
+	"github.com/schollz/croc/v10/src/codephrase"
 	"github.com/schollz/croc/v10/src/comm"
 	"github.com/schollz/croc/v10/src/croc"
 	"github.com/schollz/croc/v10/src/models"
@@ -533,7 +534,10 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 
 	if len(crocOptions.SharedSecret) == 0 {
 		// generate code phrase
-		crocOptions.SharedSecret = utils.GetRandomName()
+		crocOptions.SharedSecret, err = codephrase.Generate()
+		if err != nil {
+			return fmt.Errorf("could not generate code phrase: %w", err)
+		}
 	}
 	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfoWithExactExclusions(fnames, crocOptions.ZipFolder, crocOptions.GitIgnore, crocOptions.Exclude, crocOptions.ExcludeFile)
 	if err != nil {

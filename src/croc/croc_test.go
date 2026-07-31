@@ -387,11 +387,12 @@ func TestHostileExistingSymlinkParentRejected(t *testing.T) {
 
 func TestCrocReadme(t *testing.T) {
 	defer os.Remove("README.md")
+	const secret = "abbot-abide-abandon-abandoned"
 
 	log.Debug("setting up sender")
 	sender, err := New(Options{
 		IsSender:      true,
-		SharedSecret:  "8123-testingthecroc",
+		SharedSecret:  secret,
 		Debug:         true,
 		RelayAddress:  "127.0.0.1:8281",
 		RelayPorts:    []string{"8281"},
@@ -410,7 +411,7 @@ func TestCrocReadme(t *testing.T) {
 	log.Debug("setting up receiver")
 	receiver, err := New(Options{
 		IsSender:      false,
-		SharedSecret:  "8123-testingthecroc",
+		SharedSecret:  secret,
 		Debug:         true,
 		RelayAddress:  "127.0.0.1:8281",
 		RelayPassword: "pass123",

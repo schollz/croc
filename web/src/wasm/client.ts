@@ -8,6 +8,12 @@ export interface PakeFinish {
   key: Uint8Array;
 }
 
+export interface CodeComponents {
+  room: string;
+  passphrase: string;
+  format: "legacy" | "four-word";
+}
+
 type Pending = {
   resolve(value: unknown): void;
   reject(reason: Error): void;
@@ -107,6 +113,10 @@ export class CrocWasm {
 
   randomCode() {
     return this.call<string>("randomCode");
+  }
+
+  codeComponents(secret: string) {
+    return this.call<CodeComponents>("codeComponents", [secret]);
   }
 
   sha256Init() {
