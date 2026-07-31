@@ -57,6 +57,7 @@ const (
 	ReconnectVersion                   = 1
 	maxReconnectAttempts               = 10
 	reconnectCandidateHandshakeTimeout = 2 * time.Second
+	maxDecompressedChunkSize           = models.TCP_BUFFER_SIZE/2 + 8
 )
 
 func init() {
@@ -3013,7 +3014,15 @@ func (c *Client) receiveData(i int, dataConn *comm.Comm, attempt *transferAttemp
 			return
 		}
 		if !c.Options.NoCompress {
-			data = compress.Decompress(data)
+			data, err = compress.Decompress(data, maxDecompressedChunkSize)
+			if err != nil {
+				attempt.report(fmt.Errorf("decompress data chunk: %w", err))
+				return
+			}
+		}
+		if len(data) < 9 || len(data) > maxDecompressedChunkSize {
+			attempt.report(fmt.Errorf("invalid data chunk size: %d", len(data)))
+			return
 		}
 
 		// get position
