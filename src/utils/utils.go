@@ -27,6 +27,7 @@ import (
 	"github.com/kalafut/imohash"
 	"github.com/minio/highwayhash"
 	"github.com/schollz/croc/v10/src/codephrase"
+	"github.com/schollz/croc/v10/src/termui"
 	log "github.com/schollz/logger"
 	"github.com/schollz/progressbar/v3"
 )
@@ -105,7 +106,8 @@ var stdinReader = bufio.NewReader(os.Stdin)
 // exhausted stdin) the returned string is empty, so callers that treat
 // an empty answer as consent must check the error.
 func GetInput(prompt string) (string, error) {
-	fmt.Fprintf(os.Stderr, "%s", prompt)
+	output, colorEnabled := termui.Output(os.Stderr)
+	fmt.Fprint(output, termui.PromptChoices(prompt, colorEnabled))
 	text, err := stdinReader.ReadString('\n')
 	text = strings.TrimSpace(text)
 	if errors.Is(err, io.EOF) && text != "" {
