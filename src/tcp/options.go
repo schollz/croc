@@ -29,6 +29,18 @@ func WithLogLevel(level string) serverOptsFunc {
 	}
 }
 
+// WithMaxRoomsOpen sets the maximum number of single-occupant rooms that may
+// wait for a peer at the same time.
+func WithMaxRoomsOpen(maxRoomsOpen int) serverOptsFunc {
+	return func(s *server) error {
+		if maxRoomsOpen <= 0 {
+			return fmt.Errorf("max rooms open must be positive")
+		}
+		s.maxRoomsOpen = maxRoomsOpen
+		return nil
+	}
+}
+
 func WithRoomCleanupInterval(interval time.Duration) serverOptsFunc {
 	return func(s *server) error {
 		s.roomCleanupInterval = interval
