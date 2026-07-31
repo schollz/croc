@@ -24,10 +24,14 @@ type server struct {
 	banner     string
 	password   string
 	rooms      roomMap
+	started    chan struct{}
 
-	maxRoomsOpen        int
-	roomCleanupInterval time.Duration
-	roomTTL             time.Duration
+	maxPendingHandshakes int
+	handshakeTimeout     time.Duration
+	handshakeSlots       chan struct{}
+	maxRoomsOpen         int
+	roomCleanupInterval  time.Duration
+	roomTTL              time.Duration
 
 	// stopRoomCleanup chan struct{}
 	// replaced by stop ctx.go
@@ -55,15 +59,23 @@ type roomAdmission struct {
 	evictedConnection *comm.Comm
 }
 
+type handshakeResult struct {
+	room                   string
+	strongKeyForEncryption []byte
+}
+
 const pingRoom = "pinglkasjdlfjsaldjf"
 
 // newDefaultServer initializes a new server, with some default configuration options
 func newDefaultServer() *server {
 	s := new(server)
+	s.maxPendingHandshakes = DEFAULT_MAX_PENDING_HANDSHAKES
+	s.handshakeTimeout = DEFAULT_HANDSHAKE_TIMEOUT
 	s.maxRoomsOpen = DEFAULT_MAX_ROOMS_OPEN
 	s.roomCleanupInterval = DEFAULT_ROOM_CLEANUP_INTERVAL
 	s.roomTTL = DEFAULT_ROOM_TTL
 	s.debugLevel = DEFAULT_LOG_LEVEL
+	s.started = make(chan struct{})
 	// s.stopRoomCleanup = make(chan struct{}) replaced by stop
 	s.stop = newStop(context.Background())
 	return s
@@ -155,6 +167,7 @@ func (s *server) start() (err error) {
 	s.rooms.Lock()
 	s.rooms.rooms = make(map[string]roomInfo)
 	s.rooms.Unlock()
+	s.handshakeSlots = make(chan struct{}, s.maxPendingHandshakes)
 
 	s.stop.wg.Add(1)
 	go func() {
@@ -203,6 +216,7 @@ func (s *server) run() (err error) {
 		return fmt.Errorf("error listening on %s: %w", addr, err)
 	}
 	defer s.stop.server.Close()
+	close(s.started)
 
 	go func() {
 		dc := &net.Dialer{
@@ -224,20 +238,61 @@ func (s *server) run() (err error) {
 			return fmt.Errorf("problem accepting connection: %w", err)
 		}
 		log.Debugf("client %s connected", connection.RemoteAddr().String())
+		select {
+		case s.handshakeSlots <- struct{}{}:
+		case <-s.stop.ctx.Done():
+			connection.Close()
+			return s.stop.ctx.Err()
+		default:
+			log.Debugf("rejecting client %s: too many pending handshakes", connection.RemoteAddr().String())
+			connection.Close()
+			continue
+		}
+		handshakeDeadline := time.Now().Add(s.handshakeTimeout)
 		s.stop.wg.Add(1)
-		go func(connection net.Conn) {
+		go func(connection net.Conn, handshakeDeadline time.Time) {
 			defer s.stop.wg.Done()
+			handshakePending := true
+			releaseHandshake := func() {
+				if handshakePending {
+					<-s.handshakeSlots
+					handshakePending = false
+				}
+			}
+			defer releaseHandshake()
+			stopCloseOnCancel := context.AfterFunc(s.stop.ctx, func() {
+				connection.Close()
+			})
+			defer stopCloseOnCancel()
+
 			c := comm.New(connection)
-			room, errCommunication := s.clientCommunication(c)
+			handshake, errCommunication := s.clientHandshake(c, handshakeDeadline)
+			releaseHandshake()
+			room := handshake.room
 			log.Debugf("room: %+v", room)
 			log.Debugf("err: %+v", errCommunication)
 			if errCommunication != nil {
-				log.Debugf("relay-%s: %s", connection.RemoteAddr().String(), errCommunication.Error())
+				if netErr, ok := errCommunication.(net.Error); ok && netErr.Timeout() {
+					log.Debugf("relay-%s: handshake timed out", connection.RemoteAddr().String())
+				} else {
+					log.Debugf("relay-%s: %s", connection.RemoteAddr().String(), errCommunication.Error())
+				}
 				connection.Close()
 				return
 			}
 			if room == pingRoom {
 				log.Debugf("got ping")
+				connection.Close()
+				return
+			}
+			if err := connection.SetDeadline(time.Time{}); err != nil {
+				log.Debugf("relay-%s: failed to clear handshake deadline: %v", connection.RemoteAddr().String(), err)
+				connection.Close()
+				return
+			}
+			room, errCommunication = s.clientCommunication(c, handshake)
+			if errCommunication != nil {
+				log.Debugf("relay-%s: %s", connection.RemoteAddr().String(), errCommunication.Error())
 				connection.Close()
 				return
 			}
@@ -281,7 +336,7 @@ func (s *server) run() (err error) {
 					// time.Sleep(1 * time.Second)
 				}
 			}
-		}(connection)
+		}(connection, handshakeDeadline)
 	}
 }
 
@@ -333,28 +388,35 @@ func (s *server) deleteOldRooms() {
 
 var weakKey = []byte{1, 2, 3}
 
-func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
+func (s *server) clientHandshake(c *comm.Comm, deadline time.Time) (result handshakeResult, err error) {
+	send := func(message []byte) error {
+		if err := c.Connection().SetWriteDeadline(deadline); err != nil {
+			return fmt.Errorf("set handshake write deadline: %w", err)
+		}
+		return c.Send(message)
+	}
+
 	// establish secure password with PAKE for communication with relay
 	B, err := pake.InitCurve(weakKey, 1, "siec")
 	if err != nil {
 		return
 	}
-	Abytes, err := c.Receive()
+	Abytes, err := c.ReceiveWithDeadline(deadline)
 	if err != nil {
 		return
 	}
 	log.Debugf("Abytes: %s", Abytes)
 	if bytes.Equal(Abytes, []byte("ping")) {
-		room = pingRoom
+		result.room = pingRoom
 		log.Debug("sending back pong")
-		c.Send([]byte("pong"))
+		err = send([]byte("pong"))
 		return
 	}
 	err = B.Update(Abytes)
 	if err != nil {
 		return
 	}
-	err = c.Send(B.Bytes())
+	err = send(B.Bytes())
 	if err != nil {
 		return
 	}
@@ -365,7 +427,7 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 	log.Debugf("strongkey: %x", strongKey)
 
 	// receive salt
-	salt, err := c.Receive()
+	salt, err := c.ReceiveWithDeadline(deadline)
 	if err != nil {
 		return
 	}
@@ -375,7 +437,7 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 	}
 
 	log.Debugf("waiting for password")
-	passwordBytesEnc, err := c.Receive()
+	passwordBytesEnc, err := c.ReceiveWithDeadline(deadline)
 	if err != nil {
 		return
 	}
@@ -384,12 +446,15 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 		return
 	}
 	if strings.TrimSpace(string(passwordBytes)) != strings.TrimSpace(s.password) {
-		err = fmt.Errorf("bad password")
-		enc, _ := crypt.Encrypt([]byte(err.Error()), strongKeyForEncryption)
-		if err = c.Send(enc); err != nil {
-			return "", fmt.Errorf("send error: %w", err)
+		passwordErr := fmt.Errorf("bad password")
+		enc, encryptErr := crypt.Encrypt([]byte(passwordErr.Error()), strongKeyForEncryption)
+		if encryptErr != nil {
+			return handshakeResult{}, encryptErr
 		}
-		return
+		if sendErr := send(enc); sendErr != nil {
+			return handshakeResult{}, fmt.Errorf("send error: %w", sendErr)
+		}
+		return handshakeResult{}, passwordErr
 	}
 
 	// send ok to tell client they are connected
@@ -402,14 +467,14 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 	if err != nil {
 		return
 	}
-	err = c.Send(bSend)
+	err = send(bSend)
 	if err != nil {
 		return
 	}
 
 	// wait for client to tell me which room they want
 	log.Debug("waiting for answer")
-	enc, err := c.Receive()
+	enc, err := c.ReceiveWithDeadline(deadline)
 	if err != nil {
 		return
 	}
@@ -417,7 +482,15 @@ func (s *server) clientCommunication(c *comm.Comm) (room string, err error) {
 	if err != nil {
 		return
 	}
-	room = string(roomBytes)
+	result.room = string(roomBytes)
+	result.strongKeyForEncryption = strongKeyForEncryption
+	return
+}
+
+func (s *server) clientCommunication(c *comm.Comm, handshake handshakeResult) (room string, err error) {
+	room = handshake.room
+	strongKeyForEncryption := handshake.strongKeyForEncryption
+	var bSend []byte
 
 	admission := s.admitToRoom(room, c)
 	if admission.evicted {
