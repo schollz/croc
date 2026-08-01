@@ -12,7 +12,15 @@ interface ImportMeta {
 
 interface Window {
   umami?: {
-    track(event: string): void;
+    track(
+      payload:
+        | string
+        | ((properties: Record<string, unknown>) => Record<string, unknown>),
+    ): void;
+  };
+  __CROC_ANALYTICS__?: {
+    scriptURL?: string;
+    websiteID?: string;
   };
   __CROC_RUNTIME_CONFIG__?: {
     gatewayURL?: string;

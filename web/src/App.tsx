@@ -16,7 +16,15 @@ import {
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
 import { driver, type DriveStep, type Driver } from "driver.js";
-import { trackTransferEvent, transferEvents } from "./analytics";
+import {
+  loadAnalytics,
+  readAnalyticsConsent,
+  saveAnalyticsConsent,
+  trackTransferEvent,
+  transferEvents,
+  unloadAnalytics,
+  type AnalyticsConsent,
+} from "./analytics";
 import { errorMessage, formatBytes } from "./protocol/bytes";
 import {
   prepareFiles,
@@ -71,6 +79,7 @@ import {
   type GitHubRelease,
 } from "./releases";
 import { wasm } from "./wasm/client";
+import { PrivacyModal } from "./privacy-modal";
 
 type Activity = "idle" | "working" | "done" | "error";
 type Theme = "dark" | "light";
@@ -105,6 +114,21 @@ const otherTools = [
     description: "yes/no alerts when websites change",
     href: "https://yesnotice.com",
     name: "yesnotice",
+  },
+  {
+    description: "find a piano wherever you are",
+    href: "https://pianos.pub",
+    name: "pianos.pub",
+  },
+  {
+    description: "strange roadside detours",
+    href: "https://makemydrivefun.com",
+    name: "makemydrivefun",
+  },
+  {
+    description: "claymation in browsers",
+    href: "https://makestopmotion.com",
+    name: "makestopmotion",
   },
 ];
 const defaultSettings: TransferSettings = {
@@ -402,6 +426,10 @@ function CliDownload() {
 
 export function App() {
   const restoredStoredUpload = useMemo(restoreStoredUpload, []);
+  const [privacy, setPrivacy] = useState(() => {
+    const choice = readAnalyticsConsent();
+    return { choice, open: choice === null };
+  });
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [settings, setSettings] = useState<TransferSettings>(() => ({
     gatewayURL: storedValue("croc-web-gateway", defaultSettings.gatewayURL),
@@ -454,6 +482,19 @@ export function App() {
   const receivePanel = useRef<HTMLFormElement>(null);
   const copyReset = useRef<number>(undefined);
   const tour = useRef<Driver>(undefined);
+
+  useEffect(() => {
+    if (privacy.choice === "accepted") {
+      loadAnalytics();
+    } else {
+      unloadAnalytics();
+    }
+  }, [privacy.choice]);
+
+  function choosePrivacy(choice: AnalyticsConsent) {
+    saveAnalyticsConsent(choice);
+    setPrivacy({ choice, open: false });
+  }
 
   const totalSelectedSize = useMemo(
     () => selectedFiles.reduce((total, file) => total + file.size, 0),
@@ -910,7 +951,8 @@ export function App() {
   const receiveBusy = receiveActivity === "working";
 
   return (
-    <main className="site-shell">
+    <>
+      <main className="site-shell">
       <aside className="donation-banner" aria-label="Support croc">
         <div className="donation-copy">
           <Heart aria-hidden="true" />
@@ -1445,6 +1487,27 @@ export function App() {
           >
             github
           </a>
+          <span aria-hidden="true">·</span>
+          <button
+            className="footer-link-button"
+            type="button"
+            onClick={() =>
+              setPrivacy((current) => ({ ...current, open: true }))
+            }
+          >
+            privacy choices
+          </button>
+          <span aria-hidden="true">·</span>
+          <span>
+            hosted with{" "}
+            <a
+              href="https://disco.cloud"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              disco
+            </a>
+          </span>
         </div>
 
         <details className="tools-menu">
@@ -1465,6 +1528,16 @@ export function App() {
           </ul>
         </details>
       </footer>
-    </main>
+      </main>
+      {privacy.open && (
+        <PrivacyModal
+          currentChoice={privacy.choice}
+          onChoose={choosePrivacy}
+          onClose={() =>
+            setPrivacy((current) => ({ ...current, open: false }))
+          }
+        />
+      )}
+    </>
   );
 }
