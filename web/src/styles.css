@@ -1033,6 +1033,7 @@ a.cli-download-primary:hover {
 }
 
 .site-footer a,
+.footer-link-button,
 .tools-menu summary {
   color: var(--foreground);
   text-decoration: underline;
@@ -1042,9 +1043,146 @@ a.cli-download-primary:hover {
 
 .site-footer a:hover,
 .site-footer a:focus-visible,
+.footer-link-button:hover,
+.footer-link-button:focus-visible,
 .tools-menu summary:hover,
 .tools-menu summary:focus-visible {
   text-decoration-color: currentcolor;
+}
+
+.footer-link-button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.privacy-backdrop {
+  position: fixed;
+  z-index: 1000;
+  left: 50%;
+  bottom: 16px;
+  width: min(1180px, calc(100vw - 32px));
+  transform: translateX(-50%);
+}
+
+.privacy-modal {
+  position: relative;
+  width: 100%;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  border: 1px solid var(--foreground);
+  padding: 18px;
+  background: var(--background);
+  box-shadow: 6px 6px 0 color-mix(in srgb, var(--foreground) 18%, transparent);
+}
+
+.privacy-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.privacy-close:hover {
+  color: var(--foreground);
+}
+
+.privacy-close svg {
+  width: 17px;
+  height: 17px;
+}
+
+.privacy-heading {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 11px;
+  align-items: center;
+  padding-right: 32px;
+}
+
+.privacy-heading .eyebrow {
+  margin-bottom: 5px;
+}
+
+.privacy-heading h2 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.privacy-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--foreground);
+}
+
+.privacy-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.privacy-intro {
+  margin: 13px 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.privacy-details p {
+  margin: 7px 0 0;
+  color: var(--subtle);
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.privacy-details {
+  padding: 10px 0;
+  border-top: 1px solid var(--soft-border);
+  border-bottom: 1px solid var(--soft-border);
+}
+
+.privacy-details summary {
+  color: var(--muted);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.privacy-details summary::marker {
+  color: var(--foreground);
+}
+
+.privacy-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.privacy-actions .primary-button,
+.privacy-actions .secondary-button {
+  min-height: 40px;
+  margin: 0;
+}
+
+.privacy-footnote {
+  margin: 8px 0 0;
+  color: var(--subtle);
+  font-size: 9px;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .site-footer-links {
@@ -1081,7 +1219,7 @@ a.cli-download-primary:hover {
   right: 0;
   bottom: calc(100% + 8px);
   width: max-content;
-  min-width: 238px;
+  min-width: 340px;
   margin: 0;
   padding: 0;
   border: 1px solid var(--foreground);
@@ -1096,8 +1234,8 @@ a.cli-download-primary:hover {
 
 .tools-menu li a {
   display: grid;
-  grid-template-columns: 62px 1fr;
-  gap: 10px;
+  grid-template-columns: 116px minmax(0, 1fr);
+  gap: 14px;
   padding: 8px 10px;
   text-decoration: none;
 }
@@ -1110,6 +1248,7 @@ a.cli-download-primary:hover {
 .tools-menu strong {
   color: var(--foreground);
   font-weight: 700;
+  text-align: right;
 }
 
 .driver-popover.croc-tour {
@@ -1265,6 +1404,21 @@ a.cli-download-primary:hover {
     padding: 20px;
   }
 
+  .privacy-backdrop {
+    left: 50%;
+    bottom: 10px;
+    width: calc(100vw - 20px);
+  }
+
+  .privacy-modal {
+    max-height: calc(100vh - 20px);
+    padding: 16px;
+  }
+
+  .privacy-actions {
+    grid-template-columns: 1fr;
+  }
+
   .button-pair {
     grid-template-columns: 1fr;
   }
@@ -1282,6 +1436,8 @@ a.cli-download-primary:hover {
   .tools-menu ul {
     right: auto;
     left: 0;
+    width: min(340px, calc(100vw - 20px));
+    min-width: 0;
   }
 }
 
