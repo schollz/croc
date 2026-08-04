@@ -58,6 +58,7 @@ func startEchoServer(t *testing.T) (host, port string) {
 func TestNormalizeConfigAllowsPublicRelayPortPools(t *testing.T) {
 	config, err := normalizeConfig(Config{})
 	require.NoError(t, err)
+	assert.Equal(t, "croc.schollz.com", config.RelayHost)
 	assert.Equal(
 		t,
 		[]string{"9009", "9010", "9011", "9012", "9013", "9014", "9015", "9016", "9017"},

@@ -139,7 +139,7 @@ const defaultSettings: TransferSettings = {
   relayAddress:
     runtimeSettings.relayAddress ||
     import.meta.env.VITE_CROC_RELAY_ADDRESS ||
-    "ipv4.getcroc.com:9009",
+    "croc.schollz.com:9009",
   relayPassword:
     runtimeSettings.relayPassword ||
     import.meta.env.VITE_CROC_RELAY_PASSWORD ||
