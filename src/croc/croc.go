@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -35,12 +34,15 @@ import (
 	"golang.org/x/term"
 	"golang.org/x/time/rate"
 
+	"github.com/schollz/croc/v10/src/codephrase"
 	"github.com/schollz/croc/v10/src/comm"
 	"github.com/schollz/croc/v10/src/compress"
 	"github.com/schollz/croc/v10/src/crypt"
 	"github.com/schollz/croc/v10/src/message"
 	"github.com/schollz/croc/v10/src/models"
+	"github.com/schollz/croc/v10/src/pakekey"
 	"github.com/schollz/croc/v10/src/tcp"
+	"github.com/schollz/croc/v10/src/termui"
 	"github.com/schollz/croc/v10/src/utils"
 )
 
@@ -55,10 +57,12 @@ const (
 	ReconnectVersion                   = 1
 	maxReconnectAttempts               = 10
 	reconnectCandidateHandshakeTimeout = 2 * time.Second
+	maxDecompressedChunkSize           = models.TCP_BUFFER_SIZE/2 + 8
 )
 
 func init() {
 	log.SetLevel("debug")
+	log.SetOutput(termui.LoggerOutput(os.Stdout))
 }
 
 // Debug toggles debug mode
@@ -108,8 +112,11 @@ type Options struct {
 }
 
 type SimpleMessage struct {
-	Bytes []byte
-	Kind  string
+	Bytes   []byte
+	Bytes2  []byte
+	Kind    string
+	Version int
+	Curve   string
 }
 
 // Client holds the state of the croc transfer
@@ -151,6 +158,12 @@ type Client struct {
 	// tcp connections
 	conn                    []*comm.Comm
 	baseRoomName            string
+	pakePassphrase          string
+	pakeInitiator           []byte
+	pakeResponder           []byte
+	pakeCurve               string
+	pakeKeys                pakekey.Keys
+	pakeConfirmationPending bool
 	nextReconnectRoom       string
 	relayControlAddress     string
 	reconnectRelayAddresses []string
@@ -242,14 +255,12 @@ func New(ops Options) (c *Client, err error) {
 		}
 	}
 
-	if len(c.Options.SharedSecret) < 6 {
-		err = fmt.Errorf("code is too short (must be at least 6 characters)")
+	codeComponents, err := codephrase.Parse(c.Options.SharedSecret)
+	if err != nil {
 		return
 	}
-	// Create a hash of part of the shared secret to use as the room name
-	hashExtra := "croc"
-	roomNameBytes := sha256.Sum256([]byte(c.Options.SharedSecret[:4] + hashExtra))
-	c.Options.RoomName = hex.EncodeToString(roomNameBytes[:])
+	c.Options.RoomName = codeComponents.RoomName
+	c.pakePassphrase = codeComponents.PAKEPassphrase
 	c.baseRoomName = c.Options.RoomName
 	c.reconnectVersion = ReconnectVersion
 
@@ -289,7 +300,13 @@ func New(ops Options) (c *Client, err error) {
 
 	// initialize pake for recipient
 	if !c.Options.IsSender {
-		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, c.Options.Curve)
+		c.Pake, err = pakekey.Init(
+			[]byte(c.pakePassphrase),
+			0,
+			c.Options.Curve,
+			pakekey.PurposeTransfer,
+			c.Options.RoomName,
+		)
 	}
 	if err != nil {
 		return
@@ -315,6 +332,17 @@ func (e transferDisconnectError) Unwrap() error {
 
 type pakeHandshakeError struct {
 	err error
+}
+
+type incompatiblePakeVersionError struct {
+	got int
+}
+
+func (e incompatiblePakeVersionError) Error() string {
+	return fmt.Sprintf(
+		"peer uses unsupported PAKE protocol version %d; upgrade both croc clients",
+		e.got,
+	)
 }
 
 func (e pakeHandshakeError) Error() string {
@@ -537,6 +565,11 @@ func (c *Client) resetForReconnectAttempt(attempt int) error {
 	c.Step4FileTransferred = false
 	c.SuccessfulTransfer = false
 	c.Key = nil
+	c.pakeInitiator = nil
+	c.pakeResponder = nil
+	c.pakeCurve = ""
+	c.pakeKeys = pakekey.Keys{}
+	c.pakeConfirmationPending = false
 	c.CurrentFileChunkRanges = nil
 	c.CurrentFileChunks = nil
 	c.TotalSent = 0
@@ -544,7 +577,13 @@ func (c *Client) resetForReconnectAttempt(attempt int) error {
 	c.chunkMap = nil
 	c.numfinished = 0
 	if !c.Options.IsSender {
-		pakeInstance, err := pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, c.Options.Curve)
+		pakeInstance, err := pakekey.Init(
+			[]byte(c.pakePassphrase),
+			0,
+			c.Options.Curve,
+			pakekey.PurposeTransfer,
+			c.Options.RoomName,
+		)
 		if err != nil {
 			return err
 		}
@@ -587,7 +626,8 @@ func (c *Client) transferWithReconnect(connectAttempt func(attempt int) error) e
 		if c.Options.IsSender {
 			role = "Sender"
 		}
-		fmt.Fprintf(os.Stderr, "\n%s detected a transfer interruption. Retrying securely...\n", role)
+		output, colorEnabled := termui.Output(os.Stderr)
+		fmt.Fprintf(output, "\n%s detected a transfer interruption. %s\n", role, termui.Warning("Retrying securely...", colorEnabled))
 		lastDisconnectErr = lastErr
 		c.closeAttempt()
 	}
@@ -1002,26 +1042,35 @@ func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {
 		}
 		log.Debugf("file %d info: %+v", i, c.FilesToTransfer[i])
 		fmt.Fprintf(os.Stderr, "\r                                 ")
-		fmt.Fprintf(os.Stderr, "\rSending %d files (%s)", i, utils.ByteCountDecimal(totalFilesSize))
+		output, _ := termui.Output(os.Stderr)
+		fmt.Fprintf(output, "\rSending %d files (%s)", i, utils.ByteCountDecimal(totalFilesSize))
 	}
 	log.Debugf("longestFilename: %+v", c.longestFilename)
 	fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
 	folderName := fmt.Sprintf("%d folders", c.TotalNumberFolders)
+	displayName := ""
 	if len(c.FilesToTransfer) == 1 {
-		fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
+		displayName = c.FilesToTransfer[0].Name
+		fname = quotedFilename(displayName, false)
 	}
-	if strings.HasPrefix(fname, "'croc-stdin-") {
-		fname = "'stdin'"
+	if strings.HasPrefix(displayName, "croc-stdin-") {
+		displayName = "stdin"
+		fname = quotedFilename(displayName, false)
 		if c.Options.SendingText {
-			fname = "'text'"
+			displayName = "text"
+			fname = quotedFilename(displayName, false)
 		}
 	}
 
 	fmt.Fprintf(os.Stderr, "\r                                 ")
+	output, colorEnabled := termui.Output(os.Stderr)
+	if displayName != "" {
+		fname = quotedFilename(displayName, colorEnabled)
+	}
 	if c.TotalNumberFolders > 0 {
-		fmt.Fprintf(os.Stderr, "\rSending %s and %s (%s)\n", fname, folderName, utils.ByteCountDecimal(totalFilesSize))
+		fmt.Fprintf(output, "\rSending %s and %s (%s)\n", fname, folderName, utils.ByteCountDecimal(totalFilesSize))
 	} else {
-		fmt.Fprintf(os.Stderr, "\rSending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
+		fmt.Fprintf(output, "\rSending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
 	}
 	return
 }
@@ -1142,7 +1191,6 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 
 func (c *Client) senderWaitForHandshake(conn *comm.Comm) error {
 	var kB []byte
-	B, _ := pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, c.Options.Curve)
 	for {
 		if err := c.ctxErr(); err != nil {
 			return err
@@ -1156,8 +1204,7 @@ func (c *Client) senderWaitForHandshake(conn *comm.Comm) error {
 		}
 		json.Unmarshal(data, &dataMessage)
 		log.Tracef("data: %+v '%s'", data, data)
-		log.Tracef("dataMessage: %s", dataMessage)
-		log.Tracef("kB: %x", kB)
+		log.Tracef("dataMessage: %+v", dataMessage)
 		if kB != nil {
 			var decryptErr error
 			var dataDecrypt []byte
@@ -1197,13 +1244,49 @@ func (c *Client) senderWaitForHandshake(conn *comm.Comm) error {
 			}
 		} else if dataMessage.Kind == "pake1" {
 			log.Trace("got pake1")
-			pakeError := B.Update(dataMessage.Bytes)
+			if dataMessage.Version != pakekey.ProtocolVersion {
+				return incompatiblePakeVersionError{got: dataMessage.Version}
+			}
+			if dataMessage.Curve == "" {
+				return pakeHandshakeError{err: fmt.Errorf("local probe did not specify a curve")}
+			}
+			B, pakeError := pakekey.Init(
+				[]byte(c.pakePassphrase),
+				1,
+				dataMessage.Curve,
+				pakekey.PurposeLocalProbe,
+				c.Options.RoomName,
+			)
+			initiator := append([]byte(nil), dataMessage.Bytes...)
 			if pakeError == nil {
-				kB, pakeError = B.SessionKey()
+				pakeError = B.Update(initiator)
+			}
+			if pakeError == nil {
+				var sharedKey []byte
+				sharedKey, pakeError = B.SessionKey()
 				if pakeError == nil {
-					log.Tracef("dataMessage kB: %x", kB)
-					dataMessage.Bytes = B.Bytes()
+					responder := B.Bytes()
+					salt := make([]byte, pakekey.SaltSize)
+					if _, pakeError = rand.Read(salt); pakeError != nil {
+						return pakeError
+					}
+					var keys pakekey.Keys
+					keys, pakeError = pakekey.Derive(sharedKey, pakekey.Context{
+						Purpose:   pakekey.PurposeLocalProbe,
+						Room:      c.Options.RoomName,
+						Curve:     dataMessage.Curve,
+						Initiator: initiator,
+						Responder: responder,
+						Salt:      salt,
+					})
+					if pakeError != nil {
+						return pakeError
+					}
+					kB = keys.EncryptionKey
+					dataMessage.Bytes = responder
+					dataMessage.Bytes2 = salt
 					dataMessage.Kind = "pake2"
+					dataMessage.Version = pakekey.ProtocolVersion
 					data, _ = json.Marshal(dataMessage)
 					if pakeError = conn.Send(data); pakeError != nil {
 						return pakeError
@@ -1336,22 +1419,10 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 		flags.WriteString("--pass " + c.Options.RelayPassword + " ")
 	}
 	webURL := webReceiveURL(c.Options.SharedSecret)
-	fmt.Fprintf(os.Stderr, `Code is: %[1]s
-
-On the other computer run:
-(For Windows)
-    croc %[2]s%[1]s
-(For Linux/macOS)
-    CROC_SECRET=%[1]q croc %[2]s
-
-Or receive in a browser:
-    %[3]s
-`, c.Options.SharedSecret, flags.String(), webURL)
+	output, colorEnabled := termui.Output(os.Stderr)
+	fmt.Fprint(output, formatSendInstructions(c.Options.SharedSecret, flags.String(), webURL, colorEnabled))
 	if !c.Options.DisableClipboard {
-		clipboardText := c.Options.SharedSecret
-		if c.Options.ExtendedClipboard {
-			clipboardText = fmt.Sprintf("CROC_SECRET=%q croc %s", c.Options.SharedSecret, strings.TrimSpace(flags.String()))
-		}
+		clipboardText := formatClipboardText(c.Options.SharedSecret, flags.String(), c.Options.ExtendedClipboard)
 		copyToClipboard(clipboardText, c.Options.Quiet, c.Options.ExtendedClipboard)
 	}
 	if c.Options.ShowQrCode {
@@ -1555,7 +1626,8 @@ func (c *Client) discoverReceivePeers() (discoveries []peerdiscovery.Discovered)
 func (c *Client) Receive() (err error) {
 	go c.stop.done()
 	defer c.stop.Cancel()
-	fmt.Fprintf(os.Stderr, "connecting...")
+	output, _ := termui.Output(os.Stderr)
+	fmt.Fprint(output, "connecting...")
 	// recipient will look for peers first
 	// and continue if it doesn't find any within 100 ms
 	usingLocal := false
@@ -1655,13 +1727,22 @@ func (c *Client) Receive() (err error) {
 		err = func() (err error) {
 			var A *pake.Pake
 			var data []byte
-			A, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 0, c.Options.Curve)
+			A, err = pakekey.Init(
+				[]byte(c.pakePassphrase),
+				0,
+				c.Options.Curve,
+				pakekey.PurposeLocalProbe,
+				c.Options.RoomName,
+			)
 			if err != nil {
 				return err
 			}
+			initiator := A.Bytes()
 			dataMessage := SimpleMessage{
-				Bytes: A.Bytes(),
-				Kind:  "pake1",
+				Bytes:   initiator,
+				Kind:    "pake1",
+				Version: pakekey.ProtocolVersion,
+				Curve:   c.Options.Curve,
 			}
 			data, _ = json.Marshal(dataMessage)
 			if err = c.conn[0].Send(data); err != nil {
@@ -1677,16 +1758,36 @@ func (c *Client) Receive() (err error) {
 				log.Debugf("data: %s", data)
 				return fmt.Errorf("dataMessage %s pake failed", ipRequest)
 			}
+			if dataMessage.Version != pakekey.ProtocolVersion {
+				return incompatiblePakeVersionError{got: dataMessage.Version}
+			}
+			if dataMessage.Curve != c.Options.Curve {
+				return fmt.Errorf("local PAKE curve changed from %s to %s", c.Options.Curve, dataMessage.Curve)
+			}
+			if len(dataMessage.Bytes2) != pakekey.SaltSize {
+				return fmt.Errorf("invalid local PAKE salt length %d", len(dataMessage.Bytes2))
+			}
 			err = A.Update(dataMessage.Bytes)
 			if err != nil {
 				return
 			}
-			var kA []byte
-			kA, err = A.SessionKey()
+			var sharedKey []byte
+			sharedKey, err = A.SessionKey()
 			if err != nil {
 				return
 			}
-			log.Debugf("dataMessage kA: %x", kA)
+			keys, err := pakekey.Derive(sharedKey, pakekey.Context{
+				Purpose:   pakekey.PurposeLocalProbe,
+				Room:      c.Options.RoomName,
+				Curve:     c.Options.Curve,
+				Initiator: initiator,
+				Responder: dataMessage.Bytes,
+				Salt:      dataMessage.Bytes2,
+			})
+			if err != nil {
+				return err
+			}
+			kA := keys.EncryptionKey
 
 			// secure ipRequest
 			data, err = crypt.Encrypt([]byte(ipRequest), kA)
@@ -1771,7 +1872,8 @@ func (c *Client) Receive() (err error) {
 		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
 	}
 	log.Debug("exchanged header message")
-	fmt.Fprintf(os.Stderr, "\rsecuring channel...")
+	output, _ = termui.Output(os.Stderr)
+	fmt.Fprint(output, "\rsecuring channel...")
 	err = c.transferWithReconnect(func(attempt int) error {
 		if attempt == 0 {
 			return nil
@@ -1780,7 +1882,8 @@ func (c *Client) Receive() (err error) {
 	})
 	if err == nil {
 		if c.numberOfTransferredFiles+len(c.EmptyFoldersToTransfer) == 0 {
-			fmt.Fprintf(os.Stderr, "\rNo files transferred.\n")
+			output, _ = termui.Output(os.Stderr)
+			fmt.Fprint(output, "\rNo files transferred.\n")
 		}
 	} else if !isTransferDisconnectError(err) {
 		c.SendError()
@@ -1801,10 +1904,13 @@ func (c *Client) transfer() (err error) {
 	// if recipient, initialize with sending pake information
 	log.Debug("ready")
 	if !c.Options.IsSender && !c.Step1ChannelSecured {
+		c.pakeInitiator = append([]byte(nil), c.Pake.Bytes()...)
+		c.pakeCurve = c.Options.Curve
 		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:   message.TypePAKE,
-			Bytes:  c.Pake.Bytes(),
-			Bytes2: []byte(c.Options.Curve),
+			Type:    message.TypePAKE,
+			Version: pakekey.ProtocolVersion,
+			Bytes:   c.pakeInitiator,
+			Bytes2:  []byte(c.Options.Curve),
 		})
 		if err != nil {
 			return
@@ -1930,19 +2036,9 @@ func (c *Client) createEmptyFolder(i int) (err error) {
 	if err != nil {
 		return
 	}
-	fmt.Fprintf(os.Stderr, "%s\n", c.EmptyFoldersToTransfer[i].FolderRemote)
-	c.bar = progressbar.NewOptions64(1,
-		progressbar.OptionOnCompletion(func() {
-			c.fmtPrintUpdate()
-		}),
-		progressbar.OptionSetWidth(20),
-		progressbar.OptionSetDescription(" "),
-		progressbar.OptionSetRenderBlankState(true),
-		progressbar.OptionShowBytes(true),
-		progressbar.OptionShowCount(),
-		progressbar.OptionSetWriter(os.Stderr),
-		progressbar.OptionSetVisibility(!c.Options.SendingText),
-	)
+	output, colorEnabled := termui.Output(os.Stderr)
+	fmt.Fprintln(output, termui.Filename(c.EmptyFoldersToTransfer[i].FolderRemote, colorEnabled))
+	c.bar = c.newProgressBar(1, " ", 0)
 	c.bar.Finish()
 	return
 }
@@ -1985,8 +2081,10 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 
 	fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
 	folderName := fmt.Sprintf("%d folders", c.TotalNumberFolders)
+	displayName := ""
 	if len(c.FilesToTransfer) == 1 {
-		fname = fmt.Sprintf("'%s'", c.FilesToTransfer[0].Name)
+		displayName = c.FilesToTransfer[0].Name
+		fname = quotedFilename(displayName, false)
 	}
 	totalSize := int64(0)
 	for i, fi := range c.FilesToTransfer {
@@ -2012,16 +2110,22 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	if c.Options.SendingText {
 		action = "Display"
 		fname = "text message"
+		displayName = ""
 	}
 	if !c.Options.NoPrompt || c.Options.Ask || senderInfo.Ask {
+		output, colorEnabled := termui.Output(os.Stderr)
+		if displayName != "" {
+			fname = quotedFilename(displayName, colorEnabled)
+		}
+		choicePrompt := termui.Emphasis("(Y/n)", colorEnabled)
 		if c.Options.Ask || senderInfo.Ask {
 			machID, _ := machineid.ID()
-			fmt.Fprintf(os.Stderr, "\rYour machine id is '%s'.\n%s %s (%s) from '%s'? (Y/n) ", machID, action, fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID)
+			fmt.Fprintf(output, "\rYour machine id is '%s'.\n%s %s (%s) from '%s'? %s ", machID, action, fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID, choicePrompt)
 		} else {
 			if c.TotalNumberFolders > 0 {
-				fmt.Fprintf(os.Stderr, "\r%s %s and %s (%s)? (Y/n) ", action, fname, folderName, utils.ByteCountDecimal(totalSize))
+				fmt.Fprintf(output, "\r%s %s and %s (%s)? %s ", action, fname, folderName, utils.ByteCountDecimal(totalSize), choicePrompt)
 			} else {
-				fmt.Fprintf(os.Stderr, "\r%s %s (%s)? (Y/n) ", action, fname, utils.ByteCountDecimal(totalSize))
+				fmt.Fprintf(output, "\r%s %s (%s)? %s ", action, fname, utils.ByteCountDecimal(totalSize), choicePrompt)
 			}
 		}
 		choice, errInput := utils.GetInput("")
@@ -2037,9 +2141,14 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 			return true, fmt.Errorf("refused files")
 		}
 	} else {
-		fmt.Fprintf(os.Stderr, "\rReceiving %s (%s) \n", fname, utils.ByteCountDecimal(totalSize))
+		output, colorEnabled := termui.Output(os.Stderr)
+		if displayName != "" {
+			fname = quotedFilename(displayName, colorEnabled)
+		}
+		fmt.Fprintf(output, "\rReceiving %s (%s) \n", fname, utils.ByteCountDecimal(totalSize))
 	}
-	fmt.Fprintf(os.Stderr, "\nReceiving (<-%s)\n", c.ExternalIPConnected)
+	output, _ := termui.Output(os.Stderr)
+	fmt.Fprintf(output, "\nReceiving (<-%s)\n", c.ExternalIPConnected)
 
 	for i := 0; i < len(c.EmptyFoldersToTransfer); i += 1 {
 		_, errExists := os.Stat(c.EmptyFoldersToTransfer[i].FolderRemote)
@@ -2052,9 +2161,13 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 			isEmpty, _ := isEmptyFolder(c.EmptyFoldersToTransfer[i].FolderRemote)
 			if !isEmpty {
 				log.Debug("asking to overwrite")
-				prompt := fmt.Sprintf("\n%s already has some content in it. \nDo you want"+
-					" to overwrite it with an empty folder? (y/N) ", c.EmptyFoldersToTransfer[i].FolderRemote)
-				choice, _ := utils.GetInput(prompt)
+				output, colorEnabled := termui.Output(os.Stderr)
+				fmt.Fprintf(output, "\n%s already has some content in it. \nDo you want to %s it with an empty folder? %s ",
+					termui.Filename(c.EmptyFoldersToTransfer[i].FolderRemote, colorEnabled),
+					termui.Warning("overwrite", colorEnabled),
+					termui.Warning("(y/N)", colorEnabled),
+				)
+				choice, _ := utils.GetInput("")
 				choice = strings.ToLower(choice)
 				if choice == "y" || choice == "yes" {
 					err = c.createEmptyFolder(i)
@@ -2096,56 +2209,138 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 		}
 	}()
 	log.Debug("received pake payload")
+	if m.Version != pakekey.ProtocolVersion {
+		return incompatiblePakeVersionError{got: m.Version}
+	}
+	if c.pakeConfirmationPending || c.Key != nil {
+		return pakeHandshakeError{err: fmt.Errorf("unexpected duplicate PAKE payload")}
+	}
 
 	var salt []byte
 	if c.Options.IsSender {
 		// initialize curve based on the recipient's choice
-		log.Debugf("using curve %s", string(m.Bytes2))
-		c.Pake, err = pake.InitCurve([]byte(c.Options.SharedSecret[5:]), 1, string(m.Bytes2))
+		c.pakeCurve = string(m.Bytes2)
+		log.Debugf("using curve %s", c.pakeCurve)
+		c.Pake, err = pakekey.Init(
+			[]byte(c.pakePassphrase),
+			1,
+			c.pakeCurve,
+			pakekey.PurposeTransfer,
+			c.Options.RoomName,
+		)
 		if err != nil {
 			log.Error(err)
 			return pakeHandshakeError{err: err}
 		}
 
 		// update the pake
+		c.pakeInitiator = append([]byte(nil), m.Bytes...)
 		err = c.Pake.Update(m.Bytes)
 		if err != nil {
 			return pakeHandshakeError{err: err}
 		}
+		c.pakeResponder = append([]byte(nil), c.Pake.Bytes()...)
 
 		// generate salt and send it back to recipient
 		log.Debug("generating salt")
-		salt = make([]byte, 8)
+		salt = make([]byte, pakekey.SaltSize)
 		if _, rerr := rand.Read(salt); rerr != nil {
 			log.Errorf("can't generate random numbers: %v", rerr)
 			return pakeHandshakeError{err: rerr}
 		}
+		if err = c.derivePakeKeys(salt); err != nil {
+			return pakeHandshakeError{err: err}
+		}
+		c.pakeConfirmationPending = true
 		log.Debug("sender sending pake+salt")
-		err = message.Send(c.conn[0], c.Key, message.Message{
-			Type:   message.TypePAKE,
-			Bytes:  c.Pake.Bytes(),
-			Bytes2: salt,
+		err = message.Send(c.conn[0], nil, message.Message{
+			Type:    message.TypePAKE,
+			Version: pakekey.ProtocolVersion,
+			Bytes:   c.pakeResponder,
+			Bytes2:  salt,
 		})
 		if err != nil {
 			return pakeHandshakeError{err: err}
 		}
 	} else {
+		if len(c.pakeInitiator) == 0 || c.pakeCurve == "" {
+			return pakeHandshakeError{err: fmt.Errorf("PAKE response arrived before initialization")}
+		}
+		if len(m.Bytes2) != pakekey.SaltSize {
+			return pakeHandshakeError{err: fmt.Errorf("invalid PAKE salt length %d", len(m.Bytes2))}
+		}
+		c.pakeResponder = append([]byte(nil), m.Bytes...)
 		err = c.Pake.Update(m.Bytes)
 		if err != nil {
 			return pakeHandshakeError{err: err}
 		}
-		salt = m.Bytes2
+		salt = append([]byte(nil), m.Bytes2...)
+		if err = c.derivePakeKeys(salt); err != nil {
+			return pakeHandshakeError{err: err}
+		}
+		c.pakeConfirmationPending = true
+		err = message.Send(c.conn[0], nil, message.Message{
+			Type:    message.TypePAKEConfirm,
+			Version: pakekey.ProtocolVersion,
+			Bytes:   c.pakeKeys.ConfirmationA,
+		})
+		if err != nil {
+			return pakeHandshakeError{err: err}
+		}
 	}
-	// generate key
-	key, err := c.Pake.SessionKey()
+	return nil
+}
+
+func (c *Client) derivePakeKeys(salt []byte) error {
+	sharedKey, err := c.Pake.SessionKey()
 	if err != nil {
-		return pakeHandshakeError{err: err}
+		return err
 	}
-	c.Key, _, err = crypt.New(key, salt)
+	c.pakeKeys, err = pakekey.Derive(sharedKey, pakekey.Context{
+		Purpose:   pakekey.PurposeTransfer,
+		Room:      c.Options.RoomName,
+		Curve:     c.pakeCurve,
+		Initiator: c.pakeInitiator,
+		Responder: c.pakeResponder,
+		Salt:      salt,
+	})
 	if err != nil {
-		return pakeHandshakeError{err: err}
+		return err
 	}
-	log.Debugf("generated key = %+x with salt %x", c.Key, salt)
+	return nil
+}
+
+func (c *Client) processMessagePakeConfirm(m message.Message, attempt *transferAttemptState) error {
+	if m.Version != pakekey.ProtocolVersion {
+		return incompatiblePakeVersionError{got: m.Version}
+	}
+	if !c.pakeConfirmationPending || len(c.pakeKeys.EncryptionKey) == 0 || c.Key != nil {
+		return pakeHandshakeError{err: fmt.Errorf("unexpected PAKE confirmation")}
+	}
+
+	if c.Options.IsSender {
+		if !pakekey.Confirm(c.pakeKeys.ConfirmationA, m.Bytes) {
+			return pakeHandshakeError{err: fmt.Errorf("recipient PAKE confirmation failed")}
+		}
+		if err := message.Send(c.conn[0], nil, message.Message{
+			Type:    message.TypePAKEConfirm,
+			Version: pakekey.ProtocolVersion,
+			Bytes:   c.pakeKeys.ConfirmationB,
+		}); err != nil {
+			return pakeHandshakeError{err: err}
+		}
+	} else if !pakekey.Confirm(c.pakeKeys.ConfirmationB, m.Bytes) {
+		return pakeHandshakeError{err: fmt.Errorf("sender PAKE confirmation failed")}
+	}
+
+	c.Key = append([]byte(nil), c.pakeKeys.EncryptionKey...)
+	c.pakeKeys = pakekey.Keys{}
+	c.pakeConfirmationPending = false
+	return c.activateSecureChannel(attempt)
+}
+
+func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error) {
+	log.Debug("PAKE key confirmation succeeded")
 
 	// connects to the other ports of the server for transfer
 	var wg sync.WaitGroup
@@ -2201,7 +2396,7 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:    message.TypeExternalIP,
 			Message: c.ExternalIP,
-			Bytes:   m.Bytes,
+			Bytes:   c.pakeResponder,
 		})
 	}
 	return
@@ -2235,10 +2430,8 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		return
 	}
 
-	// only "pake" messages should be unencrypted
-	// if a non-"pake" message is received unencrypted something
-	// is weird
-	if m.Type != message.TypePAKE && c.Key == nil {
+	// Only PAKE setup and confirmation messages may be unencrypted.
+	if m.Type != message.TypePAKE && m.Type != message.TypePAKEConfirm && c.Key == nil {
 		err = fmt.Errorf("unencrypted communication rejected")
 		done = true
 		return
@@ -2254,6 +2447,11 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		return
 	case message.TypePAKE:
 		err = c.processMessagePake(m, attempt)
+		if err != nil {
+			log.Debug(err)
+		}
+	case message.TypePAKEConfirm:
+		err = c.processMessagePakeConfirm(m, attempt)
 		if err != nil {
 			log.Debug(err)
 		}
@@ -2289,7 +2487,11 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		c.markTransferStarted()
 
 		if c.Options.Ask {
-			fmt.Fprintf(os.Stderr, "Send to machine '%s'? (Y/n) ", remoteFile.MachineID)
+			output, colorEnabled := termui.Output(os.Stderr)
+			fmt.Fprintf(output, "Send to machine '%s'? %s ",
+				remoteFile.MachineID,
+				termui.Emphasis("(Y/n)", colorEnabled),
+			)
 			choice, errInput := utils.GetInput("")
 			choice = strings.ToLower(choice)
 			if errInput != nil || (choice != "" && choice != "y" && choice != "yes") {
@@ -2576,18 +2778,7 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	} else {
 		description = " " + description
 	}
-	c.bar = progressbar.NewOptions64(1,
-		progressbar.OptionOnCompletion(func() {
-			c.fmtPrintUpdate()
-		}),
-		progressbar.OptionSetWidth(20),
-		progressbar.OptionSetDescription(formatDescription(description)),
-		progressbar.OptionSetRenderBlankState(true),
-		progressbar.OptionShowBytes(true),
-		progressbar.OptionShowCount(),
-		progressbar.OptionSetWriter(os.Stderr),
-		progressbar.OptionSetVisibility(!c.Options.SendingText),
-	)
+	c.bar = c.newProgressBar(1, formatDescription(description), 0)
 	c.bar.Finish()
 	return
 }
@@ -2629,7 +2820,8 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
 			if errHash == nil && errRecipientFile == nil && !strings.HasPrefix(fileInfo.Name, "croc-stdin-") && !c.Options.SendingText && c.Options.Rename {
 				newName := utils.UnusedFilename(fileInfo.FolderRemote, fileInfo.Name)
-				fmt.Fprintf(os.Stderr, "Receiving '%s' as '%s'\n", fileInfo.Name, newName)
+				output, colorEnabled := termui.Output(os.Stderr)
+				fmt.Fprintf(output, "Receiving %s as %s\n", quotedFilename(fileInfo.Name, colorEnabled), quotedFilename(newName, colorEnabled))
 				c.FilesToTransfer[i].Name = newName
 				fileInfo.Name = newName
 			}
@@ -2643,14 +2835,32 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 				percentDone := 100 - float64(len(missingChunks)*models.TCP_BUFFER_SIZE/2)/float64(fileInfo.Size)*100
 
 				log.Debug("asking to overwrite")
-				prompt := fmt.Sprintf("\nOverwrite '%s'? (y/N) (use --overwrite to omit) ", path.Join(fileInfo.FolderRemote, fileInfo.Name))
+				action := "Overwrite"
+				promptDetail := ""
+				promptSpacing := " "
 				if percentDone < 99 {
-					prompt = fmt.Sprintf("\nResume '%s' (%2.1f%%)? (y/N)   (use --overwrite to omit) ", path.Join(fileInfo.FolderRemote, fileInfo.Name), percentDone)
+					action = "Resume"
+					promptDetail = fmt.Sprintf(" (%2.1f%%)", percentDone)
+					promptSpacing = "   "
 				}
-				choice, _ := utils.GetInput(prompt)
+				output, colorEnabled := termui.Output(os.Stderr)
+				styledAction := termui.Warning(action, colorEnabled)
+				styledChoice := termui.Warning("(y/N)", colorEnabled)
+				if action == "Resume" {
+					styledAction = action
+					styledChoice = termui.Emphasis("(y/N)", colorEnabled)
+				}
+				fmt.Fprintf(output, "\n%s %s%s? %s%s(use --overwrite to omit) ",
+					styledAction,
+					quotedFilename(path.Join(fileInfo.FolderRemote, fileInfo.Name), colorEnabled),
+					promptDetail,
+					styledChoice,
+					promptSpacing,
+				)
+				choice, _ := utils.GetInput("")
 				choice = strings.ToLower(choice)
 				if choice != "y" && choice != "yes" {
-					fmt.Fprintf(os.Stderr, "Skipping '%s'\n", path.Join(fileInfo.FolderRemote, fileInfo.Name))
+					fmt.Fprintf(output, "Skipping %s\n", quotedFilename(path.Join(fileInfo.FolderRemote, fileInfo.Name), colorEnabled))
 					continue
 				}
 			}
@@ -2675,7 +2885,8 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			c.numberOfTransferredFiles++
 			newFolder, _ := filepath.Split(fileInfo.FolderRemote)
 			if newFolder != c.LastFolder && len(c.FilesToTransfer) > 0 && !c.Options.SendingText && newFolder != "./" {
-				fmt.Fprintf(os.Stderr, "\r%s\n", newFolder)
+				output, colorEnabled := termui.Output(os.Stderr)
+				fmt.Fprintf(output, "\r%s\n", termui.Filename(newFolder, colorEnabled))
 			}
 			c.LastFolder = newFolder
 			break
@@ -2688,7 +2899,8 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 func (c *Client) fmtPrintUpdate() {
 	c.finishedNum++
 	if c.TotalNumberOfContents > 1 {
-		fmt.Fprintf(os.Stderr, " %d/%d\n", c.finishedNum, c.TotalNumberOfContents)
+		output, colorEnabled := termui.Output(os.Stderr)
+		fmt.Fprintln(output, termui.Success(fmt.Sprintf(" %d/%d", c.finishedNum, c.TotalNumberOfContents), colorEnabled))
 	} else {
 		fmt.Fprintf(os.Stderr, "\n")
 	}
@@ -2709,7 +2921,8 @@ func (c *Client) updateState(attempt *transferAttemptState) (err error) {
 		log.Debug("start sending data!")
 
 		if !c.firstSend {
-			fmt.Fprintf(os.Stderr, "\nSending (->%s)\n", c.ExternalIPConnected)
+			output, _ := termui.Output(os.Stderr)
+			fmt.Fprintf(output, "\nSending (->%s)\n", c.ExternalIPConnected)
 			c.firstSend = true
 			// if there are empty files, show them as already have been transferred now
 			for i := range c.FilesToTransfer {
@@ -2721,18 +2934,7 @@ func (c *Client) updateState(attempt *transferAttemptState) (err error) {
 						// description = ""
 					}
 
-					c.bar = progressbar.NewOptions64(1,
-						progressbar.OptionOnCompletion(func() {
-							c.fmtPrintUpdate()
-						}),
-						progressbar.OptionSetWidth(20),
-						progressbar.OptionSetDescription(formatDescription(description)),
-						progressbar.OptionSetRenderBlankState(true),
-						progressbar.OptionShowBytes(true),
-						progressbar.OptionShowCount(),
-						progressbar.OptionSetWriter(os.Stderr),
-						progressbar.OptionSetVisibility(!c.Options.SendingText),
-					)
+					c.bar = c.newProgressBar(1, formatDescription(description), 0)
 					c.bar.Finish()
 				}
 			}
@@ -2769,19 +2971,10 @@ func (c *Client) setBar() {
 	} else if !c.Options.IsSender {
 		description = " " + description
 	}
-	c.bar = progressbar.NewOptions64(
+	c.bar = c.newProgressBar(
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
-		progressbar.OptionOnCompletion(func() {
-			c.fmtPrintUpdate()
-		}),
-		progressbar.OptionSetWidth(20),
-		progressbar.OptionSetDescription(formatDescription(description)),
-		progressbar.OptionSetRenderBlankState(true),
-		progressbar.OptionShowBytes(true),
-		progressbar.OptionShowCount(),
-		progressbar.OptionSetWriter(os.Stderr),
-		progressbar.OptionThrottle(100*time.Millisecond),
-		progressbar.OptionSetVisibility(!c.Options.SendingText),
+		formatDescription(description),
+		100*time.Millisecond,
 	)
 	byteToDo := int64(len(c.CurrentFileChunks) * models.TCP_BUFFER_SIZE / 2)
 	if byteToDo > 0 {
@@ -2821,7 +3014,15 @@ func (c *Client) receiveData(i int, dataConn *comm.Comm, attempt *transferAttemp
 			return
 		}
 		if !c.Options.NoCompress {
-			data = compress.Decompress(data)
+			data, err = compress.Decompress(data, maxDecompressedChunkSize)
+			if err != nil {
+				attempt.report(fmt.Errorf("decompress data chunk: %w", err))
+				return
+			}
+		}
+		if len(data) < 9 || len(data) > maxDecompressedChunkSize {
+			attempt.report(fmt.Errorf("invalid data chunk size: %d", len(data)))
+			return
 		}
 
 		// get position
@@ -3042,10 +3243,11 @@ func copyToClipboard(str string, quiet bool, extendedClipboard bool) {
 		return
 	}
 	if !quiet {
+		output, colorEnabled := termui.Output(os.Stderr)
 		if extendedClipboard {
-			fmt.Fprintf(os.Stderr, "Command copied to clipboard!\n")
+			fmt.Fprintln(output, termui.Success("Command copied to clipboard!", colorEnabled))
 		} else {
-			fmt.Fprintf(os.Stderr, "Code copied to clipboard!\n")
+			fmt.Fprintln(output, termui.Success("Code copied to clipboard!", colorEnabled))
 		}
 	}
 }

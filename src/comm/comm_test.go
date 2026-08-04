@@ -125,3 +125,73 @@ func TestReceiveAllowsLargeMessage(t *testing.T) {
 	assert.Nil(t, <-writeErr)
 	assert.GreaterOrEqual(t, messageBodyReadTimeout, time.Minute)
 }
+
+func TestReceiveWithDeadlineTimesOutWhileReadingHeader(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	c := New(clientConn)
+	_, err := c.ReceiveWithDeadline(time.Now().Add(50 * time.Millisecond))
+	assertTimeoutError(t, err)
+}
+
+func TestReceiveWithDeadlineClampsMessageBodyRead(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	c := New(clientConn)
+	writeErr := make(chan error, 1)
+	go func() {
+		header := new(bytes.Buffer)
+		header.Write(MAGIC_BYTES)
+		if err := binary.Write(header, binary.LittleEndian, uint32(4)); err != nil {
+			writeErr <- err
+			return
+		}
+		header.WriteByte('a')
+		_, err := serverConn.Write(header.Bytes())
+		writeErr <- err
+	}()
+
+	_, err := c.ReceiveWithDeadline(time.Now().Add(50 * time.Millisecond))
+	assertTimeoutError(t, err)
+	assert.Nil(t, <-writeErr)
+}
+
+func TestReceiveWithDeadlineRemainsAbsoluteAcrossMessages(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	c := New(clientConn)
+	deadline := time.Now().Add(250 * time.Millisecond)
+	writeErr := make(chan error, 1)
+	go func() {
+		_, err := New(serverConn).Write([]byte("first"))
+		writeErr <- err
+	}()
+
+	data, err := c.ReceiveWithDeadline(deadline)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("first"), data)
+	assert.NoError(t, <-writeErr)
+
+	time.Sleep(150 * time.Millisecond)
+	started := time.Now()
+	_, err = c.ReceiveWithDeadline(deadline)
+	assertTimeoutError(t, err)
+	assert.Less(t, time.Since(started), 175*time.Millisecond)
+}
+
+func assertTimeoutError(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("expected a timeout error")
+	}
+	netErr, ok := err.(net.Error)
+	if !ok || !netErr.Timeout() {
+		t.Fatalf("expected a network timeout, got %T: %v", err, err)
+	}
+}

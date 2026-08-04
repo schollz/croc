@@ -16,8 +16,15 @@ import {
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
 import { driver, type DriveStep, type Driver } from "driver.js";
-import { trackTransferEvent, transferEvents } from "./analytics";
-import { formatGeneratedCode } from "./codes";
+import {
+  loadAnalytics,
+  readAnalyticsConsent,
+  saveAnalyticsConsent,
+  trackTransferEvent,
+  transferEvents,
+  unloadAnalytics,
+  type AnalyticsConsent,
+} from "./analytics";
 import { errorMessage, formatBytes } from "./protocol/bytes";
 import {
   prepareFiles,
@@ -72,12 +79,12 @@ import {
   type GitHubRelease,
 } from "./releases";
 import { wasm } from "./wasm/client";
+import { PrivacyModal } from "./privacy-modal";
 
 type Activity = "idle" | "working" | "done" | "error";
 type Theme = "dark" | "light";
 type CopyState = "idle" | "copied" | "error";
 
-const compactCodeQuery = "(max-width: 460px)";
 const runtimeSettings = window.__CROC_RUNTIME_CONFIG__ ?? {};
 const requestedReceiveCode =
   new URLSearchParams(window.location.search).get("code")?.trim() ?? "";
@@ -107,6 +114,21 @@ const otherTools = [
     description: "yes/no alerts when websites change",
     href: "https://yesnotice.com",
     name: "yesnotice",
+  },
+  {
+    description: "find a piano wherever you are",
+    href: "https://pianos.pub",
+    name: "pianos.pub",
+  },
+  {
+    description: "strange roadside detours",
+    href: "https://makemydrivefun.com",
+    name: "makemydrivefun",
+  },
+  {
+    description: "claymation in browsers",
+    href: "https://makestopmotion.com",
+    name: "makestopmotion",
   },
 ];
 const defaultSettings: TransferSettings = {
@@ -193,25 +215,6 @@ function initialTheme(): Theme {
   return window.matchMedia?.("(prefers-color-scheme: light)").matches
     ? "light"
     : "dark";
-}
-
-function useCompactCodes() {
-  const [compact, setCompact] = useState(
-    () =>
-      typeof window.matchMedia === "function" &&
-      window.matchMedia(compactCodeQuery).matches,
-  );
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const mediaQuery = window.matchMedia(compactCodeQuery);
-    const updateCompact = () => setCompact(mediaQuery.matches);
-    updateCompact();
-    mediaQuery.addEventListener("change", updateCompact);
-    return () => mediaQuery.removeEventListener("change", updateCompact);
-  }, []);
-
-  return compact;
 }
 
 function ProgressBlock({
@@ -423,8 +426,11 @@ function CliDownload() {
 
 export function App() {
   const restoredStoredUpload = useMemo(restoreStoredUpload, []);
+  const [privacy, setPrivacy] = useState(() => {
+    const choice = readAnalyticsConsent();
+    return { choice, open: choice === null };
+  });
   const [theme, setTheme] = useState<Theme>(initialTheme);
-  const compactCodes = useCompactCodes();
   const [settings, setSettings] = useState<TransferSettings>(() => ({
     gatewayURL: storedValue("croc-web-gateway", defaultSettings.gatewayURL),
     relayAddress: storedValue(
@@ -476,6 +482,19 @@ export function App() {
   const receivePanel = useRef<HTMLFormElement>(null);
   const copyReset = useRef<number>(undefined);
   const tour = useRef<Driver>(undefined);
+
+  useEffect(() => {
+    if (privacy.choice === "accepted") {
+      loadAnalytics();
+    } else {
+      unloadAnalytics();
+    }
+  }, [privacy.choice]);
+
+  function choosePrivacy(choice: AnalyticsConsent) {
+    saveAnalyticsConsent(choice);
+    setPrivacy({ choice, open: false });
+  }
 
   const totalSelectedSize = useMemo(
     () => selectedFiles.reduce((total, file) => total + file.size, 0),
@@ -531,9 +550,7 @@ export function App() {
       .randomCode()
       .then((code) => {
         if (active) {
-          setSendCode(
-            (current) => current || formatGeneratedCode(code, compactCodes),
-          );
+          setSendCode((current) => current || code);
         }
       })
       .catch((error) => {
@@ -584,9 +601,7 @@ export function App() {
   async function regenerateCode() {
     if (sendActivity === "working") return;
     setCopyState("idle");
-    setSendCode(
-      formatGeneratedCode(await wasm().randomCode(), compactCodes),
-    );
+    setSendCode(await wasm().randomCode());
   }
 
   async function copyValue(value: string) {
@@ -936,7 +951,8 @@ export function App() {
   const receiveBusy = receiveActivity === "working";
 
   return (
-    <main className="site-shell">
+    <>
+      <main className="site-shell">
       <aside className="donation-banner" aria-label="Support croc">
         <div className="donation-copy">
           <Heart aria-hidden="true" />
@@ -1105,56 +1121,60 @@ export function App() {
 
           {sendMode === "direct" && (
             <>
-            <label className="field-label" htmlFor="send-code">
-              Croc code
-            </label>
-            <div className="field-with-actions">
-            <input
-              id="send-code"
-              value={sendCode}
-              disabled={sendBusy}
-              spellCheck={false}
-              autoComplete="off"
-              onChange={(event) => {
-                setCopyState("idle");
-                setSendCode(event.target.value);
-              }}
-            />
-            <button
-              className="field-action"
-              type="button"
-              aria-label="Generate a new code"
-              disabled={sendBusy}
-              onClick={() => void regenerateCode()}
-            >
-              <RefreshCw />
-            </button>
-            <button
-              className="field-action"
-              type="button"
-              aria-label={copyState === "copied" ? "Code copied" : "Copy code"}
-              disabled={!sendCode}
-              onClick={() => void copyValue(sendCode)}
-            >
-              {copyState === "copied" ? <Check /> : <Copy />}
-            </button>
-            <span
-              className={`copy-feedback ${copyState}`}
-              role="status"
-              aria-live="polite"
-            >
-              {copyState === "copied"
-                ? "Copied"
-                : copyState === "error"
-                  ? "Copy failed"
-                  : ""}
-            </span>
-            </div>
-            <ShareQRCode
-              value={directReceiveURL}
-              disabled={sendCode.trim().length < 6}
-              description="Scan with a phone to open the receive page. Keep this browser open while the direct transfer runs."
-            />
+              <label className="field-label" htmlFor="send-code">
+                Croc code
+              </label>
+              <div className="field-with-actions">
+                <input
+                  id="send-code"
+                  value={sendCode}
+                  disabled={sendBusy}
+                  spellCheck={false}
+                  autoComplete="off"
+                  onChange={(event) => {
+                    setCopyState("idle");
+                    setSendCode(event.target.value);
+                  }}
+                />
+                <button
+                  className="field-action"
+                  type="button"
+                  aria-label="Generate a new code"
+                  disabled={sendBusy}
+                  onClick={() => void regenerateCode()}
+                >
+                  <RefreshCw />
+                </button>
+                <button
+                  className="field-action"
+                  type="button"
+                  aria-label={copyState === "copied" ? "Code copied" : "Copy code"}
+                  disabled={!sendCode}
+                  onClick={() => void copyValue(sendCode)}
+                >
+                  {copyState === "copied" ? <Check /> : <Copy />}
+                </button>
+                <span
+                  className={`copy-feedback ${copyState}`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {copyState === "copied"
+                    ? "Copied"
+                    : copyState === "error"
+                      ? "Copy failed"
+                      : ""}
+                </span>
+              </div>
+              <p className="field-help">
+                Generated codes use the first two words to find the transfer
+                and the last two words to secure it.
+              </p>
+              <ShareQRCode
+                value={directReceiveURL}
+                disabled={sendCode.trim().length < 6}
+                description="Scan with a phone to open the receive page. Keep this browser open while the direct transfer runs."
+              />
             </>
           )}
 
@@ -1241,9 +1261,7 @@ export function App() {
             id="receive-code"
             value={receiveCode}
             disabled={receiveBusy}
-            placeholder={
-              compactCodes ? "1234-word-word or link" : "1234-word-word-word or encrypted link"
-            }
+            placeholder="word-word-word-word or encrypted link"
             spellCheck={false}
             autoComplete="off"
             onChange={(event) => setReceiveCode(event.target.value)}
@@ -1469,6 +1487,27 @@ export function App() {
           >
             github
           </a>
+          <span aria-hidden="true">·</span>
+          <button
+            className="footer-link-button"
+            type="button"
+            onClick={() =>
+              setPrivacy((current) => ({ ...current, open: true }))
+            }
+          >
+            privacy choices
+          </button>
+          <span aria-hidden="true">·</span>
+          <span>
+            hosted with{" "}
+            <a
+              href="https://disco.cloud"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              disco
+            </a>
+          </span>
         </div>
 
         <details className="tools-menu">
@@ -1489,6 +1528,16 @@ export function App() {
           </ul>
         </details>
       </footer>
-    </main>
+      </main>
+      {privacy.open && (
+        <PrivacyModal
+          currentChoice={privacy.choice}
+          onChoose={choosePrivacy}
+          onClose={() =>
+            setPrivacy((current) => ({ ...current, open: false }))
+          }
+        />
+      )}
+    </>
   );
 }

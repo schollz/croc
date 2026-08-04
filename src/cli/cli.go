@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/schollz/cli/v2"
+	"github.com/schollz/croc/v10/src/codephrase"
 	"github.com/schollz/croc/v10/src/comm"
 	"github.com/schollz/croc/v10/src/croc"
 	"github.com/schollz/croc/v10/src/models"
@@ -44,7 +45,7 @@ func newApp() *cli.App {
 	app := cli.NewApp()
 	app.Name = "croc"
 	if Version == "" {
-		Version = "10.7.0"
+		Version = "11.0.1"
 	}
 	app.Version = Version
 	app.Compiled = time.Now()
@@ -107,6 +108,9 @@ func newApp() *cli.App {
 				&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013", Usage: "ports of the relay", EnvVars: []string{"CROC_PORTS"}},
 				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay", EnvVars: []string{"CROC_PORT"}},
 				&cli.IntFlag{Name: "transfers", Value: 5, Usage: "number of ports to use for relay"},
+				&cli.IntFlag{Name: "max-rooms-open", Value: tcp.DEFAULT_MAX_ROOMS_OPEN, Usage: "maximum waiting rooms per relay port", EnvVars: []string{"CROC_MAX_ROOMS_OPEN"}},
+				&cli.IntFlag{Name: "max-pending-handshakes", Value: tcp.DEFAULT_MAX_PENDING_HANDSHAKES, Usage: "maximum incomplete handshakes per relay port", EnvVars: []string{"CROC_MAX_PENDING_HANDSHAKES"}},
+				&cli.DurationFlag{Name: "handshake-timeout", Value: tcp.DEFAULT_HANDSHAKE_TIMEOUT, Usage: "maximum time for an initial relay handshake", EnvVars: []string{"CROC_HANDSHAKE_TIMEOUT"}},
 			},
 		},
 		{
@@ -532,7 +536,10 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 
 	if len(crocOptions.SharedSecret) == 0 {
 		// generate code phrase
-		crocOptions.SharedSecret = utils.GetRandomName()
+		crocOptions.SharedSecret, err = codephrase.Generate()
+		if err != nil {
+			return fmt.Errorf("could not generate code phrase: %w", err)
+		}
 	}
 	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfoWithExactExclusions(fnames, crocOptions.ZipFolder, crocOptions.GitIgnore, crocOptions.Exclude, crocOptions.ExcludeFile)
 	if err != nil {
@@ -872,6 +879,18 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 
 func relay(c *cli.Context) (err error) {
 	log.Infof("starting croc relay version %v", Version)
+	maxRoomsOpen := c.Int("max-rooms-open")
+	if maxRoomsOpen <= 0 {
+		return fmt.Errorf("--max-rooms-open must be positive")
+	}
+	maxPendingHandshakes := c.Int("max-pending-handshakes")
+	if maxPendingHandshakes <= 0 {
+		return fmt.Errorf("--max-pending-handshakes must be positive")
+	}
+	handshakeTimeout := c.Duration("handshake-timeout")
+	if handshakeTimeout <= 0 {
+		return fmt.Errorf("--handshake-timeout must be positive")
+	}
 	debugString := "info"
 	if c.Bool("debug") {
 		debugString = "debug"
@@ -905,13 +924,30 @@ func relay(c *cli.Context) (err error) {
 			continue
 		}
 		go func(portStr string) {
-			err := tcp.Run(debugString, host, portStr, determinePass(c))
+			err := tcp.RunWithOptionsAsync(
+				host,
+				portStr,
+				determinePass(c),
+				tcp.WithLogLevel(debugString),
+				tcp.WithMaxRoomsOpen(maxRoomsOpen),
+				tcp.WithMaxPendingHandshakes(maxPendingHandshakes),
+				tcp.WithHandshakeTimeout(handshakeTimeout),
+			)
 			if err != nil {
 				panic(err)
 			}
 		}(port)
 	}
-	return tcp.Run(debugString, host, ports[0], determinePass(c), tcpPorts)
+	return tcp.RunWithOptionsAsync(
+		host,
+		ports[0],
+		determinePass(c),
+		tcp.WithBanner(tcpPorts),
+		tcp.WithLogLevel(debugString),
+		tcp.WithMaxRoomsOpen(maxRoomsOpen),
+		tcp.WithMaxPendingHandshakes(maxPendingHandshakes),
+		tcp.WithHandshakeTimeout(handshakeTimeout),
+	)
 }
 
 func runServe(c *cli.Context) error {

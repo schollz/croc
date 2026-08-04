@@ -24,6 +24,13 @@ const webAddress = process.env.CROC_E2E_WEB_ADDRESS ?? "/";
 const relayPassword = "pass123";
 const transferTimeout = 60_000;
 
+async function dismissPrivacy(page: Page) {
+  const dialog = page.getByRole("dialog", { name: "Optional analytics" });
+  if (await dialog.isVisible().catch(() => false)) {
+    await dialog.getByRole("button", { name: "Reject analytics" }).click();
+  }
+}
+
 type FixtureSet = {
   paths: string[];
   contents: Map<string, Buffer>;
@@ -137,6 +144,7 @@ function commonCLIArgs() {
 
 async function configurePage(page: Page) {
   await page.goto(webAddress);
+  await dismissPrivacy(page);
   await page.locator("details.settings > summary").click();
   await page.getByLabel("CLI relay address").fill(relayAddress);
   await page.getByLabel("WebSocket gateway").fill("/ws");
@@ -246,6 +254,7 @@ test("publishes rich metadata and project links", async ({ page }) => {
     },
   );
   await page.goto("/");
+  await dismissPrivacy(page);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
     "https://getcroc.com/",
@@ -282,11 +291,23 @@ test("publishes rich metadata and project links", async ({ page }) => {
     page.locator('footer a[href="https://yesnotice.com"]'),
   ).toContainText("yesnotice");
   await expect(
+    page.locator('footer a[href="https://pianos.pub"]'),
+  ).toContainText("find a piano wherever you are");
+  await expect(
+    page.locator('footer a[href="https://makemydrivefun.com"]'),
+  ).toContainText("strange roadside detours");
+  await expect(
+    page.locator('footer a[href="https://makestopmotion.com"]'),
+  ).toContainText("claymation in browsers");
+  await expect(
     page.getByRole("link", { name: "github", exact: true }),
   ).toHaveAttribute(
     "href",
     "https://github.com/schollz/croc",
   );
+  await expect(
+    page.getByRole("link", { name: "disco", exact: true }),
+  ).toHaveAttribute("href", "https://disco.cloud");
   await expect(
     page.getByRole("heading", { name: "Download croc for macOS." }),
   ).toBeVisible();
@@ -332,6 +353,7 @@ test("serves the installer to curl and the app to browsers", async ({
   );
 
   await page.goto("/");
+  await dismissPrivacy(page);
   await expect(
     page.getByRole("heading", { name: "Send files, secured end-to-end." }),
   ).toBeVisible();
@@ -340,10 +362,40 @@ test("serves the installer to curl and the app to browsers", async ({
   );
 });
 
+test("asks once for analytics consent and keeps the choice editable", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  const dialog = page.getByRole("dialog", { name: "Optional analytics" });
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "Reject analytics" }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "Allow analytics" }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "Close privacy choices" }),
+  ).toHaveCount(0);
+
+  await dialog.getByRole("button", { name: "Reject analytics" }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.reload();
+  await expect(dialog).toHaveCount(0);
+
+  await page.getByRole("button", { name: "privacy choices" }).click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("analytics off")).toBeVisible();
+  await dialog.getByRole("button", { name: "Close privacy choices" }).click();
+  await expect(dialog).toHaveCount(0);
+});
+
 test("receive links open with the Receive panel at the top", async ({
   page,
 }) => {
   await page.goto("/?code=x");
+  await dismissPrivacy(page);
 
   const receivePanel = page.locator("#receive");
   await expect(receivePanel).toBeVisible();
@@ -382,6 +434,7 @@ test("help tour explains browser transfers and end-to-end encryption", async ({
     },
   );
   await page.goto("/");
+  await dismissPrivacy(page);
   const helpButton = page.getByRole("button", { name: "How to use croc web" });
   const githubButton = page.getByRole("link", { name: "View croc on GitHub" });
   const themeButton = page.getByRole("button", { name: /Switch to .* mode/ });
@@ -453,10 +506,19 @@ test("copying a croc code shows confirmation", async ({ page }) => {
   await expect(panel.getByRole("button", { name: "Code copied" })).toBeVisible();
 });
 
+test("generates a complete four-word code on narrow screens", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await dismissPrivacy(page);
+  await expect(page.locator(".send-panel").getByLabel("Croc code")).toHaveValue(
+    /^[a-z]+-[a-z]+-[a-z]+-[a-z]+$/,
+  );
+});
+
 test("CLI → Web transfers and verifies multiple files", async ({
   page,
 }, testInfo) => {
-  const secret = "1111-cli-to-web-e2e";
+  const secret = "abbot-abide-abandon-abandoned";
   const fixtures = await createFixtures(testInfo);
   const configDirectory = testInfo.outputPath("croc-config");
   await fs.mkdir(configDirectory, { recursive: true });
@@ -520,7 +582,7 @@ test("CLI → Web verifies a large croc executable", async ({
 test("Web → CLI transfers and verifies multiple files", async ({
   page,
 }, testInfo) => {
-  const secret = "2222-web-to-cli-e2e";
+  const secret = "abode-above-abandoning-abandonment";
   const fixtures = await createFixtures(testInfo);
   const destination = testInfo.outputPath("received");
   const configDirectory = testInfo.outputPath("croc-config");
@@ -553,7 +615,7 @@ test("Web → CLI transfers and verifies multiple files", async ({
 test("Web → Web transfers and verifies multiple files", async ({
   browser,
 }, testInfo) => {
-  const secret = "3333-web-to-web-e2e";
+  const secret = "account-ache-abatement-abbey";
   const fixtures = await createFixtures(testInfo);
   const senderContext = await browser.newContext({ acceptDownloads: true });
   const receiverContext = await browser.newContext({ acceptDownloads: true });

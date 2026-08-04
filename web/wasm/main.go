@@ -3,19 +3,18 @@
 package main
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
 	"hash"
-	"math/big"
-	"strconv"
+	"math"
 	"sync"
 	"syscall/js"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/schollz/croc/v10/src/codephrase"
 	croccompress "github.com/schollz/croc/v10/src/compress"
 	"github.com/schollz/croc/v10/src/crypt"
-	"github.com/schollz/croc/v10/src/mnemonicode"
+	"github.com/schollz/croc/v10/src/pakekey"
 	"github.com/schollz/croc/v10/src/storecrypto"
 	"github.com/schollz/pake/v3"
 )
@@ -37,8 +36,11 @@ func main() {
 	}
 	api := js.Global().Get("Object").New()
 	b.expose(api, "pakeInit", b.pakeInit)
+	b.expose(api, "pakeInitWithIdentities", b.pakeInitWithIdentities)
 	b.expose(api, "pakeUpdate", b.pakeUpdate)
 	b.expose(api, "deriveKey", b.deriveKey)
+	b.expose(api, "derivePeerKeys", b.derivePeerKeys)
+	b.expose(api, "confirmPeerKey", b.confirmPeerKey)
 	b.expose(api, "encrypt", b.encrypt)
 	b.expose(api, "decrypt", b.decrypt)
 	b.expose(api, "compress", b.compress)
@@ -47,6 +49,7 @@ func main() {
 	b.expose(api, "hashUpdate", b.hashUpdate)
 	b.expose(api, "hashFinal", b.hashFinal)
 	b.expose(api, "randomCode", b.randomCode)
+	b.expose(api, "codeComponents", b.codeComponents)
 	b.expose(api, "sha256Init", b.sha256Init)
 	b.expose(api, "sha256Update", b.sha256Update)
 	b.expose(api, "sha256Final", b.sha256Final)
@@ -134,6 +137,36 @@ func (b *bridge) pakeInit(args []js.Value) (any, error) {
 	return result, nil
 }
 
+func (b *bridge) pakeInitWithIdentities(args []js.Value) (any, error) {
+	if len(args) != 5 {
+		return nil, fmt.Errorf("pakeInitWithIdentities expects password, role, curve, purpose, and room")
+	}
+	password, err := bytesFromJS(args[0])
+	if err != nil {
+		return nil, err
+	}
+	instance, err := pakekey.Init(
+		password,
+		args[1].Int(),
+		args[2].String(),
+		args[3].String(),
+		args[4].String(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	b.mu.Lock()
+	handle := b.allocateHandle()
+	b.pakes[handle] = instance
+	b.mu.Unlock()
+
+	result := js.Global().Get("Object").New()
+	result.Set("handle", handle)
+	result.Set("bytes", bytesToJS(instance.Bytes()))
+	return result, nil
+}
+
 func (b *bridge) pakeUpdate(args []js.Value) (any, error) {
 	if len(args) != 2 {
 		return nil, fmt.Errorf("pakeUpdate expects handle and peer bytes")
@@ -181,6 +214,59 @@ func (b *bridge) deriveKey(args []js.Value) (any, error) {
 		return nil, err
 	}
 	return bytesToJS(key), nil
+}
+
+func (b *bridge) derivePeerKeys(args []js.Value) (any, error) {
+	if len(args) != 7 {
+		return nil, fmt.Errorf("derivePeerKeys expects session key, salt, purpose, room, curve, initiator, and responder")
+	}
+	sharedKey, err := bytesFromJS(args[0])
+	if err != nil {
+		return nil, err
+	}
+	salt, err := bytesFromJS(args[1])
+	if err != nil {
+		return nil, err
+	}
+	initiator, err := bytesFromJS(args[5])
+	if err != nil {
+		return nil, err
+	}
+	responder, err := bytesFromJS(args[6])
+	if err != nil {
+		return nil, err
+	}
+	keys, err := pakekey.Derive(sharedKey, pakekey.Context{
+		Purpose:   args[2].String(),
+		Room:      args[3].String(),
+		Curve:     args[4].String(),
+		Initiator: initiator,
+		Responder: responder,
+		Salt:      salt,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := js.Global().Get("Object").New()
+	result.Set("key", bytesToJS(keys.EncryptionKey))
+	result.Set("confirmationA", bytesToJS(keys.ConfirmationA))
+	result.Set("confirmationB", bytesToJS(keys.ConfirmationB))
+	return result, nil
+}
+
+func (b *bridge) confirmPeerKey(args []js.Value) (any, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("confirmPeerKey expects expected and received tags")
+	}
+	expected, err := bytesFromJS(args[0])
+	if err != nil {
+		return nil, err
+	}
+	received, err := bytesFromJS(args[1])
+	if err != nil {
+		return nil, err
+	}
+	return pakekey.Confirm(expected, received), nil
 }
 
 func (b *bridge) encrypt(args []js.Value) (any, error) {
@@ -233,14 +319,27 @@ func (b *bridge) compress(args []js.Value) (any, error) {
 }
 
 func (b *bridge) decompress(args []js.Value) (any, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("decompress expects bytes")
+	if len(args) != 2 {
+		return nil, fmt.Errorf("decompress expects bytes and a byte limit")
+	}
+	if args[1].Type() != js.TypeNumber {
+		return nil, fmt.Errorf("decompress byte limit must be a non-negative safe integer")
+	}
+	maxOutputSize := args[1].Float()
+	const maxSafeInteger = 1<<53 - 1
+	if math.IsNaN(maxOutputSize) || math.IsInf(maxOutputSize, 0) ||
+		maxOutputSize < 0 || maxOutputSize > maxSafeInteger || math.Trunc(maxOutputSize) != maxOutputSize {
+		return nil, fmt.Errorf("decompress byte limit must be a non-negative safe integer")
 	}
 	input, err := bytesFromJS(args[0])
 	if err != nil {
 		return nil, err
 	}
-	return bytesToJS(croccompress.Decompress(input)), nil
+	decompressed, err := croccompress.Decompress(input, int64(maxOutputSize))
+	if err != nil {
+		return nil, err
+	}
+	return bytesToJS(decompressed), nil
 }
 
 func (b *bridge) hashInit(args []js.Value) (any, error) {
@@ -291,20 +390,22 @@ func (b *bridge) randomCode(args []js.Value) (any, error) {
 	if len(args) != 0 {
 		return nil, fmt.Errorf("randomCode expects no arguments")
 	}
-	pin := ""
-	max := big.NewInt(9)
-	for range 4 {
-		digit, err := rand.Int(rand.Reader, max)
-		if err != nil {
-			return nil, err
-		}
-		pin += strconv.FormatInt(digit.Int64(), 10)
+	return codephrase.Generate()
+}
+
+func (b *bridge) codeComponents(args []js.Value) (any, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("codeComponents expects a croc code")
 	}
-	entropy := make([]byte, 4)
-	if _, err := rand.Read(entropy); err != nil {
+	components, err := codephrase.Parse(args[0].String())
+	if err != nil {
 		return nil, err
 	}
-	return pin + "-" + joinWords(mnemonicode.EncodeWordList(nil, entropy)), nil
+	result := js.Global().Get("Object").New()
+	result.Set("room", components.RoomName)
+	result.Set("passphrase", components.PAKEPassphrase)
+	result.Set("format", string(components.Format))
+	return result, nil
 }
 
 func (b *bridge) sha256Init(args []js.Value) (any, error) {
@@ -475,15 +576,4 @@ func (b *bridge) storeOpenChunk(args []js.Value) (any, error) {
 		return nil, err
 	}
 	return bytesToJS(plaintext), nil
-}
-
-func joinWords(words []string) string {
-	result := ""
-	for index, word := range words {
-		if index > 0 {
-			result += "-"
-		}
-		result += word
-	}
-	return result
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { decodeMessage, encodeMessage } from "./codec";
+import { MAX_FRAME_SIZE } from "./framing";
 import type { CrocWasm } from "../wasm/client";
 
 function identityWasm() {
@@ -18,14 +19,17 @@ describe("control message codec", () => {
       engine,
       {
         t: "pake",
+        v: 2,
         b: new Uint8Array([0, 1, 2, 255]),
         b2: new Uint8Array([9, 8]),
       },
       new Uint8Array(32),
     );
     const decoded = await decodeMessage(engine, encoded, new Uint8Array(32));
+    expect(engine.decompress).toHaveBeenCalledWith(encoded, MAX_FRAME_SIZE);
     expect(decoded).toEqual({
       t: "pake",
+      v: 2,
       m: undefined,
       b: new Uint8Array([0, 1, 2, 255]),
       b2: new Uint8Array([9, 8]),

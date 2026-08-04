@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -43,6 +44,37 @@ func TestWebReceiveURL(t *testing.T) {
 		"https://getcroc.com/?code=1234-word%2Fword%3F%26",
 		webReceiveURL("1234-word/word?&"),
 	)
+}
+
+func TestRejectsUnsupportedPeerPakeVersion(t *testing.T) {
+	client := &Client{}
+	for _, test := range []struct {
+		name string
+		call func() error
+	}{
+		{
+			name: "setup",
+			call: func() error {
+				return client.processMessagePake(message.Message{Type: message.TypePAKE}, nil)
+			},
+		},
+		{
+			name: "confirmation",
+			call: func() error {
+				return client.processMessagePakeConfirm(message.Message{Type: message.TypePAKEConfirm}, nil)
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var versionErr incompatiblePakeVersionError
+			if err := test.call(); !errors.As(err, &versionErr) {
+				t.Fatalf("expected incompatible version error, got %v", err)
+			}
+			if !strings.Contains(versionErr.Error(), "upgrade both croc clients") {
+				t.Fatalf("version error is not actionable: %v", versionErr)
+			}
+		})
+	}
 }
 
 func TestDiscoverReceivePeersTimesOut(t *testing.T) {
@@ -387,11 +419,12 @@ func TestHostileExistingSymlinkParentRejected(t *testing.T) {
 
 func TestCrocReadme(t *testing.T) {
 	defer os.Remove("README.md")
+	const secret = "abbot-abide-abandon-abandoned"
 
 	log.Debug("setting up sender")
 	sender, err := New(Options{
 		IsSender:      true,
-		SharedSecret:  "8123-testingthecroc",
+		SharedSecret:  secret,
 		Debug:         true,
 		RelayAddress:  "127.0.0.1:8281",
 		RelayPorts:    []string{"8281"},
@@ -410,7 +443,7 @@ func TestCrocReadme(t *testing.T) {
 	log.Debug("setting up receiver")
 	receiver, err := New(Options{
 		IsSender:      false,
-		SharedSecret:  "8123-testingthecroc",
+		SharedSecret:  secret,
 		Debug:         true,
 		RelayAddress:  "127.0.0.1:8281",
 		RelayPassword: "pass123",

@@ -26,13 +26,13 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/kalafut/imohash"
 	"github.com/minio/highwayhash"
-	"github.com/schollz/croc/v10/src/mnemonicode"
+	"github.com/schollz/croc/v10/src/codephrase"
+	"github.com/schollz/croc/v10/src/termui"
 	log "github.com/schollz/logger"
 	"github.com/schollz/progressbar/v3"
 )
 
 const NbPinNumbers = 4
-const NbBytesWords = 4
 
 const maxProgressFilenameRunes = 20
 
@@ -106,7 +106,8 @@ var stdinReader = bufio.NewReader(os.Stdin)
 // exhausted stdin) the returned string is empty, so callers that treat
 // an empty answer as consent must check the error.
 func GetInput(prompt string) (string, error) {
-	fmt.Fprintf(os.Stderr, "%s", prompt)
+	output, colorEnabled := termui.Output(os.Stderr)
+	fmt.Fprint(output, termui.PromptChoices(prompt, colorEnabled))
 	text, err := stdinReader.ReadString('\n')
 	text = strings.TrimSpace(text)
 	if errors.Is(err, io.EOF) && text != "" {
@@ -326,13 +327,16 @@ func GenerateRandomPin() string {
 	return s
 }
 
-// GetRandomName returns mnemonicoded random name
+// GetRandomName returns a random four-word croc code.
+//
+// It retains its historical signature for callers outside croc. New code that
+// needs to handle a random-source failure should call codephrase.Generate.
 func GetRandomName() string {
-	var result []string
-	bs := make([]byte, NbBytesWords)
-	rand.Read(bs)
-	result = mnemonicode.EncodeWordList(result, bs)
-	return GenerateRandomPin() + "-" + strings.Join(result, "-")
+	name, err := codephrase.Generate()
+	if err != nil {
+		panic(err)
+	}
+	return name
 }
 
 // ByteCountDecimal converts bytes to human readable byte string
@@ -802,7 +806,28 @@ func RejectSymlinkPath(root, target string) error {
 	return nil
 }
 
+// ErrUnzipSizeLimit indicates that a zip archive would extract beyond the
+// configured output-size limit.
+var ErrUnzipSizeLimit = errors.New("zip extraction size limit exceeded")
+
+// UnzipDirectory extracts source into destination. By default, extraction is
+// limited to the archive's on-disk size. Croc-created zip archives use deflate
+// without compression, so their extracted contents fit within this limit.
 func UnzipDirectory(destination string, source string) error {
+	archiveInfo, err := os.Stat(source)
+	if err != nil {
+		return fmt.Errorf("failed to inspect zip file: %w", err)
+	}
+	return UnzipDirectoryWithLimit(destination, source, archiveInfo.Size())
+}
+
+// UnzipDirectoryWithLimit extracts source into destination while allowing at
+// most maxExtractedBytes bytes of regular-file output in total.
+func UnzipDirectoryWithLimit(destination string, source string, maxExtractedBytes int64) error {
+	if maxExtractedBytes <= 0 {
+		return fmt.Errorf("maximum extracted size must be positive: %d", maxExtractedBytes)
+	}
+
 	archive, err := zip.OpenReader(source)
 	if err != nil {
 		log.Error(err)
@@ -812,6 +837,7 @@ func UnzipDirectory(destination string, source string) error {
 
 	// Pre-validate all paths to avoid partial extraction on malicious archives.
 	filePaths := make([]string, len(archive.File))
+	remainingDeclaredBytes := uint64(maxExtractedBytes)
 	for i, f := range archive.File {
 		filePath, pathErr := resolveUnzipPath(destination, f.Name)
 		if pathErr != nil {
@@ -823,10 +849,24 @@ func UnzipDirectory(destination string, source string) error {
 			return fmt.Errorf("invalid file path in zip entry %q: %w", f.Name, pathErr)
 		}
 		filePaths[i] = filePath
+
+		if !f.FileInfo().IsDir() {
+			if f.UncompressedSize64 > remainingDeclaredBytes {
+				return fmt.Errorf(
+					"zip entry %q declares %d extracted bytes with %d bytes remaining: %w",
+					f.Name,
+					f.UncompressedSize64,
+					remainingDeclaredBytes,
+					ErrUnzipSizeLimit,
+				)
+			}
+			remainingDeclaredBytes -= f.UncompressedSize64
+		}
 	}
 
 	// Store modification times for all files and directories
 	modTimes := make(map[string]time.Time)
+	remainingExtractedBytes := maxExtractedBytes
 
 	// First pass: extract all files and directories, store modification times
 	for i, f := range archive.File {
@@ -872,25 +912,40 @@ func UnzipDirectory(destination string, source string) error {
 			}
 		}
 
-		dstFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-		if err != nil {
-			log.Error(err)
-			continue
-		}
-
 		fileInArchive, err := f.Open()
 		if err != nil {
 			log.Error(err)
-			dstFile.Close()
 			continue
 		}
 
-		if _, err := io.Copy(dstFile, fileInArchive); err != nil {
+		dstFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+		if err != nil {
 			log.Error(err)
+			fileInArchive.Close()
+			continue
 		}
 
-		dstFile.Close()
-		fileInArchive.Close()
+		_, copyErr := copyWithExtractedSizeLimit(dstFile, fileInArchive, &remainingExtractedBytes)
+		archiveCloseErr := fileInArchive.Close()
+		destinationCloseErr := dstFile.Close()
+		if copyErr != nil {
+			if removeErr := os.Remove(filePath); removeErr != nil && !os.IsNotExist(removeErr) {
+				log.Warnf("failed to remove partial zip output %s: %v", filePath, removeErr)
+			}
+			return fmt.Errorf("failed to extract zip entry %q: %w", f.Name, copyErr)
+		}
+		if archiveCloseErr != nil {
+			if removeErr := os.Remove(filePath); removeErr != nil && !os.IsNotExist(removeErr) {
+				log.Warnf("failed to remove zip output %s after close error: %v", filePath, removeErr)
+			}
+			return fmt.Errorf("failed to close zip entry %q: %w", f.Name, archiveCloseErr)
+		}
+		if destinationCloseErr != nil {
+			if removeErr := os.Remove(filePath); removeErr != nil && !os.IsNotExist(removeErr) {
+				log.Warnf("failed to remove zip output %s after close error: %v", filePath, removeErr)
+			}
+			return fmt.Errorf("failed to close extracted file for zip entry %q: %w", f.Name, destinationCloseErr)
+		}
 	}
 
 	// Second pass: restore modification times for ALL files and directories
@@ -909,6 +964,28 @@ func UnzipDirectory(destination string, source string) error {
 
 	fmt.Fprintf(os.Stderr, "\n")
 	return nil
+}
+
+func copyWithExtractedSizeLimit(destination io.Writer, source io.Reader, remainingBytes *int64) (int64, error) {
+	limitedSource := &io.LimitedReader{R: source, N: *remainingBytes}
+	written, err := io.Copy(destination, limitedSource)
+	*remainingBytes -= written
+	if err != nil {
+		return written, err
+	}
+	if limitedSource.N != 0 {
+		return written, nil
+	}
+
+	var probe [1]byte
+	probeBytes, probeErr := io.ReadFull(source, probe[:])
+	if probeBytes > 0 {
+		return written, ErrUnzipSizeLimit
+	}
+	if probeErr != nil && !errors.Is(probeErr, io.EOF) && !errors.Is(probeErr, io.ErrUnexpectedEOF) {
+		return written, probeErr
+	}
+	return written, nil
 }
 
 func resolveUnzipPath(destination string, entryName string) (string, error) {

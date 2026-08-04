@@ -5,12 +5,410 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
 	log "github.com/schollz/logger"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestMaxRoomsOpenOption(t *testing.T) {
+	s := newDefaultServer()
+	defer s.stop.Cancel()
+
+	assert.Equal(t, DEFAULT_MAX_ROOMS_OPEN, s.maxRoomsOpen)
+	assert.NoError(t, WithMaxRoomsOpen(7)(s))
+	assert.Equal(t, 7, s.maxRoomsOpen)
+	assert.Error(t, WithMaxRoomsOpen(0)(s))
+	assert.Error(t, WithMaxRoomsOpen(-1)(s))
+	assert.Equal(t, 7, s.maxRoomsOpen)
+}
+
+func TestHandshakeOptions(t *testing.T) {
+	s := newDefaultServer()
+	defer s.stop.Cancel()
+
+	assert.Equal(t, DEFAULT_MAX_PENDING_HANDSHAKES, s.maxPendingHandshakes)
+	assert.Equal(t, DEFAULT_HANDSHAKE_TIMEOUT, s.handshakeTimeout)
+
+	assert.NoError(t, WithMaxPendingHandshakes(7)(s))
+	assert.Equal(t, 7, s.maxPendingHandshakes)
+	assert.Error(t, WithMaxPendingHandshakes(0)(s))
+	assert.Error(t, WithMaxPendingHandshakes(-1)(s))
+	assert.Equal(t, 7, s.maxPendingHandshakes)
+
+	assert.NoError(t, WithHandshakeTimeout(2*time.Minute)(s))
+	assert.Equal(t, 2*time.Minute, s.handshakeTimeout)
+	assert.Error(t, WithHandshakeTimeout(0)(s))
+	assert.Error(t, WithHandshakeTimeout(-time.Second)(s))
+	assert.Equal(t, 2*time.Minute, s.handshakeTimeout)
+}
+
+func TestAdmitToRoomEvictsOldestWaitingRoom(t *testing.T) {
+	s := newDefaultServer()
+	defer s.stop.Cancel()
+	s.maxRoomsOpen = 2
+	s.rooms.rooms = map[string]roomInfo{
+		"oldest": {
+			opened: time.Now().Add(-2 * time.Minute),
+		},
+		"newer": {
+			opened: time.Now().Add(-time.Minute),
+		},
+	}
+
+	result := s.admitToRoom("incoming", nil)
+
+	assert.True(t, result.created)
+	assert.True(t, result.evicted)
+	assert.Equal(t, "oldest", result.evictedRoom)
+	assert.NotContains(t, s.rooms.rooms, "oldest")
+	assert.Contains(t, s.rooms.rooms, "newer")
+	assert.Contains(t, s.rooms.rooms, "incoming")
+}
+
+func TestAdmitToRoomJoinsAtCapacityAndExcludesFullRooms(t *testing.T) {
+	s := newDefaultServer()
+	defer s.stop.Cancel()
+	s.maxRoomsOpen = 1
+	s.rooms.rooms = map[string]roomInfo{
+		"joining": {
+			opened: time.Now().Add(-time.Minute),
+		},
+	}
+
+	joined := s.admitToRoom("joining", nil)
+	assert.False(t, joined.created)
+	assert.False(t, joined.full)
+	assert.False(t, joined.evicted)
+	assert.True(t, s.rooms.rooms["joining"].full)
+
+	created := s.admitToRoom("waiting", nil)
+	assert.True(t, created.created)
+	assert.False(t, created.evicted)
+	assert.Contains(t, s.rooms.rooms, "joining")
+	assert.Contains(t, s.rooms.rooms, "waiting")
+
+	evicted := s.admitToRoom("replacement", nil)
+	assert.True(t, evicted.evicted)
+	assert.Equal(t, "waiting", evicted.evictedRoom)
+	assert.Contains(t, s.rooms.rooms, "joining")
+	assert.NotContains(t, s.rooms.rooms, "waiting")
+	assert.Contains(t, s.rooms.rooms, "replacement")
+}
+
+func TestConcurrentRoomAdmissionRespectsWaitingRoomLimit(t *testing.T) {
+	s := newDefaultServer()
+	defer s.stop.Cancel()
+	s.maxRoomsOpen = 8
+	s.rooms.rooms = make(map[string]roomInfo)
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < 64; i++ {
+		wg.Add(1)
+		go func(room int) {
+			defer wg.Done()
+			<-start
+			s.admitToRoom(fmt.Sprintf("room-%d", room), nil)
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+
+	s.rooms.Lock()
+	defer s.rooms.Unlock()
+	waitingRooms := 0
+	for _, roomData := range s.rooms.rooms {
+		if !roomData.full {
+			waitingRooms++
+		}
+	}
+	assert.Equal(t, s.maxRoomsOpen, waitingRooms)
+	assert.Len(t, s.rooms.rooms, s.maxRoomsOpen)
+}
+
+func TestWaitingRoomCapacityDisconnectsOldestOccupant(t *testing.T) {
+	address, stopServer := startTestServer(t, 1)
+	defer stopServer()
+
+	oldest, _, _, err := ConnectToTCPServer(address, "pass123", "oldest")
+	if err != nil {
+		t.Fatalf("connect oldest room: %v", err)
+	}
+	defer oldest.Close()
+
+	replacement, _, _, err := ConnectToTCPServer(address, "pass123", "replacement")
+	if err != nil {
+		t.Fatalf("connect replacement room: %v", err)
+	}
+	defer replacement.Close()
+
+	waitForConnectionClose(t, oldest)
+
+	peer, _, _, err := ConnectToTCPServer(address, "pass123", "replacement")
+	if err != nil {
+		t.Fatalf("join replacement room: %v", err)
+	}
+	defer peer.Close()
+
+	want := []byte("replacement room remains usable")
+	if err := peer.Send(want); err != nil {
+		t.Fatalf("send through replacement room: %v", err)
+	}
+	for {
+		got, receiveErr := replacement.Receive()
+		if receiveErr != nil {
+			t.Fatalf("receive through replacement room: %v", receiveErr)
+		}
+		if bytes.Equal(got, []byte{1}) {
+			continue
+		}
+		assert.Equal(t, want, got)
+		break
+	}
+}
+
+func TestPendingHandshakeLimitRejectsExcessConnections(t *testing.T) {
+	s, address, stopServer := startConfiguredTestServer(t,
+		WithMaxPendingHandshakes(2),
+		WithHandshakeTimeout(2*time.Second),
+	)
+	defer stopServer()
+
+	first := openPartialHandshake(t, address)
+	defer first.Close()
+	second := openPartialHandshake(t, address)
+	defer second.Close()
+	waitForPendingHandshakes(t, s, 2)
+
+	excess, err := net.DialTimeout("tcp", address, time.Second)
+	if err != nil {
+		t.Fatalf("dial excess connection: %v", err)
+	}
+	defer excess.Close()
+	waitForRawConnectionClose(t, excess)
+	assert.Equal(t, 2, len(s.handshakeSlots))
+
+	first.Close()
+	waitForPendingHandshakes(t, s, 1)
+	if err := PingServer(address); err != nil {
+		t.Fatalf("handshake slot was not reusable: %v", err)
+	}
+}
+
+func TestPendingHandshakeDeadlineClosesIdleAndPartialConnections(t *testing.T) {
+	s, address, stopServer := startConfiguredTestServer(t,
+		WithMaxPendingHandshakes(1),
+		WithHandshakeTimeout(75*time.Millisecond),
+	)
+	defer stopServer()
+
+	idle, err := net.DialTimeout("tcp", address, time.Second)
+	if err != nil {
+		t.Fatalf("dial idle connection: %v", err)
+	}
+	waitForPendingHandshakes(t, s, 1)
+	waitForRawConnectionClose(t, idle)
+	idle.Close()
+	waitForPendingHandshakes(t, s, 0)
+
+	partial := openPartialHandshake(t, address)
+	waitForPendingHandshakes(t, s, 1)
+	waitForRawConnectionClose(t, partial)
+	partial.Close()
+	waitForPendingHandshakes(t, s, 0)
+
+	if err := PingServer(address); err != nil {
+		t.Fatalf("timed-out handshake slot was not reusable: %v", err)
+	}
+}
+
+func TestEstablishedTransferOutlivesHandshakeDeadline(t *testing.T) {
+	_, address, stopServer := startConfiguredTestServer(t,
+		WithHandshakeTimeout(500*time.Millisecond),
+	)
+	defer stopServer()
+
+	first, _, _, err := ConnectToTCPServer(address, "pass123", "deadline-cleared")
+	if err != nil {
+		t.Fatalf("connect first client: %v", err)
+	}
+	defer first.Close()
+	second, _, _, err := ConnectToTCPServer(address, "pass123", "deadline-cleared")
+	if err != nil {
+		t.Fatalf("connect second client: %v", err)
+	}
+	defer second.Close()
+
+	time.Sleep(600 * time.Millisecond)
+	want := []byte("transfer remains connected")
+	if err := first.Send(want); err != nil {
+		t.Fatalf("send after handshake deadline: %v", err)
+	}
+	for {
+		got, receiveErr := second.Receive()
+		if receiveErr != nil {
+			t.Fatalf("receive after handshake deadline: %v", receiveErr)
+		}
+		if bytes.Equal(got, []byte{1}) {
+			continue
+		}
+		assert.Equal(t, want, got)
+		break
+	}
+}
+
+func TestServerCancellationClosesPendingHandshake(t *testing.T) {
+	s, address, stopServer := startConfiguredTestServer(t,
+		WithHandshakeTimeout(5*time.Minute),
+	)
+
+	connection := openPartialHandshake(t, address)
+	defer connection.Close()
+	waitForPendingHandshakes(t, s, 1)
+
+	started := time.Now()
+	stopServer()
+	assert.Less(t, time.Since(started), time.Second)
+}
+
+func startTestServer(t *testing.T, maxRoomsOpen int) (string, func()) {
+	t.Helper()
+	_, address, stopServer := startConfiguredTestServer(t, WithMaxRoomsOpen(maxRoomsOpen))
+	return address, stopServer
+}
+
+func startConfiguredTestServer(t *testing.T, opts ...serverOptsFunc) (*server, string, func()) {
+	t.Helper()
+	probe, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve test port: %v", err)
+	}
+	_, port, err := net.SplitHostPort(probe.Addr().String())
+	if err != nil {
+		probe.Close()
+		t.Fatalf("split test address: %v", err)
+	}
+	probe.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s := newDefaultServer()
+	s.host = "127.0.0.1"
+	s.port = port
+	s.password = "pass123"
+	baseOpts := []serverOptsFunc{WithCtx(ctx), WithLogLevel("error")}
+	for _, opt := range append(baseOpts, opts...) {
+		if err := opt(s); err != nil {
+			cancel()
+			t.Fatalf("configure test server: %v", err)
+		}
+	}
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- s.start()
+	}()
+
+	address := net.JoinHostPort("127.0.0.1", port)
+	select {
+	case <-s.started:
+	case runErr := <-serverErr:
+		cancel()
+		t.Fatalf("test server stopped during startup: %v", runErr)
+	case <-time.After(2 * time.Second):
+		cancel()
+		t.Fatal("test server did not start listening")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for PingServer(address) != nil {
+		if time.Now().After(deadline) {
+			cancel()
+			t.Fatal("test server did not become reachable")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	waitForPendingHandshakes(t, s, 0)
+
+	var once sync.Once
+	return s, address, func() {
+		once.Do(func() {
+			cancel()
+			select {
+			case runErr := <-serverErr:
+				if runErr != nil {
+					t.Errorf("stop test server: %v", runErr)
+				}
+			case <-time.After(2 * time.Second):
+				t.Error("test server did not stop")
+			}
+		})
+	}
+}
+
+func openPartialHandshake(t *testing.T, address string) net.Conn {
+	t.Helper()
+	connection, err := net.DialTimeout("tcp", address, time.Second)
+	if err != nil {
+		t.Fatalf("dial partial handshake: %v", err)
+	}
+	if _, err := connection.Write([]byte("c")); err != nil {
+		connection.Close()
+		t.Fatalf("write partial handshake: %v", err)
+	}
+	return connection
+}
+
+func waitForPendingHandshakes(t *testing.T, s *server, want int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for len(s.handshakeSlots) != want {
+		if time.Now().After(deadline) {
+			t.Fatalf("pending handshakes = %d, want %d", len(s.handshakeSlots), want)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func waitForRawConnectionClose(t *testing.T, connection net.Conn) {
+	t.Helper()
+	if err := connection.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("set close detection deadline: %v", err)
+	}
+	buffer := make([]byte, 1)
+	_, err := connection.Read(buffer)
+	if err == nil {
+		t.Fatal("connection remained readable")
+	}
+	if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+		t.Fatal("connection remained open")
+	}
+}
+
+func waitForConnectionClose(t *testing.T, c interface {
+	Receive() ([]byte, error)
+	Close()
+}) {
+	t.Helper()
+	closed := make(chan error, 1)
+	go func() {
+		for {
+			_, err := c.Receive()
+			if err != nil {
+				closed <- err
+				return
+			}
+		}
+	}()
+
+	select {
+	case err := <-closed:
+		assert.Error(t, err)
+	case <-time.After(2 * time.Second):
+		c.Close()
+		t.Fatal("oldest waiting-room occupant remained connected")
+	}
+}
 
 func BenchmarkConnection(b *testing.B) {
 	log.SetLevel("trace")
@@ -316,6 +714,32 @@ func TestServerReleasesPort(t *testing.T) {
 
 	err = RunCtx(ctx2, "trace", host, port, "pass123")
 	assert.Nil(t, err, "Second server should start (port was released)")
+}
+
+func TestServerHonorsIPv4LoopbackBind(t *testing.T) {
+	probe, err := net.Listen("tcp4", "127.0.0.2:0")
+	if err != nil {
+		t.Skipf("alternate IPv4 loopback address is unavailable: %v", err)
+	}
+	probe.Close()
+
+	address, stopServer := startTestServer(t, DEFAULT_MAX_ROOMS_OPEN)
+	defer stopServer()
+
+	if err := PingServer(address); err != nil {
+		t.Fatalf("server is not reachable on its configured loopback address: %v", err)
+	}
+	_, port, err := net.SplitHostPort(address)
+	if err != nil {
+		t.Fatalf("split server address: %v", err)
+	}
+
+	alternateAddress := net.JoinHostPort("127.0.0.2", port)
+	connection, err := net.DialTimeout("tcp4", alternateAddress, 100*time.Millisecond)
+	if err == nil {
+		connection.Close()
+		t.Fatalf("server configured for %s also accepted a connection on %s", address, alternateAddress)
+	}
 }
 
 func TestDualStackRelayBridgesIPv4AndIPv6(t *testing.T) {
