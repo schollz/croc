@@ -125,7 +125,7 @@ Storage is disabled by default. Enable it on the unified web server with a
 private persistent directory:
 
 ```bash
-croc serve \
+croc-web \
   --bind 127.0.0.1:9014 \
   --store-dir /var/lib/croc/store \
   files.example.com

@@ -18,7 +18,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.24.0'
+          go-version: '^1.26.0'
 
       - name: Prepare source tarball
         run: |
@@ -148,7 +148,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.24.0'
+          go-version: '^1.26.0'
 
       - name: Build binary
         env:
@@ -157,21 +157,18 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           GOARM: ${{ matrix.goarm }}
         run: |
-          # Set LDFLAGS based on platform
+          # Strip symbols, DWARF, build IDs, source paths, and VCS metadata.
           case "${{ matrix.goos }}" in
             "darwin")
-              LDFLAGS='-s -extldflags "-sectcreate __TEXT __info_plist Info.plist"'
-              ;;
-            "dragonfly"|"freebsd"|"netbsd"|"openbsd")
-              LDFLAGS=""
+              LDFLAGS='-s -w -buildid= -extldflags "-sectcreate __TEXT __info_plist Info.plist"'
               ;;
             *)
-              LDFLAGS='-extldflags "-static"'
+              LDFLAGS='-s -w -buildid= -extldflags "-static"'
               ;;
           esac
           
           echo "Building for ${{ matrix.goos }}/${{ matrix.goarch }} with LDFLAGS: $LDFLAGS"
-          go build -ldflags "$LDFLAGS" -o croc${{ matrix.ext }}
+          go build -buildvcs=false -trimpath -tags netgo,osusergo -ldflags "$LDFLAGS" -o croc${{ matrix.ext }}
 
       - name: Create archive
         run: |
@@ -189,8 +186,50 @@ jobs:
             *.zip
             *.tar.gz
 
+  build-web:
+    name: Build croc-web for Linux amd64
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '^1.26.0'
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build embedded web client
+        run: |
+          npm ci --prefix web
+          npm run embed --prefix web
+
+      - name: Build and archive croc-web
+        env:
+          CGO_ENABLED: 0
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          go build -buildvcs=false -trimpath -tags netgo,osusergo \
+            -ldflags='-s -w -buildid= -extldflags "-static"' \
+            -o croc-web ./cmd/croc-web
+          tar -czvf croc-web_${{ github.event.release.name }}_Linux-amd64.tar.gz \
+            croc-web LICENSE src/codephrase/wordlists/LICENSE.txt
+
+      - name: Upload croc-web artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-croc-web-Linux-amd64
+          path: "croc-web_*.tar.gz"
+
   release:
-    needs: [prepare-source, build]
+    needs: [prepare-source, build, build-web]
     runs-on: ubuntu-24.04
     if: github.event_name == 'release'
     steps:

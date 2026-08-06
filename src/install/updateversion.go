@@ -24,9 +24,9 @@ func run() (err error) {
 	fmt.Println(versionNew)
 	fmt.Println(versionHashNew)
 
-	err = replaceInFile("src/cli/cli.go", `Version = "`, `"`, versionNew+"-"+versionHashNew)
+	err = replaceInFile("src/version/version.go", `Value = "`, `"`, versionNew+"-"+versionHashNew)
 	if err == nil {
-		fmt.Printf("updated cli.go to version %s\n", versionNew)
+		fmt.Printf("updated version.go to version %s\n", versionNew)
 	}
 	err = replaceInFile("README.md", `version-`, `-b`, strings.Split(versionNew, "-")[0])
 	if err == nil {

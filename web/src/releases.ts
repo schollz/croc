@@ -75,7 +75,9 @@ export function assetsForPlatform(
 ) {
   if (platform === "other") return [];
   const marker = platform === "macOS" ? "_macOS-" : `_${platform}-`;
-  return assets.filter((asset) => asset.name.includes(marker));
+  return assets.filter(
+    (asset) => asset.name.startsWith("croc_") && asset.name.includes(marker),
+  );
 }
 
 export function assetArchitecture(asset: ReleaseAsset) {

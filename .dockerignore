@@ -1,0 +1,15 @@
+.git
+.github
+.playwright-mcp
+croc
+croc-web
+tmp
+web/.e2e
+web/coverage
+web/dist
+web/node_modules
+web/playwright-report
+web/public/croc.wasm
+web/public/wasm_exec.js
+web/test-results
+src/webassets/dist

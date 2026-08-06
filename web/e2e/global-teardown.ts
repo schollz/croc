@@ -9,6 +9,9 @@ export default async function globalTeardown() {
   await rm(join(webDirectory, ".e2e", binaryName), { force: true }).catch(
     () => undefined,
   );
+  await rm(join(webDirectory, ".e2e", `${binaryName}-web`), {
+    force: true,
+  }).catch(() => undefined);
   await rm(join(webDirectory, ".e2e", `${binaryName}-store`), {
     recursive: true,
     force: true,

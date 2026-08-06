@@ -1,4 +1,4 @@
-import { cp, mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const webRoot = path.resolve(import.meta.dirname, "..");
@@ -16,3 +16,4 @@ await rm(destination, { recursive: true, force: true });
 await mkdir(destination, { recursive: true });
 await cp(source, destination, { recursive: true });
 await cp(installer, path.join(destination, "default.txt"));
+await writeFile(path.join(destination, ".gitkeep"), "");

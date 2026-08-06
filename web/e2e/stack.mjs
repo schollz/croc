@@ -7,7 +7,8 @@ import { fileURLToPath } from "node:url";
 const webDirectory = dirname(dirname(fileURLToPath(import.meta.url)));
 const artifactDirectory = join(webDirectory, ".e2e");
 const binaryName = process.env.CROC_E2E_BINARY_NAME;
-const binaryPath = join(artifactDirectory, binaryName ?? "croc");
+const crocBinaryPath = join(artifactDirectory, binaryName ?? "croc");
+const webBinaryPath = `${crocBinaryPath}-web`;
 const storeDirectory = join(
   artifactDirectory,
   `${binaryName ?? "croc"}-store`,
@@ -22,7 +23,11 @@ if (!relayPorts || !vitePort || !binaryName) {
 mkdirSync(artifactDirectory, { recursive: true });
 rmSync(storeDirectory, { recursive: true, force: true });
 mkdirSync(storeDirectory, { recursive: true });
-execFileSync("go", ["build", "-o", binaryPath, ".."], {
+execFileSync("go", ["build", "-o", crocBinaryPath, ".."], {
+  cwd: webDirectory,
+  stdio: "inherit",
+});
+execFileSync("go", ["build", "-o", webBinaryPath, "../cmd/croc-web"], {
   cwd: webDirectory,
   stdio: "inherit",
 });
@@ -113,12 +118,13 @@ process.once("SIGINT", () => shutdown(130));
 process.once("SIGTERM", () => shutdown(0));
 process.once("SIGHUP", () => shutdown(0));
 process.once("exit", () => {
-  rmSync(binaryPath, { force: true });
+  rmSync(crocBinaryPath, { force: true });
+  rmSync(webBinaryPath, { force: true });
   rmSync(storeDirectory, { recursive: true, force: true });
 });
 
 const [controlPort] = relayPorts.split(",");
-start("relay", binaryPath, [
+start("relay", crocBinaryPath, [
   "--pass",
   "pass123",
   "relay",
@@ -129,10 +135,9 @@ start("relay", binaryPath, [
 ]);
 await waitForTCP(controlPort);
 
-start("server", binaryPath, [
+start("server", webBinaryPath, [
   "--pass",
   "pass123",
-  "serve",
   "--relay",
   "127.0.0.1",
   "--ports",

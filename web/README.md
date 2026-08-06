@@ -1,11 +1,11 @@
 # croc web
 
-`croc web` is a React/Vite client that sends and receives files with ordinary
+The croc web client is a React/Vite app that sends and receives files with ordinary
 `croc` CLI peers. Its production build and WebAssembly runtime are embedded in
-the `croc` binary. `croc serve` serves the website, runtime configuration,
-health check, and opaque WebSocket-to-TCP bridge from one HTTP address. File
-metadata and contents remain encrypted between the browser and the other croc
-client.
+the separate `croc-web` binary. `croc-web` serves the website, runtime
+configuration, health check, and opaque WebSocket-to-TCP bridge from one HTTP
+address. File metadata and contents remain encrypted between the browser and
+the other croc client.
 
 When the server is started with `--store-dir`, the UI also offers an explicit
 **Store for 24 hours** mode. It encrypts file names, metadata, and 4 MiB chunks
@@ -43,7 +43,7 @@ npm run dev:stack
 This builds and embeds the complete client, then runs:
 
 ```bash
-croc serve localhost:5173
+croc-web localhost:5173
 ```
 
 The local shortcut binds directly to `localhost:5173`; both the website and
@@ -61,20 +61,22 @@ npm run test:e2e
 npm run typecheck
 npm run build
 npm run embed
+make build-web
 go test ./...
 ```
 
 `npm run embed` builds the WASM and Vite client and copies the result into
-`src/webassets/dist`, where Go's embed package includes it in every compiled
-binary. A deployed binary does not need this source directory or any external
-static files.
+the ignored `src/webassets/dist` directory, where Go's embed package includes
+it only in `croc-web`. The generated files are not committed. A deployed
+`croc-web` binary does not need this directory or any external static files.
 
-The Playwright suite builds a real `croc` binary, starts an isolated local croc
-relay and unified embedded server on temporary ports, then verifies CLI → Web,
-Web → CLI, Web → Web, CLI stored → Web, and Web stored → CLI transfers
-byte-for-byte. Install its browser once with `npx playwright install chromium`.
-Test processes use an isolated `CROC_CONFIG_DIR` and storage directory and do
-not read or change remembered croc settings.
+The Playwright suite builds real `croc` and `croc-web` binaries, starts an
+isolated local croc relay and unified embedded server on temporary ports, then
+verifies CLI → Web, Web → CLI, Web → Web, CLI stored → Web, and Web stored →
+CLI transfers byte-for-byte. Install its browser once with
+`npx playwright install chromium`. Test processes use an isolated
+`CROC_CONFIG_DIR` and storage directory and do not read or change remembered
+croc settings.
 
 ## Custom relay
 
@@ -82,7 +84,7 @@ The server fixes one upstream host and allowlists every TCP port so `/ws`
 cannot be used as an arbitrary network proxy:
 
 ```bash
-croc --pass YOUR_RELAY_PASSWORD serve \
+croc-web --pass YOUR_RELAY_PASSWORD \
   --bind 127.0.0.1:9014 \
   --relay relay.example.com \
   --ports 9009,9010,9011,9012,9013,9014,9015,9016,9017 \
@@ -104,10 +106,10 @@ The unified server exposes:
 
 ## Production topology
 
-Run `croc serve` behind an HTTPS reverse proxy:
+Run `croc-web` behind an HTTPS reverse proxy:
 
 ```bash
-croc serve --bind 127.0.0.1:9014 getcroc.com
+croc-web --bind 127.0.0.1:9014 getcroc.com
 ```
 
 Optional Umami analytics are enabled only when both runtime variables are set:
@@ -115,7 +117,7 @@ Optional Umami analytics are enabled only when both runtime variables are set:
 ```bash
 UMAMI_URL=https://umami.schollz.com \
 UMAMI_WEBSITE_ID=website-uuid \
-croc serve --bind 127.0.0.1:9014 getcroc.com
+croc-web --bind 127.0.0.1:9014 getcroc.com
 ```
 
 Successful browser transfers emit the custom events `send-direct`,
@@ -135,7 +137,7 @@ proxy.
 Temporary storage is disabled unless a directory is explicitly configured:
 
 ```bash
-croc serve \
+croc-web \
   --bind 127.0.0.1:9014 \
   --store-dir /var/lib/croc/store \
   --store-max-transfer 1GiB \

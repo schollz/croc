@@ -22,7 +22,6 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/schollz/croc/v10/src/store"
-	"github.com/schollz/croc/v10/src/webassets"
 	log "github.com/schollz/logger"
 )
 
@@ -214,9 +213,6 @@ func normalizeConfig(config Config) (Config, error) {
 	config.AllowedPorts = ports
 	if config.DialTimeout <= 0 {
 		config.DialTimeout = defaultDialTimeout
-	}
-	if config.StaticFiles == nil {
-		config.StaticFiles = webassets.Files()
 	}
 	return config, nil
 }

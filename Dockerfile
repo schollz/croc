@@ -1,12 +1,28 @@
-FROM golang:1.25-alpine AS builder
+# syntax=docker/dockerfile:1
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
 
-RUN apk add --no-cache git gcc musl-dev
+RUN apk add --no-cache git nodejs npm
 
 WORKDIR /go/croc
 
+COPY go.mod go.sum ./
+RUN go mod download
+
 COPY . .
 
-RUN go build -v -ldflags="-s -w"
+RUN npm ci --prefix web \
+    && npm run embed --prefix web
+
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETVARIANT
+RUN if [ -n "$TARGETVARIANT" ]; then export GOARM="${TARGETVARIANT#v}"; fi \
+    && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" \
+       go build -buildvcs=false -trimpath -tags netgo,osusergo \
+       -ldflags="-s -w -buildid=" -o /out/croc . \
+    && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" \
+       go build -buildvcs=false -trimpath -tags netgo,osusergo \
+       -ldflags="-s -w -buildid=" -o /out/croc-web ./cmd/croc-web
 
 FROM alpine:latest
 
@@ -21,7 +37,7 @@ EXPOSE 9015
 EXPOSE 9016
 EXPOSE 9017
 
-COPY --from=builder /go/croc/croc /go/croc/croc-entrypoint.sh /
+COPY --from=builder /out/croc /out/croc-web /go/croc/croc-entrypoint.sh /
 
 RUN mkdir -p /www/croc/storage \
     && chown -R nobody:nobody /www/croc

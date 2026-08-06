@@ -2,8 +2,8 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-cmd = "make build"
-entrypoint = ["./croc", "serve"]
+cmd = "make build-web"
+entrypoint = ["./croc-web"]
 include_ext = [
   "go",
   "html",

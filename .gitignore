@@ -29,8 +29,13 @@ go.work.sum
 
 # Croc builds
 /croc
+/croc-web
 croc_v*
 bin/
 src/croc/test-*
 tmp/
 .DS_STORE
+
+# Generated only when building the standalone croc-web binary.
+/src/webassets/dist/*
+!/src/webassets/dist/.gitkeep

@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=$(cat ./src/cli/cli.go | grep 'Version = "v' | sed 's/[^0-9.]*\([0-9.]*\).*/\1/')
+VERSION=$(grep 'Value = "v' ./src/version/version.go | sed 's/[^0-9.]*\([0-9.]*\).*/\1/')
 echo $VERSION
 
 # Check dependencies.

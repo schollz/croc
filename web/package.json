@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "npm run wasm && vite",
-    "serve": "go run .. serve localhost:5173",
-    "serve:backend": "go run .. serve localhost:5173 --bind 127.0.0.1:9014",
-    "dev:hot": "concurrently --kill-others --success first --names web,server 'npm:dev' 'npm:serve:backend'",
+    "serve": "go run ../cmd/croc-web localhost:5173",
+    "serve:backend": "go run ../cmd/croc-web --bind 127.0.0.1:9014 localhost:5173",
+    "dev:hot": "npm run embed && concurrently --kill-others --success first --names web,server 'npm:dev' 'npm:serve:backend'",
     "dev:stack": "npm run embed && npm run serve",
     "wasm": "node scripts/build-wasm.mjs",
     "embed": "npm run build && node scripts/embed-dist.mjs",

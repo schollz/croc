@@ -15,19 +15,28 @@ has_option() {
 }
 
 service=
-for argument do
-    case "$argument" in
-        serve|relay)
-            service=$argument
-            break
-            ;;
-    esac
-done
+case "${1:-}" in
+    web|croc-web|serve)
+        service=web
+        shift
+        ;;
+esac
+
+if [ -z "$service" ]; then
+    for argument do
+        case "$argument" in
+            relay)
+                service=relay
+                break
+                ;;
+        esac
+    done
+fi
 
 relay_ports=${CROC_RELAY_PORTS:-${CROC_PORTS:-}}
 
 case "$service" in
-    serve)
+    web)
         if [ -n "${STORE_DIR:-}" ] && ! has_option --store-dir "$@"; then
             set -- "$@" --store-dir "$STORE_DIR"
         fi
@@ -47,6 +56,10 @@ esac
 
 if [ -n "$CROC_PASS" ]; then
     set -- --pass "$CROC_PASS" "$@"
+fi
+
+if [ "$service" = web ]; then
+    exec /croc-web "$@"
 fi
 
 exec /croc "$@"

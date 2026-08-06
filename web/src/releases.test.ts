@@ -21,6 +21,10 @@ const assets: ReleaseAsset[] = [
     name: "croc_v10.5.0_Windows-64bit.zip",
     browser_download_url: "https://example.test/windows",
   },
+  {
+    name: "croc-web_v10.5.0_Linux-amd64.tar.gz",
+    browser_download_url: "https://example.test/server",
+  },
 ];
 
 describe("release downloads", () => {
@@ -55,5 +59,6 @@ describe("release downloads", () => {
       "https://example.test/mac-arm",
     );
     expect(assetArchitectureLabel(macAssets[0])).toBe("64-bit");
+    expect(assetsForPlatform(assets, "Linux")).toHaveLength(0);
   });
 });

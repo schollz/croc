@@ -46,7 +46,7 @@ export function saveAnalyticsConsent(choice: AnalyticsConsent) {
 }
 
 export function loadAnalytics() {
-  //if (readAnalyticsConsent() !== "accepted") return;
+  if (readAnalyticsConsent() !== "accepted") return;
   const config = window.__CROC_ANALYTICS__;
   if (!config?.scriptURL || !config.websiteID) return;
   if (document.getElementById(analyticsScriptID)) return;
