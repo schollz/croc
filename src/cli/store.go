@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/schollz/cli/v2"
+	"github.com/schollz/croc/v10/internal/cli"
 	"github.com/schollz/croc/v10/src/croc"
 	"github.com/schollz/croc/v10/src/storeclient"
 	"github.com/schollz/croc/v10/src/storecrypto"

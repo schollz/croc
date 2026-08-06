@@ -12,7 +12,6 @@ require (
 	github.com/mattn/go-isatty v0.0.24
 	github.com/minio/highwayhash v1.0.4
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
-	github.com/schollz/cli/v2 v2.2.1
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/pake/v3 v3.2.0
 	github.com/schollz/peerdiscovery v1.7.6
@@ -28,12 +27,10 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/tscholl2/siec v0.0.0-20240310163802-c2c6f6198406 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

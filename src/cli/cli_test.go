@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/schollz/cli/v2"
+	"github.com/schollz/croc/v10/internal/cli"
 	"github.com/schollz/croc/v10/src/tcp"
 )
 

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/schollz/cli/v2"
+	"github.com/schollz/croc/v10/internal/cli"
 	"github.com/schollz/croc/v10/src/models"
 	storeapi "github.com/schollz/croc/v10/src/store"
 	buildversion "github.com/schollz/croc/v10/src/version"

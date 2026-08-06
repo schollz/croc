@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/schollz/cli/v2"
+	"github.com/schollz/croc/v10/internal/cli"
 	"github.com/schollz/croc/v10/src/codephrase"
 	"github.com/schollz/croc/v10/src/comm"
 	"github.com/schollz/croc/v10/src/croc"
