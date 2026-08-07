@@ -50,7 +50,7 @@ jobs:
           CGO_ENABLED=0 GOOS=openbsd GOARCH=arm64 go build $COMMON -ldflags "$SMALL" -o croc-openbsd-arm64
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
