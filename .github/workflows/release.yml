@@ -199,7 +199,7 @@ jobs:
           go-version: '^1.26.0'
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
