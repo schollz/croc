@@ -139,6 +139,8 @@ func serve(ctx context.Context, c *cli.Context) error {
 		StoreService:   storeService,
 		UmamiURL:       os.Getenv("UMAMI_URL"),
 		UmamiWebsiteID: os.Getenv("UMAMI_WEBSITE_ID"),
+		GoogleAdSense:  os.Getenv("GOOGLE_ADSENSE"),
+		GoogleAdsTXT:   os.Getenv("GOOGLE_ADS_TXT"),
 	})
 }
 

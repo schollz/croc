@@ -43,6 +43,8 @@ type Config struct {
 	StoreService   *store.Service
 	UmamiURL       string
 	UmamiWebsiteID string
+	GoogleAdSense  string
+	GoogleAdsTXT   string
 }
 
 type handler struct {
@@ -72,6 +74,7 @@ func Handler(config Config) (http.Handler, error) {
 		normalized.StaticFiles,
 		normalized.UmamiURL,
 		normalized.UmamiWebsiteID,
+		normalized.GoogleAdSense,
 	)
 	if err != nil {
 		return nil, err
@@ -103,6 +106,9 @@ func Handler(config Config) (http.Handler, error) {
 	mux.HandleFunc("/healthz", h.health)
 	mux.HandleFunc("/ws", h.websocket)
 	mux.HandleFunc("/config.js", h.config)
+	if normalized.GoogleAdsTXT != "" {
+		mux.HandleFunc("/ads.txt", adsTXT(normalized.GoogleAdsTXT))
+	}
 	if normalized.StoreService != nil {
 		mux.Handle("/api/v1/store/transfers", normalized.StoreService)
 		mux.Handle("/api/v1/store/transfers/", normalized.StoreService)
@@ -247,6 +253,22 @@ func (h *handler) config(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprintf(w, "window.__CROC_RUNTIME_CONFIG__ = %s;\n", payload)
 }
 
+func adsTXT(contents string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Content-Length", strconv.Itoa(len(contents)))
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		if r.Method == http.MethodGet {
+			_, _ = io.WriteString(w, contents)
+		}
+	}
+}
+
 func (h *handler) websocket(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -320,6 +342,7 @@ func newStaticHandler(
 	files fs.FS,
 	umamiURL string,
 	umamiWebsiteID string,
+	googleAdSense string,
 ) (http.Handler, error) {
 	if files == nil {
 		return nil, errors.New("static file system cannot be empty")
@@ -329,6 +352,7 @@ func newStaticHandler(
 		return nil, fmt.Errorf("embedded web client is missing index.html: %w", err)
 	}
 	index = injectUmamiConfig(index, umamiURL, umamiWebsiteID)
+	index = injectGoogleAdSense(index, googleAdSense)
 	installer, err := fs.ReadFile(files, "default.txt")
 	if err != nil {
 		return nil, fmt.Errorf("embedded web client is missing default.txt: %w", err)
@@ -339,6 +363,22 @@ func newStaticHandler(
 		index:      index,
 		installer:  installer,
 	}, nil
+}
+
+func injectGoogleAdSense(index []byte, publisherID string) []byte {
+	publisherID = strings.TrimSpace(publisherID)
+	if publisherID == "" {
+		return index
+	}
+
+	const closingHead = "</head>"
+	if !strings.Contains(string(index), closingHead) {
+		return index
+	}
+	scriptURL := "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=" +
+		url.QueryEscape(publisherID)
+	script := `<script async src="` + scriptURL + `" crossorigin="anonymous"></script>`
+	return []byte(strings.Replace(string(index), closingHead, script+closingHead, 1))
 }
 
 func injectUmamiConfig(index []byte, baseURL, websiteID string) []byte {

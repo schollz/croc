@@ -21,7 +21,7 @@ const testInstaller = "#!/bin/bash\nset -o nounset\n"
 
 func testSite() fstest.MapFS {
 	return fstest.MapFS{
-		"index.html":  {Data: []byte("<!doctype html><body><div id=\"root\"></div></body>")},
+		"index.html":  {Data: []byte("<!doctype html><html><head></head><body><div id=\"root\"></div></body></html>")},
 		"default.txt": {Data: []byte(testInstaller)},
 		"croc-download-sw.js": {
 			Data: []byte("self.addEventListener('fetch', () => {})"),
@@ -177,6 +177,89 @@ func TestUmamiConfigRequiresBothEnvironmentValues(t *testing.T) {
 			assert.NotContains(t, recorder.Body.String(), `src="https://umami.schollz.com/script.js"`)
 		})
 	}
+}
+
+func TestGoogleAdSenseConfig(t *testing.T) {
+	for _, testCase := range []struct {
+		name        string
+		publisherID string
+		wantScript  string
+	}{
+		{name: "unset"},
+		{
+			name:        "configured",
+			publisherID: "ca-pub-4947875154879707",
+			wantScript:  `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4947875154879707" crossorigin="anonymous"></script>`,
+		},
+		{
+			name:        "escapes publisher ID",
+			publisherID: `publisher&amp;client`,
+			wantScript:  `client=publisher%26amp%3Bclient`,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			handler, err := Handler(Config{
+				RelayHost:     "127.0.0.1",
+				AllowedPorts:  []string{"9009"},
+				StaticFiles:   testSite(),
+				GoogleAdSense: testCase.publisherID,
+			})
+			require.NoError(t, err)
+
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(
+				recorder,
+				httptest.NewRequest(http.MethodGet, "/", nil),
+			)
+
+			if testCase.wantScript == "" {
+				assert.NotContains(t, recorder.Body.String(), "pagead2.googlesyndication.com")
+			} else {
+				assert.Contains(t, recorder.Body.String(), testCase.wantScript)
+			}
+		})
+	}
+}
+
+func TestGoogleAdsTXT(t *testing.T) {
+	const contents = "google.com, pub-4947875154879707, DIRECT, f08c47fec0942fa0\n"
+	handler, err := Handler(Config{
+		RelayHost:    "127.0.0.1",
+		AllowedPorts: []string{"9009"},
+		StaticFiles:  testSite(),
+		GoogleAdsTXT: contents,
+	})
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/ads.txt", nil))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, contents, recorder.Body.String())
+	assert.Equal(t, "text/plain; charset=utf-8", recorder.Header().Get("Content-Type"))
+	assert.Equal(t, "no-cache", recorder.Header().Get("Cache-Control"))
+
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodHead, "/ads.txt", nil))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Empty(t, recorder.Body.String())
+	assert.Equal(t, int64(len(contents)), recorder.Result().ContentLength)
+
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/ads.txt", nil))
+	assert.Equal(t, http.StatusMethodNotAllowed, recorder.Code)
+}
+
+func TestGoogleAdsTXTIsAbsentWhenUnconfigured(t *testing.T) {
+	handler, err := Handler(Config{
+		RelayHost:    "127.0.0.1",
+		AllowedPorts: []string{"9009"},
+		StaticFiles:  testSite(),
+	})
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/ads.txt", nil))
+	assert.Equal(t, http.StatusNotFound, recorder.Code)
 }
 
 func TestEnablesStoredTransferRuntimeAndAPI(t *testing.T) {
