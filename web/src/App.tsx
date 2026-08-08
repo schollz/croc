@@ -18,12 +18,9 @@ import { FaGithub } from "react-icons/fa";
 import { driver, type DriveStep, type Driver } from "driver.js";
 import {
   loadAnalytics,
-  readAnalyticsConsent,
-  saveAnalyticsConsent,
   trackTransferEvent,
   transferEvents,
   unloadAnalytics,
-  type AnalyticsConsent,
 } from "./analytics";
 import { errorMessage, formatBytes } from "./protocol/bytes";
 import {
@@ -79,11 +76,11 @@ import {
   type GitHubRelease,
 } from "./releases";
 import { wasm } from "./wasm/client";
-import { PrivacyModal } from "./privacy-modal";
 
 type Activity = "idle" | "working" | "done" | "error";
 type Theme = "dark" | "light";
 type CopyState = "idle" | "copied" | "error";
+type MobileTransferPanel = "send" | "receive";
 
 const runtimeSettings = window.__CROC_RUNTIME_CONFIG__ ?? {};
 const requestedReceiveCode =
@@ -426,10 +423,6 @@ function CliDownload() {
 
 export function App() {
   const restoredStoredUpload = useMemo(restoreStoredUpload, []);
-  const [privacy, setPrivacy] = useState(() => {
-    const choice = readAnalyticsConsent();
-    return { choice, open: choice === null };
-  });
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [settings, setSettings] = useState<TransferSettings>(() => ({
     gatewayURL: storedValue("croc-web-gateway", defaultSettings.gatewayURL),
@@ -455,6 +448,8 @@ export function App() {
   const [sendMode, setSendMode] = useState<SendMode>(
     restoredStoredUpload ? "stored" : "direct",
   );
+  const [mobileTransferPanel, setMobileTransferPanel] =
+    useState<MobileTransferPanel>(receiveOnly ? "receive" : "send");
   const [sendCode, setSendCode] = useState("");
   const [sendActivity, setSendActivity] = useState<Activity>("idle");
   const [sendStatus, setSendStatus] = useState("");
@@ -479,22 +474,15 @@ export function App() {
   const sendAbort = useRef<AbortController>(undefined);
   const receiveAbort = useRef<AbortController>(undefined);
   const fileInput = useRef<HTMLInputElement>(null);
+  const transferGrid = useRef<HTMLElement>(null);
   const receivePanel = useRef<HTMLFormElement>(null);
   const copyReset = useRef<number>(undefined);
   const tour = useRef<Driver>(undefined);
 
   useEffect(() => {
-    if (privacy.choice === "accepted") {
-      loadAnalytics();
-    } else {
-      unloadAnalytics();
-    }
-  }, [privacy.choice]);
-
-  function choosePrivacy(choice: AnalyticsConsent) {
-    saveAnalyticsConsent(choice);
-    setPrivacy({ choice, open: false });
-  }
+    loadAnalytics();
+    return unloadAnalytics;
+  }, []);
 
   const totalSelectedSize = useMemo(
     () => selectedFiles.reduce((total, file) => total + file.size, 0),
@@ -586,6 +574,13 @@ export function App() {
       receivePanel.current?.scrollIntoView({ block: "start" });
     }
   }, []);
+
+  function showMobileTransferPanel(panel: MobileTransferPanel) {
+    setMobileTransferPanel(panel);
+    window.requestAnimationFrame(() => {
+      transferGrid.current?.scrollIntoView({ block: "start" });
+    });
+  }
 
   function addFiles(files: File[]) {
     if (sendActivity === "working") return;
@@ -957,8 +952,10 @@ export function App() {
         <div className="donation-copy">
           <Heart aria-hidden="true" />
           <p>
-            <strong>croc is free, but depends on donations to keep going.</strong>{" "}
-            If just 1% of users donate $1, it will be sustainable.
+            <strong>croc is free and supported by donations.</strong>{" "}
+            <span className="donation-detail">
+              If just 1% of users donate $1, it will be sustainable.
+            </span>
           </p>
         </div>
         <a
@@ -1024,11 +1021,46 @@ export function App() {
       </header>
 
       <section
+        ref={transferGrid}
         className={`transfer-grid${receiveOnly ? " receive-only" : ""}`}
         aria-label="File transfer controls"
       >
         {!receiveOnly && (
-          <article className="panel send-panel" data-tour="send">
+          <div
+            className="mobile-transfer-switch"
+            role="tablist"
+            aria-label="Choose transfer direction"
+          >
+            <button
+              id="mobile-send-tab"
+              type="button"
+              role="tab"
+              aria-controls="send-panel"
+              aria-selected={mobileTransferPanel === "send"}
+              onClick={() => showMobileTransferPanel("send")}
+            >
+              <Upload aria-hidden="true" />
+              Send
+            </button>
+            <button
+              id="mobile-receive-tab"
+              type="button"
+              role="tab"
+              aria-controls="receive"
+              aria-selected={mobileTransferPanel === "receive"}
+              onClick={() => showMobileTransferPanel("receive")}
+            >
+              <Download aria-hidden="true" />
+              Receive
+            </button>
+          </div>
+        )}
+        {!receiveOnly && (
+          <article
+            id="send-panel"
+            className={`panel send-panel${mobileTransferPanel === "send" ? " mobile-active" : ""}`}
+            data-tour="send"
+          >
           <div className="panel-heading">
             <span className="step">
               <Upload aria-hidden="true" />
@@ -1075,7 +1107,10 @@ export function App() {
             }}
           >
             <span>Choose files</span>
-            <small>or drop them here</small>
+            <small>
+              <span className="drop-desktop-copy">or drop them here</span>
+              <span className="drop-mobile-copy">Select from this device</span>
+            </small>
             <input
               ref={fileInput}
               type="file"
@@ -1131,6 +1166,8 @@ export function App() {
                   disabled={sendBusy}
                   spellCheck={false}
                   autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
                   onChange={(event) => {
                     setCopyState("idle");
                     setSendCode(event.target.value);
@@ -1236,7 +1273,7 @@ export function App() {
         <form
           id="receive"
           ref={receivePanel}
-          className="panel receive-panel"
+          className={`panel receive-panel${mobileTransferPanel === "receive" ? " mobile-active" : ""}`}
           data-tour="receive"
           onSubmit={(event) => {
             event.preventDefault();
@@ -1264,6 +1301,9 @@ export function App() {
             placeholder="word-word-word-word or encrypted link"
             spellCheck={false}
             autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect="off"
+            enterKeyHint="go"
             onChange={(event) => setReceiveCode(event.target.value)}
           />
           <p className="field-help">
@@ -1488,16 +1528,6 @@ export function App() {
             github
           </a>
           <span aria-hidden="true">·</span>
-          <button
-            className="footer-link-button"
-            type="button"
-            onClick={() =>
-              setPrivacy((current) => ({ ...current, open: true }))
-            }
-          >
-            privacy choices
-          </button>
-          <span aria-hidden="true">·</span>
           <span>
             hosted with{" "}
             <a
@@ -1529,15 +1559,6 @@ export function App() {
         </details>
       </footer>
       </main>
-      {privacy.open && (
-        <PrivacyModal
-          currentChoice={privacy.choice}
-          onChoose={choosePrivacy}
-          onClose={() =>
-            setPrivacy((current) => ({ ...current, open: false }))
-          }
-        />
-      )}
     </>
   );
 }

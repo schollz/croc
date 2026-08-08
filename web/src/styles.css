@@ -8,7 +8,7 @@
   --background: #050605;
   --foreground: #fff;
   --muted: #a4a4a4;
-  --subtle: #6f6f6f;
+  --subtle: #909090;
   --soft-border: #4b4b4b;
   --panel-tint: #0d0f0d;
   --danger: #fff;
@@ -21,7 +21,7 @@
   --background: #fff;
   --foreground: #000;
   --muted: #555;
-  --subtle: #777;
+  --subtle: #686868;
   --soft-border: #aaa;
   --panel-tint: #f7f6f2;
   --danger: #000;
@@ -57,6 +57,7 @@ details,
 
 button {
   color: inherit;
+  touch-action: manipulation;
 }
 
 button:focus-visible,
@@ -203,6 +204,11 @@ h1 {
 
 .transfer-grid.receive-only {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.mobile-transfer-switch,
+.drop-mobile-copy {
+  display: none;
 }
 
 .panel {
@@ -1033,7 +1039,6 @@ a.cli-download-primary:hover {
 }
 
 .site-footer a,
-.footer-link-button,
 .tools-menu summary {
   color: var(--foreground);
   text-decoration: underline;
@@ -1043,146 +1048,9 @@ a.cli-download-primary:hover {
 
 .site-footer a:hover,
 .site-footer a:focus-visible,
-.footer-link-button:hover,
-.footer-link-button:focus-visible,
 .tools-menu summary:hover,
 .tools-menu summary:focus-visible {
   text-decoration-color: currentcolor;
-}
-
-.footer-link-button {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  font-size: inherit;
-  cursor: pointer;
-}
-
-.privacy-backdrop {
-  position: fixed;
-  z-index: 1000;
-  left: 50%;
-  bottom: 16px;
-  width: min(1180px, calc(100vw - 32px));
-  transform: translateX(-50%);
-}
-
-.privacy-modal {
-  position: relative;
-  width: 100%;
-  max-height: calc(100vh - 32px);
-  overflow-y: auto;
-  border: 1px solid var(--foreground);
-  padding: 18px;
-  background: var(--background);
-  box-shadow: 6px 6px 0 color-mix(in srgb, var(--foreground) 18%, transparent);
-}
-
-.privacy-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  display: grid;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  place-items: center;
-  border: 0;
-  color: var(--muted);
-  background: transparent;
-  cursor: pointer;
-}
-
-.privacy-close:hover {
-  color: var(--foreground);
-}
-
-.privacy-close svg {
-  width: 17px;
-  height: 17px;
-}
-
-.privacy-heading {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 11px;
-  align-items: center;
-  padding-right: 32px;
-}
-
-.privacy-heading .eyebrow {
-  margin-bottom: 5px;
-}
-
-.privacy-heading h2 {
-  margin: 0;
-  font-size: 20px;
-  letter-spacing: -0.04em;
-  line-height: 1;
-}
-
-.privacy-icon {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border: 1px solid var(--foreground);
-}
-
-.privacy-icon svg {
-  width: 18px;
-  height: 18px;
-}
-
-.privacy-intro {
-  margin: 13px 0;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.6;
-}
-
-.privacy-details p {
-  margin: 7px 0 0;
-  color: var(--subtle);
-  font-size: 10px;
-  line-height: 1.65;
-}
-
-.privacy-details {
-  padding: 10px 0;
-  border-top: 1px solid var(--soft-border);
-  border-bottom: 1px solid var(--soft-border);
-}
-
-.privacy-details summary {
-  color: var(--muted);
-  font-size: 10px;
-  cursor: pointer;
-}
-
-.privacy-details summary::marker {
-  color: var(--foreground);
-}
-
-.privacy-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 13px;
-}
-
-.privacy-actions .primary-button,
-.privacy-actions .secondary-button {
-  min-height: 40px;
-  margin: 0;
-}
-
-.privacy-footnote {
-  margin: 8px 0 0;
-  color: var(--subtle);
-  font-size: 9px;
-  line-height: 1.5;
-  text-align: center;
 }
 
 .site-footer-links {
@@ -1332,22 +1200,45 @@ a.cli-download-primary:hover {
 
 @media (max-width: 760px) {
   .site-shell {
-    padding-top: 28px;
+    width: auto;
+    margin-right: max(10px, env(safe-area-inset-right));
+    margin-left: max(10px, env(safe-area-inset-left));
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
   }
 
   .site-header {
-    grid-template-columns: 1fr;
+    grid-template-columns: 96px minmax(0, 1fr);
     gap: 12px;
+    align-items: start;
+    padding-bottom: 18px;
   }
 
   .donation-banner {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
+    margin-bottom: 16px;
+  }
+
+  .donation-copy {
+    gap: 9px;
+    padding: 10px 11px;
+  }
+
+  .donation-copy p {
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  .donation-detail {
+    display: none;
   }
 
   .donation-banner > a {
-    border-top: 1px solid var(--foreground);
-    border-left: 0;
-    padding: 12px 16px;
+    min-width: 88px;
+    min-height: 48px;
+    border-top: 0;
+    border-left: 1px solid var(--foreground);
+    padding: 10px 12px;
   }
 
   .header-actions {
@@ -1355,20 +1246,176 @@ a.cli-download-primary:hover {
   }
 
   .brand-illustration {
-    grid-column: 1 / -1;
     width: 100%;
+  }
+
+  .site-header .eyebrow {
+    margin-bottom: 5px;
+    font-size: 9px;
+    line-height: 1.45;
+  }
+
+  h1 {
+    font-size: clamp(24px, 7.2vw, 30px);
+    letter-spacing: -0.055em;
+    line-height: 1.02;
   }
 
   .transfer-grid {
     grid-template-columns: 1fr;
   }
 
+  .mobile-transfer-switch {
+    position: sticky;
+    z-index: 30;
+    top: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-right: 1px solid var(--foreground);
+    border-bottom: 1px solid var(--foreground);
+    background: color-mix(in srgb, var(--background) 96%, transparent);
+    box-shadow: 0 8px 22px color-mix(in srgb, #000 16%, transparent);
+    backdrop-filter: blur(12px);
+  }
+
+  .mobile-transfer-switch button {
+    display: inline-flex;
+    min-height: 52px;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    padding: 8px 12px;
+    color: var(--muted);
+    background: transparent;
+    font-size: 13px;
+    font-weight: 750;
+    cursor: pointer;
+  }
+
+  .mobile-transfer-switch button + button {
+    border-left: 1px solid var(--foreground);
+  }
+
+  .mobile-transfer-switch button[aria-selected="true"] {
+    color: var(--background);
+    background: var(--foreground);
+  }
+
+  .mobile-transfer-switch svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .transfer-grid:not(.receive-only) .panel:not(.mobile-active) {
+    display: none;
+  }
+
   .panel {
     min-height: 0;
+    padding: 20px;
+  }
+
+  .panel-heading {
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .panel-heading h2 {
+    font-size: 21px;
+  }
+
+  .panel-heading p {
+    font-size: 12px;
+  }
+
+  .drop-zone {
+    min-height: 128px;
+    font-size: 14px;
+  }
+
+  .drop-zone small {
+    font-size: 11px;
+  }
+
+  .drop-desktop-copy {
+    display: none;
+  }
+
+  .drop-mobile-copy {
+    display: inline;
+  }
+
+  .file-list li {
+    min-height: 48px;
+    font-size: 11px;
+  }
+
+  .list-action {
+    width: 44px;
+    height: 44px;
+  }
+
+  .field-label {
+    margin-top: 18px;
+    margin-bottom: 8px;
+    font-size: 11px;
+  }
+
+  input {
+    height: 48px;
+    font-size: 16px;
+  }
+
+  .field-with-actions {
+    grid-template-columns: minmax(0, 1fr) 48px 48px;
+  }
+
+  .field-action {
+    width: 48px;
+    height: 48px;
+  }
+
+  .field-help {
+    margin-top: 9px;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  .send-mode-switch button {
+    min-height: 48px;
+    font-size: 12px;
+  }
+
+  .primary-button,
+  .secondary-button {
+    min-height: 48px;
+    font-size: 12px;
   }
 
   .primary-button {
-    margin-top: 24px;
+    margin-top: 18px;
+  }
+
+  .panel > .primary-button {
+    min-height: 52px;
+  }
+
+  .selection-summary,
+  .copy-feedback,
+  .completed-count,
+  .completed-files,
+  .progress-block {
+    font-size: 11px;
+  }
+
+  .settings summary {
+    min-height: 48px;
+  }
+
+  .settings-grid input {
+    height: 48px;
+    font-size: 16px;
   }
 
   .settings-grid {
@@ -1382,44 +1429,55 @@ a.cli-download-primary:hover {
 
   .about-croc {
     grid-template-columns: 1fr;
+    gap: 18px;
     align-items: start;
+  }
+
+  .about-croc > a,
+  .other-releases,
+  .site-footer a,
+  .tools-menu summary {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
   }
 
 }
 
 @media (max-width: 460px) {
   .site-shell {
-    width: min(100% - 20px, 1080px);
+    width: auto;
   }
 
   .site-header {
-    grid-template-columns: 1fr;
+    position: relative;
+    grid-template-columns: 88px minmax(0, 1fr);
   }
 
   .header-actions {
-    gap: 6px;
+    position: absolute;
+    bottom: 18px;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 44px);
+    gap: 0;
   }
 
-  .panel {
-    padding: 20px;
+  .header-actions > a {
+    display: none;
   }
 
-  .privacy-backdrop {
-    left: 50%;
-    bottom: 10px;
-    width: calc(100vw - 20px);
+  .header-actions .icon-button {
+    width: 44px;
+    height: 44px;
   }
 
-  .privacy-modal {
-    max-height: calc(100vh - 20px);
-    padding: 16px;
+  .header-actions .theme-toggle {
+    border-left: 0;
   }
 
-  .privacy-actions {
-    grid-template-columns: 1fr;
-  }
-
-  .button-pair {
+  .button-pair,
+  .button-pair.three {
     grid-template-columns: 1fr;
   }
 

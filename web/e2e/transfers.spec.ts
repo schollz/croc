@@ -24,13 +24,6 @@ const webAddress = process.env.CROC_E2E_WEB_ADDRESS ?? "/";
 const relayPassword = "pass123";
 const transferTimeout = 60_000;
 
-async function dismissPrivacy(page: Page) {
-  const dialog = page.getByRole("dialog", { name: "Optional analytics" });
-  if (await dialog.isVisible().catch(() => false)) {
-    await dialog.getByRole("button", { name: "Reject analytics" }).click();
-  }
-}
-
 type FixtureSet = {
   paths: string[];
   contents: Map<string, Buffer>;
@@ -144,7 +137,6 @@ function commonCLIArgs() {
 
 async function configurePage(page: Page) {
   await page.goto(webAddress);
-  await dismissPrivacy(page);
   await page.locator("details.settings > summary").click();
   await page.getByLabel("CLI relay address").fill(relayAddress);
   await page.getByLabel("WebSocket gateway").fill("/ws");
@@ -254,7 +246,6 @@ test("publishes rich metadata and project links", async ({ page }) => {
     },
   );
   await page.goto("/");
-  await dismissPrivacy(page);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
     "https://getcroc.com/",
@@ -353,7 +344,6 @@ test("serves the installer to curl and the app to browsers", async ({
   );
 
   await page.goto("/");
-  await dismissPrivacy(page);
   await expect(
     page.getByRole("heading", { name: "Send files, secured end-to-end." }),
   ).toBeVisible();
@@ -362,40 +352,64 @@ test("serves the installer to curl and the app to browsers", async ({
   );
 });
 
-test("asks once for analytics consent and keeps the choice editable", async ({
-  page,
-}) => {
+test("opens directly without an analytics popover", async ({ page }) => {
+  await page.goto("/");
+  await expect(
+    page.getByRole("dialog", { name: "Optional analytics" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Send files, secured end-to-end." }),
+  ).toBeVisible();
+});
+
+test("mobile puts both transfer directions within one tap", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
 
-  const dialog = page.getByRole("dialog", { name: "Optional analytics" });
-  await expect(dialog).toBeVisible();
-  await expect(
-    dialog.getByRole("button", { name: "Reject analytics" }),
-  ).toBeVisible();
-  await expect(
-    dialog.getByRole("button", { name: "Allow analytics" }),
-  ).toBeVisible();
-  await expect(
-    dialog.getByRole("button", { name: "Close privacy choices" }),
-  ).toHaveCount(0);
+  const sendTab = page.getByRole("tab", { name: "Send" });
+  const receiveTab = page.getByRole("tab", { name: "Receive" });
+  await expect(sendTab).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".send-panel")).toBeVisible();
+  await expect(page.locator(".receive-panel")).not.toBeVisible();
 
-  await dialog.getByRole("button", { name: "Reject analytics" }).click();
-  await expect(dialog).toHaveCount(0);
-  await page.reload();
-  await expect(dialog).toHaveCount(0);
+  await receiveTab.click();
+  await expect(receiveTab).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".receive-panel")).toBeVisible();
+  await expect(page.locator(".send-panel")).not.toBeVisible();
 
-  await page.getByRole("button", { name: "privacy choices" }).click();
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByText("analytics off")).toBeVisible();
-  await dialog.getByRole("button", { name: "Close privacy choices" }).click();
-  await expect(dialog).toHaveCount(0);
+  await page.evaluate(() => window.scrollBy(0, 120));
+  await sendTab.click();
+  await expect(sendTab).toHaveAttribute("aria-selected", "true");
+  await expect
+    .poll(() =>
+      page.locator(".transfer-grid").evaluate((element) =>
+        Math.abs(element.getBoundingClientRect().top),
+      ),
+    )
+    .toBeLessThanOrEqual(1);
+
+  await receiveTab.click();
+
+  const mobileLayout = await page.evaluate(() => ({
+    inputFontSize: Number.parseFloat(
+      getComputedStyle(document.querySelector("#receive-code")!).fontSize,
+    ),
+    overflow: document.documentElement.scrollWidth - window.innerWidth,
+    targets: [...document.querySelectorAll(".mobile-transfer-switch button")].map(
+      (element) => element.getBoundingClientRect().height,
+    ),
+  }));
+  expect(mobileLayout.overflow).toBeLessThanOrEqual(0);
+  expect(mobileLayout.inputFontSize).toBeGreaterThanOrEqual(16);
+  for (const height of mobileLayout.targets) {
+    expect(height).toBeGreaterThanOrEqual(44);
+  }
 });
 
 test("receive links open with the Receive panel at the top", async ({
   page,
 }) => {
   await page.goto("/?code=x");
-  await dismissPrivacy(page);
 
   const receivePanel = page.locator("#receive");
   await expect(receivePanel).toBeVisible();
@@ -434,7 +448,6 @@ test("help tour explains browser transfers and end-to-end encryption", async ({
     },
   );
   await page.goto("/");
-  await dismissPrivacy(page);
   const helpButton = page.getByRole("button", { name: "How to use croc web" });
   const githubButton = page.getByRole("link", { name: "View croc on GitHub" });
   const themeButton = page.getByRole("button", { name: /Switch to .* mode/ });
@@ -509,7 +522,6 @@ test("copying a croc code shows confirmation", async ({ page }) => {
 test("generates a complete four-word code on narrow screens", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await dismissPrivacy(page);
   await expect(page.locator(".send-panel").getByLabel("Croc code")).toHaveValue(
     /^[a-z]+-[a-z]+-[a-z]+-[a-z]+$/,
   );
