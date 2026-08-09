@@ -4,9 +4,16 @@ import "@fontsource-variable/jetbrains-mono";
 import "driver.js/dist/driver.css";
 import "./styles.css";
 import { App } from "./App";
+import { Blog } from "./Blog";
+
+const blogPath = window.location.pathname.replace(/\/$/, "") || "/";
+const isBlogRoute = blogPath === "/blog" || blogPath.startsWith("/blog/");
+const blogSlug = blogPath.startsWith("/blog/")
+  ? blogPath.slice("/blog/".length)
+  : undefined;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    {isBlogRoute ? <Blog slug={blogSlug} /> : <App />}
   </React.StrictMode>,
 );

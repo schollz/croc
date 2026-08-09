@@ -263,8 +263,8 @@ test("publishes rich metadata and project links", async ({ page }) => {
     page.getByRole("link", { name: "View croc on GitHub" }),
   ).toHaveAttribute("href", "https://github.com/schollz/croc");
   await expect(
-    page.getByRole("link", { name: /Read how croc works/i }),
-  ).toHaveAttribute("href", "https://schollz.com/croc6/");
+    page.getByRole("link", { name: /Read all seven notes/i }),
+  ).toHaveAttribute("href", "/blog");
   await expect(
     page.getByRole("link", { name: "schollz", exact: true }),
   ).toHaveAttribute("href", "https://github.com/sponsors/schollz");
@@ -481,7 +481,7 @@ test("help tour explains browser transfers and end-to-end encryption", async ({
     "The code or link provides the key",
     "Use another relay when needed",
     "Works with the croc CLI",
-    "Simple by design",
+    "Read the field notes",
   ];
 
   for (const [index, expectedTitle] of steps.entries()) {

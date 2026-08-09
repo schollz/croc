@@ -335,6 +335,7 @@ type staticHandler struct {
 	files      fs.FS
 	fileServer http.Handler
 	index      []byte
+	htmlPages  map[string][]byte
 	installer  []byte
 }
 
@@ -347,12 +348,30 @@ func newStaticHandler(
 	if files == nil {
 		return nil, errors.New("static file system cannot be empty")
 	}
-	index, err := fs.ReadFile(files, "index.html")
+	htmlPages := make(map[string][]byte)
+	err := fs.WalkDir(files, ".", func(filePath string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || path.Base(filePath) != "index.html" {
+			return nil
+		}
+		page, readErr := fs.ReadFile(files, filePath)
+		if readErr != nil {
+			return readErr
+		}
+		page = injectUmamiConfig(page, umamiURL, umamiWebsiteID)
+		page = injectGoogleAdSense(page, googleAdSense)
+		htmlPages[filePath] = page
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("embedded web client is missing index.html: %w", err)
+		return nil, fmt.Errorf("read embedded HTML pages: %w", err)
 	}
-	index = injectUmamiConfig(index, umamiURL, umamiWebsiteID)
-	index = injectGoogleAdSense(index, googleAdSense)
+	index, exists := htmlPages["index.html"]
+	if !exists {
+		return nil, fmt.Errorf("embedded web client is missing index.html")
+	}
 	installer, err := fs.ReadFile(files, "default.txt")
 	if err != nil {
 		return nil, fmt.Errorf("embedded web client is missing default.txt: %w", err)
@@ -361,6 +380,7 @@ func newStaticHandler(
 		files:      files,
 		fileServer: http.FileServer(http.FS(files)),
 		index:      index,
+		htmlPages:  htmlPages,
 		installer:  installer,
 	}, nil
 }
@@ -443,20 +463,32 @@ func (h *staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		requested = "index.html"
 	}
 	info, err := fs.Stat(h.files, requested)
-	if err != nil || info.IsDir() {
+	if err == nil && info.IsDir() {
+		routeIndex := path.Join(requested, "index.html")
+		if _, exists := h.htmlPages[routeIndex]; exists {
+			requested = routeIndex
+		} else {
+			requested = "index.html"
+		}
+	} else if err != nil {
 		if path.Ext(requested) != "" {
 			http.NotFound(w, r)
 			return
 		}
-		requested = "index.html"
+		routeIndex := path.Join(requested, "index.html")
+		if _, exists := h.htmlPages[routeIndex]; exists {
+			requested = routeIndex
+		} else {
+			requested = "index.html"
+		}
 	}
 
-	if requested == "index.html" {
+	if page, exists := h.htmlPages[requested]; exists {
 		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Content-Length", strconv.Itoa(len(h.index)))
+		w.Header().Set("Content-Length", strconv.Itoa(len(page)))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if r.Method == http.MethodGet {
-			_, _ = w.Write(h.index)
+			_, _ = w.Write(page)
 		}
 		return
 	} else if requested == "croc-download-sw.js" || requested == "croc-worker.js" {

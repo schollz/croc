@@ -21,8 +21,10 @@ const testInstaller = "#!/bin/bash\nset -o nounset\n"
 
 func testSite() fstest.MapFS {
 	return fstest.MapFS{
-		"index.html":  {Data: []byte("<!doctype html><html><head></head><body><div id=\"root\"></div></body></html>")},
-		"default.txt": {Data: []byte(testInstaller)},
+		"index.html":                        {Data: []byte("<!doctype html><html><head></head><body><div id=\"root\"></div></body></html>")},
+		"blog/index.html":                   {Data: []byte("<!doctype html><html><head><title>field notes</title></head><body><div id=\"root\"></div></body></html>")},
+		"blog/pake-step-by-step/index.html": {Data: []byte("<!doctype html><html><head><title>PAKE, step by step</title></head><body><div id=\"root\"></div></body></html>")},
+		"default.txt":                       {Data: []byte(testInstaller)},
 		"croc-download-sw.js": {
 			Data: []byte("self.addEventListener('fetch', () => {})"),
 		},
@@ -103,6 +105,22 @@ func TestServesSiteAndRuntimeConfig(t *testing.T) {
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/send/files", nil))
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), `id="root"`)
+	assert.NotContains(t, recorder.Body.String(), "field notes")
+
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/blog", nil))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "<title>field notes</title>")
+	assert.Equal(t, "no-cache", recorder.Header().Get("Cache-Control"))
+
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/blog/pake-step-by-step", nil),
+	)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "<title>PAKE, step by step</title>")
+	assert.Equal(t, "no-cache", recorder.Header().Get("Cache-Control"))
 
 	recorder = httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/assets/app.js", nil))

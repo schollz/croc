@@ -15,7 +15,7 @@
     "test": "vitest run",
     "test:e2e": "npm run embed && playwright test",
     "test:all": "npm test && npm run test:e2e",
-    "build": "npm run wasm && tsc -b && vite build",
+    "build": "npm run wasm && tsc -b && vite build && node scripts/generate-blog-pages.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

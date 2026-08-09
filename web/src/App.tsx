@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  ArrowRight,
+  BookOpenText,
   Check,
   CircleHelp,
   Copy,
@@ -76,6 +78,7 @@ import {
   type GitHubRelease,
 } from "./releases";
 import { wasm } from "./wasm/client";
+import { blogPosts } from "./blog-posts";
 
 type Activity = "idle" | "working" | "done" | "error";
 type Theme = "dark" | "light";
@@ -416,6 +419,38 @@ function CliDownload() {
         >
           Other releases <span aria-hidden="true">↗</span>
         </a>
+      </div>
+    </section>
+  );
+}
+
+function BlogTeaser() {
+  return (
+    <section
+      className="home-blog-teaser"
+      aria-labelledby="home-blog-title"
+      data-tour="blog"
+    >
+      <div className="home-blog-heading">
+        <div>
+          <p className="eyebrow">Field notes</p>
+          <h2 id="home-blog-title">What happens after you press Send?</h2>
+          <p>
+            Plainspoken notes about the relay, the four-word code, and the ways
+            browsers and terminals meet in the same transfer.
+          </p>
+        </div>
+        <a href="/blog">Read all seven notes <ArrowRight /></a>
+      </div>
+      <div className="home-blog-list">
+        {blogPosts.slice(0, 3).map((post) => (
+          <a href={`/blog/${post.slug}`} key={post.slug}>
+            <span>{post.number}</span>
+            <strong>{post.title}</strong>
+            <small>{post.readingMinutes} min read</small>
+            <ArrowRight aria-hidden="true" />
+          </a>
+        ))}
       </div>
     </section>
   );
@@ -908,11 +943,11 @@ export function App() {
         },
       },
       {
-        element: '[data-tour="about"]',
+        element: '[data-tour="blog"]',
         popover: {
-          title: "Simple by design",
+          title: "Read the field notes",
           description:
-            "No account, port forwarding, or local server is required. Follow the “Read how croc works” link for a deeper explanation of the protocol and its security model.",
+            "Seven plainspoken notes explain the relay, PAKE, encryption, browser and terminal interoperability, and the decisions behind croc.",
           side: "top",
           align: "start",
         },
@@ -997,6 +1032,14 @@ export function App() {
           >
             <CircleHelp aria-hidden="true" />
           </button>
+          <a
+            className="icon-button blog-header-link"
+            href="/blog"
+            aria-label="Read croc field notes"
+            title="Read croc field notes"
+          >
+            <BookOpenText aria-hidden="true" />
+          </a>
           <a
             className="icon-button"
             href="https://github.com/schollz/croc"
@@ -1482,30 +1525,7 @@ export function App() {
 
       <CliDownload />
 
-      <section
-        className="about-croc"
-        aria-labelledby="about-croc-title"
-        data-tour="about"
-      >
-        <div>
-          <p className="eyebrow">Why croc?</p>
-          <h2 id="about-croc-title">
-            Fast, simple, and secure file transfer between any two computers.
-          </h2>
-          <p>
-            croc relays files in real time, derives a strong end-to-end
-            encryption key with PAKE, and works without running a server or
-            configuring port forwarding.
-          </p>
-        </div>
-        <a
-          href="https://schollz.com/croc6/"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Read how croc works <span aria-hidden="true">↗</span>
-        </a>
-      </section>
+      <BlogTeaser />
 
       <footer className="site-footer">
         <div className="site-footer-links">
@@ -1527,6 +1547,8 @@ export function App() {
           >
             github
           </a>
+          <span aria-hidden="true">·</span>
+          <a href="/blog">blog</a>
           <span aria-hidden="true">·</span>
           <span>
             hosted with{" "}

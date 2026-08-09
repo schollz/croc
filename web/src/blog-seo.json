@@ -1,0 +1,154 @@
+{
+  "site": {
+    "url": "https://getcroc.com",
+    "name": "croc",
+    "locale": "en_US",
+    "language": "en-US",
+    "authorName": "Zackary Scholl",
+    "authorUrl": "https://schollz.com/",
+    "publisherName": "croc",
+    "logo": "/croc.png"
+  },
+  "index": {
+    "title": "croc field notes — secure file transfer explained",
+    "description": "Seven notes on why I built croc this way: live relays, PAKE encryption, four-word codes, browser transfers, and temporary storage.",
+    "keywords": [
+      "croc blog",
+      "encrypted file transfer",
+      "secure file sharing",
+      "password-authenticated key exchange",
+      "file transfer relay"
+    ],
+    "image": "/blog/images/blog-field-notes.webp",
+    "socialImage": "/blog/images/blog-field-notes.jpg",
+    "imageAlt": "An open field notebook containing simple symbols for a relay, code tiles, a key, and a file."
+  },
+  "posts": [
+    {
+      "slug": "why-croc-works-this-way",
+      "title": "Why croc works this way",
+      "description": "croc started with a large documentary, a friend in another country, and the surprisingly difficult question of how to send her the file.",
+      "category": "Origins",
+      "publishedAt": "2026-08-08",
+      "modifiedAt": "2026-08-09",
+      "keywords": [
+        "croc file transfer",
+        "secure file sharing",
+        "PAKE",
+        "file transfer relay",
+        "port forwarding"
+      ],
+      "image": "/blog/images/why-croc-works-this-way.webp",
+      "socialImage": "/blog/images/why-croc-works-this-way.jpg",
+      "imageAlt": "Two computers connected by a direct line, with a shared key and confirmation checkmark."
+    },
+    {
+      "slug": "how-croc-moves-a-file",
+      "title": "The relay is not a waiting room",
+      "description": "The croc relay looks a little like an upload server, except it does not wait for the whole file before sending it onward.",
+      "category": "How it works",
+      "publishedAt": "2026-08-08",
+      "modifiedAt": "2026-08-09",
+      "keywords": [
+        "file transfer relay",
+        "real-time file transfer",
+        "secure file sharing",
+        "croc",
+        "encrypted file transfer"
+      ],
+      "image": "/blog/images/how-croc-moves-a-file.webp",
+      "socialImage": "/blog/images/how-croc-moves-a-file.jpg",
+      "imageAlt": "Two devices connected through a central relay, with three file packets moving between them."
+    },
+    {
+      "slug": "what-four-word-code-does",
+      "title": "What the four words are doing",
+      "description": "I wanted a croc code to be easy to read aloud. Making four ordinary words secure enough for a file transfer takes a little more work.",
+      "category": "Security",
+      "publishedAt": "2026-08-08",
+      "modifiedAt": "2026-08-09",
+      "keywords": [
+        "croc code phrase",
+        "PAKE",
+        "password-authenticated key exchange",
+        "secure key exchange",
+        "encrypted file transfer"
+      ],
+      "image": "/blog/images/what-four-word-code-does.webp",
+      "socialImage": "/blog/images/what-four-word-code-does.jpg",
+      "imageAlt": "Four blank code tiles converge into one cryptographic key."
+    },
+    {
+      "slug": "pake-step-by-step",
+      "title": "PAKE, step by step",
+      "description": "PAKE is the part of croc that turns a small shared phrase into a strong key. Here is the exchange without skipping the interesting bits.",
+      "category": "Security",
+      "publishedAt": "2026-08-08",
+      "modifiedAt": "2026-08-09",
+      "keywords": [
+        "PAKE explained",
+        "password-authenticated key exchange",
+        "SPAKE2",
+        "mutual key confirmation",
+        "croc encryption"
+      ],
+      "image": "/blog/images/pake-step-by-step.webp",
+      "socialImage": "/blog/images/pake-step-by-step.jpg",
+      "imageAlt": "Two computers exchange messages and independently derive the same cryptographic key."
+    },
+    {
+      "slug": "send-file-from-browser",
+      "title": "Send a file without installing anything",
+      "description": "The browser can join an ordinary croc transfer now. Choose the files, share the code, and keep the tab open until the handoff finishes.",
+      "category": "Start here",
+      "publishedAt": "2026-08-08",
+      "modifiedAt": "2026-08-09",
+      "keywords": [
+        "browser file transfer",
+        "send files online",
+        "encrypted file transfer",
+        "no-install file sharing",
+        "croc web"
+      ],
+      "image": "/blog/images/send-file-from-browser.webp",
+      "socialImage": "/blog/images/send-file-from-browser.jpg",
+      "imageAlt": "A web browser sends a file directly to a receiving device."
+    },
+    {
+      "slug": "browser-meets-terminal",
+      "title": "A browser and a terminal can share the same file",
+      "description": "The browser client was meant to join normal croc transfers, not become another file-sharing island with its own links and accounts.",
+      "category": "Field guide",
+      "publishedAt": "2026-08-08",
+      "modifiedAt": "2026-08-09",
+      "keywords": [
+        "browser to terminal transfer",
+        "CLI file transfer",
+        "cross-platform file sharing",
+        "croc web",
+        "encrypted file transfer"
+      ],
+      "image": "/blog/images/browser-meets-terminal.webp",
+      "socialImage": "/blog/images/browser-meets-terminal.jpg",
+      "imageAlt": "A browser window and command-line terminal are connected by a file transfer."
+    },
+    {
+      "slug": "stored-transfer-one-download",
+      "title": "When both computers cannot be online at once",
+      "description": "Direct croc transfers expect both computers to be awake. Stored mode is for the inconvenient times when the people are not.",
+      "category": "Stored transfers",
+      "publishedAt": "2026-08-08",
+      "modifiedAt": "2026-08-09",
+      "keywords": [
+        "asynchronous file transfer",
+        "encrypted file storage",
+        "one-time download",
+        "expiring file link",
+        "secure file sharing"
+      ],
+      "image": "/blog/images/stored-transfer-one-download.webp",
+      "socialImage": "/blog/images/stored-transfer-one-download.jpg",
+      "imageAlt": "A locked parcel waits for a limited time before one recipient retrieves it."
+    }
+  ]
+}
