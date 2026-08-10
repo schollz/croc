@@ -74,7 +74,7 @@ function blogStructuredData(post?: BlogPost) {
       name: site.publisherName,
       url: `${siteURL}/`,
       logo: { "@type": "ImageObject", url: absoluteURL(site.logo) },
-      sameAs: ["https://github.com/schollz/croc"],
+      sameAs: [site.projectUrl, site.repositoryUrl],
     },
     {
       "@type": "Person",
@@ -121,6 +121,9 @@ function blogStructuredData(post?: BlogPost) {
           about: post.keywords.map((name) => ({ "@type": "Thing", name })),
           wordCount: post.wordCount,
           timeRequired: `PT${post.readingMinutes}M`,
+          relatedLink: post.relatedSlugs.map(
+            (slug) => `${siteURL}/blog/${slug}`,
+          ),
           inLanguage: site.language,
           isAccessibleForFree: true,
           license: "https://github.com/schollz/croc/blob/main/LICENSE",
@@ -170,6 +173,8 @@ function blogStructuredData(post?: BlogPost) {
           url: `${siteURL}/blog/${entry.slug}`,
           datePublished: entry.publishedAt,
           dateModified: entry.modifiedAt,
+          description: entry.description,
+          articleSection: entry.category,
           image: absoluteURL(entry.socialImage),
         })),
       },
@@ -237,7 +242,7 @@ function useBlogMetadata(post?: BlogPost, missing = false, missingSlug?: string)
       ['meta[name="twitter:image"]', "content", imageURL],
       ['meta[name="twitter:image:alt"]', "content", imageAlt],
       ['meta[itemprop="image"]', "content", imageURL],
-      ['meta[name="robots"]', "content", missing ? "noindex, follow" : "index, follow, max-image-preview:large"],
+      ['meta[name="robots"]', "content", missing ? "noindex, follow" : "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"],
       ['link[rel="canonical"]', "href", canonicalURL],
       ['link[rel="image_src"]', "href", imageURL],
     ] as const;
@@ -405,7 +410,8 @@ function BlogFooter() {
       <span>croc field notes · written in the open</span>
       <nav aria-label="Blog footer navigation">
         <a href="/">transfer files</a>
-        <a href="https://github.com/schollz/croc">source code</a>
+        <a href={site.projectUrl}>croc website</a>
+        <a href={site.repositoryUrl}>source code</a>
         <a href="https://github.com/sponsors/schollz">support croc</a>
       </nav>
     </footer>
@@ -650,7 +656,12 @@ function BlogIndex() {
             <h2>Move the file.</h2>
             <p>No account. No port forwarding. The browser is already a croc peer.</p>
           </div>
-          <a href="/">Open croc web <ArrowRight /></a>
+          <div className="blog-transfer-links">
+            <a href="/#send-panel">Send files <ArrowRight /></a>
+            <a href="/#receive">Receive files</a>
+            <a href={site.projectUrl}>Install croc</a>
+            <a href={site.repositoryUrl}>View source</a>
+          </div>
         </section>
       </main>
       <BlogFooter />
@@ -658,8 +669,18 @@ function BlogIndex() {
   );
 }
 
+function headingID(text: string, index: number) {
+  const slug = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return slug || `section-${index}`;
+}
+
 function BlogBlockView({ block, index }: { block: BlogBlock; index: number }) {
-  if (block.type === "heading") return <h2 id={`section-${index}`}>{block.text}</h2>;
+  if (block.type === "heading") {
+    return <h2 id={headingID(block.text, index)}>{block.text}</h2>;
+  }
   if (block.type === "list") {
     return <ul>{block.items.map((item) => <li key={item}>{item}</li>)}</ul>;
   }
@@ -688,6 +709,15 @@ function BlogArticle({ post }: { post: BlogPost }) {
   const index = blogPosts.findIndex((candidate) => candidate.slug === post.slug);
   const previous = index > 0 ? blogPosts[index - 1] : undefined;
   const next = index < blogPosts.length - 1 ? blogPosts[index + 1] : blogPosts[0];
+  const sections = post.blocks.flatMap((block, blockIndex) =>
+    block.type === "heading"
+      ? [{ id: headingID(block.text, blockIndex), text: block.text }]
+      : [],
+  );
+  const relatedPosts = post.relatedSlugs.flatMap((slug) => {
+    const related = getBlogPost(slug);
+    return related ? [related] : [];
+  });
 
   return (
     <div className="blog-shell">
@@ -713,21 +743,54 @@ function BlogArticle({ post }: { post: BlogPost }) {
 
           <div className="blog-article-layout">
             <aside className="article-rail">
-              <span><KeyRound /></span>
-              <p>IN ONE SENTENCE</p>
-              <strong>{post.takeaway}</strong>
+              <div className="article-rail-summary">
+                <span><KeyRound /></span>
+                <div>
+                  <p>IN ONE SENTENCE</p>
+                  <strong>{post.takeaway}</strong>
+                </div>
+              </div>
+              <nav className="article-toc" aria-label="In this field note">
+                <p>IN THIS NOTE</p>
+                <ol>
+                  {sections.map((section) => (
+                    <li key={section.id}>
+                      <a href={`#${section.id}`}>{section.text}</a>
+                    </li>
+                  ))}
+                </ol>
+              </nav>
             </aside>
             <div className="blog-article-body">
               {post.blocks.map((block, blockIndex) => (
                 <BlogBlockView block={block} index={blockIndex} key={`${block.type}-${blockIndex}`} />
               ))}
+              <section className="blog-related-notes" aria-labelledby={`related-${post.slug}`}>
+                <p className="blog-kicker"><BookOpenText /> Related field notes</p>
+                <h2 id={`related-${post.slug}`}>Keep following the transfer.</h2>
+                <div>
+                  {relatedPosts.map((related) => (
+                    <a href={`/blog/${related.slug}`} key={related.slug}>
+                      <span>FIELD NOTE {related.number}</span>
+                      <strong>{related.title}</strong>
+                      <small>{related.description}</small>
+                      <ArrowRight aria-hidden="true" />
+                    </a>
+                  ))}
+                </div>
+              </section>
               <section className="article-transfer-card">
                 <div>
                   <p className="blog-kicker"><Upload /> Try the protocol</p>
                   <h2>Send something small.</h2>
                   <p>The quickest explanation is still a transfer between two devices.</p>
                 </div>
-                <a href="/">Open croc web <ArrowRight /></a>
+                <div className="article-transfer-actions">
+                  <a href="/#send-panel">Send files <ArrowRight /></a>
+                  <a href="/#receive">Receive files</a>
+                  <a href={site.projectUrl}>Install croc</a>
+                  <a href={site.repositoryUrl}>Browse source</a>
+                </div>
               </section>
             </div>
           </div>

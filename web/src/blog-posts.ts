@@ -34,12 +34,13 @@ export type BlogPost = {
   takeaway: string;
   wordCount: number;
   readingMinutes: number;
+  relatedSlugs: string[];
   blocks: BlogBlock[];
 };
 
 type DraftBlogPost = Omit<
   BlogPost,
-  "modifiedAt" | "keywords" | "image" | "socialImage" | "imageAlt" | "wordCount" | "readingMinutes"
+  "modifiedAt" | "keywords" | "image" | "socialImage" | "imageAlt" | "wordCount" | "readingMinutes" | "relatedSlugs"
 >;
 
 const wordsPerMinute = 210;
@@ -628,6 +629,7 @@ export const blogPosts: BlogPost[] = drafts.map((post) => {
     imageAlt: seo.imageAlt,
     wordCount: blogWordCount(post.blocks),
     readingMinutes: readingMinutes(post.blocks),
+    relatedSlugs: [...seo.relatedSlugs],
   };
 });
 

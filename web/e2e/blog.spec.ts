@@ -1,27 +1,38 @@
 import { expect, test } from "@playwright/test";
+import blogSEO from "../src/blog-seo.json" with { type: "json" };
 
-test("production HTML exposes crawler metadata before JavaScript", async ({
+test("every article exposes complete crawler metadata before JavaScript", async ({
   request,
 }) => {
-  const response = await request.get("/blog/pake-step-by-step");
-  expect(response.ok()).toBe(true);
-  const html = await response.text();
+  for (const post of blogSEO.posts) {
+    const response = await request.get(`/blog/${post.slug}`);
+    expect(response.ok()).toBe(true);
+    const html = await response.text();
 
-  expect(html).toContain(
-    '<title>PAKE, step by step — croc field notes</title>',
-  );
-  expect(html).toContain(
-    '<link rel="canonical" href="https://getcroc.com/blog/pake-step-by-step"',
-  );
-  expect(html).toContain(
-    '<meta property="og:image" content="https://getcroc.com/blog/images/pake-step-by-step.jpg"',
-  );
-  expect(html).toContain(
-    '<meta name="twitter:card" content="summary_large_image"',
-  );
-  expect(html).toContain('property="article:published_time"');
-  expect(html).toContain('"@type":"BlogPosting"');
-  expect(html).toContain('"@type":"BreadcrumbList"');
+    expect(html).toContain(
+      `<title>${post.title} — croc field notes</title>`,
+    );
+    expect(html).toContain(
+      `<meta name="description" content="${post.description}"`,
+    );
+    expect(html).toContain(
+      `<link rel="canonical" href="https://getcroc.com/blog/${post.slug}"`,
+    );
+    expect(html).toContain(
+      `<meta property="og:image" content="https://getcroc.com${post.socialImage}"`,
+    );
+    expect(html).toContain(
+      '<meta name="twitter:card" content="summary_large_image"',
+    );
+    expect(html).toContain(
+      `<meta property="article:modified_time" content="${post.modifiedAt}"`,
+    );
+    expect(html).toContain('"@type":"BlogPosting"');
+    expect(html).toContain('"@type":"BreadcrumbList"');
+    expect(html).toContain(`"wordCount":${post.wordCount}`);
+    expect(html).toContain(`"timeRequired":"PT${post.readingMinutes}M"`);
+    expect(html).toContain('"relatedLink"');
+  }
 
   const image = await request.get("/blog/images/pake-step-by-step.jpg");
   expect(image.ok()).toBe(true);
@@ -86,6 +97,10 @@ test("direct article routes publish metadata and complete article content", asyn
     page.getByRole("heading", { name: "1. The receiver makes X" }),
   ).toBeVisible();
   await expect(page.getByText("IN ONE SENTENCE")).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "In this field note" }),
+  ).toBeVisible();
+  await expect(page.getByText("Related field notes")).toBeVisible();
   await expect(
     page.getByRole("link", { name: /Next note/ }),
   ).toBeVisible();
