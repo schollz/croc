@@ -257,8 +257,35 @@ test("publishes rich metadata and project links", async ({ page }) => {
   await expect(page).toHaveTitle("croc — fast, simple, secure file transfer");
   const structuredData = JSON.parse(
     (await page.locator('script[type="application/ld+json"]').textContent()) ?? "{}",
-  ) as { "@type"?: string };
+  ) as {
+    "@type"?: string;
+    aggregateRating?: {
+      ratingValue?: number;
+      ratingCount?: number;
+      reviewCount?: number;
+    };
+    offers?: { price?: number };
+    review?: Array<{
+      reviewBody?: string;
+      reviewRating?: { ratingValue?: number };
+    }>;
+  };
   expect(structuredData["@type"]).toBe("WebApplication");
+  expect(structuredData.offers?.price).toBe(0);
+  expect(structuredData.aggregateRating).toMatchObject({
+    ratingValue: 5,
+    ratingCount: 49,
+    reviewCount: 49,
+  });
+  expect(structuredData.review).toHaveLength(49);
+  expect(
+    structuredData.review?.every(
+      (review) => review.reviewRating?.ratingValue === 5,
+    ),
+  ).toBe(true);
+  expect(structuredData.review?.map((review) => review.reviewBody)).toContain(
+    "SOOOOO much easier than explaining Dropbox folders to clients!!!",
+  );
   await expect(
     page.getByRole("link", { name: "View croc on GitHub" }),
   ).toHaveAttribute("href", "https://github.com/schollz/croc");
