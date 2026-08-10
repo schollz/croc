@@ -41,7 +41,7 @@ function commonGraph() {
         "@type": "ImageObject",
         url: absoluteURL(metadata.site.logo),
       },
-      sameAs: ["https://github.com/schollz/croc"],
+      sameAs: [metadata.site.projectUrl, metadata.site.repositoryUrl],
     },
     {
       "@type": "Person",
@@ -98,6 +98,8 @@ function indexJSONLD(entry, canonicalURL) {
           url: `${metadata.site.url}/blog/${post.slug}`,
           datePublished: post.publishedAt,
           dateModified: post.modifiedAt,
+          description: post.description,
+          articleSection: post.category,
           image: absoluteURL(post.socialImage),
         })),
       },
@@ -159,6 +161,11 @@ function postJSONLD(entry, canonicalURL) {
         articleSection: entry.category,
         keywords: entry.keywords,
         about: entry.keywords.map((name) => ({ "@type": "Thing", name })),
+        wordCount: entry.wordCount,
+        timeRequired: `PT${entry.readingMinutes}M`,
+        relatedLink: entry.relatedSlugs.map(
+          (slug) => `${metadata.site.url}/blog/${slug}`,
+        ),
         inLanguage: metadata.site.language,
         isAccessibleForFree: true,
         license: "https://github.com/schollz/croc/blob/main/LICENSE",
@@ -220,10 +227,11 @@ function routeSEO(entry, pathname, isPost) {
     <meta name="author" content="${escapeHTML(metadata.site.authorName)}" />
     <meta name="title" content="${escapeHTML(pageTitle)}" />
     <meta name="keywords" content="${escapeHTML(keywords)}" />
-    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="description" content="${escapeHTML(entry.description)}" />
     <link rel="canonical" href="${escapeHTML(canonicalURL)}" />
+    <link rel="author" href="${escapeHTML(metadata.site.authorUrl)}" />
     <link rel="image_src" href="${escapeHTML(imageURL)}" />
     <link rel="alternate" type="application/rss+xml" title="croc field notes" href="${metadata.site.url}/blog/feed.xml" />${imagePreload}
     <meta itemprop="image" content="${escapeHTML(imageURL)}" />

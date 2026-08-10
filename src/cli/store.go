@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/rivo/uniseg"
 	"github.com/schollz/croc/v10/internal/cli"
 	"github.com/schollz/croc/v10/src/croc"
 	"github.com/schollz/croc/v10/src/storeclient"
@@ -118,28 +120,41 @@ func removeStoreReceipt(id string) error {
 }
 
 func storedCallbacks(quiet bool) storeclient.Callbacks {
+	return newStoredCallbacks(os.Stderr, quiet)
+}
+
+func newStoredCallbacks(output io.Writer, quiet bool) storeclient.Callbacks {
 	lastStatus := ""
+	lineWidth := 0
+	render := func(value string) {
+		if lineWidth > 0 {
+			fmt.Fprintf(output, "\r%s\r", strings.Repeat(" ", lineWidth))
+		} else {
+			fmt.Fprint(output, "\r")
+		}
+		fmt.Fprint(output, value)
+		lineWidth = uniseg.StringWidth(value)
+	}
 	return storeclient.Callbacks{
 		Status: func(value string) {
 			if quiet || value == lastStatus {
 				return
 			}
 			lastStatus = value
-			fmt.Fprintf(os.Stderr, "\r%s", value)
+			render(value)
 		},
 		Progress: func(value storeclient.Progress) {
 			if quiet || value.TotalSize == 0 {
 				return
 			}
 			percent := float64(value.TotalBytes) / float64(value.TotalSize) * 100
-			fmt.Fprintf(
-				os.Stderr,
-				"\r%s — %.1f%% (%s / %s)",
+			render(fmt.Sprintf(
+				"%s — %.1f%% (%s / %s)",
 				value.FileName,
 				percent,
 				utils.ByteCountDecimal(value.TotalBytes),
 				utils.ByteCountDecimal(value.TotalSize),
-			)
+			))
 		},
 	}
 }

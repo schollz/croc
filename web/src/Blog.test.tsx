@@ -59,7 +59,22 @@ describe("Blog", () => {
     ).toHaveAttribute("content", "2026-08-08");
     expect(
       document.querySelector('meta[property="article:modified_time"]'),
-    ).toHaveAttribute("content", "2026-08-09");
+    ).toHaveAttribute("content", "2026-08-10");
+    expect(
+      screen.getByRole("navigation", { name: "In this field note" }),
+    ).toBeVisible();
+    expect(
+      screen.getAllByRole("link", { name: /PAKE, step by step/ }),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          href: expect.stringContaining("/blog/pake-step-by-step"),
+        }),
+      ]),
+    );
+    expect(
+      screen.getByRole("link", { name: "Install croc" }),
+    ).toHaveAttribute("href", "https://infinitedigits.co/croc/");
     const structuredData = JSON.parse(
       document.querySelector<HTMLScriptElement>(
         'script[data-croc-blog="true"]',

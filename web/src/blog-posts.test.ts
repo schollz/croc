@@ -19,6 +19,12 @@ describe("blog posts", () => {
       expect(post.readingMinutes).toBe(readingMinutes(post.blocks));
       expect(post.readingMinutes).toBeGreaterThanOrEqual(2);
       expect(post.keywords.length).toBeGreaterThanOrEqual(4);
+      expect(post.relatedSlugs).toHaveLength(2);
+      expect(new Set(post.relatedSlugs).size).toBe(2);
+      expect(post.relatedSlugs).not.toContain(post.slug);
+      for (const relatedSlug of post.relatedSlugs) {
+        expect(getBlogPost(relatedSlug)).toBeDefined();
+      }
       expect(post.image).toBe(`/blog/images/${post.slug}.webp`);
       expect(post.socialImage).toBe(`/blog/images/${post.slug}.jpg`);
       expect(post.imageAlt.length).toBeGreaterThan(40);
@@ -30,6 +36,8 @@ describe("blog posts", () => {
         description: post.description,
         category: post.category,
         publishedAt: post.publishedAt,
+        wordCount: post.wordCount,
+        readingMinutes: post.readingMinutes,
       });
     }
   });

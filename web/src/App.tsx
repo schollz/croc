@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Settings2,
   Sun,
+  Terminal,
   Upload,
   X,
 } from "lucide-react";
@@ -99,6 +100,8 @@ const storeRuntime = runtimeSettings.store ?? {};
 const storeEnabled = storeRuntime.enabled === true;
 const storeMaxTransferBytes = storeRuntime.maxTransferBytes || 1024 ** 3;
 const storeMaxFiles = storeRuntime.maxFiles || 100;
+const crocWebsite = "https://infinitedigits.co/croc/";
+const crocRepository = "https://github.com/schollz/croc";
 const otherTools = [
   {
     description: "local weather, minus clutter",
@@ -359,6 +362,7 @@ function CliDownload() {
 
   return (
     <section
+      id="cli-download"
       className="cli-download"
       aria-labelledby="cli-download-title"
       data-tour="cli"
@@ -421,6 +425,33 @@ function CliDownload() {
         </a>
       </div>
     </section>
+  );
+}
+
+function TransferLinks() {
+  return (
+    <nav className="transfer-links" aria-label="More ways to transfer with croc">
+      <a href="/#send-panel">
+        <Upload aria-hidden="true" />
+        <span><strong>Send in your browser</strong><small>No install needed</small></span>
+      </a>
+      <a href="/#receive">
+        <Download aria-hidden="true" />
+        <span><strong>Receive in your browser</strong><small>Paste a code or link</small></span>
+      </a>
+      <a href="/#cli-download">
+        <Terminal aria-hidden="true" />
+        <span><strong>Download the croc CLI</strong><small>Windows, macOS, and Linux</small></span>
+      </a>
+      <a href={crocWebsite} target="_blank" rel="noopener noreferrer">
+        <BookOpenText aria-hidden="true" />
+        <span><strong>Read the croc guide</strong><small>Install and usage docs</small></span>
+      </a>
+      <a href={crocRepository} target="_blank" rel="noopener noreferrer">
+        <FaGithub aria-hidden="true" />
+        <span><strong>Explore the codebase</strong><small>Source, issues, and releases</small></span>
+      </a>
+    </nav>
   );
 }
 
@@ -1462,6 +1493,8 @@ export function App() {
         </form>
       </section>
 
+      <TransferLinks />
+
       <details className="settings" data-tour="settings">
         <summary>
           <span>
@@ -1541,7 +1574,7 @@ export function App() {
           </span>
           <span aria-hidden="true">·</span>
           <a
-            href="https://github.com/schollz/croc"
+            href={crocRepository}
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -1549,6 +1582,14 @@ export function App() {
           </a>
           <span aria-hidden="true">·</span>
           <a href="/blog">blog</a>
+          <span aria-hidden="true">·</span>
+          <a
+            href={crocWebsite}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            croc website
+          </a>
           <span aria-hidden="true">·</span>
           <span>
             hosted with{" "}
