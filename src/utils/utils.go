@@ -20,6 +20,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -1043,34 +1044,43 @@ func ValidFileName(fname string) (err error) {
 	return
 }
 
-const crocRemovalFile = "croc-marked-files.txt"
+var markedFiles = struct {
+	sync.Mutex
+	paths []string
+}{}
 
 func MarkFileForRemoval(fname string) {
-	// append the fname to the list of files to remove
-	f, err := os.OpenFile(crocRemovalFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	// Cleanup is only for temporary files croc creates in its working directory.
+	// Keep the list in memory so a received file cannot replace it and choose
+	// arbitrary paths for deletion.
+	if !filepath.IsLocal(fname) {
+		log.Debugf("refusing to mark non-local path for removal: %q", fname)
+		return
+	}
+	fname, err := filepath.Abs(fname)
 	if err != nil {
 		log.Debug(err)
 		return
 	}
-	defer f.Close()
-	_, err = f.WriteString(fname + "\n")
+
+	markedFiles.Lock()
+	markedFiles.paths = append(markedFiles.paths, fname)
+	markedFiles.Unlock()
 }
 
 func RemoveMarkedFiles() (err error) {
-	// read the file and remove all the files
-	f, err := os.Open(crocRemovalFile)
-	if err != nil {
-		return
-	}
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		fname := scanner.Text()
-		err = os.Remove(fname)
-		if err == nil {
+	markedFiles.Lock()
+	paths := markedFiles.paths
+	markedFiles.paths = nil
+	markedFiles.Unlock()
+
+	for _, fname := range paths {
+		removeErr := os.Remove(fname)
+		if removeErr == nil {
 			log.Tracef("Removed %s", fname)
+		} else if !os.IsNotExist(removeErr) {
+			err = errors.Join(err, removeErr)
 		}
 	}
-	f.Close()
-	os.Remove(crocRemovalFile)
 	return
 }
