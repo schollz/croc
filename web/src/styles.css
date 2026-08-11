@@ -1043,6 +1043,146 @@ a.cli-download-primary:hover {
   text-transform: none;
 }
 
+.home-reviews {
+  margin-top: 16px;
+  border: 1px solid var(--soft-border);
+  background: var(--background);
+}
+
+.home-reviews > summary {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 14px;
+  color: var(--muted);
+  font-size: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.home-reviews > summary::-webkit-details-marker {
+  display: none;
+}
+
+.home-reviews-score {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.home-reviews-score > span:first-child {
+  color: var(--foreground);
+  letter-spacing: 0.08em;
+}
+
+.home-reviews-score strong {
+  color: var(--foreground);
+  font-size: 11px;
+}
+
+.home-reviews-action {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-decoration-color: var(--soft-border);
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+.home-reviews-action::before {
+  content: "+ ";
+}
+
+.home-reviews[open] .home-reviews-action::before {
+  content: "− ";
+}
+
+.home-reviews[open] > summary {
+  border-bottom: 1px solid var(--soft-border);
+}
+
+.home-reviews-body > p {
+  margin: 0;
+  padding: 13px 14px;
+  border-bottom: 1px dotted var(--soft-border);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.home-review-list {
+  display: grid;
+  max-height: 420px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.home-review-list > li {
+  min-width: 0;
+  border-bottom: 1px dotted var(--soft-border);
+}
+
+.home-review-list > li:nth-child(odd) {
+  border-right: 1px dotted var(--soft-border);
+}
+
+.home-review-list blockquote {
+  display: grid;
+  min-height: 112px;
+  grid-template-rows: 1fr auto;
+  gap: 16px;
+  margin: 0;
+  padding: 16px;
+}
+
+.home-review-list blockquote > p {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.home-review-list footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.home-review-list cite {
+  overflow: hidden;
+  color: var(--foreground);
+  font-style: normal;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-review-meta {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.home-review-list time {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.home-review-rating {
+  color: var(--foreground);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
 .site-footer {
   position: relative;
   display: flex;
@@ -2826,6 +2966,18 @@ a.cli-download-primary:hover {
 
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+
+  .home-reviews > summary {
+    min-height: 48px;
+  }
+
+  .home-review-list {
+    grid-template-columns: 1fr;
+  }
+
+  .home-review-list > li:nth-child(odd) {
+    border-right: 0;
   }
 
   .cli-download {

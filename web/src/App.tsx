@@ -134,6 +134,79 @@ const otherTools = [
     name: "makestopmotion",
   },
 ];
+
+type HomeReview = {
+  author: { name: string };
+  datePublished: string;
+  reviewBody: string;
+  reviewRating: { ratingValue: number };
+};
+
+type HomeReviewData = {
+  ratingValue: number;
+  reviewCount: number;
+  reviews: HomeReview[];
+};
+
+function readHomeReviewData(): HomeReviewData | undefined {
+  const element = document.querySelector<HTMLScriptElement>(
+    'script[type="application/ld+json"][data-croc-home="true"]',
+  );
+  if (!element?.textContent) return undefined;
+
+  try {
+    const data = JSON.parse(element.textContent) as {
+      aggregateRating?: { ratingValue?: unknown; reviewCount?: unknown };
+      review?: Array<{
+        author?: { name?: unknown };
+        datePublished?: unknown;
+        reviewBody?: unknown;
+        reviewRating?: { ratingValue?: unknown };
+      }>;
+    };
+    const ratingValue = Number(data.aggregateRating?.ratingValue);
+    const reviewCount = Number(data.aggregateRating?.reviewCount);
+    const reviews = (data.review ?? []).filter(
+      (review): review is HomeReview =>
+        typeof review.author?.name === "string" &&
+        typeof review.datePublished === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(review.datePublished) &&
+        typeof review.reviewBody === "string" &&
+        typeof review.reviewRating?.ratingValue === "number" &&
+        Number.isFinite(review.reviewRating.ratingValue),
+    );
+
+    if (
+      !Number.isFinite(ratingValue) ||
+      !Number.isFinite(reviewCount) ||
+      reviews.length !== reviewCount
+    ) {
+      return undefined;
+    }
+
+    return { ratingValue, reviewCount, reviews };
+  } catch {
+    return undefined;
+  }
+}
+
+const homeReviewData = readHomeReviewData();
+const homeReviewDateFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC",
+  year: "numeric",
+});
+
+function formatHomeReviewDate(value: string) {
+  return homeReviewDateFormatter.format(new Date(`${value}T00:00:00Z`));
+}
+
+function homeReviewStars(value: number) {
+  const filled = Math.max(0, Math.min(5, Math.round(value)));
+  return `${"★".repeat(filled)}${"☆".repeat(5 - filled)}`;
+}
+
 const defaultSettings: TransferSettings = {
   gatewayURL:
     runtimeSettings.gatewayURL ||
@@ -484,6 +557,55 @@ function BlogTeaser() {
         ))}
       </div>
     </section>
+  );
+}
+
+function HomeReviews() {
+  if (!homeReviewData) return null;
+
+  const { ratingValue, reviewCount, reviews } = homeReviewData;
+
+  return (
+    <details className="home-reviews">
+      <summary>
+        <span className="home-reviews-score">
+          <span aria-hidden="true">{homeReviewStars(ratingValue)}</span>
+          <strong>{ratingValue}/5</strong>
+          <span>
+            from {reviewCount} reviewer{reviewCount === 1 ? "" : "s"}
+          </span>
+        </span>
+        <span className="home-reviews-action">read reviews</span>
+      </summary>
+      <div className="home-reviews-body">
+        <p>Comments from people using croc to move their files.</p>
+        <ol className="home-review-list">
+          {reviews.map((review, index) => (
+            <li key={`${review.author.name}-${index}`}>
+              <blockquote>
+                <p>{review.reviewBody}</p>
+                <footer>
+                  <cite>{review.author.name}</cite>
+                  <span className="home-review-meta">
+                    <time dateTime={review.datePublished}>
+                      {formatHomeReviewDate(review.datePublished)}
+                    </time>
+                    <span
+                      className="home-review-rating"
+                      aria-label={`Rated ${review.reviewRating.ratingValue} out of 5`}
+                    >
+                      <span aria-hidden="true">
+                        {homeReviewStars(review.reviewRating.ratingValue)}
+                      </span>
+                    </span>
+                  </span>
+                </footer>
+              </blockquote>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </details>
   );
 }
 
@@ -1559,6 +1681,8 @@ export function App() {
       <CliDownload />
 
       <BlogTeaser />
+
+      {!receiveOnly && <HomeReviews />}
 
       <footer className="site-footer">
         <div className="site-footer-links">

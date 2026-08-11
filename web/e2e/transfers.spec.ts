@@ -266,6 +266,8 @@ test("publishes rich metadata and project links", async ({ page }) => {
     };
     offers?: { price?: number };
     review?: Array<{
+      author?: { "@type"?: string; name?: string };
+      datePublished?: string;
       reviewBody?: string;
       reviewRating?: { ratingValue?: number };
     }>;
@@ -273,18 +275,85 @@ test("publishes rich metadata and project links", async ({ page }) => {
   expect(structuredData["@type"]).toBe("WebApplication");
   expect(structuredData.offers?.price).toBe(0);
   expect(structuredData.aggregateRating).toMatchObject({
-    ratingValue: 5,
-    ratingCount: 49,
-    reviewCount: 49,
+    ratingValue: 4.7,
+    ratingCount: 10,
+    reviewCount: 10,
   });
-  expect(structuredData.review).toHaveLength(49);
+  expect(structuredData.review).toHaveLength(10);
+  const reviewerNames = [
+    "ioricloud",
+    "gazeebo",
+    "BelugaBilliam",
+    "StartupTree",
+    "ntoshev",
+    "alexeldeib",
+    "njt",
+    "Deozaan",
+    "poetaster",
+    "Tôi_là_người_thật",
+  ];
+  expect(structuredData.review?.map((review) => review.author?.name)).toEqual(
+    reviewerNames,
+  );
+  expect(structuredData.review?.map((review) => review.datePublished)).toEqual([
+    "2023-04-14",
+    "2023-02-12",
+    "2023-11-29",
+    "2020-09-18",
+    "2021-03-12",
+    "2022-06-24",
+    "2022-11-03",
+    "2021-10-10",
+    "2026-01-13",
+    "2026-08-10",
+  ]);
+  expect(
+    structuredData.review?.map(
+      (review) => review.reviewRating?.ratingValue,
+    ),
+  ).toEqual([5, 4, 5, 5, 5, 5, 4, 5, 5, 4]);
   expect(
     structuredData.review?.every(
-      (review) => review.reviewRating?.ratingValue === 5,
+      (review) =>
+        review.author?.["@type"] === "Person" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(review.datePublished ?? ""),
     ),
   ).toBe(true);
-  expect(structuredData.review?.map((review) => review.reviewBody)).toContain(
-    "SOOOOO much easier than explaining Dropbox folders to clients!!!",
+  expect(structuredData.review?.slice(0, 3).map((review) => review.reviewBody))
+    .toEqual([
+      "I use croc here a lot. Awesome binary for me",
+      "Croc's my most used transfer tool",
+      "Croc for easy file transfer, Linux compatible and it's quicker than ftp/SFTP",
+    ]);
+  const homeReviews = page.locator("details.home-reviews");
+  await expect(homeReviews).not.toHaveAttribute("open", "");
+  await expect(homeReviews.locator("summary")).toContainText(
+    /4\.7\/5\s*from 10 reviewers\s*read reviews/,
+  );
+  await homeReviews.locator("summary").click();
+  await expect(homeReviews).toHaveAttribute("open", "");
+  const visibleReviews = homeReviews.locator(".home-review-list > li");
+  await expect(visibleReviews).toHaveCount(10);
+  await expect(homeReviews).not.toContainText(
+    /Reddit|Hacker News|Lobsters|DonationCoder|Sailfish|Facebook/,
+  );
+  const renderedReviewData = await visibleReviews.evaluateAll((items) =>
+    items.map((item) => ({
+      author: item.querySelector("cite")?.textContent,
+      body: item.querySelector("blockquote > p")?.textContent,
+      date: item.querySelector("time")?.getAttribute("datetime"),
+      rating: item
+        .querySelector(".home-review-rating")
+        ?.getAttribute("aria-label"),
+    })),
+  );
+  expect(renderedReviewData).toEqual(
+    structuredData.review?.map((review) => ({
+      author: review.author?.name,
+      body: review.reviewBody,
+      date: review.datePublished,
+      rating: `Rated ${review.reviewRating?.ratingValue} out of 5`,
+    })),
   );
   await expect(
     page.getByRole("link", { name: "View croc on GitHub" }),
