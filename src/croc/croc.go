@@ -234,6 +234,7 @@ type SenderInfo struct {
 	Ask                    bool
 	SendingText            bool
 	NoCompress             bool
+	NoEncrypt              bool
 	HashAlgorithm          string
 	ReconnectVersion       int
 	NextReconnectRoom      string
