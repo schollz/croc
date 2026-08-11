@@ -3011,12 +3011,15 @@ func (c *Client) receiveData(i int, dataConn *comm.Comm, attempt *transferAttemp
 			log.Trace("got ping")
 			continue
 		}
-
-		data, err = crypt.Decrypt(data, c.Key)
-		if err != nil {
-			attempt.report(err)
-			return
+		
+		if !c.Options.NoEncrypt {
+			data, err = crypt.Decrypt(data, c.Key)
+			if err != nil {
+				attempt.report(err)
+				return
+			}
 		}
+		
 		if !c.Options.NoCompress {
 			data, err = compress.Decompress(data, maxDecompressedChunkSize)
 			if err != nil {
