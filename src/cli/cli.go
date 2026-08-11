@@ -76,6 +76,7 @@ func newApp() *cli.App {
 				&cli.StringFlag{Name: "text", Aliases: []string{"t"}, Usage: "send some text"},
 				&cli.BoolFlag{Name: "no-local", Usage: "disable local relay when sending"},
 				&cli.BoolFlag{Name: "no-multi", Usage: "disable multiplexing"},
+				&cli.BoolFlag{Name: "no-encrypt", Usage: "disable payload encryption for trusted networks"},
 				&cli.BoolFlag{Name: "git", Usage: "enable .gitignore respect / don't send ignored files"},
 				&cli.IntFlag{Name: "port", Value: 9009, Usage: "base port for the relay"},
 				&cli.IntFlag{Name: "transfers", Value: 4, Usage: "number of ports to use for transfers"},
