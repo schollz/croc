@@ -2,9 +2,10 @@
 
 Stored transfers are croc's opt-in asynchronous mode. A sender encrypts one or
 more regular files locally, uploads only ciphertext, and shares a capability
-link. The first receiver to finish authenticating and verifying every file
-commits the download, which immediately removes the ciphertext. An unfinished
-transfer expires 24 hours after upload finalization.
+link. Each receiver that finishes authenticating and verifying every file
+commits one allowed download. The final allowed commit immediately removes the
+ciphertext. An available transfer expires after the sender-selected finite
+lifetime, measured from successful upload finalization. The default is one day.
 
 This is deliberately separate from the normal croc relay protocol. Direct
 transfers remain the default and continue to use PAKE between two live peers.
@@ -15,6 +16,8 @@ Upload with the public service:
 
 ```bash
 croc send --store photo.jpg document.pdf
+croc send --store --store-downloads 3 photo.jpg document.pdf
+croc send --store --store-expiration 3d photo.jpg document.pdf
 ```
 
 Use another service origin when self-hosting:
@@ -41,7 +44,7 @@ CROC_STORE_TOKEN='croc-store-v1....' croc --out ./received
 The CLI decrypts the manifest before showing file names and sizes. It asks for
 confirmation, downloads to partial files, authenticates every chunk, verifies
 each complete file with SHA-256, renames it into place, and only then commits
-the one download. Its partial state allows completed chunks to resume.
+one allowed download. Its partial state allows completed chunks to resume.
 
 The web client performs the same inspection before asking the user to accept.
 It writes through the File System Access API where available. Otherwise a
@@ -49,7 +52,7 @@ service worker streams the download without keeping the complete file in page
 memory. Blob fallback is limited to 256 MiB; for larger files on browsers that
 support neither streaming path, the UI directs the recipient to the CLI.
 
-The sender can revoke an unconsumed transfer:
+The sender can revoke a transfer while it remains available:
 
 ```bash
 croc --revoke <transfer-id>
@@ -100,12 +103,12 @@ data. It can deny service, delete data early, or serve stale/corrupt
 ciphertext, but official clients authenticate ciphertext and verify the final
 plaintext before committing consumption.
 
-## One-download state machine
+## Download-budget state machine
 
 New objects have one of these persistent states:
 
 1. `uploading` — reserved for one hour while ciphertext objects arrive;
-2. `available` — complete and redeemable for 24 hours;
+2. `available` — complete and redeemable for its accepted lifetime;
 3. `claimed` — locked to one receiver for up to 30 minutes, renewed as chunks
    are read;
 4. `consumed`, `revoked`, or `expired` — ciphertext is deleted immediately and
@@ -117,7 +120,11 @@ claims immediately before reading chunks. Only the claim capability can read
 chunks or commit. If the receiver disappears, the claim expires and another
 receiver may try. Official clients commit only after client-side authentication
 and whole-file SHA-256 verification. The service cannot prove that a custom
-client actually performed those checks.
+client actually performed those checks. A successful commit decrements the
+remaining-download count exactly once. While downloads remain, the transfer
+returns to `available`; at zero it becomes `consumed` and its ciphertext is
+deleted. Claims remain exclusive, so configured downloads are served one at a
+time rather than concurrently.
 
 ## Running a service
 
@@ -144,9 +151,20 @@ The storage controls are:
 | `--store-quota` | `5GiB` | Maximum reserved ciphertext across transfers |
 | `--store-min-free` | `512MiB` | Disk space that must remain available |
 | `--store-max-files` | `100` | Maximum regular files per transfer |
+| `--store-downloads` | `1` | Maximum verified downloads a sender may request per transfer |
+| `--store-max-expiration` | `0` | Maximum sender-selected lifetime; `0` means no policy ceiling |
 | `--store-create-rate` | `5` | Creates allowed per client IP per hour |
 | `--store-active-uploads` | `2` | Concurrent incomplete uploads per client IP |
 | `--store-trusted-proxy` | none | Repeatable trusted reverse-proxy CIDR |
+
+Set `CROC_STORE_DOWNLOADS` and `CROC_STORE_MAX_EXPIRATION` to configure the
+server's download and expiration maxima through the environment; explicit
+flags override them. Expiration values use whole `m`, `h`, `d`, or `w` units,
+must be at least one minute, and are silently reduced when they exceed the
+server maximum. An empty or `0` server maximum permits any finite representable
+lifetime. The accepted lifetime is stored when the transfer is created, so a
+later policy change does not alter it. Legacy metadata retains the one-day
+default.
 
 Byte flags accept integer `B`, `KB`, `MB`, `GB`, `TB`, `KiB`, `MiB`, `GiB`,
 and `TiB` suffixes. A service holds an exclusive lock on its configured root;
@@ -163,4 +181,13 @@ socket peer address.
 
 The HTTP API is versioned at `/api/v1/store/transfers`. It is an implementation
 boundary for the official croc web and CLI clients, not a promise that
-unversioned internals will remain compatible.
+unversioned internals will remain compatible. Create declarations may include
+`expiresSeconds`; omitting it preserves the one-day client default, while a
+configured maximum may silently clamp the accepted value. The accepted
+lifetime is not added to the create response so strict older clients retain
+their response shape. The existing completion response reports the final
+absolute `expiresAt`.
+
+Browser runtime configuration exposes `expiresSeconds` as the effective
+default and `maxExpiresSeconds` as the policy ceiling. A zero maximum means no
+policy ceiling.

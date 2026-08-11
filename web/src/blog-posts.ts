@@ -554,7 +554,7 @@ const drafts: DraftBlogPost[] = [
     author: "schollz",
     visual: "stored",
     takeaway:
-      "Stored mode encrypts locally and keeps only ciphertext until one verified download or 24 hours, whichever happens first.",
+      "Stored mode encrypts locally and keeps only ciphertext until its verified-download limit or sender-selected lifetime, whichever happens first.",
     blocks: [
       {
         type: "paragraph",
@@ -567,7 +567,7 @@ const drafts: DraftBlogPost[] = [
       { type: "heading", text: "Stored mode is a different bargain" },
       {
         type: "paragraph",
-        text: "When storage is enabled, the Send panel offers Store for 24 hours. The browser encrypts file names, metadata, and chunks before uploading anything. The service keeps the ciphertext and returns a browser link plus a CLI token. Live transfer remains the default because, when both people are present, not storing the file at all is simpler.",
+        text: "When storage is enabled, the Send panel offers Store with a finite lifetime selected by the sender. The browser encrypts file names, metadata, and chunks before uploading anything. The service keeps the ciphertext and returns a browser link plus a CLI token. Live transfer remains the default because, when both people are present, not storing the file at all is simpler.",
       },
       {
         type: "aside",
@@ -577,12 +577,12 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "The complete link is still a secret. Anyone who gets it can decrypt the manifest, claim the transfer, and consume the one download. Keeping the key after the # prevents it from appearing in ordinary server and proxy request logs. It cannot prevent me from pasting the whole link into the wrong chat.",
+        text: "The complete link is still a secret. Anyone who gets it can decrypt the manifest and claim one of the allowed downloads. Keeping the key after the # prevents it from appearing in ordinary server and proxy request logs. It cannot prevent me from pasting the whole link into the wrong chat.",
       },
       { type: "heading", text: "Opening the link does not burn it" },
       {
         type: "paragraph",
-        text: "I did not want a browser preview, failed download, or accidental refresh to destroy the transfer. A receiver claims it before reading chunks, authenticates those chunks, verifies the completed files, and only then commits the download. The service deletes the ciphertext after that verified commit. If nobody finishes, it expires after 24 hours.",
+        text: "I did not want a browser preview, failed download, or accidental refresh to destroy the transfer. A receiver claims it before reading chunks, authenticates those chunks, verifies the completed files, and only then commits the download. The service decrements the configured allowance after each verified commit and deletes the ciphertext after the last one. If nobody finishes, it expires after the selected lifetime, measured from upload completion.",
       },
       {
         type: "list",
@@ -603,13 +603,94 @@ const drafts: DraftBlogPost[] = [
         label: "The same mode from the CLI",
         lines: [
           "$ croc send --store photo.jpg document.pdf",
+          "$ croc send --store --store-downloads 3 photo.jpg document.pdf",
+          "$ croc send --store --store-expiration 3d photo.jpg document.pdf",
           "Browser link: https://host/s/…#v1.…",
           "CLI token: croc-store-v1.…",
         ],
       },
       {
         type: "paragraph",
-        text: "The sender can revoke the transfer, the first verified receiver can consume it, or the clock can expire it. Those are deliberately boring endings. Stored mode is not better than a live relay; it stores more and needs more machinery. It is just the version I want when the difficult thing between two computers is the calendar.",
+        text: "The sender can revoke the transfer, the final allowed verified receiver can consume it, or the clock can expire it. Those are deliberately boring endings. Stored mode is not better than a live relay; it stores more and needs more machinery. It is just the version I want when the difficult thing between two computers is the calendar.",
+      },
+    ],
+  },
+  {
+    slug: "share-stored-file-with-group",
+    number: "08",
+    title: "Send one file to a group, on their schedule",
+    description:
+      "Stored mode can give several people time to retrieve the same encrypted file. Choose a download allowance, choose a deadline, and share one link.",
+    category: "Stored transfers",
+    publishedAt: "2026-08-11",
+    publishedLabel: "August 11, 2026",
+    author: "schollz",
+    visual: "stored",
+    takeaway:
+      "Set the verified-download allowance to at least the number of intended recipients, then choose a lifetime long enough for the last person to finish.",
+    blocks: [
+      {
+        type: "paragraph",
+        text: "A live croc transfer is a conversation between two computers. That is ideal when one person is waiting on each side. It is less ideal when I need to send the same report to five people in three time zones and do not want to arrange five separate appointments with their laptops.",
+      },
+      {
+        type: "paragraph",
+        text: "Stored mode makes that handoff asynchronous. I upload one encrypted copy, receive one secret link, and let each recipient arrive while it is still available. Two settings define the useful window: how many verified downloads may finish, and how long the encrypted copy may remain after the upload completes.",
+      },
+      { type: "heading", text: "Count completed downloads, not clicks" },
+      {
+        type: "paragraph",
+        text: "The sender's --store-downloads value is the download allowance. If five people need the file, I set it to at least five. A storage service can cap this number; asking for more than its configured maximum returns an error. Looking at the manifest, opening the link, refreshing a page, or abandoning an incomplete receive does not spend an allowance. A download is counted only after a client authenticates the chunks, verifies every finished file, and commits the receive.",
+      },
+      {
+        type: "aside",
+        eyebrow: "A DOWNLOAD IS NOT AN IDENTITY",
+        title: "croc counts successful receives, not unique people",
+        text: "The same person can download twice, and anyone with the complete link can use an allowance. Set a modest buffer only when that behavior is acceptable, and share the link through a private channel.",
+      },
+      { type: "heading", text: "Give the slowest recipient enough time" },
+      {
+        type: "paragraph",
+        text: "The --store-expiration value is a finite lifetime measured from successful upload completion. It accepts whole minutes, hours, days, or weeks: 90m, 12h, 3d, or 2w. I choose a time by thinking about the last recipient, not the first. For a workday handoff across time zones, three days is more forgiving than twelve hours. The service may enforce a shorter maximum, so the absolute expiration printed after upload is the time that matters.",
+      },
+      {
+        type: "code",
+        label: "One encrypted file for five recipients",
+        lines: [
+          "$ croc send --store \\",
+          "    --store-downloads 5 \\",
+          "    --store-expiration 3d \\",
+          "    quarterly-report.pdf",
+          "Browser link: https://host/s/…#v1.…",
+          "Available until: Fri, 14 Aug 2026 …",
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "That command asks for five completed receives and three days of storage. The client encrypts the file name, metadata, and contents before uploading. When the upload is finalized, the server starts the accepted lifetime and the sender sees the actual absolute expiration. The same output also includes a CLI token for recipients who prefer the terminal.",
+      },
+      {
+        type: "list",
+        items: [
+          "Set --store-downloads to at least the number of people who must finish a receive.",
+          "Set --store-expiration from the time the last person is realistically able to download, with sensible slack.",
+          "Send the browser link to browser recipients or the CLI token to croc command-line recipients.",
+          "Keep the sender's transfer ID until the group is finished in case the link needs to be revoked.",
+        ],
+      },
+      { type: "heading", text: "The browser exposes the same two choices" },
+      {
+        type: "paragraph",
+        text: "On getcroc.com, switch the Send panel from Direct to Store. Choose a whole-number storage lifetime and its minutes, hours, days, or weeks unit, then set Verified downloads to the size of the group. The controls stay inside the limits published by the storage server. The share card appears only after the encrypted upload succeeds and shows the real expiration time returned at completion.",
+      },
+      { type: "heading", text: "The link is still the key" },
+      {
+        type: "paragraph",
+        text: "A group transfer does not create accounts or an invitation list. The browser link and CLI token both contain the decryption key, while the server stores only ciphertext. This keeps readable names and contents away from the storage service, but it also means the complete share value is a bearer secret. A forwarded link can be used by someone outside the intended group and can consume one of the downloads.",
+      },
+      {
+        type: "paragraph",
+        text: "The transfer ends in whichever way happens first: the final allowed verified download commits, the accepted clock expires, or the sender revokes it. I still use Direct when everybody is present. For the awkward case where one file has several destinations and several calendars, one encrypted stored upload is the simpler appointment.",
       },
     ],
   },

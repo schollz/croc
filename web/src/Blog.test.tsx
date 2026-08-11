@@ -5,13 +5,13 @@ import { Blog } from "./Blog";
 describe("Blog", () => {
   afterEach(cleanup);
 
-  it("renders the seven-note index and updates page metadata", () => {
+  it("renders the eight-note index and updates page metadata", () => {
     render(<Blog />);
 
     expect(
       screen.getByRole("heading", { name: "Notes from inside the transfer." }),
     ).toBeVisible();
-    expect(screen.getAllByRole("article")).toHaveLength(7);
+    expect(screen.getAllByRole("article")).toHaveLength(8);
     expect(
       screen.getByRole("link", { name: "croc field notes home" }),
     ).toHaveAttribute("href", "/blog");
@@ -83,6 +83,26 @@ describe("Blog", () => {
     expect(
       structuredData["@graph"]?.some((entry) => entry["@type"] === "BlogPosting"),
     ).toBe(true);
+  });
+
+  it("renders the group stored-transfer field guide", () => {
+    render(<Blog slug="share-stored-file-with-group" />);
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Send one file to a group, on their schedule",
+      }),
+    ).toBeVisible();
+    expect(screen.getByText(/--store-downloads 5/)).toBeVisible();
+    expect(screen.getByText(/--store-expiration 3d/)).toBeVisible();
+    expect(
+      screen.getByRole("img", {
+        name: /One locked parcel branches toward three recipient devices/i,
+      }),
+    ).toHaveAttribute(
+      "src",
+      "/blog/images/share-stored-file-with-group.webp",
+    );
   });
 
   it("renders a useful not-found page for an unknown slug", () => {

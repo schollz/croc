@@ -1,8 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const wasmMocks = vi.hoisted(() => ({
+  storeGenerateKey: vi.fn(async () => new Uint8Array(32)),
+  storeRedeemCapability: vi.fn(async () => new Uint8Array(32)),
+  storeSealManifest: vi.fn(async () => new Uint8Array(29)),
+}));
+
+vi.mock("../wasm/client", () => ({ wasm: () => wasmMocks }));
 import {
   formatStoredBrowserURL,
   formatStoredCLIToken,
   parseStoredShare,
+  receiveStoredTransfer,
+  uploadStoredFiles,
 } from "./stored";
 
 describe("stored-transfer shares", () => {
@@ -32,5 +42,152 @@ describe("stored-transfer shares", () => {
         "https://files.example.test/s/AwMDAwMDAwMDAwMDAwMDAw?tracking=1#v1.BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ",
       ),
     ).toThrow(/invalid stored-transfer URL/i);
+  });
+});
+
+describe("stored-transfer download limits", () => {
+  const settings = {
+    storeAPI: "/api/v1/store",
+    maxTransferBytes: 1024,
+    maxFiles: 10,
+    maxDownloads: 3,
+    maxExpiresSeconds: 0,
+  };
+
+  it("rejects non-positive download counts before upload", async () => {
+    await expect(
+      uploadStoredFiles({ files: [], settings, downloads: 0 }),
+    ).rejects.toThrow(/positive integer/i);
+  });
+
+  it("rejects counts above the server limit before upload", async () => {
+    await expect(
+      uploadStoredFiles({ files: [], settings, downloads: 4 }),
+    ).rejects.toThrow(/at most 3 downloads/i);
+  });
+});
+
+describe("stored-transfer expiration", () => {
+  const settings = {
+    storeAPI: "/api/v1/store",
+    maxTransferBytes: 1024,
+    maxFiles: 10,
+    maxDownloads: 3,
+    maxExpiresSeconds: 3 * 24 * 60 * 60,
+  };
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  async function upload(expiresSeconds?: number) {
+    const bodies: Array<Record<string, unknown>> = [];
+    const expiresAt = "2026-08-14T12:00:00Z";
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "POST" && init.body) {
+        bodies.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+        return new Response(
+          JSON.stringify({
+            id: "AwMDAwMDAwMDAwMDAwMDAw",
+            uploadToken:
+              "BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ",
+            uploadExpiresAt: "2026-08-11T13:00:00Z",
+            chunkSize: 4 * 1024 * 1024,
+          }),
+          {
+            status: 201,
+            headers: {
+              "Content-Type": "application/json",
+              "X-Croc-Downloads": "1",
+            },
+          },
+        );
+      }
+      if (init?.method === "PUT") return new Response(null, { status: 204 });
+      return new Response(JSON.stringify({ expiresAt }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await uploadStoredFiles({
+      files: [],
+      settings,
+      expiresSeconds,
+    });
+    return { bodies, result };
+  }
+
+  it("omits the one-day default and uses the completed expiration", async () => {
+    const { bodies, result } = await upload();
+    expect(bodies[0]).not.toHaveProperty("expiresSeconds");
+    expect(result.expiresAt).toBe("2026-08-14T12:00:00Z");
+  });
+
+  it("sends a custom expiration", async () => {
+    const { bodies } = await upload(2 * 24 * 60 * 60);
+    expect(bodies[0]).toHaveProperty("expiresSeconds", 172800);
+  });
+
+  it("enforces the runtime maximum before upload", async () => {
+    await expect(
+      uploadStoredFiles({
+        files: [],
+        settings,
+        expiresSeconds: 4 * 24 * 60 * 60,
+      }),
+    ).rejects.toThrow(/at most/i);
+  });
+});
+
+describe("stored commit recovery", () => {
+  afterEach(() => {
+    sessionStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it("retries a previously verified commit without downloading again", async () => {
+    const id = "AwMDAwMDAwMDAwMDAwMDAw";
+    sessionStorage.setItem(`croc-store-claim:${id}`, "persisted-claim");
+    sessionStorage.setItem(`croc-store-verified:${id}`, "true");
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(null, {
+        status: 204,
+        headers: { "X-Croc-Downloads-Remaining": "2" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const onOffer = vi.fn(async () => false as const);
+
+    const remaining = await receiveStoredTransfer({
+      inspection: {
+        share: {
+          origin: "https://files.example.test",
+          id,
+          key: new Uint8Array(32),
+        },
+        manifest: { v: 1, cs: 4 * 1024 * 1024, f: [] },
+        offer: {
+          files: [],
+          emptyFolders: [],
+          totalSize: 0,
+          senderMachineID: "encrypted temporary storage",
+          noCompress: true,
+        },
+      },
+      settings: {
+        storeAPI: "/api/v1/store",
+        maxTransferBytes: 1024,
+        maxFiles: 10,
+        maxDownloads: 3,
+        maxExpiresSeconds: 0,
+      },
+      callbacks: { onOffer },
+    });
+
+    expect(remaining).toBe(2);
+    expect(onOffer).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "POST" });
+    expect(sessionStorage.getItem(`croc-store-claim:${id}`)).toBeNull();
+    expect(sessionStorage.getItem(`croc-store-verified:${id}`)).toBeNull();
   });
 });

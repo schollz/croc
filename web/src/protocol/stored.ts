@@ -49,6 +49,7 @@ export type StoredUploadResult = {
   expiresAt: string;
   browserURL: string;
   cliToken: string;
+  downloads: number;
 };
 
 export type StoredInspection = {
@@ -61,6 +62,8 @@ export type StoredInspection = {
 export type StoredSettings = Pick<TransferSettings, "storeAPI"> & {
   maxTransferBytes: number;
   maxFiles: number;
+  maxDownloads: number;
+  maxExpiresSeconds: number;
 };
 
 type StoredUploadCallbacks = {
@@ -221,7 +224,7 @@ async function responseError(response: Response) {
   const message = (await response.text()).trim();
   if (response.status === 410) {
     return new StoredHTTPError(
-      "This stored transfer has expired or was already downloaded",
+      "This stored transfer has expired or has no downloads remaining",
       response.status,
     );
   }
@@ -399,6 +402,8 @@ function planStoredUpload(files: StoredPreparedFile[]): StoredUploadPlan {
 async function createStoredUpload(
   key: Uint8Array,
   plan: StoredUploadPlan,
+  downloads: number,
+  expiresSeconds: number,
   settings: StoredSettings,
   callbacks: StoredUploadCallbacks,
   signal?: AbortSignal,
@@ -420,6 +425,8 @@ async function createStoredUpload(
       redeemVerifier: base64URL(redeemVerifier),
       files: plan.files.length,
       plaintextBytes: plan.totalSize,
+      ...(downloads === 1 ? {} : { downloads }),
+      ...(expiresSeconds === 24 * 60 * 60 ? {} : { expiresSeconds }),
     }),
   });
   if (!response.ok) throw await responseError(response);
@@ -436,6 +443,17 @@ async function createStoredUpload(
   }
   if (!isCapability(created.uploadToken)) {
     throw new Error("Storage service returned an invalid upload capability");
+  }
+  const downloadsHeader = response.headers.get("X-Croc-Downloads");
+  const acceptedDownloads =
+    downloadsHeader === null ? 1 : Number(downloadsHeader);
+  if (!Number.isSafeInteger(acceptedDownloads) || acceptedDownloads < 1) {
+    throw new Error("Storage service returned an invalid download count");
+  }
+  if (acceptedDownloads !== downloads) {
+    throw new Error(
+      `Storage service created ${acceptedDownloads} downloads instead of ${downloads}`,
+    );
   }
   return {
     share: validateShare({
@@ -541,15 +559,51 @@ async function completeStoredUpload(
 export async function uploadStoredFiles(options: {
   files: StoredPreparedFile[];
   settings: StoredSettings;
+  downloads?: number;
+  expiresSeconds?: number;
   callbacks?: StoredUploadCallbacks;
   signal?: AbortSignal;
 }) {
-  const { files, settings, callbacks = {}, signal } = options;
+  const {
+    files,
+    settings,
+    downloads = 1,
+    expiresSeconds = 24 * 60 * 60,
+    callbacks = {},
+    signal,
+  } = options;
+  if (!Number.isSafeInteger(downloads) || downloads < 1) {
+    throw new Error("Stored-transfer downloads must be a positive integer");
+  }
+  if (downloads > settings.maxDownloads) {
+    throw new Error(
+      `Stored transfers can allow at most ${settings.maxDownloads} downloads`,
+    );
+  }
+  if (
+    !Number.isSafeInteger(expiresSeconds) ||
+    expiresSeconds < 60 ||
+    expiresSeconds > 9_223_372_036
+  ) {
+    throw new Error(
+      "Stored-transfer expiration must be a whole number of seconds of at least one minute",
+    );
+  }
+  if (
+    settings.maxExpiresSeconds > 0 &&
+    expiresSeconds > settings.maxExpiresSeconds
+  ) {
+    throw new Error(
+      `Stored transfers can expire after at most ${settings.maxExpiresSeconds} seconds`,
+    );
+  }
   const key = await wasm().storeGenerateKey();
   const plan = planStoredUpload(files);
   const created = await createStoredUpload(
     key,
     plan,
+    downloads,
+    expiresSeconds,
     settings,
     callbacks,
     signal,
@@ -571,6 +625,7 @@ export async function uploadStoredFiles(options: {
       expiresAt,
       browserURL: formatStoredBrowserURL(created.share),
       cliToken: formatStoredCLIToken(created.share),
+      downloads,
     } satisfies StoredUploadResult;
   } finally {
     if (!finalized) {
@@ -636,9 +691,37 @@ function claimSessionKey(id: string) {
   return `croc-store-claim:${id}`;
 }
 
+function verifiedSessionKey(id: string) {
+  return `croc-store-verified:${id}`;
+}
+
 function forgetClaim(id: string) {
   try {
     sessionStorage.removeItem(claimSessionKey(id));
+  } catch {
+    // Session persistence is optional.
+  }
+}
+
+function hasVerifiedDownload(id: string) {
+  try {
+    return sessionStorage.getItem(verifiedSessionKey(id)) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function rememberVerifiedDownload(id: string) {
+  try {
+    sessionStorage.setItem(verifiedSessionKey(id), "true");
+  } catch {
+    // Commit retries remain best-effort without session persistence.
+  }
+}
+
+function forgetVerifiedDownload(id: string) {
+  try {
+    sessionStorage.removeItem(verifiedSessionKey(id));
   } catch {
     // Session persistence is optional.
   }
@@ -768,14 +851,43 @@ async function downloadStoredFile(
 async function commitStoredDownload(session: StoredReceiveSession) {
   const { inspection, settings, callbacks, signal } = session;
   callbacks.onStatus?.("Committing verified download…");
-  await withFreshClaim(session, (token) =>
-    authorizedFetch(
-      api(settings, `/${inspection.share.id}/commit`),
-      token,
-      { method: "POST", signal },
-    ),
-  );
+  let response: Response | undefined;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      response = await withFreshClaim(session, (token) =>
+        authorizedFetch(
+          api(settings, `/${inspection.share.id}/commit`),
+          token,
+          { method: "POST", signal },
+        ),
+      );
+      break;
+    } catch (error) {
+      lastError = error;
+      if (
+        (error instanceof DOMException && error.name === "AbortError") ||
+        (error instanceof StoredHTTPError && error.status < 500)
+      ) {
+        throw error;
+      }
+      await new Promise((resolve) =>
+        window.setTimeout(resolve, (attempt + 1) * 250),
+      );
+    }
+  }
+  if (!response) throw lastError;
   forgetClaim(inspection.share.id);
+  forgetVerifiedDownload(inspection.share.id);
+  const header = response.headers.get("X-Croc-Downloads-Remaining");
+  if (header === null) return 0;
+  const remaining = Number(header);
+  if (!Number.isSafeInteger(remaining) || remaining < 0) {
+    throw new Error(
+      "Storage service returned an invalid remaining-download count",
+    );
+  }
+  return remaining;
 }
 
 export async function receiveStoredTransfer(options: {
@@ -785,6 +897,19 @@ export async function receiveStoredTransfer(options: {
   signal?: AbortSignal;
 }) {
   const { inspection, settings, callbacks, signal } = options;
+
+  if (hasVerifiedDownload(inspection.share.id)) {
+    const session: StoredReceiveSession = {
+      inspection,
+      settings,
+      callbacks,
+      signal,
+      claimToken: await claimStored(inspection, settings, signal),
+      totalBytes: inspection.offer.totalSize,
+    };
+    return commitStoredDownload(session);
+  }
+
   const destination = await callbacks.onOffer(inspection.offer);
   if (!destination) throw new Error("Transfer refused");
   const session: StoredReceiveSession = {
@@ -795,10 +920,15 @@ export async function receiveStoredTransfer(options: {
     claimToken: await claimStored(inspection, settings, signal),
     totalBytes: 0,
   };
-  for (let fileIndex = 0; fileIndex < inspection.manifest.f.length; fileIndex += 1) {
+  for (
+    let fileIndex = 0;
+    fileIndex < inspection.manifest.f.length;
+    fileIndex += 1
+  ) {
     await downloadStoredFile(session, destination, fileIndex);
   }
-  await commitStoredDownload(session);
+  rememberVerifiedDownload(inspection.share.id);
+  return commitStoredDownload(session);
 }
 
 export async function revokeStoredTransfer(

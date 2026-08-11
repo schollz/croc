@@ -532,7 +532,7 @@ function StoredVisual() {
     <div className="stored-visual">
       <span className="stored-file"><FileText /><i>ciphertext</i></span>
       <span className="stored-link"><Link2 />/s/id<strong>#v1.key</strong></span>
-      <span className="stored-expiry"><Timer />24 hours <i>/</i> one download</span>
+      <span className="stored-expiry"><Timer />chosen lifetime <i>/</i> download limit</span>
     </div>
   );
 }
@@ -592,9 +592,9 @@ function BlogIndex() {
             <h1>Notes from inside the transfer.</h1>
           </div>
           <p>
-            Seven plainspoken guides to the small code phrase, the relay in the
+            Plainspoken guides to the small code phrase, the relay in the
             middle, the encryption around it, and the useful ways a file gets
-            from this computer to that one.
+            from this computer to one person or a group.
           </p>
         </section>
 
@@ -863,7 +863,7 @@ function BlogNotFound({ slug }: { slug: string }) {
       <main className="blog-not-found">
         <span>404</span>
         <h1>This note wandered off.</h1>
-        <p>The transfer is fine. This address is not one of the seven field notes.</p>
+        <p>The transfer is fine. This address is not one of the published field notes.</p>
         <a href="/blog">Return to all notes <ArrowRight /></a>
       </main>
       <BlogFooter />

@@ -40,7 +40,7 @@ test("every article exposes complete crawler metadata before JavaScript", async 
   expect((await image.body()).byteLength).toBeGreaterThan(50_000);
 });
 
-test("mobile blog index exposes seven field notes without overflow", async ({
+test("mobile blog index exposes eight field notes without overflow", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -49,7 +49,7 @@ test("mobile blog index exposes seven field notes without overflow", async ({
   await expect(
     page.getByRole("heading", { name: "Notes from inside the transfer." }),
   ).toBeVisible();
-  await expect(page.locator("main article")).toHaveCount(7);
+  await expect(page.locator("main article")).toHaveCount(8);
   await expect(
     page.getByRole("link", { name: "Transfer files", exact: true }),
   ).toBeVisible();
