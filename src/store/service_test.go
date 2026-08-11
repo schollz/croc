@@ -3,6 +3,7 @@ package store
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -287,6 +288,22 @@ func TestCrossOriginRequestsAreRejectedBeforeCreation(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, recorder.Code)
 	assert.Empty(t, service.creationWindows)
+}
+
+func TestUnknownTransferIDsUseBoundedLockState(t *testing.T) {
+	clock := &testClock{now: time.Unix(1_700_000_000, 0).UTC()}
+	service := newTestService(t, clock)
+
+	for index := 0; index < transferLockStripes*2; index++ {
+		var raw [storecrypto.TransferIDLen]byte
+		binary.BigEndian.PutUint64(raw[8:], uint64(index))
+		id := storecrypto.EncodeBase64URL(raw[:])
+		response := request(t, service, http.MethodGet,
+			fmt.Sprintf("/api/v1/store/transfers/%s/manifest", id), "", nil)
+		assert.Equal(t, http.StatusNotFound, response.Code)
+	}
+
+	assert.Len(t, service.transferLocks, transferLockStripes)
 }
 
 func TestStoreRootHasAnExclusiveProcessLock(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/maphash"
 	"io"
 	"net"
 	"net/http"
@@ -35,6 +36,7 @@ const (
 	DefaultActiveUploads = 2
 	MaxManifestBytes     = int64(256 << 10)
 	MaxChunkObjects      = 512
+	transferLockStripes  = 256
 
 	uploadLifetime    = time.Hour
 	availableLifetime = 24 * time.Hour
@@ -105,12 +107,13 @@ type Service struct {
 	config Config
 	now    func() time.Time
 
-	mu              sync.Mutex
-	transferLocks   map[string]*sync.Mutex
-	reservedBytes   int64
-	activeUploads   map[string]int
-	creationWindows map[string]*creationWindow
-	rootLock        *rootLock
+	mu               sync.Mutex
+	transferLockSeed maphash.Seed
+	transferLocks    [transferLockStripes]sync.Mutex
+	reservedBytes    int64
+	activeUploads    map[string]int
+	creationWindows  map[string]*creationWindow
+	rootLock         *rootLock
 }
 
 type createRequest struct {
@@ -201,12 +204,12 @@ func New(config Config) (*Service, error) {
 	}
 
 	service := &Service{
-		config:          config,
-		now:             config.Now,
-		transferLocks:   make(map[string]*sync.Mutex),
-		activeUploads:   make(map[string]int),
-		creationWindows: make(map[string]*creationWindow),
-		rootLock:        lock,
+		config:           config,
+		now:              config.Now,
+		transferLockSeed: maphash.MakeSeed(),
+		activeUploads:    make(map[string]int),
+		creationWindows:  make(map[string]*creationWindow),
+		rootLock:         lock,
 	}
 	if err = service.recover(); err != nil {
 		if lock != nil {
@@ -278,14 +281,9 @@ func validID(id string) bool {
 }
 
 func (s *Service) lockFor(id string) *sync.Mutex {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	lock := s.transferLocks[id]
-	if lock == nil {
-		lock = new(sync.Mutex)
-		s.transferLocks[id] = lock
-	}
-	return lock
+	// ponytail: fixed striping bounds attacker-controlled lock state; increase
+	// the stripe count only if profiling shows meaningful contention.
+	return &s.transferLocks[maphash.String(s.transferLockSeed, id)%transferLockStripes]
 }
 
 func (s *Service) recover() error {
@@ -489,7 +487,6 @@ func (s *Service) removeTransfer(meta *metadata) error {
 	if s.reservedBytes < 0 {
 		s.reservedBytes = 0
 	}
-	delete(s.transferLocks, meta.ID)
 	s.mu.Unlock()
 	return nil
 }
