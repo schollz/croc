@@ -3163,6 +3163,7 @@ func (c *Client) sendData(i int, dataConn *comm.Comm, fread *os.File, attempt *t
 				
 				    // Encrypt only when encryption is enabled.
 				    var dataToSend []byte
+					var err error
 				
 				    if c.Options.NoEncrypt {
 				        dataToSend = payload
