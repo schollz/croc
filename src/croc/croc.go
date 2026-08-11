@@ -3149,38 +3149,43 @@ func (c *Client) sendData(i int, dataConn *comm.Comm, fread *os.File, attempt *t
 				}
 				c.mutex.Unlock()
 				if usableChunk {
-					// log.Debugf("sending chunk %d", pos)
-					posByte := make([]byte, 8)
-					binary.LittleEndian.PutUint64(posByte, pos)
-
-					payload := append(posByte, data[:n]...)
-
-					if !c.Options.NoCompress {
-					    payload = compress.Compress(payload)
-					}
-					
-					if c.Options.NoEncrypt {
-					    dataToSend = payload
-					} else {
-					    dataToSend, err = crypt.Encrypt(payload, c.Key)
-					}
-					
-					if err != nil {
-					    attempt.report(err)
-					    return
-					}
-					
-					err = dataConn.Send(dataToSend)
-
-					if err != nil {
-						if c.ctxErr() == nil {
-							attempt.report(transferDisconnectError{err: err})
-						}
-						return
-					}
-					c.bar.Add(n)
-					c.TotalSent += int64(n)
-					// time.Sleep(100 * time.Millisecond)
+				    // log.Debugf("sending chunk %d", pos)
+				
+				    posByte := make([]byte, 8)
+				    binary.LittleEndian.PutUint64(posByte, pos)
+				
+				    // Build the payload.
+				    payload := append(posByte, data[:n]...)
+				
+				    if !c.Options.NoCompress {
+				        payload = compress.Compress(payload)
+				    }
+				
+				    // Encrypt only when encryption is enabled.
+				    var dataToSend []byte
+				
+				    if c.Options.NoEncrypt {
+				        dataToSend = payload
+				    } else {
+				        dataToSend, err = crypt.Encrypt(payload, c.Key)
+				    }
+				
+				    if err != nil {
+				        attempt.report(err)
+				        return
+				    }
+				
+				    err = dataConn.Send(dataToSend)
+				
+				    if err != nil {
+				        if c.ctxErr() == nil {
+				            attempt.report(transferDisconnectError{err: err})
+				        }
+				        return
+				    }
+				    c.bar.Add(n)
+				    c.TotalSent += int64(n)
+				    // time.Sleep(100 * time.Millisecond)
 				}
 			}
 		}
