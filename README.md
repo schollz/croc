@@ -472,12 +472,17 @@ disco env:set \
 project name if it is not `croc`. The `web` service mounts the named
 `croc-store` volume at `/www/croc/storage`, which is also its configured
 `--store-dir`, so stored ciphertext and metadata survive container replacement
-and redeployment.
+and redeployment. The `web` service also reserves published TCP port 9020 and
+maps it to unused container port 65535. This deliberate port collision makes
+Disco stop the previous volume-owning web service before starting its
+replacement, avoiding concurrent access to the store. Port 9020 carries no
+application traffic and should remain blocked by the server firewall.
 
 The ports in `CROC_RELAY_PORTS` must match the `publishedPorts` entries in
-[`disco.json`](disco.json); Disco cannot generate host port mappings from an
-environment variable. Make sure the same TCP ports are also open in the
-server's firewall or cloud security group.
+the `relay` service in [`disco.json`](disco.json); do not include the web
+service's deployment-only port 9020. Disco cannot generate host port mappings
+from an environment variable. Make sure the relay TCP ports are also open in
+the server's firewall or cloud security group.
 
 ## Acknowledgements
 
