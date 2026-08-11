@@ -2054,6 +2054,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	}
 	c.Options.SendingText = senderInfo.SendingText
 	c.Options.NoCompress = senderInfo.NoCompress
+	c.Options.NoEncrypt = senderInfo.NoEncrypt
 	c.Options.HashAlgorithm = senderInfo.HashAlgorithm
 	c.peerReconnectVersion = senderInfo.ReconnectVersion
 	c.nextReconnectRoom = senderInfo.NextReconnectRoom
