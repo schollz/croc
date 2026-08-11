@@ -4,7 +4,10 @@ import (
 	"context"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
+
+	internalcli "github.com/schollz/croc/v10/internal/cli"
 )
 
 func TestAppIdentityAndArguments(t *testing.T) {
@@ -14,6 +17,128 @@ func TestAppIdentityAndArguments(t *testing.T) {
 	}
 	if err := app.Run([]string{"croc-web", "one.example", "two.example"}); err == nil {
 		t.Fatal("multiple public addresses unexpectedly succeeded")
+	}
+}
+
+func TestStoreDownloadsFlagParsing(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		args []string
+		want int
+	}{
+		{name: "default", args: []string{"croc-web"}, want: 1},
+		{name: "custom", args: []string{"croc-web", "--store-downloads", "6"}, want: 6},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Setenv("CROC_STORE_DOWNLOADS", "")
+			app := newApp(context.Background())
+			var got int
+			app.Action = func(ctx *internalcli.Context) error {
+				got = ctx.Int("store-downloads")
+				return nil
+			}
+			if err := app.Run(testCase.args); err != nil {
+				t.Fatalf("parse store downloads: %v", err)
+			}
+			if got != testCase.want {
+				t.Fatalf("store downloads = %d, want %d", got, testCase.want)
+			}
+		})
+	}
+}
+
+func TestStoreDownloadsEnvironmentConfiguration(t *testing.T) {
+	t.Setenv("CROC_STORE_DOWNLOADS", "12")
+	app := newApp(context.Background())
+	var got int
+	app.Action = func(ctx *internalcli.Context) error {
+		got = ctx.Int("store-downloads")
+		return nil
+	}
+	if err := app.Run([]string{"croc-web"}); err != nil {
+		t.Fatalf("parse store downloads environment: %v", err)
+	}
+	if got != 12 {
+		t.Fatalf("store downloads = %d, want 12", got)
+	}
+}
+
+func TestStoreDownloadsMustBePositiveWhenStorageIsEnabled(t *testing.T) {
+	err := newApp(context.Background()).Run([]string{
+		"croc-web",
+		"--store-dir", t.TempDir(),
+		"--store-downloads", "0",
+	})
+	if err == nil || err.Error() != "--store-downloads must be positive" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestStoreMaxExpirationConfiguration(t *testing.T) {
+	t.Run("default is unlimited", func(t *testing.T) {
+		t.Setenv("CROC_STORE_MAX_EXPIRATION", "")
+		if err := os.Unsetenv("CROC_STORE_MAX_EXPIRATION"); err != nil {
+			t.Fatal(err)
+		}
+		app := newApp(context.Background())
+		var got string
+		app.Action = func(ctx *internalcli.Context) error {
+			got = ctx.String("store-max-expiration")
+			return nil
+		}
+		if err := app.Run([]string{"croc-web"}); err != nil {
+			t.Fatal(err)
+		}
+		if got != "0" {
+			t.Fatalf("store max expiration = %q, want 0", got)
+		}
+	})
+
+	t.Run("environment", func(t *testing.T) {
+		t.Setenv("CROC_STORE_MAX_EXPIRATION", "2w")
+		app := newApp(context.Background())
+		var got string
+		app.Action = func(ctx *internalcli.Context) error {
+			got = ctx.String("store-max-expiration")
+			return nil
+		}
+		if err := app.Run([]string{"croc-web"}); err != nil {
+			t.Fatal(err)
+		}
+		if got != "2w" {
+			t.Fatalf("store max expiration = %q, want 2w", got)
+		}
+	})
+
+	t.Run("flag overrides environment", func(t *testing.T) {
+		t.Setenv("CROC_STORE_MAX_EXPIRATION", "2w")
+		app := newApp(context.Background())
+		var got string
+		app.Action = func(ctx *internalcli.Context) error {
+			got = ctx.String("store-max-expiration")
+			return nil
+		}
+		if err := app.Run([]string{"croc-web", "--store-max-expiration", "3d"}); err != nil {
+			t.Fatal(err)
+		}
+		if got != "3d" {
+			t.Fatalf("store max expiration = %q, want 3d", got)
+		}
+	})
+}
+
+func TestStoreMaxExpirationValidation(t *testing.T) {
+	for _, value := range []string{"30s", "0m", "-1h"} {
+		t.Run(value, func(t *testing.T) {
+			err := newApp(context.Background()).Run([]string{
+				"croc-web",
+				"--store-dir", t.TempDir(),
+				"--store-max-expiration", value,
+			})
+			if err == nil || !strings.Contains(err.Error(), "invalid --store-max-expiration") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
 	}
 }
 

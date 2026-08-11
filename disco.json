@@ -56,7 +56,13 @@
     },
     "web": {
       "port": 8080,
-      "command": "web --debug --bind 0.0.0.0:8080 --relay relay",
+      "command": "web --debug --bind 0.0.0.0:8080 --relay relay --store-dir /www/croc/storage",
+      "volumes": [
+        {
+          "name": "croc-store",
+          "destinationPath": "/www/croc/storage"
+        }
+      ],
       "health": {
         "command": "wget -qO- http://127.0.0.1:8080/healthz >/dev/null"
       }

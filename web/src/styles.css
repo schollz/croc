@@ -382,9 +382,40 @@ input:focus {
 }
 
 input:disabled,
-button:disabled {
+button:disabled,
+select:disabled {
   cursor: not-allowed;
   opacity: 0.4;
+}
+
+.stored-expiration-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(110px, 0.65fr);
+}
+
+.stored-expiration-control input {
+  border-right: 0;
+}
+
+.stored-expiration-control select {
+  min-width: 0;
+  height: 42px;
+  border: 1px solid var(--subtle);
+  padding: 0 11px;
+  color: var(--foreground);
+  background: var(--background);
+  font: inherit;
+  font-size: 12px;
+}
+
+.stored-expiration-control:focus-within {
+  box-shadow: 0 0 0 1px var(--foreground);
+}
+
+.stored-expiration-control input:focus,
+.stored-expiration-control select:focus {
+  border-color: var(--subtle);
+  outline: 0;
 }
 
 .field-with-actions {

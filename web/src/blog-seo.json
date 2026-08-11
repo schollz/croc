@@ -13,7 +13,7 @@
   },
   "index": {
     "title": "croc field notes — secure file transfer explained",
-    "description": "Seven notes on why I built croc this way: live relays, PAKE encryption, four-word codes, browser transfers, and temporary storage.",
+    "description": "Notes on why I built croc this way: live relays, PAKE encryption, four-word codes, browser transfers, and temporary storage.",
     "keywords": [
       "croc blog",
       "encrypted file transfer",
@@ -176,23 +176,47 @@
       "description": "Direct croc transfers expect both computers to be awake. Stored mode is for the inconvenient times when the people are not.",
       "category": "Stored transfers",
       "publishedAt": "2026-08-08",
-      "modifiedAt": "2026-08-10",
-      "wordCount": 503,
+      "modifiedAt": "2026-08-11",
+      "wordCount": 538,
       "readingMinutes": 3,
       "relatedSlugs": [
-        "how-croc-moves-a-file",
+        "share-stored-file-with-group",
         "browser-meets-terminal"
       ],
       "keywords": [
         "asynchronous file transfer",
         "encrypted file storage",
-        "one-time download",
+        "limited downloads",
         "expiring file link",
         "secure file sharing"
       ],
       "image": "/blog/images/stored-transfer-one-download.webp",
       "socialImage": "/blog/images/stored-transfer-one-download.jpg",
-      "imageAlt": "A locked parcel waits for a limited time before one recipient retrieves it."
+      "imageAlt": "A locked parcel waits for a limited time and a configured number of verified downloads."
+    },
+    {
+      "slug": "share-stored-file-with-group",
+      "title": "Send one file to a group, on their schedule",
+      "description": "Stored mode can give several people time to retrieve the same encrypted file. Choose a download allowance, choose a deadline, and share one link.",
+      "category": "Stored transfers",
+      "publishedAt": "2026-08-11",
+      "modifiedAt": "2026-08-11",
+      "wordCount": 647,
+      "readingMinutes": 4,
+      "relatedSlugs": [
+        "stored-transfer-one-download",
+        "browser-meets-terminal"
+      ],
+      "keywords": [
+        "send file to multiple people",
+        "encrypted group file sharing",
+        "expiring download link",
+        "limited downloads",
+        "croc stored transfer"
+      ],
+      "image": "/blog/images/share-stored-file-with-group.webp",
+      "socialImage": "/blog/images/share-stored-file-with-group.jpg",
+      "imageAlt": "One locked parcel branches toward three recipient devices while a clock marks the shared download window."
     }
   ]
 }

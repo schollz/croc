@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -257,6 +258,104 @@ func TestRevokeIsRootFlag(t *testing.T) {
 		if command.Name == "revoke" {
 			t.Fatal("revoke should not be registered as a subcommand")
 		}
+	}
+}
+
+func TestStoreDownloadsFlagParsing(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		args []string
+		want int
+	}{
+		{name: "default", args: []string{"croc", "send"}, want: 1},
+		{name: "custom", args: []string{"croc", "send", "--store-downloads", "4"}, want: 4},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			app := newApp()
+			for _, command := range app.Commands {
+				if command.Name != "send" {
+					continue
+				}
+				var got int
+				command.Action = func(ctx *cli.Context) error {
+					got = ctx.Int("store-downloads")
+					return nil
+				}
+				if err := app.Run(testCase.args); err != nil {
+					t.Fatalf("parse store downloads: %v", err)
+				}
+				if got != testCase.want {
+					t.Fatalf("store downloads = %d, want %d", got, testCase.want)
+				}
+				return
+			}
+			t.Fatal("send command not found")
+		})
+	}
+}
+
+func TestStoreExpirationFlagParsing(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "default", args: []string{"croc", "send"}, want: "1d"},
+		{name: "custom", args: []string{"croc", "send", "--store-expiration", "3d"}, want: "3d"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			app := newApp()
+			for _, command := range app.Commands {
+				if command.Name != "send" {
+					continue
+				}
+				var got string
+				command.Action = func(ctx *cli.Context) error {
+					got = ctx.String("store-expiration")
+					return nil
+				}
+				if err := app.Run(testCase.args); err != nil {
+					t.Fatalf("parse store expiration: %v", err)
+				}
+				if got != testCase.want {
+					t.Fatalf("store expiration = %q, want %q", got, testCase.want)
+				}
+				return
+			}
+			t.Fatal("send command not found")
+		})
+	}
+}
+
+func TestStoredSendRejectsInvalidExpiration(t *testing.T) {
+	err := newApp().Run([]string{
+		"croc",
+		"--ignore-stdin",
+		"send",
+		"--store",
+		"--store-expiration=30s",
+		"unused-file",
+	})
+	if err == nil || !strings.Contains(err.Error(), "invalid --store-expiration") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestStoredSendRejectsNonPositiveDownloadCount(t *testing.T) {
+	for _, value := range []string{"0", "-1"} {
+		t.Run(value, func(t *testing.T) {
+			err := newApp().Run([]string{
+				"croc",
+				"--ignore-stdin",
+				"send",
+				"--store",
+				"--store-downloads=" + value,
+				"unused-file",
+			})
+			if err == nil || err.Error() != "--store-downloads must be positive" {
+				t.Fatalf("unexpected error for %s downloads: %v", value, err)
+			}
+		})
 	}
 }
 

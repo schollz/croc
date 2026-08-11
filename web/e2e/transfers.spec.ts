@@ -359,7 +359,7 @@ test("publishes rich metadata and project links", async ({ page }) => {
     page.getByRole("link", { name: "View croc on GitHub" }),
   ).toHaveAttribute("href", "https://github.com/schollz/croc");
   await expect(
-    page.getByRole("link", { name: /Read all seven notes/i }),
+    page.getByRole("link", { name: /Read all 8 notes/i }),
   ).toHaveAttribute("href", "/blog");
   await expect(
     page.getByRole("link", { name: "schollz", exact: true }),
@@ -764,7 +764,7 @@ test("Web stored upload → CLI download consumes the transfer", async ({
   ]);
   await configurePage(page);
   const panel = page.locator(".send-panel");
-  await panel.getByRole("button", { name: "Store for 24 hours" }).click();
+  await panel.getByRole("button", { name: "Store for 1 day" }).click();
   await panel.locator('input[type="file"]').setInputFiles(fixtures.paths);
   await panel.getByRole("button", { name: "Store 3 files" }).click();
   await expect(panel.getByText("Encrypted link ready")).toBeVisible({

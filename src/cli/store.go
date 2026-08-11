@@ -15,6 +15,7 @@ import (
 	"github.com/rivo/uniseg"
 	"github.com/schollz/croc/v10/internal/cli"
 	"github.com/schollz/croc/v10/src/croc"
+	storeapi "github.com/schollz/croc/v10/src/store"
 	"github.com/schollz/croc/v10/src/storeclient"
 	"github.com/schollz/croc/v10/src/storecrypto"
 	"github.com/schollz/croc/v10/src/utils"
@@ -172,12 +173,21 @@ func sendStored(c *cli.Context) error {
 	if len(paths) == 0 {
 		return errors.New("must specify file: croc send --store [filename(s)]")
 	}
+	downloads := c.Int("store-downloads")
+	if downloads < 1 {
+		return errors.New("--store-downloads must be positive")
+	}
+	expiration, err := storeapi.ParseExpiration(c.String("store-expiration"), false)
+	if err != nil {
+		return fmt.Errorf("invalid --store-expiration: %w", err)
+	}
 
 	client := new(storeclient.Client)
-	result, err := client.Upload(
+	result, err := client.UploadWithOptions(
 		context.Background(),
 		strings.TrimSpace(c.String("store-url")),
 		paths,
+		storeclient.UploadOptions{Downloads: downloads, Expiration: expiration},
 		storedCallbacks(c.Bool("quiet")),
 	)
 	if !c.Bool("quiet") {
@@ -202,7 +212,11 @@ func sendStored(c *cli.Context) error {
 	}); err != nil {
 		return fmt.Errorf("save stored-transfer revoke receipt: %w", err)
 	}
-	fmt.Fprintf(os.Stderr, `Stored transfer is encrypted and available until %[1]s or one verified download.
+	downloadLimit := fmt.Sprintf("%d verified downloads", result.Downloads)
+	if result.Downloads == 1 {
+		downloadLimit = "one verified download"
+	}
+	fmt.Fprintf(os.Stderr, `Stored transfer is encrypted and available until %[1]s or %[5]s.
 
 Browser link:
     %[2]s
@@ -213,7 +227,7 @@ CLI recipient:
 
 Revoke before download:
     croc --revoke %[4]s
-`, result.ExpiresAt.Local().Format(time.RFC1123), browserURL, token, result.Share.ID)
+`, result.ExpiresAt.Local().Format(time.RFC1123), browserURL, token, result.Share.ID, downloadLimit)
 	if !c.Bool("disable-clipboard") {
 		croc.CopyToClipboard(browserURL, c.Bool("quiet"), false)
 	}

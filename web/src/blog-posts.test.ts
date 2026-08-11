@@ -8,9 +8,9 @@ import {
 } from "./blog-posts";
 
 describe("blog posts", () => {
-  it("ships seven substantial, addressable field notes", () => {
-    expect(blogPosts).toHaveLength(7);
-    expect(new Set(blogPosts.map((post) => post.slug)).size).toBe(7);
+  it("ships eight substantial, addressable field notes", () => {
+    expect(blogPosts).toHaveLength(8);
+    expect(new Set(blogPosts.map((post) => post.slug)).size).toBe(8);
 
     for (const post of blogPosts) {
       expect(post.slug).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);

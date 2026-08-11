@@ -56,6 +56,8 @@ func newApp(ctx context.Context) *cli.App {
 		&cli.StringFlag{Name: "store-quota", Value: "5GiB", Usage: "maximum managed stored-transfer bytes"},
 		&cli.StringFlag{Name: "store-min-free", Value: "512MiB", Usage: "disk space to keep free"},
 		&cli.IntFlag{Name: "store-max-files", Value: 100, Usage: "maximum files per stored transfer"},
+		&cli.IntFlag{Name: "store-downloads", Value: 1, Usage: "maximum verified downloads per stored transfer", EnvVars: []string{"CROC_STORE_DOWNLOADS"}},
+		&cli.StringFlag{Name: "store-max-expiration", Value: "0", Usage: "maximum stored lifetime (m, h, d, or w; 0 is unlimited)", EnvVars: []string{"CROC_STORE_MAX_EXPIRATION"}},
 		&cli.IntFlag{Name: "store-create-rate", Value: 5, Usage: "stored transfers created per client IP per hour"},
 		&cli.IntFlag{Name: "store-active-uploads", Value: 2, Usage: "concurrent uploads per client IP"},
 		&cli.StringSliceFlag{Name: "store-trusted-proxy", Usage: "trusted reverse-proxy CIDR for client IP forwarding"},
@@ -92,6 +94,13 @@ func serve(ctx context.Context, c *cli.Context) error {
 	var storeService *storeapi.Service
 	storeDirectory := strings.TrimSpace(c.String("store-dir"))
 	if storeDirectory != "" {
+		if c.Int("store-downloads") < 1 {
+			return errors.New("--store-downloads must be positive")
+		}
+		maxExpiration, parseErr := storeapi.ParseExpiration(c.String("store-max-expiration"), true)
+		if parseErr != nil {
+			return fmt.Errorf("invalid --store-max-expiration: %w", parseErr)
+		}
 		maxTransfer, parseErr := parseByteSize(c.String("store-max-transfer"))
 		if parseErr != nil {
 			return fmt.Errorf("invalid --store-max-transfer: %w", parseErr)
@@ -118,6 +127,8 @@ func serve(ctx context.Context, c *cli.Context) error {
 			MaxTotalBytes:    maxTotal,
 			MinFreeBytes:     minFree,
 			MaxFiles:         c.Int("store-max-files"),
+			MaxDownloads:     c.Int("store-downloads"),
+			MaxExpiration:    maxExpiration,
 			CreatePerHour:    c.Int("store-create-rate"),
 			MaxActiveUploads: c.Int("store-active-uploads"),
 			TrustedProxies:   trusted,

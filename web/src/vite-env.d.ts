@@ -30,7 +30,9 @@ interface Window {
       enabled?: boolean;
       maxTransferBytes?: number;
       maxFiles?: number;
+      maxDownloads?: number;
       expiresSeconds?: number;
+      maxExpiresSeconds?: number;
     };
   };
 }
