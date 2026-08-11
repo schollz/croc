@@ -87,6 +87,7 @@ type Options struct {
 	Stdout            bool
 	NoPrompt          bool
 	NoMultiplexing    bool
+	NoEncrypt 		  bool
 	DisableLocal      bool
 	OnlyLocal         bool
 	IgnoreStdin       bool
