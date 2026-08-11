@@ -2392,6 +2392,12 @@ a.cli-download-primary:hover {
   text-decoration-color: currentcolor;
 }
 
+.article-toc a[aria-current="location"] {
+  color: var(--foreground);
+  font-weight: 700;
+  text-decoration-color: currentcolor;
+}
+
 .blog-article-body {
   min-width: 0;
 }

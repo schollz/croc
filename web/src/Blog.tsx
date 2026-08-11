@@ -677,6 +677,39 @@ function headingID(text: string, index: number) {
   return slug || `section-${index}`;
 }
 
+function useActiveArticleSection(sectionIDs: string[]) {
+  const sectionKey = sectionIDs.join("\n");
+  const [activeSectionID, setActiveSectionID] = useState(sectionIDs[0] ?? "");
+
+  useEffect(() => {
+    if (sectionIDs.length === 0) return;
+
+    const updateActiveSection = () => {
+      const readingLine = Math.max(120, window.innerHeight * 0.25);
+      let currentSectionID = sectionIDs[0];
+
+      for (const sectionID of sectionIDs) {
+        const heading = document.getElementById(sectionID);
+        if (!heading || heading.getBoundingClientRect().top > readingLine) break;
+        currentSectionID = sectionID;
+      }
+
+      setActiveSectionID(currentSectionID);
+    };
+
+    updateActiveSection();
+    window.addEventListener("scroll", updateActiveSection, { passive: true });
+    window.addEventListener("resize", updateActiveSection);
+
+    return () => {
+      window.removeEventListener("scroll", updateActiveSection);
+      window.removeEventListener("resize", updateActiveSection);
+    };
+  }, [sectionKey]);
+
+  return activeSectionID;
+}
+
 function BlogBlockView({ block, index }: { block: BlogBlock; index: number }) {
   if (block.type === "heading") {
     return <h2 id={headingID(block.text, index)}>{block.text}</h2>;
@@ -713,6 +746,9 @@ function BlogArticle({ post }: { post: BlogPost }) {
     block.type === "heading"
       ? [{ id: headingID(block.text, blockIndex), text: block.text }]
       : [],
+  );
+  const activeSectionID = useActiveArticleSection(
+    sections.map((section) => section.id),
   );
   const relatedPosts = post.relatedSlugs.flatMap((slug) => {
     const related = getBlogPost(slug);
@@ -755,7 +791,12 @@ function BlogArticle({ post }: { post: BlogPost }) {
                 <ol>
                   {sections.map((section) => (
                     <li key={section.id}>
-                      <a href={`#${section.id}`}>{section.text}</a>
+                      <a
+                        href={`#${section.id}`}
+                        aria-current={section.id === activeSectionID ? "location" : undefined}
+                      >
+                        {section.text}
+                      </a>
                     </li>
                   ))}
                 </ol>

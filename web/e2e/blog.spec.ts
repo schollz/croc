@@ -100,6 +100,20 @@ test("direct article routes publish metadata and complete article content", asyn
   await expect(
     page.getByRole("navigation", { name: "In this field note" }),
   ).toBeVisible();
+  const toc = page.getByRole("navigation", { name: "In this field note" });
+  const firstSection = toc.getByRole("link", {
+    name: "What I want PAKE to guarantee",
+  });
+  const secondSection = toc.getByRole("link", {
+    name: "1. The receiver makes X",
+  });
+  await expect(firstSection).toHaveAttribute("aria-current", "location");
+  await secondSection.evaluate((link) => {
+    const targetID = link.getAttribute("href")?.replace(/^#/, "");
+    if (targetID) document.getElementById(targetID)?.scrollIntoView();
+  });
+  await expect(secondSection).toHaveAttribute("aria-current", "location");
+  await expect(firstSection).not.toHaveAttribute("aria-current", "location");
   await expect(page.getByText("Related field notes")).toBeVisible();
   await expect(
     page.getByRole("link", { name: /Next note/ }),
