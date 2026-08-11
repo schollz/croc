@@ -2550,6 +2550,7 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 			TotalNumberFolders:     c.TotalNumberFolders,
 			SendingText:            c.Options.SendingText,
 			NoCompress:             c.Options.NoCompress,
+			NoEncrypt:              c.Options.NoEncrypt,
 			HashAlgorithm:          c.Options.HashAlgorithm,
 			ReconnectVersion:       c.reconnectVersion,
 			NextReconnectRoom:      nextReconnectRoom,
