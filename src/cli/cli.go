@@ -381,6 +381,7 @@ func send(c *cli.Context) (err error) {
 		RelayPorts:        ports,
 		Ask:               c.Bool("ask"),
 		NoMultiplexing:    c.Bool("no-multi"),
+		NoEncrypt:         c.Bool("no-encrypt"),
 		RelayPassword:     determinePass(c),
 		SendingText:       c.String("text") != "",
 		NoCompress:        c.Bool("no-compress"),
