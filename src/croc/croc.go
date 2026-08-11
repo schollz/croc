@@ -3152,27 +3152,26 @@ func (c *Client) sendData(i int, dataConn *comm.Comm, fread *os.File, attempt *t
 					// log.Debugf("sending chunk %d", pos)
 					posByte := make([]byte, 8)
 					binary.LittleEndian.PutUint64(posByte, pos)
-					var err error
-					var dataToSend []byte
-					if c.Options.NoCompress {
-						dataToSend, err = crypt.Encrypt(
-							append(posByte, data[:n]...),
-							c.Key,
-						)
-					} else {
-						dataToSend, err = crypt.Encrypt(
-							compress.Compress(
-								append(posByte, data[:n]...),
-							),
-							c.Key,
-						)
-					}
-					if err != nil {
-						attempt.report(err)
-						return
-					}
 
+					payload := append(posByte, data[:n]...)
+
+					if !c.Options.NoCompress {
+					    payload = compress.Compress(payload)
+					}
+					
+					if c.Options.NoEncrypt {
+					    dataToSend = payload
+					} else {
+					    dataToSend, err = crypt.Encrypt(payload, c.Key)
+					}
+					
+					if err != nil {
+					    attempt.report(err)
+					    return
+					}
+					
 					err = dataConn.Send(dataToSend)
+
 					if err != nil {
 						if c.ctxErr() == nil {
 							attempt.report(transferDisconnectError{err: err})
