@@ -18,6 +18,7 @@ import (
 	storeapi "github.com/schollz/croc/v10/src/store"
 	"github.com/schollz/croc/v10/src/storeclient"
 	"github.com/schollz/croc/v10/src/storecrypto"
+	"github.com/schollz/croc/v10/src/termui"
 	"github.com/schollz/croc/v10/src/utils"
 )
 
@@ -121,10 +122,15 @@ func removeStoreReceipt(id string) error {
 }
 
 func storedCallbacks(quiet bool) storeclient.Callbacks {
-	return newStoredCallbacks(os.Stderr, quiet)
+	output, colorEnabled := termui.Output(os.Stderr)
+	return newStyledStoredCallbacks(output, quiet, colorEnabled)
 }
 
 func newStoredCallbacks(output io.Writer, quiet bool) storeclient.Callbacks {
+	return newStyledStoredCallbacks(output, quiet, false)
+}
+
+func newStyledStoredCallbacks(output io.Writer, quiet, colorEnabled bool) storeclient.Callbacks {
 	lastStatus := ""
 	lineWidth := 0
 	render := func(value string) {
@@ -134,7 +140,7 @@ func newStoredCallbacks(output io.Writer, quiet bool) storeclient.Callbacks {
 			fmt.Fprint(output, "\r")
 		}
 		fmt.Fprint(output, value)
-		lineWidth = uniseg.StringWidth(value)
+		lineWidth = uniseg.StringWidth(termui.Plain(value))
 	}
 	return storeclient.Callbacks{
 		Status: func(value string) {
@@ -142,22 +148,75 @@ func newStoredCallbacks(output io.Writer, quiet bool) storeclient.Callbacks {
 				return
 			}
 			lastStatus = value
-			render(value)
+			render(styleStoredStatus(value, colorEnabled))
 		},
 		Progress: func(value storeclient.Progress) {
 			if quiet || value.TotalSize == 0 {
 				return
 			}
 			percent := float64(value.TotalBytes) / float64(value.TotalSize) * 100
+			progressStyle := termui.Cyan
+			if value.TotalBytes >= value.TotalSize {
+				progressStyle = termui.Green
+			}
 			render(fmt.Sprintf(
-				"%s — %.1f%% (%s / %s)",
-				value.FileName,
-				percent,
+				"%s — %s (%s / %s)",
+				termui.Filename(value.FileName, colorEnabled),
+				termui.Color(fmt.Sprintf("%.1f%%", percent), progressStyle, colorEnabled),
 				utils.ByteCountDecimal(value.TotalBytes),
 				utils.ByteCountDecimal(value.TotalSize),
 			))
 		},
 	}
+}
+
+func styleStoredStatus(value string, colorEnabled bool) string {
+	if strings.HasPrefix(value, "Encrypted upload complete") ||
+		strings.HasPrefix(value, "Verified download committed") {
+		return termui.Success(value, colorEnabled)
+	}
+	for _, marker := range []string{"Hashing ", "Uploading ", "Downloading ", "Verifying "} {
+		if !strings.HasPrefix(value, marker) {
+			continue
+		}
+		separator := strings.LastIndex(value, ": ")
+		if separator >= 0 {
+			return termui.Color(value[:separator+2], termui.Cyan, colorEnabled) +
+				termui.Filename(value[separator+2:], colorEnabled)
+		}
+		return termui.Color(marker, termui.Cyan, colorEnabled) +
+			termui.Filename(strings.TrimPrefix(value, marker), colorEnabled)
+	}
+	return termui.Color(value, termui.Cyan, colorEnabled)
+}
+
+func formatStoredSendInstructions(
+	expiresAt, browserURL, token, transferID, downloadLimit string,
+	colorEnabled bool,
+) string {
+	return fmt.Sprintf(`%s
+
+%s
+    %s
+
+%s
+    Run croc, then paste this token:
+    %s
+
+%s
+    croc --revoke %s
+`,
+		termui.Success(
+			fmt.Sprintf("Stored transfer is encrypted and available until %s or %s.", expiresAt, downloadLimit),
+			colorEnabled,
+		),
+		termui.Emphasis("Browser link:", colorEnabled),
+		termui.Secret(browserURL, colorEnabled),
+		termui.Emphasis("CLI recipient:", colorEnabled),
+		termui.Secret(token, colorEnabled),
+		termui.Emphasis("Revoke before download:", colorEnabled),
+		termui.Secret(transferID, colorEnabled),
+	)
 }
 
 func sendStored(c *cli.Context) error {
@@ -216,18 +275,15 @@ func sendStored(c *cli.Context) error {
 	if result.Downloads == 1 {
 		downloadLimit = "one verified download"
 	}
-	fmt.Fprintf(os.Stderr, `Stored transfer is encrypted and available until %[1]s or %[5]s.
-
-Browser link:
-    %[2]s
-
-CLI recipient:
-    Run croc, then paste this token:
-    %[3]s
-
-Revoke before download:
-    croc --revoke %[4]s
-`, result.ExpiresAt.Local().Format(time.RFC1123), browserURL, token, result.Share.ID, downloadLimit)
+	output, colorEnabled := termui.Output(os.Stderr)
+	fmt.Fprint(output, formatStoredSendInstructions(
+		result.ExpiresAt.Local().Format(time.RFC1123),
+		browserURL,
+		token,
+		result.Share.ID,
+		downloadLimit,
+		colorEnabled,
+	))
 	if !c.Bool("disable-clipboard") {
 		croc.CopyToClipboard(browserURL, c.Bool("quiet"), false)
 	}
@@ -251,16 +307,26 @@ func receiveStored(c *cli.Context, value string) error {
 		return err
 	}
 	total := int64(0)
-	fmt.Fprintf(os.Stderr, "Encrypted stored transfer")
+	terminalOutput, colorEnabled := termui.Output(os.Stderr)
+	fmt.Fprint(terminalOutput, termui.Emphasis("Encrypted stored transfer", colorEnabled))
 	if !expires.IsZero() {
-		fmt.Fprintf(os.Stderr, " (expires %s)", expires.Local().Format(time.RFC1123))
+		fmt.Fprintf(terminalOutput, " (%s)", termui.Warning(
+			"expires "+expires.Local().Format(time.RFC1123),
+			colorEnabled,
+		))
 	}
-	fmt.Fprintln(os.Stderr, ":")
+	fmt.Fprintln(terminalOutput, ":")
 	for _, file := range manifest.Files {
 		total += file.Size
-		fmt.Fprintf(os.Stderr, "  %s  %s\n", file.Name, utils.ByteCountDecimal(file.Size))
+		fmt.Fprintf(terminalOutput, "  %s  %s\n",
+			termui.Filename(file.Name, colorEnabled),
+			utils.ByteCountDecimal(file.Size),
+		)
 	}
-	fmt.Fprintf(os.Stderr, "Total: %s\n", utils.ByteCountDecimal(total))
+	fmt.Fprintf(terminalOutput, "%s %s\n",
+		termui.Emphasis("Total:", colorEnabled),
+		utils.ByteCountDecimal(total),
+	)
 
 	output := c.String("out")
 	if output == "" {
@@ -272,7 +338,10 @@ func receiveStored(c *cli.Context, value string) error {
 			if c.Bool("yes") {
 				return fmt.Errorf("destination already exists (use --overwrite): %s", destination)
 			}
-			choice, inputErr := utils.GetInput(fmt.Sprintf("Replace %s? (y/N) ", destination))
+			choice, inputErr := utils.GetInput(fmt.Sprintf(
+				"Replace %s? (y/N) ",
+				termui.Filename(destination, colorEnabled),
+			))
 			if inputErr != nil || !strings.EqualFold(strings.TrimSpace(choice), "y") {
 				return errors.New("stored transfer refused")
 			}
@@ -335,6 +404,11 @@ func revokeStored(c *cli.Context, transferID string) error {
 	if err = removeStoreReceipt(id); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "Stored transfer %s revoked.\n", id)
+	output, colorEnabled := termui.Output(os.Stderr)
+	fmt.Fprintf(output, "%s%s%s\n",
+		termui.Success("Stored transfer ", colorEnabled),
+		termui.Secret(id, colorEnabled),
+		termui.Success(" revoked.", colorEnabled),
+	)
 	return nil
 }
