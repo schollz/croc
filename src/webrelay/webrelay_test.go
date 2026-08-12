@@ -180,7 +180,7 @@ func TestUmamiScriptRequiresBothEnvironmentValues(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			script := `<script defer src="https://umami.schollz.com/script.js" data-website-id="website-uuid"></script>`
+			script := `<script defer src="https://umami.schollz.com/script.js" data-website-id="website-uuid" data-performance="true"></script>`
 			for _, requestPath := range []string{"/", "/blog"} {
 				recorder := httptest.NewRecorder()
 				handler.ServeHTTP(
