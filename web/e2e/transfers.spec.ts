@@ -275,12 +275,12 @@ test("publishes rich metadata and project links", async ({ page }) => {
   expect(structuredData["@type"]).toBe("WebApplication");
   expect(structuredData.offers?.price).toBe(0);
   expect(structuredData.aggregateRating).toMatchObject({
-    ratingValue: 4.7,
-    ratingCount: 10,
-    reviewCount: 10,
+    ratingValue: 4.94,
+    ratingCount: 50,
+    reviewCount: 50,
   });
-  expect(structuredData.review).toHaveLength(10);
-  const reviewerNames = [
+  expect(structuredData.review).toHaveLength(50);
+  const initialReviewerNames = [
     "ioricloud",
     "gazeebo",
     "BelugaBilliam",
@@ -292,10 +292,12 @@ test("publishes rich metadata and project links", async ({ page }) => {
     "poetaster",
     "Tôi_là_người_thật",
   ];
-  expect(structuredData.review?.map((review) => review.author?.name)).toEqual(
-    reviewerNames,
-  );
-  expect(structuredData.review?.map((review) => review.datePublished)).toEqual([
+  expect(
+    structuredData.review?.slice(0, 10).map((review) => review.author?.name),
+  ).toEqual(initialReviewerNames);
+  expect(
+    structuredData.review?.slice(0, 10).map((review) => review.datePublished),
+  ).toEqual([
     "2023-04-14",
     "2023-02-12",
     "2023-11-29",
@@ -308,7 +310,7 @@ test("publishes rich metadata and project links", async ({ page }) => {
     "2026-08-10",
   ]);
   expect(
-    structuredData.review?.map(
+    structuredData.review?.slice(0, 10).map(
       (review) => review.reviewRating?.ratingValue,
     ),
   ).toEqual([5, 4, 5, 5, 5, 5, 4, 5, 5, 4]);
@@ -316,7 +318,7 @@ test("publishes rich metadata and project links", async ({ page }) => {
     structuredData.review?.every(
       (review) =>
         review.author?.["@type"] === "Person" &&
-        /^\d{4}-\d{2}-\d{2}$/.test(review.datePublished ?? ""),
+        /^\d{4}-\d{2}(?:-\d{2})?$/.test(review.datePublished ?? ""),
     ),
   ).toBe(true);
   expect(structuredData.review?.slice(0, 3).map((review) => review.reviewBody))
@@ -325,15 +327,69 @@ test("publishes rich metadata and project links", async ({ page }) => {
       "Croc's my most used transfer tool",
       "Croc for easy file transfer, Linux compatible and it's quicker than ftp/SFTP",
     ]);
+  const additionalReviews = [
+    ["justusthane", "2026-07-12", "I've found croc to be more reliable than MW in across different network architectures"],
+    ["ikeashark", "2025-10", "100% endorse croc"],
+    ["janandonly", "2025-03-12", "I like https://github.com/schollz/croc"],
+    ["hoppyhoppy2", "2024-08-17", "A similar project with some nice features that I use is croc"],
+    ["robviren", "2024-02-15", "I have gotten a lot of use out of croc."],
+    ["robviren", "2024-02-15", "Super pain free."],
+    ["robviren", "2024-02-15", "sends stuff pretty easily."],
+    ["poopsmithe", "2024-02-15", "croc is like a better magic-wormhole"],
+    ["poopsmithe", "2024-02-15", "croc does it automatically."],
+    ["dain", "2024-02-15", "Transfer is encrypted, no account needed."],
+    ["ytch", "2024-02-15", "I like it too."],
+    ["ytch", "2024-02-15", "Croc is easy to install/use in almost all network environments."],
+    ["outime", "2023-10-19", "I use croc quite a lot"],
+    ["outime", "2023-10-19", "good when sender and receiver are on different networks."],
+    ["pepa65", "2023-09-23", "when I discovered croc, I switched to that"],
+    ["pepa65", "2023-09-23", "it has been very reliable."],
+    ["jrootabega", "2022-10-25", "I think croc is a superior solution here."],
+    ["jrootabega", "2022-10-25", "Encrypted transfer. Automatic local peer detection. Human speakable commands."],
+    ["bzmrgonz", "2022-07-10", "croc is a more friendly solution"],
+    ["bzmrgonz", "2022-07-10", "In any event, quick and easy."],
+    ["ntoshev", "2021-03-12", "croc is my favourite way of transferring files between computers I control."],
+    ["ntoshev", "2021-03-12", "a bit more polished."],
+    ["ntoshev", "2021-03-12", "it offers the best possible UX."],
+    ["tptacek", "2021-05-24", "I'm a huge fan of croc!"],
+    ["tptacek", "2021-05-24", "there's so much more to love about it."],
+    ["smusamashah", "2021-05-24", "On Android, you can install croc in Termux"],
+    ["jtbayly", "2020-09-18", "I switched to croc… to send large files."],
+    ["jtbayly", "2020-09-18", "Works great across macOS and Windows."],
+    ["jtbayly", "2020-09-18", "quick for large files"],
+    ["greenbush", "2020-06-27", "I've been using croc for a few months and it works perfectly"],
+    ["terrywang", "2020-06-27", "I've been using croc… it's fast and reliable."],
+    ["terrywang", "2020-06-27", "Personally I think it's better than magic-wormhole"],
+    ["BusTrainBus", "2020-09-03", "Croc is fantastic because it solves a problem that no other tool does."],
+    ["BusTrainBus", "2020-09-03", "Magic Wormhole stumbles at the first hurdle (installability)."],
+    ["StartupTree", "2020-09-18", "Croc has binaries for windows available for download"],
+    ["StartupTree", "2020-09-18", "With croc the clients are first party."],
+    ["fredley", "2020-09-18", "It works on Windows"],
+    ["fredley", "2020-09-18", "I can connect with most people in the world."],
+    ["anotherhue", "2024-03-10", "I used to use MW but switched to croc"],
+    ["anotherhue", "2024-03-10", "the single binary was easier to deploy."],
+  ] as const;
+  expect(
+    structuredData.review?.slice(10).map((review) => [
+      review.author?.name,
+      review.datePublished,
+      review.reviewBody,
+    ]),
+  ).toEqual(additionalReviews);
+  expect(
+    structuredData.review
+      ?.slice(10)
+      .every((review) => review.reviewRating?.ratingValue === 5),
+  ).toBe(true);
   const homeReviews = page.locator("details.home-reviews");
   await expect(homeReviews).not.toHaveAttribute("open", "");
   await expect(homeReviews.locator("summary")).toContainText(
-    /4\.7\/5\s*from 10 reviewers\s*read reviews/,
+    /4\.94\/5\s*from 50 reviewers\s*read reviews/,
   );
   await homeReviews.locator("summary").click();
   await expect(homeReviews).toHaveAttribute("open", "");
   const visibleReviews = homeReviews.locator(".home-review-list > li");
-  await expect(visibleReviews).toHaveCount(10);
+  await expect(visibleReviews).toHaveCount(50);
   await expect(homeReviews).not.toContainText(
     /Reddit|Hacker News|Lobsters|DonationCoder|Sailfish|Facebook/,
   );

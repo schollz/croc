@@ -190,7 +190,7 @@ function readHomeReviewData(): HomeReviewData | undefined {
       (review): review is HomeReview =>
         typeof review.author?.name === "string" &&
         typeof review.datePublished === "string" &&
-        /^\d{4}-\d{2}-\d{2}$/.test(review.datePublished) &&
+        /^\d{4}-\d{2}(?:-\d{2})?$/.test(review.datePublished) &&
         typeof review.reviewBody === "string" &&
         typeof review.reviewRating?.ratingValue === "number" &&
         Number.isFinite(review.reviewRating.ratingValue),
@@ -217,9 +217,18 @@ const homeReviewDateFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
   year: "numeric",
 });
+const homeReviewMonthFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  timeZone: "UTC",
+  year: "numeric",
+});
 
 function formatHomeReviewDate(value: string) {
-  return homeReviewDateFormatter.format(new Date(`${value}T00:00:00Z`));
+  const formatter = value.length === 7
+    ? homeReviewMonthFormatter
+    : homeReviewDateFormatter;
+  const normalizedValue = value.length === 7 ? `${value}-01` : value;
+  return formatter.format(new Date(`${normalizedValue}T00:00:00Z`));
 }
 
 function homeReviewStars(value: number) {
