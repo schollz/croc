@@ -7,25 +7,6 @@ export const transferEvents = {
 export type TransferEvent =
   (typeof transferEvents)[keyof typeof transferEvents];
 
-const analyticsScriptID = "croc-analytics-script";
-
-export function loadAnalytics() {
-  const config = window.__CROC_ANALYTICS__;
-  if (!config?.scriptURL || !config.websiteID) return;
-  if (document.getElementById(analyticsScriptID)) return;
-
-  const script = document.createElement("script");
-  script.id = analyticsScriptID;
-  script.src = config.scriptURL;
-  script.async = true;
-  script.dataset.websiteId = config.websiteID;
-  script.dataset.autoTrack = "false";
-  script.dataset.excludeSearch = "true";
-  script.dataset.excludeHash = "true";
-  script.dataset.doNotTrack = "true";
-  document.head.append(script);
-}
-
 export function trackTransferEvent(event: TransferEvent) {
   try {
     window.umami?.track((properties) => ({

@@ -153,7 +153,7 @@ func TestServesSiteAndRuntimeConfig(t *testing.T) {
 	)
 }
 
-func TestUmamiConfigRequiresBothEnvironmentValues(t *testing.T) {
+func TestUmamiScriptRequiresBothEnvironmentValues(t *testing.T) {
 	for _, testCase := range []struct {
 		name       string
 		url        string
@@ -180,7 +180,7 @@ func TestUmamiConfigRequiresBothEnvironmentValues(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			config := `<script>window.__CROC_ANALYTICS__ = {"scriptURL":"https://umami.schollz.com/script.js","websiteID":"website-uuid"};</script>`
+			script := `<script defer src="https://umami.schollz.com/script.js" data-website-id="website-uuid"></script>`
 			for _, requestPath := range []string{"/", "/blog"} {
 				recorder := httptest.NewRecorder()
 				handler.ServeHTTP(
@@ -191,9 +191,8 @@ func TestUmamiConfigRequiresBothEnvironmentValues(t *testing.T) {
 				assert.Equal(
 					t,
 					testCase.configured,
-					strings.Contains(recorder.Body.String(), config),
+					strings.Contains(recorder.Body.String(), script),
 				)
-				assert.NotContains(t, recorder.Body.String(), `src="https://umami.schollz.com/script.js"`)
 			}
 		})
 	}

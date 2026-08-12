@@ -122,10 +122,10 @@ croc-web --bind 127.0.0.1:9014 getcroc.com
 
 Successful browser transfers emit the custom events `send-direct`,
 `send-with-storage`, and `receive`. When Umami is not configured, event
-tracking is disabled and transfers behave identically. The browser receives
-analytics configuration from the server and loads the Umami script
-automatically. Automatic pageviews are disabled, and custom transfer events
-remove query strings and fragments from the reported URL.
+tracking is disabled and transfers behave identically. When configured, the
+server injects Umami's deferred script directly into every page's `<head>`.
+Umami records its normal pageviews, and custom transfer events remove query
+strings and fragments from the reported URL.
 
 Proxy the complete origin—including WebSocket upgrades—to
 `127.0.0.1:9014`, preserving the original `Host` header. The server returns the

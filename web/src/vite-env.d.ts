@@ -18,10 +18,6 @@ interface Window {
         | ((properties: Record<string, unknown>) => Record<string, unknown>),
     ): void;
   };
-  __CROC_ANALYTICS__?: {
-    scriptURL?: string;
-    websiteID?: string;
-  };
   __CROC_RUNTIME_CONFIG__?: {
     gatewayURL?: string;
     relayAddress?: string;

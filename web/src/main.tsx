@@ -5,15 +5,12 @@ import "driver.js/dist/driver.css";
 import "./styles.css";
 import { App } from "./App";
 import { Blog } from "./Blog";
-import { loadAnalytics } from "./analytics";
 
 const blogPath = window.location.pathname.replace(/\/$/, "") || "/";
 const isBlogRoute = blogPath === "/blog" || blogPath.startsWith("/blog/");
 const blogSlug = blogPath.startsWith("/blog/")
   ? blogPath.slice("/blog/".length)
   : undefined;
-
-loadAnalytics();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
