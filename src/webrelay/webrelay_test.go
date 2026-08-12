@@ -180,19 +180,21 @@ func TestUmamiConfigRequiresBothEnvironmentValues(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			recorder := httptest.NewRecorder()
-			handler.ServeHTTP(
-				recorder,
-				httptest.NewRequest(http.MethodGet, "/", nil),
-			)
-
 			config := `<script>window.__CROC_ANALYTICS__ = {"scriptURL":"https://umami.schollz.com/script.js","websiteID":"website-uuid"};</script>`
-			assert.Equal(
-				t,
-				testCase.configured,
-				strings.Contains(recorder.Body.String(), config),
-			)
-			assert.NotContains(t, recorder.Body.String(), `src="https://umami.schollz.com/script.js"`)
+			for _, requestPath := range []string{"/", "/blog"} {
+				recorder := httptest.NewRecorder()
+				handler.ServeHTTP(
+					recorder,
+					httptest.NewRequest(http.MethodGet, requestPath, nil),
+				)
+
+				assert.Equal(
+					t,
+					testCase.configured,
+					strings.Contains(recorder.Body.String(), config),
+				)
+				assert.NotContains(t, recorder.Body.String(), `src="https://umami.schollz.com/script.js"`)
+			}
 		})
 	}
 }

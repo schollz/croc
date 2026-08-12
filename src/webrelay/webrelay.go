@@ -432,8 +432,8 @@ func injectUmamiConfig(index []byte, baseURL, websiteID string) []byte {
 		return index
 	}
 
-	// Only expose inert configuration here. The browser client loads the
-	// analytics script after the visitor has explicitly opted in.
+	// Expose the runtime configuration here. The browser client loads the
+	// analytics script automatically when both values are configured.
 	script := `<script>window.__CROC_ANALYTICS__ = ` + string(config) + `;</script>`
 	return []byte(strings.Replace(string(index), closingBody, script+closingBody, 1))
 }

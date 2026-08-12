@@ -20,10 +20,8 @@ import {
 import { FaGithub } from "react-icons/fa";
 import { driver, type DriveStep, type Driver } from "driver.js";
 import {
-  loadAnalytics,
   trackTransferEvent,
   transferEvents,
-  unloadAnalytics,
 } from "./analytics";
 import { errorMessage, formatBytes } from "./protocol/bytes";
 import {
@@ -698,11 +696,6 @@ export function App() {
   const receivePanel = useRef<HTMLFormElement>(null);
   const copyReset = useRef<number>(undefined);
   const tour = useRef<Driver>(undefined);
-
-  useEffect(() => {
-    loadAnalytics();
-    return unloadAnalytics;
-  }, []);
 
   const totalSelectedSize = useMemo(
     () => selectedFiles.reduce((total, file) => total + file.size, 0),
