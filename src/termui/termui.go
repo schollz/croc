@@ -49,6 +49,12 @@ func Color(text, style string, enabled bool) string {
 	return style + text + Reset
 }
 
+// Plain removes terminal styling from text. It is useful when measuring or
+// comparing strings that may contain ANSI sequences.
+func Plain(text string) string {
+	return ansiPattern.ReplaceAllString(text, "")
+}
+
 // Emphasis highlights routine labels and choices without assigning a status
 // color to them.
 func Emphasis(text string, enabled bool) string {
