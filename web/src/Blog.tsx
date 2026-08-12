@@ -4,6 +4,7 @@ import {
   ArrowRight,
   BookOpenText,
   Check,
+  Circle,
   Clock3,
   Download,
   FileText,
@@ -94,7 +95,7 @@ function blogStructuredData(post?: BlogPost) {
           "@type": "WebPage",
           "@id": canonicalURL,
           url: canonicalURL,
-          name: post.title,
+          name: post.seoTitle,
           description: post.description,
           inLanguage: site.language,
           isPartOf: { "@id": `${siteURL}/#website` },
@@ -194,11 +195,13 @@ function blogStructuredData(post?: BlogPost) {
 function useBlogMetadata(post?: BlogPost, missing = false, missingSlug?: string) {
   useEffect(() => {
     const pageTitle = missing
-      ? "Article not found — croc field notes"
+      ? "Article not found | croc field notes"
       : post
-        ? `${post.title} — croc field notes`
+        ? post.seoTitle === post.title
+          ? `${post.title} | croc field notes`
+          : post.seoTitle
         : indexSEO.title;
-    const shareTitle = missing ? pageTitle : post?.title ?? indexSEO.title;
+    const shareTitle = missing ? pageTitle : post?.seoTitle ?? indexSEO.title;
     const description = missing
       ? "This field note could not be found."
       : post?.description ?? indexSEO.description;
@@ -621,7 +624,7 @@ function BlogIndex() {
           <div className="blog-section-heading">
             <div>
               <p className="blog-kicker"><FileText /> The notebook</p>
-              <h2 id="more-notes-title">Six more ways into croc</h2>
+              <h2 id="more-notes-title">More ways into croc</h2>
             </div>
             <span>{String(blogPosts.length).padStart(2, "0")} notes</span>
           </div>
@@ -710,6 +713,50 @@ function useActiveArticleSection(sectionIDs: string[]) {
   return activeSectionID;
 }
 
+type TableIndicatorLevel = "full" | "partial" | "empty";
+
+function parseTableIndicator(value: string) {
+  const markers: Record<string, TableIndicatorLevel> = {
+    "●": "full",
+    "◐": "partial",
+    "○": "empty",
+  };
+  const level = markers[value.charAt(0)];
+  if (!level) return undefined;
+  const note = value.slice(1).trim();
+  return { level, note: note || undefined };
+}
+
+function TableStatusIndicator({
+  label,
+  level,
+  note,
+}: {
+  label: string;
+  level: TableIndicatorLevel;
+  note?: string;
+}) {
+  const accessibleLabel = note ? `${label}; ${note}` : label;
+  return (
+    <span
+      className={`blog-status-indicator is-${level}`}
+      role="img"
+      aria-label={accessibleLabel}
+      title={accessibleLabel}
+    >
+      <Circle className="blog-status-outline" aria-hidden="true" />
+      {level !== "empty" && (
+        <Circle
+          className="blog-status-fill"
+          aria-hidden="true"
+          fill="currentColor"
+          strokeWidth={0}
+        />
+      )}
+    </span>
+  );
+}
+
 function BlogBlockView({ block, index }: { block: BlogBlock; index: number }) {
   if (block.type === "heading") {
     return <h2 id={headingID(block.text, index)}>{block.text}</h2>;
@@ -732,6 +779,161 @@ function BlogBlockView({ block, index }: { block: BlogBlock; index: number }) {
         <h3>{block.title}</h3>
         <p>{block.text}</p>
       </aside>
+    );
+  }
+  if (block.type === "table") {
+    const indicatorColumns = new Set(block.indicatorColumns ?? []);
+    const rowPositions = new Map(
+      block.rowOrder?.map((tool, position) => [tool, position]),
+    );
+    const rows = rowPositions.size > 0
+      ? [...block.rows].sort(
+          (left, right) =>
+            (rowPositions.get(left.cells[0]) ?? Number.MAX_SAFE_INTEGER) -
+            (rowPositions.get(right.cells[0]) ?? Number.MAX_SAFE_INTEGER),
+        )
+      : block.rows;
+    const tableID = `blog-table-${index}`;
+    const qualifierNotes = rows.flatMap((row) =>
+      [...indicatorColumns].flatMap((columnIndex) => {
+        const indicator = parseTableIndicator(row.cells[columnIndex]);
+        return indicator?.note
+          ? [{
+              column: block.headers[columnIndex],
+              href: row.href,
+              note: indicator.note,
+              tool: row.cells[0],
+            }]
+          : [];
+      }),
+    );
+
+    return (
+      <div className="blog-table-block">
+        <p className="blog-table-caption" id={`${tableID}-caption`}>
+          {block.caption}
+        </p>
+        {block.indicatorLegend && (
+          <div
+            className="blog-table-legend"
+            id={`${tableID}-legend`}
+            role="note"
+            aria-label={`${block.caption} legend`}
+          >
+            <div className="blog-table-status-key">
+              <TableStatusIndicator
+                level="full"
+                label={`Full circle: ${block.indicatorLegend.full}`}
+              />
+              <span>{block.indicatorLegend.full}</span>
+              <TableStatusIndicator
+                level="partial"
+                label={`Half circle: ${block.indicatorLegend.partial}`}
+              />
+              <span>{block.indicatorLegend.partial}</span>
+              <TableStatusIndicator
+                level="empty"
+                label={`Empty circle: ${block.indicatorLegend.empty}`}
+              />
+              <span>{block.indicatorLegend.empty}</span>
+            </div>
+            {block.indicatorLegend.terms && (
+              <dl className="blog-table-terms">
+                {block.indicatorLegend.terms.map(({ term, definition }) => (
+                  <div key={term}>
+                    <dt>{term}</dt>
+                    <dd>{definition}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {qualifierNotes.length > 0 && (
+              <details className="blog-table-qualifiers">
+                <summary>Caveats and qualifiers ({qualifierNotes.length})</summary>
+                <ul>
+                  {qualifierNotes.map(({ column, href, note, tool }) => (
+                    <li key={`${tool}-${column}`}>
+                      <a href={href}>{tool}</a>
+                      <span>{column}: {note}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
+        <div
+          className="blog-table-scroll"
+          role="region"
+          aria-label={block.caption}
+          tabIndex={0}
+        >
+          <table
+            className="blog-comparison-table"
+            aria-describedby={block.indicatorLegend ? `${tableID}-legend` : undefined}
+          >
+            <caption className="blog-visually-hidden">{block.caption}</caption>
+            <colgroup>
+              {block.headers.map((header, columnIndex) => (
+                <col
+                  className={indicatorColumns.has(columnIndex) ? "is-indicator-column" : undefined}
+                  key={header}
+                />
+              ))}
+            </colgroup>
+            <thead>
+              <tr>
+                {block.headers.map((header, columnIndex) => (
+                  <th
+                    className={indicatorColumns.has(columnIndex) ? "is-indicator-column" : undefined}
+                    scope="col"
+                    key={header}
+                  >
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr className={row.highlight ? "is-highlighted" : undefined} key={row.cells.join("\n")}>
+                  {row.cells.map((cell, cellIndex) => {
+                    if (cellIndex === 0) {
+                      return (
+                        <th scope="row" key={cell}>
+                          <a href={row.href}>{cell}</a>
+                        </th>
+                      );
+                    }
+
+                    const indicator = indicatorColumns.has(cellIndex)
+                      ? parseTableIndicator(cell)
+                      : undefined;
+                    if (indicator && block.indicatorLegend) {
+                      const levelLabel = block.indicatorLegend[indicator.level];
+                      return (
+                        <td
+                          className="is-indicator-column"
+                          key={`${cellIndex}-${cell}`}
+                          title={indicator.note}
+                        >
+                          <TableStatusIndicator
+                            level={indicator.level}
+                            label={`${block.headers[cellIndex]}: ${levelLabel}`}
+                            note={indicator.note}
+                          />
+                        </td>
+                      );
+                    }
+
+                    return <td key={`${cellIndex}-${cell}`}>{cell}</td>;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     );
   }
   return <p>{block.text}</p>;

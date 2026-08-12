@@ -2519,6 +2519,272 @@ a.cli-download-primary:hover {
   line-height: 1.75;
 }
 
+.blog-table-block {
+  max-width: 100%;
+  margin: 34px 0;
+  border: 1px solid var(--foreground);
+  background: var(--background);
+}
+
+.blog-table-caption {
+  margin: 0;
+  padding: 13px 15px;
+  color: var(--background);
+  background: var(--foreground);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.blog-table-legend {
+  border-bottom: 1px solid var(--foreground);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.blog-table-status-key {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 7px 9px;
+  padding: 13px 15px;
+}
+
+.blog-status-indicator {
+  position: relative;
+  display: inline-grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  flex: 0 0 17px;
+  color: var(--foreground);
+}
+
+.blog-status-indicator svg {
+  position: absolute;
+  width: 17px;
+  height: 17px;
+}
+
+.blog-status-indicator.is-partial .blog-status-fill {
+  clip-path: inset(0 50% 0 0);
+}
+
+.blog-table-terms {
+  display: grid;
+  margin: 0;
+  border-top: 1px solid var(--soft-border);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.blog-table-terms > div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px;
+  padding: 11px 12px;
+  border-right: 1px solid var(--soft-border);
+  border-bottom: 1px solid var(--soft-border);
+}
+
+.blog-table-terms > div:nth-child(even) {
+  border-right: 0;
+}
+
+.blog-table-terms > div:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+.blog-table-terms > div:last-child,
+.blog-table-terms > div:nth-last-child(2):nth-child(odd) {
+  border-bottom: 0;
+}
+
+.blog-table-terms dt {
+  color: var(--foreground);
+  font-weight: 800;
+}
+
+.blog-table-terms dd {
+  margin: 0;
+}
+
+.blog-table-qualifiers {
+  border-top: 1px solid var(--soft-border);
+}
+
+.blog-table-qualifiers summary {
+  padding: 11px 15px;
+  color: var(--foreground);
+  cursor: pointer;
+  font-weight: 750;
+  list-style-position: inside;
+}
+
+.blog-table-qualifiers[open] summary {
+  border-bottom: 1px solid var(--soft-border);
+}
+
+.blog-table-qualifiers ul {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  list-style: none;
+}
+
+.blog-table-qualifiers li {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(95px, 0.7fr) minmax(0, 1.3fr);
+  gap: 7px;
+  padding: 9px 12px;
+  border-right: 1px solid var(--soft-border);
+  border-bottom: 1px solid var(--soft-border);
+}
+
+.blog-table-qualifiers li:nth-child(even) {
+  border-right: 0;
+}
+
+.blog-table-qualifiers li:last-child,
+.blog-table-qualifiers li:nth-last-child(2):nth-child(odd) {
+  border-bottom: 0;
+}
+
+.blog-table-qualifiers a {
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+.blog-table-scroll {
+  max-width: 100%;
+  max-height: min(72vh, 760px);
+  overflow: auto;
+  overscroll-behavior-inline: contain;
+  overscroll-behavior-block: contain;
+  scrollbar-gutter: stable;
+}
+
+.blog-table-scroll:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 3px;
+}
+
+.blog-comparison-table {
+  width: max-content;
+  min-width: 100%;
+  border-spacing: 0;
+  border-collapse: collapse;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.blog-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  margin: -1px;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.blog-comparison-table th,
+.blog-comparison-table td {
+  min-width: 180px;
+  max-width: 260px;
+  border-right: 1px solid var(--soft-border);
+  border-bottom: 1px solid var(--soft-border);
+  padding: 11px 12px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.blog-comparison-table th:last-child,
+.blog-comparison-table td:last-child {
+  border-right: 0;
+}
+
+.blog-comparison-table tbody tr:last-child th,
+.blog-comparison-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.blog-comparison-table thead th {
+  position: sticky;
+  z-index: 3;
+  top: 0;
+  color: var(--background);
+  background: var(--foreground);
+  box-shadow: 0 1px 0 var(--foreground);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.blog-comparison-table tbody th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 145px;
+  max-width: 175px;
+  background: var(--background);
+  font-weight: 650;
+}
+
+.blog-comparison-table tbody td {
+  color: var(--muted);
+}
+
+.blog-comparison-table .is-indicator-column {
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  padding-right: 6px;
+  padding-left: 6px;
+  text-align: center;
+}
+
+.blog-comparison-table td.is-indicator-column .blog-status-indicator {
+  margin: 0 auto;
+}
+
+.blog-comparison-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+}
+
+.blog-comparison-table tbody tr:nth-child(even) td,
+.blog-comparison-table tbody tr:nth-child(even) th {
+  background: var(--panel-tint);
+}
+
+.blog-comparison-table tbody tr:hover td,
+.blog-comparison-table tbody tr:hover th {
+  background: color-mix(in srgb, var(--foreground) 8%, var(--background));
+}
+
+.blog-comparison-table tbody tr.is-highlighted th {
+  box-shadow: inset 4px 0 0 var(--foreground);
+}
+
+.blog-comparison-table tbody tr.is-highlighted td,
+.blog-comparison-table tbody tr.is-highlighted th {
+  background: var(--panel-tint);
+}
+
+.blog-comparison-table a {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
 .blog-related-notes {
   margin-top: 58px;
   border-top: 1px solid var(--foreground);
@@ -3438,6 +3704,26 @@ a.cli-download-primary:hover {
 
   .blog-code-block pre {
     padding: 16px;
+  }
+
+  .blog-table-terms,
+  .blog-table-qualifiers ul {
+    grid-template-columns: 1fr;
+  }
+
+  .blog-table-terms > div,
+  .blog-table-qualifiers li {
+    border-right: 0;
+    border-bottom: 1px solid var(--soft-border);
+  }
+
+  .blog-table-terms > div:last-child,
+  .blog-table-qualifiers li:nth-last-child(2):nth-child(odd) {
+    border-bottom: 1px solid var(--soft-border);
+  }
+
+  .blog-table-qualifiers li:last-child {
+    border-bottom: 0;
   }
 
   .blog-post-navigation {

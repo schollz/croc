@@ -8,9 +8,12 @@ test("every article exposes complete crawler metadata before JavaScript", async 
     const response = await request.get(`/blog/${post.slug}`);
     expect(response.ok()).toBe(true);
     const html = await response.text();
+    const pageTitle = "seoTitle" in post
+      ? post.seoTitle
+      : `${post.title} | croc field notes`;
 
     expect(html).toContain(
-      `<title>${post.title} — croc field notes</title>`,
+      `<title>${pageTitle}</title>`,
     );
     expect(html).toContain(
       `<meta name="description" content="${post.description}"`,
@@ -34,13 +37,46 @@ test("every article exposes complete crawler metadata before JavaScript", async 
     expect(html).toContain('"relatedLink"');
   }
 
+  const comparison = blogSEO.posts.find(
+    (post) => post.slug === "compare-file-transfer-tools",
+  );
+  expect(comparison).toBeDefined();
+  const comparisonResponse = await request.get(
+    "/blog/compare-file-transfer-tools",
+  );
+  const comparisonHTML = await comparisonResponse.text();
+  expect(comparisonHTML).toContain(
+    '<meta name="keywords" content="' + comparison?.keywords.join(", ") + '"',
+  );
+  expect(comparisonHTML).toContain(
+    '<meta name="robots" content="index, follow, max-image-preview:large',
+  );
+  for (const keyword of comparison?.keywords ?? []) {
+    expect(comparisonHTML).toContain(
+      '<meta property="article:tag" content="' + keyword + '"',
+    );
+  }
+
+  const feedResponse = await request.get("/blog/feed.xml");
+  expect(feedResponse.ok()).toBe(true);
+  const feed = await feedResponse.text();
+  expect(feed.indexOf("/blog/compare-file-transfer-tools")).toBeLessThan(
+    feed.indexOf("/blog/share-stored-file-with-group"),
+  );
+
+  const sitemapResponse = await request.get("/sitemap.xml");
+  expect(sitemapResponse.ok()).toBe(true);
+  expect(await sitemapResponse.text()).toContain(
+    "<loc>https://getcroc.com/blog/compare-file-transfer-tools</loc>",
+  );
+
   const image = await request.get("/blog/images/pake-step-by-step.jpg");
   expect(image.ok()).toBe(true);
   expect(image.headers()["content-type"]).toBe("image/jpeg");
   expect((await image.body()).byteLength).toBeGreaterThan(50_000);
 });
 
-test("mobile blog index exposes eight field notes without overflow", async ({
+test("mobile blog index exposes nine field notes without overflow", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -49,7 +85,12 @@ test("mobile blog index exposes eight field notes without overflow", async ({
   await expect(
     page.getByRole("heading", { name: "Notes from inside the transfer." }),
   ).toBeVisible();
-  await expect(page.locator("main article")).toHaveCount(8);
+  await expect(page.locator("main article")).toHaveCount(9);
+  await expect(
+    page.locator("main article").first().getByRole("heading", {
+      name: "36 ways to send a file",
+    }),
+  ).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Transfer files", exact: true }),
   ).toBeVisible();
@@ -87,7 +128,7 @@ test("direct article routes publish metadata and complete article content", asyn
   await page.goto("/blog/pake-step-by-step");
 
   await expect(page).toHaveTitle(
-    "PAKE, step by step — croc field notes",
+    "PAKE, step by step | croc field notes",
   );
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
@@ -118,4 +159,62 @@ test("direct article routes publish metadata and complete article content", asyn
   await expect(
     page.getByRole("link", { name: /Next note/ }),
   ).toBeVisible();
+});
+
+test("the comparison tables scroll without widening the mobile article", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/blog/compare-file-transfer-tools");
+
+  await expect(
+    page.getByRole("heading", {
+      name: "36 ways to send a file",
+    }),
+  ).toBeVisible();
+  const tableRegion = page.getByRole("region", {
+    name: "Availability, account requirement, resumption, and supported endpoint combinations",
+  });
+  await expect(tableRegion).toBeVisible();
+  const legend = page.getByRole("note", {
+    name: "Availability, account requirement, resumption, and supported endpoint combinations legend",
+  });
+  await expect(legend).toBeVisible();
+  await expect(
+    legend.getByRole("img", {
+      name: /Full circle: Meets the column without an important limitation/,
+    }),
+  ).toBeVisible();
+  await expect(legend.getByText(/Caveats and qualifiers/)).toBeVisible();
+  await expect(
+    tableRegion.locator("tbody th a").nth(0),
+  ).toHaveText("croc");
+  await expect(
+    tableRegion.locator("tbody th a").nth(1),
+  ).toHaveText("MEGA");
+  await expect(
+    tableRegion.locator("tbody th a").nth(2),
+  ).toHaveText("Syncthing");
+  await expect(
+    tableRegion.locator("tbody tr").nth(1).locator('td[title="required to upload"]'),
+  ).toHaveAttribute(
+    "title",
+    "required to upload",
+  );
+
+  const layout = await tableRegion.evaluate((region) => ({
+    documentOverflow: document.documentElement.scrollWidth - window.innerWidth,
+    tableOverflow: region.scrollWidth - region.clientWidth,
+  }));
+  expect(layout.documentOverflow).toBeLessThanOrEqual(0);
+  expect(layout.tableOverflow).toBeGreaterThan(0);
+
+  const indicatorWidths = await tableRegion
+    .locator("thead th.is-indicator-column")
+    .evaluateAll((headers) => headers.map((header) => header.getBoundingClientRect().width));
+  expect(indicatorWidths.length).toBe(7);
+  expect(indicatorWidths.every((width) => width <= 74)).toBe(true);
+  await expect(
+    page.locator(".blog-comparison-table tbody th a"),
+  ).toHaveCount(72);
 });

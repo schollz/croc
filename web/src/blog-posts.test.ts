@@ -8,9 +8,20 @@ import {
 } from "./blog-posts";
 
 describe("blog posts", () => {
-  it("ships eight substantial, addressable field notes", () => {
-    expect(blogPosts).toHaveLength(8);
-    expect(new Set(blogPosts.map((post) => post.slug)).size).toBe(8);
+  it("ships nine substantial, addressable field notes", () => {
+    expect(blogPosts).toHaveLength(9);
+    expect(new Set(blogPosts.map((post) => post.slug)).size).toBe(9);
+    expect(blogPosts.map((post) => post.slug)).toEqual([
+      "compare-file-transfer-tools",
+      "share-stored-file-with-group",
+      "stored-transfer-one-download",
+      "browser-meets-terminal",
+      "send-file-from-browser",
+      "pake-step-by-step",
+      "what-four-word-code-does",
+      "how-croc-moves-a-file",
+      "why-croc-works-this-way",
+    ]);
 
     for (const post of blogPosts) {
       expect(post.slug).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
@@ -31,6 +42,8 @@ describe("blog posts", () => {
       expect(getBlogPost(post.slug)).toBe(post);
 
       const seo = blogSEO.posts.find((entry) => entry.slug === post.slug);
+      const seoTitle = seo && "seoTitle" in seo ? seo.seoTitle : post.title;
+      expect(post.seoTitle).toBe(seoTitle);
       expect(seo).toMatchObject({
         title: post.title,
         description: post.description,
@@ -44,5 +57,28 @@ describe("blog posts", () => {
 
   it("does not resolve an unknown article", () => {
     expect(getBlogPost("not-a-real-field-note")).toBeUndefined();
+  });
+
+  it("orders both comparison matrices from most filled circles to least", () => {
+    const post = getBlogPost("compare-file-transfer-tools");
+    const tables = post?.blocks.filter((block) => block.type === "table") ?? [];
+    const [capabilityTable, architectureTable] = tables;
+    expect(capabilityTable).toBeDefined();
+    expect(architectureTable).toBeDefined();
+
+    const scores = capabilityTable.rowOrder?.map((tool) => {
+      const row = capabilityTable.rows.find(
+        (candidate) => candidate.cells[0] === tool,
+      );
+      expect(row).toBeDefined();
+      return capabilityTable.indicatorColumns?.reduce((score, columnIndex) => {
+        const marker = row?.cells[columnIndex].charAt(0);
+        return score + (marker === "●" ? 1 : marker === "◐" ? 0.5 : 0);
+      }, 0) ?? 0;
+    }) ?? [];
+
+    expect(capabilityTable.rowOrder).toHaveLength(capabilityTable.rows.length);
+    expect(scores).toEqual([...scores].sort((left, right) => right - left));
+    expect(architectureTable.rowOrder).toEqual(capabilityTable.rowOrder);
   });
 });

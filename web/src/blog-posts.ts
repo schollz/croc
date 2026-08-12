@@ -14,12 +14,31 @@ export type BlogBlock =
   | { type: "paragraph"; text: string }
   | { type: "list"; items: string[] }
   | { type: "code"; label: string; lines: string[] }
-  | { type: "aside"; eyebrow: string; title: string; text: string };
+  | { type: "aside"; eyebrow: string; title: string; text: string }
+  | {
+      type: "table";
+      caption: string;
+      headers: string[];
+      indicatorColumns?: number[];
+      indicatorLegend?: {
+        full: string;
+        partial: string;
+        empty: string;
+        terms?: Array<{ term: string; definition: string }>;
+      };
+      rowOrder?: string[];
+      rows: Array<{
+        cells: string[];
+        href: string;
+        highlight?: boolean;
+      }>;
+    };
 
 export type BlogPost = {
   slug: string;
   number: string;
   title: string;
+  seoTitle: string;
   description: string;
   category: string;
   publishedAt: string;
@@ -40,10 +59,49 @@ export type BlogPost = {
 
 type DraftBlogPost = Omit<
   BlogPost,
-  "modifiedAt" | "keywords" | "image" | "socialImage" | "imageAlt" | "wordCount" | "readingMinutes" | "relatedSlugs"
+  "seoTitle" | "modifiedAt" | "keywords" | "image" | "socialImage" | "imageAlt" | "wordCount" | "readingMinutes" | "relatedSlugs"
 >;
 
 const wordsPerMinute = 210;
+
+const fileTransferToolOrder = [
+  "croc",
+  "MEGA",
+  "Filemail",
+  "Syncthing",
+  "WebWormhole",
+  "SwissTransfer",
+  "transfer.sh",
+  "TransferNow",
+  "WeTransfer",
+  "iroh Sendme",
+  "Tailscale Taildrop",
+  "PairDrop",
+  "Send Anywhere",
+  "LocalSend",
+  "KDE Connect",
+  "Magic Wormhole",
+  "qrcp",
+  "OnionShare",
+  "FilePizza",
+  "ToffeeShare",
+  "Wormhole.app",
+  "Warpinator",
+  "pCloud Transfer",
+  "rclone",
+  "Smash",
+  "Firefox Send",
+  "Apple AirDrop",
+  "Portal",
+  "rsync",
+  "Blaze",
+  "LANDrop",
+  "Google Quick Share",
+  "ZeroTier Toss",
+  "Peer Copy",
+  "Snapdrop Classic",
+  "ShareDrop Classic",
+];
 
 export function blogWordCount(blocks: BlogBlock[]) {
   return blocks.flatMap((block) => {
@@ -51,6 +109,24 @@ export function blogWordCount(blocks: BlogBlock[]) {
     if (block.type === "code") return block.lines;
     if (block.type === "aside") {
       return [block.eyebrow, block.title, block.text];
+    }
+    if (block.type === "table") {
+      return [
+        block.caption,
+        ...block.headers,
+        ...(block.indicatorLegend
+          ? [
+              block.indicatorLegend.full,
+              block.indicatorLegend.partial,
+              block.indicatorLegend.empty,
+              ...(block.indicatorLegend.terms?.flatMap(({ term, definition }) => [
+                term,
+                definition,
+              ]) ?? []),
+            ]
+          : []),
+        ...block.rows.flatMap((row) => row.cells),
+      ];
     }
     return [block.text];
   }).join(" ").trim().split(/\s+/).filter(Boolean).length;
@@ -192,7 +268,7 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "Both croc clients can, however, make an outbound connection to a relay they already know how to reach. The relay puts the matching connections together. It can observe mundane network facts—when the clients connect and how many encrypted bytes pass through—but the file names, metadata, and contents are encrypted with a key it does not have.",
+        text: "Both croc clients can, however, make an outbound connection to a relay they already know how to reach. The relay puts the matching connections together. It can observe mundane network facts, such as when the clients connect and how many encrypted bytes pass through, but the file names, metadata, and contents are encrypted with a key it does not have.",
       },
       {
         type: "code",
@@ -407,7 +483,7 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "On screen this all becomes four words and a progress bar. Underneath are two curve points, two random values, a transcript, a key schedule, and two confirmation checks. That is quite a lot of machinery for a short code, but it lets the short code remain short—which was the problem in the first place.",
+        text: "On screen this all becomes four words and a progress bar. Underneath are two curve points, two random values, a transcript, a key schedule, and two confirmation checks. That is quite a lot of machinery for a short code, but it lets the short code remain short. That was the problem in the first place.",
       },
     ],
   },
@@ -589,7 +665,7 @@ const drafts: DraftBlogPost[] = [
         items: [
           "Share the full browser link or CLI token through a private channel.",
           "Keep the sender's revoke receipt until the transfer is consumed or expired.",
-          "Expect the service to learn timing, ciphertext size, transfer totals, and connection metadata—not readable names or contents.",
+          "Expect the service to learn timing, ciphertext size, transfer totals, and connection metadata, but not readable names or contents.",
           "Use direct mode when both peers are online; it avoids storing even ciphertext between them.",
         ],
       },
@@ -694,25 +770,250 @@ const drafts: DraftBlogPost[] = [
       },
     ],
   },
+  {
+    slug: "compare-file-transfer-tools",
+    number: "09",
+    title: "36 ways to send a file",
+    description:
+      "Compare croc with 35 file transfer tools by resume support, account requirements, browser and CLI transfers, encryption, availability, and transfer paths.",
+    category: "Field guide",
+    publishedAt: "2026-08-12",
+    publishedLabel: "August 12, 2026",
+    author: "schollz",
+    visual: "bridge",
+    takeaway:
+      "The right tool depends on the trip, but croc is the only available no-account option here combining resumable CLI transfers with browser-to-browser, browser-to-CLI, and CLI-to-CLI routes.",
+    blocks: [
+      {
+        type: "paragraph",
+        text: "In 2017 I wanted to send a one-gigabyte documentary about turkeys to a friend in another country. She used Windows, did not enjoy terminals, and quite reasonably did not want to configure a router before watching a movie. I compared seven ways to move the file. That little survey eventually became croc.",
+      },
+      {
+        type: "paragraph",
+        text: "Nine years later, sending a file should be a solved problem. Instead I found 36 solutions and at least four different definitions of the problem. Some make a live pipe between two computers. Some synchronize a folder forever. Some work only while two browser tabs remain awake. Others store a copy and produce a link for somebody who may arrive tomorrow.",
+      },
+      {
+        type: "paragraph",
+        text: "This field guide compares croc with 35 file transfer tools, including Magic Wormhole, Syncthing, LocalSend, PairDrop, WeTransfer, MEGA, and Firefox Send. The tables cover resumable transfers, account requirements, browser, command-line, and app endpoints, availability, encryption, and the path each file takes.",
+      },
+      {
+        type: "aside",
+        eyebrow: "BIAS, DISCLOSED",
+        title: "I know one row from the inside",
+        text: "I built croc, so naturally I know that row best. AirDrop, Syncthing, OnionShare, and stored-link services each solve different jobs that croc should not pretend are identical.",
+      },
+      { type: "heading", text: "How I compared 36 file transfer tools" },
+      {
+        type: "paragraph",
+        text: "I checked official sites, documentation, and repositories on August 12, 2026. A full circle means the project documents that capability without an important limitation. A half-filled circle means it works only on some platforms, in some modes, through a documented third-party adapter, or with another caveat. An empty circle means I could not find documented support. Under Resume, that specifically means I could not find a promise that a stopped transfer can restart without beginning the file at byte zero.",
+      },
+      {
+        type: "list",
+        items: [
+          "Account: none required, optional for some modes, or required before sending.",
+          "Resume: recovery after an interrupted transfer, not merely retrying a packet inside the same session.",
+          "Browser ↔ browser, browser ↔ CLI, and CLI ↔ CLI: the three interface combinations I most often need.",
+          "App ↔ app: included so good native tools such as LocalSend and AirDrop do not appear to do nothing.",
+          "Availability: whether the hosted service or installable source still exists, with approximate lifetimes for historical projects.",
+          "Encryption, accounts, and byte path: who can read the file, what identity is required, and whether the transfer is live, relayed, synchronized, or stored.",
+        ],
+      },
+      {
+        type: "aside",
+        eyebrow: "WHY THERE IS NO SPEED COLUMN",
+        title: "I did not benchmark bandwidth",
+        text: "A nearby relay on fiber and a direct transfer through hotel Wi-Fi are not a useful comparison of two programs. Geography, NATs, browser limits, providers, and endpoint upload speeds would overwhelm the implementation. The byte-path table is the more honest performance hint.",
+      },
+      { type: "heading", text: "File transfer tools comparison table" },
+      {
+        type: "paragraph",
+        text: "Browser means the browser handles the file payload, not merely that a daemon has a web settings page. PairDrop's shell helper opens the browser and hands files to it, so that route is partial. App means a native GUI or mobile application. The complete field is croc plus 35 alternatives.",
+      },
+      {
+        type: "table",
+        caption: "Availability, account requirement, resumption, and supported endpoint combinations",
+        headers: ["Tool", "Available", "Account", "Resume", "B ↔ B", "B ↔ CLI", "CLI ↔ CLI", "App ↔ app"],
+        indicatorColumns: [1, 2, 3, 4, 5, 6, 7],
+        rowOrder: fileTransferToolOrder,
+        indicatorLegend: {
+          full: "Meets the column without an important limitation",
+          partial: "Meets it only in some modes or with a caveat",
+          empty: "No documented support",
+          terms: [
+            { term: "B", definition: "A browser handles the file itself, not merely a settings page." },
+            { term: "CLI", definition: "A command-line client sends or receives the file. An API that could be scripted does not count by itself." },
+            { term: "App", definition: "A native desktop or mobile application." },
+            { term: "Account", definition: "Filled means no account is required. Half means optional or mode-dependent. Empty means an account or existing credentials are required." },
+          ],
+        },
+        rows: [
+          { cells: ["croc", "●", "●", "●", "●", "●", "●", "●"], href: "https://github.com/schollz/croc", highlight: true },
+          { cells: ["Magic Wormhole", "●", "●", "○", "○", "○", "● installed command is wormhole", "○"], href: "https://github.com/magic-wormhole/magic-wormhole" },
+          { cells: ["iroh Sendme", "◐ example application", "●", "●", "○", "○", "●", "○"], href: "https://github.com/n0-computer/sendme" },
+          { cells: ["ZeroTier Toss", "○ archived; ~7 years (2017–2024)", "●", "○", "○", "○", "●", "○"], href: "https://github.com/zerotier/toss" },
+          { cells: ["Portal", "◐ quiet project", "●", "○", "○", "○", "●", "○"], href: "https://github.com/SpatiumPortae/portal" },
+          { cells: ["qrcp", "●", "●", "○", "○", "●", "○ CLI endpoint serves a browser page", "○"], href: "https://github.com/claudiodangelis/qrcp" },
+          { cells: ["Peer Copy", "○ archived; ~4 years (2021–2025)", "●", "○", "○", "○", "●", "○"], href: "https://github.com/dennis-tra/pcp" },
+          { cells: ["transfer.sh", "◐ source available; self-hosting advised", "● default", "○", "◐ depends on instance", "●", "●", "○"], href: "https://github.com/dutchcoders/transfer.sh" },
+          { cells: ["rsync", "●", "○ remote login or key required", "◐ opt-in", "○", "○", "●", "○"], href: "https://rsync.samba.org/" },
+          { cells: ["rclone", "●", "○ storage credentials usually required", "◐ depends on backend and file", "○", "◐ via serve mode", "●", "○"], href: "https://rclone.org/" },
+          { cells: ["Tailscale Taildrop", "●", "○ Tailscale account required", "◐ platform-dependent", "○", "○", "●", "●"], href: "https://tailscale.com/kb/1106/taildrop" },
+          { cells: ["OnionShare", "●", "●", "○", "○", "●", "○ CLI hosts the onion service; the other endpoint uses Tor Browser", "○"], href: "https://onionshare.org/" },
+          { cells: ["Syncthing", "●", "● no service account", "● automatic", "○", "○", "● headless", "●"], href: "https://syncthing.net/" },
+          { cells: ["LocalSend", "●", "●", "○", "○", "○", "◐ unofficial localsend-rs client sends and receives", "●"], href: "https://localsend.org/" },
+          { cells: ["PairDrop", "●", "●", "○", "●", "◐ helper opens browser", "○ helper opens a browser; there is no terminal receiver", "○"], href: "https://pairdrop.net/" },
+          { cells: ["Snapdrop Classic", "○ classic ended; ~9 years (2015–2025)", "●", "○", "●", "○", "○", "○"], href: "https://github.com/SnapDrop/snapdrop" },
+          { cells: ["ShareDrop Classic", "○ classic ended; ~11 years (2014–2025)", "●", "○", "●", "○", "○", "○"], href: "https://github.com/ShareDropio/sharedrop" },
+          { cells: ["FilePizza", "●", "●", "○", "●", "○", "○", "○"], href: "https://transfer.gattini.ninja/" },
+          { cells: ["WebWormhole", "◐ experimental", "●", "○", "●", "●", "● ww send and ww receive", "○"], href: "https://github.com/saljam/webwormhole" },
+          { cells: ["ToffeeShare", "●", "●", "○", "●", "○", "○", "○"], href: "https://toffeeshare.com/" },
+          { cells: ["Wormhole.app", "●", "●", "○", "●", "○", "○ browser service; unrelated to the Magic Wormhole CLI", "○"], href: "https://wormhole.app/" },
+          { cells: ["Blaze", "◐ quiet project", "●", "○", "●", "○", "○", "○"], href: "https://blaze.now.sh/" },
+          { cells: ["LANDrop", "◐ public source outdated", "●", "○", "○", "○", "○", "●"], href: "https://landrop.app/" },
+          { cells: ["Warpinator", "●", "●", "○", "○", "○", "○ GUI application; no documented transfer CLI", "●"], href: "https://github.com/linuxmint/warpinator" },
+          { cells: ["KDE Connect", "●", "●", "○", "○", "○", "◐ kdeconnect-cli sends; the receiver is a daemon or app", "●"], href: "https://kdeconnect.kde.org/" },
+          { cells: ["Apple AirDrop", "●", "◐ Everyone mode", "○", "○", "○", "◐ unofficial OpenDrop; experimental and limited to macOS or Linux with AWDL", "●"], href: "https://support.apple.com/guide/security/airdrop-security-sec2261183f4/web" },
+          { cells: ["Google Quick Share", "●", "◐ optional", "○", "○", "○", "○ no documented Quick Share CLI", "●"], href: "https://www.android.com/better-together/quick-share-app/" },
+          { cells: ["Firefox Send", "○ discontinued; ~3 years (2017–2020)", "◐ optional historically", "○", "● historical", "◐ historical ffsend", "◐ historical ffsend", "◐ historical Android beta"], href: "https://support.mozilla.org/kb/what-happened-firefox-send" },
+          { cells: ["WeTransfer", "●", "○ required to send", "○", "●", "◐ unofficial transferwee client", "◐ unofficial transferwee client uploads and downloads", "●"], href: "https://wetransfer.com/" },
+          { cells: ["SwissTransfer", "●", "●", "○", "●", "○", "○ unofficial Swish client can download, but uploads no longer work", "●"], href: "https://www.swisstransfer.com/" },
+          { cells: ["Send Anywhere", "●", "◐ optional", "○", "●", "○", "○ current documentation lists web, desktop, and mobile apps, not a CLI", "●"], href: "https://send-anywhere.com/" },
+          { cells: ["Smash", "●", "◐ free tier", "○", "●", "○", "○ official Node.js SDKs are libraries, not a CLI", "◐ some integrations"], href: "https://fromsmash.com/" },
+          { cells: ["Filemail", "●", "◐ free use", "○", "●", "●", "● official CLI uploads and downloads", "●"], href: "https://www.filemail.com/" },
+          { cells: ["TransferNow", "●", "◐ free use", "◐ uploads", "●", "○", "○ API access is not a documented CLI client", "●"], href: "https://www.transfernow.net/" },
+          { cells: ["pCloud Transfer", "●", "●", "○", "●", "○", "○ upload API is not a packaged CLI client", "○"], href: "https://transfer.pcloud.com/" },
+          { cells: ["MEGA", "●", "○ required to upload", "◐ client and mode caveats", "●", "●", "● official MEGAcmd uploads and downloads", "●"], href: "https://mega.io/" },
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "The wormhole names need a map. Magic Wormhole installs a command named wormhole and supports CLI-to-CLI transfers. Wormhole.app is a separate browser service with no documented CLI. A newer native app also named Wormhole speaks the Magic Wormhole protocol, but it is not the Wormhole.app website.",
+      },
+      {
+        type: "paragraph",
+        text: "Only a few tools bridge browser and terminal worlds. Croc and WebWormhole support all three combinations directly. MEGA and Filemail support terminal upload and download through stored cloud files. Historical Firefox Send could do it through ffsend. Half circles capture less direct routes such as LocalSend's third-party CLI, OpenDrop's experimental AirDrop implementation, and WeTransfer's unofficial transferwee client.",
+      },
+      {
+        type: "paragraph",
+        text: "Resume is rarer than a progress bar suggests. Magic Wormhole still has an open request for restartable transfers. Iroh Sendme explicitly resumes verified downloads, rsync keeps partial data when asked, and Syncthing retains temporary blocks. Taildrop has receiving-platform exceptions, while MEGA's behavior changes between browsers and native apps.",
+      },
+      { type: "heading", text: "File transfer encryption and transfer paths" },
+      {
+        type: "paragraph",
+        text: "Encrypted is a stretchy word. TLS to an upload service protects a file on the way to the service, but the service can ordinarily process it. End-to-end encryption means an intermediary should not have the key. WebRTC encrypts the connection between peers; some tools add a password-authenticated layer above it. This table describes documented designs, not an independent security audit.",
+      },
+      {
+        type: "table",
+        caption: "Encryption model and transfer architecture",
+        headers: ["Tool", "Encryption model", "Path of the file"],
+        rowOrder: fileTransferToolOrder,
+        rows: [
+          { cells: ["croc", "Application E2EE; PAKE + AES-GCM", "Live relay; optional client-encrypted storage"], href: "https://github.com/schollz/croc", highlight: true },
+          { cells: ["Magic Wormhole", "Application E2EE with PAKE", "Live direct or transit relay"], href: "https://github.com/magic-wormhole/magic-wormhole" },
+          { cells: ["iroh Sendme", "Authenticated TLS to node ID", "Live hole-punched path or encrypted relay"], href: "https://github.com/n0-computer/sendme" },
+          { cells: ["ZeroTier Toss", "No encryption; token authentication", "Direct TCP, mainly LAN/virtual LAN"], href: "https://github.com/zerotier/toss" },
+          { cells: ["Portal", "Application E2EE with PAKE2", "Live direct connection or relay"], href: "https://github.com/SpatiumPortae/portal" },
+          { cells: ["qrcp", "HTTP default; optional user TLS", "Direct HTTP server on LAN"], href: "https://github.com/claudiodangelis/qrcp" },
+          { cells: ["Peer Copy", "Application E2EE with PAKE", "libp2p direct or decentralized relay"], href: "https://github.com/dennis-tra/pcp" },
+          { cells: ["transfer.sh", "TLS; provider-readable unless pre-encrypted", "Stored on public/self-hosted server"], href: "https://github.com/dutchcoders/transfer.sh" },
+          { cells: ["rsync", "SSH encrypted; raw daemon is not", "Direct to remote host/daemon"], href: "https://rsync.samba.org/" },
+          { cells: ["rclone", "Backend TLS; optional client crypt", "Cloud/backend or served protocol"], href: "https://rclone.org/" },
+          { cells: ["Tailscale Taildrop", "WireGuard E2EE", "Direct when possible; DERP otherwise"], href: "https://tailscale.com/kb/1106/taildrop" },
+          { cells: ["OnionShare", "Tor end-to-end transport", "Sender hosts temporary onion service"], href: "https://onionshare.org/" },
+          { cells: ["Syncthing", "Mutually authenticated TLS", "Continuous direct sync or encrypted relay"], href: "https://docs.syncthing.net/users/security.html" },
+          { cells: ["LocalSend", "HTTPS on local network", "Direct LAN transfer"], href: "https://github.com/localsend/localsend" },
+          { cells: ["PairDrop", "WebRTC/DTLS; server fallbacks", "Peer-to-peer, TURN, or WebSocket fallback"], href: "https://github.com/schlagmichdoch/PairDrop" },
+          { cells: ["Snapdrop Classic", "WebRTC/DTLS", "Peer-to-peer; signaling server"], href: "https://github.com/SnapDrop/snapdrop" },
+          { cells: ["ShareDrop Classic", "WebRTC/DTLS", "Peer-to-peer; Firebase signaling"], href: "https://github.com/ShareDropio/sharedrop" },
+          { cells: ["FilePizza", "WebRTC/DTLS; optional password", "Peer-to-peer or encrypted TURN relay"], href: "https://transfer.gattini.ninja/" },
+          { cells: ["WebWormhole", "PAKE-authenticated WebRTC; unreviewed", "Peer-to-peer or relay"], href: "https://github.com/saljam/webwormhole" },
+          { cells: ["ToffeeShare", "WebRTC/DTLS", "Peer-to-peer; sender stays online"], href: "https://toffeeshare.com/" },
+          { cells: ["Wormhole.app", "Client-side AES-GCM E2EE", "≤5 GB encrypted storage; larger live P2P"], href: "https://wormhole.app/security" },
+          { cells: ["Blaze", "WebRTC direct; TLS/WebSocket fallback", "Peer-to-peer or server fallback"], href: "https://github.com/blenderskool/blaze" },
+          { cells: ["LANDrop", "Project claims app encryption; source closed", "Direct LAN transfer"], href: "https://github.com/LANDrop/LANDrop" },
+          { cells: ["Warpinator", "Encrypted LAN; shared group code", "Direct on same local subnet"], href: "https://github.com/linuxmint/warpinator" },
+          { cells: ["KDE Connect", "Paired TLS connection", "Direct on local network"], href: "https://github.com/KDE/kdeconnect-kde" },
+          { cells: ["Apple AirDrop", "TLS plus Apple identity checks", "Nearby peer-to-peer Wi-Fi"], href: "https://support.apple.com/guide/security/airdrop-security-sec2261183f4/web" },
+          { cells: ["Google Quick Share", "Encrypted nearby transfer", "Bluetooth discovery + direct Wi-Fi"], href: "https://support.google.com/android/answer/13801258" },
+          { cells: ["Firefox Send", "Client-side E2EE", "Encrypted temporary cloud storage"], href: "https://support.mozilla.org/kb/what-happened-firefox-send" },
+          { cells: ["WeTransfer", "TLS transit; AES-256 at rest", "Provider storage + download link"], href: "https://wetransfer.com/help-center/security-privacy/how-do-we-protect-your-files" },
+          { cells: ["SwissTransfer", "Encrypted transit + provider storage", "Swiss provider storage, up to 30 days"], href: "https://www.infomaniak.com/en/support/faq/1755/understanding-swisstransfer-data-security" },
+          { cells: ["Send Anywhere", "Encrypted transport", "Live six-digit transfer or 48-hour link"], href: "https://support.send-anywhere.com/hc/en-us/articles/360005733434" },
+          { cells: ["Smash", "TLS transit; AES-256 at rest", "Provider storage + download link"], href: "https://fromsmash.com/help/articles/13179049-is-smash-secure" },
+          { cells: ["Filemail", "TLS/provider encryption; optional E2EE", "Provider storage + download link"], href: "https://support.filemail.com/en/articles/10313859-end-to-end-encryption-with-filemail" },
+          { cells: ["TransferNow", "TLS/provider AES; password options", "Provider storage + download link"], href: "https://www.transfernow.net/en/features" },
+          { cells: ["pCloud Transfer", "TLS; optional client password encryption", "Provider storage + download link"], href: "https://help.pcloud.com/article/pcloud-transfer" },
+          { cells: ["MEGA", "Client-side E2EE", "Encrypted cloud storage"], href: "https://mega.io/security" },
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "The path reveals the big trade. A live peer-to-peer or relay transfer usually needs the sender to remain online. A stored-link service makes another copy and adds another trust relationship, but the recipient can be asleep. Syncthing and rclone are different again: they are durable systems for repeated movement rather than one-time handoffs.",
+      },
+      { type: "heading", text: "Discontinued file transfer tools" },
+      {
+        type: "paragraph",
+        text: "Firefox Send began as a Mozilla Test Pilot experiment in August 2017, became a standalone product in March 2019, and was discontinued in September 2020. That is about three years as a public project, or only 18 months as a standalone product. It remains a useful warning that open source and a thoughtful privacy design do not guarantee a hosted service will live forever.",
+      },
+      {
+        type: "paragraph",
+        text: "ZeroTier Toss lived for about seven years before archival in April 2024. Peer Copy was a decentralized libp2p experiment for about four years before archival in April 2025. Snapdrop Classic and ShareDrop Classic had softer endings: their domains became LimeWire services in 2025, while their roughly nine- and eleven-year-old classic repositories remained available for self-hosting.",
+      },
+      { type: "heading", text: "Choose the tool you need" },
+      {
+        type: "list",
+        items: [
+          "A folder should stay synchronized between my devices: Syncthing. Taildrop is convenient inside one Tailscale account; rclone is excellent when the destination is cloud storage.",
+          "Two nontechnical people are on one LAN: LocalSend or PairDrop. AirDrop is wonderfully frictionless inside Apple's devices, and Quick Share covers much of Android, ChromeOS, and Windows.",
+          "The recipient will arrive tomorrow: croc stored mode, Wormhole.app, or a conventional stored-link provider chosen for its limits, retention, account policy, and trust model.",
+          "Both people have terminals: croc, Magic Wormhole, Portal, and iroh Sendme are understandable one-time exchanges. Rsync is a natural fit when SSH access already exists.",
+          "The recipient has a browser and I have a terminal: qrcp is lovely on a LAN; croc crosses networks; OnionShare is the special answer when Tor anonymity matters.",
+          "Nobody will install anything: PairDrop, ToffeeShare, Wormhole.app, Blaze, and the other browser tools are the shortest path, provided the live sender can keep a tab awake.",
+        ],
+      },
+      { type: "heading", text: "How croc compares with other file transfer tools" },
+      {
+        type: "paragraph",
+        text: "Croc started as a terminal program alongside tools such as Magic Wormhole, Toss, and scp. The browser changed its shape. Getcroc.com can now send to or receive from another browser or the ordinary command-line client. A normal transfer is live, relayed, and end-to-end encrypted. Stored mode encrypts in the client and temporarily retains only ciphertext for recipients who arrive later.",
+      },
+      {
+        type: "aside",
+        eyebrow: "A NARROW DISTINCTION",
+        title: "One useful combination is still unusual",
+        text: "Among the currently available, no-account tools in this survey, croc is the only one combining resumable CLI transfers with browser ↔ browser, browser ↔ CLI, and CLI ↔ CLI routes.",
+      },
+      {
+        type: "paragraph",
+        text: "That does not make croc the correct answer to every row. I would not replace Syncthing for a continuously mirrored folder, make two iPhone users skip AirDrop, or promise OnionShare's anonymity without Tor. But when I know almost nothing about the computer on the other side, including its operating system, whether its owner likes terminals, or whether the Wi-Fi is about to disappear, croc has become a pretty good default answer to the surprisingly durable question: how do I send this file?",
+      },
+    ],
+  },
 ];
 
 const seoBySlug = new Map(blogSEO.posts.map((entry) => [entry.slug, entry]));
 
-export const blogPosts: BlogPost[] = drafts.map((post) => {
-  const seo = seoBySlug.get(post.slug);
-  if (!seo) throw new Error(`Missing SEO metadata for blog post ${post.slug}`);
-  return {
-    ...post,
-    modifiedAt: seo.modifiedAt,
-    keywords: [...seo.keywords],
-    image: seo.image,
-    socialImage: seo.socialImage,
-    imageAlt: seo.imageAlt,
-    wordCount: blogWordCount(post.blocks),
-    readingMinutes: readingMinutes(post.blocks),
-    relatedSlugs: [...seo.relatedSlugs],
-  };
-});
+export const blogPosts: BlogPost[] = drafts
+  .map((post) => {
+    const seo = seoBySlug.get(post.slug);
+    if (!seo) throw new Error(`Missing SEO metadata for blog post ${post.slug}`);
+    return {
+      ...post,
+      seoTitle: "seoTitle" in seo ? seo.seoTitle : post.title,
+      modifiedAt: seo.modifiedAt,
+      keywords: [...seo.keywords],
+      image: seo.image,
+      socialImage: seo.socialImage,
+      imageAlt: seo.imageAlt,
+      wordCount: blogWordCount(post.blocks),
+      readingMinutes: readingMinutes(post.blocks),
+      relatedSlugs: [...seo.relatedSlugs],
+    };
+  })
+  .sort(
+    (left, right) =>
+      right.publishedAt.localeCompare(left.publishedAt) ||
+      right.number.localeCompare(left.number),
+  );
 
 export function getBlogPost(slug: string) {
   return blogPosts.find((post) => post.slug === slug);

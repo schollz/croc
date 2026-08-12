@@ -415,7 +415,7 @@ test("publishes rich metadata and project links", async ({ page }) => {
     page.getByRole("link", { name: "View croc on GitHub" }),
   ).toHaveAttribute("href", "https://github.com/schollz/croc");
   await expect(
-    page.getByRole("link", { name: /Read all 8 notes/i }),
+    page.getByRole("link", { name: /Read all 9 notes/i }),
   ).toHaveAttribute("href", "/blog");
   await expect(
     page.getByRole("link", { name: "schollz", exact: true }),

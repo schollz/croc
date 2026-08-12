@@ -6,6 +6,14 @@ const distRoot = path.join(webRoot, "dist");
 const metadata = JSON.parse(
   await readFile(path.join(webRoot, "src", "blog-seo.json"), "utf8"),
 );
+const sourceOrder = new Map(
+  metadata.posts.map((post, index) => [post.slug, index]),
+);
+metadata.posts.sort(
+  (left, right) =>
+    right.publishedAt.localeCompare(left.publishedAt) ||
+    sourceOrder.get(right.slug) - sourceOrder.get(left.slug),
+);
 const template = await readFile(path.join(distRoot, "index.html"), "utf8");
 const routeMarker =
   /<!-- ROUTE_SEO_START -->[\s\S]*?<!-- ROUTE_SEO_END -->/;
@@ -136,7 +144,7 @@ function postJSONLD(entry, canonicalURL) {
         "@type": "WebPage",
         "@id": canonicalURL,
         url: canonicalURL,
-        name: entry.title,
+        name: entry.seoTitle ?? entry.title,
         description: entry.description,
         inLanguage: metadata.site.language,
         isPartOf: { "@id": `${metadata.site.url}/#website` },
@@ -202,7 +210,9 @@ function postJSONLD(entry, canonicalURL) {
 function routeSEO(entry, pathname, isPost) {
   const canonicalURL = `${metadata.site.url}${pathname}`;
   const imageURL = absoluteURL(entry.socialImage);
-  const pageTitle = isPost ? `${entry.title} — croc field notes` : entry.title;
+  const pageTitle = isPost
+    ? entry.seoTitle ?? `${entry.title} | croc field notes`
+    : entry.title;
   const keywords = entry.keywords.join(", ");
   const jsonLD = isPost
     ? postJSONLD(entry, canonicalURL)
@@ -240,7 +250,7 @@ function routeSEO(entry, pathname, isPost) {
     <meta property="og:locale" content="${escapeHTML(metadata.site.locale)}" />
     <meta property="og:site_name" content="${escapeHTML(metadata.site.name)}" />
     <meta property="og:url" content="${escapeHTML(canonicalURL)}" />
-    <meta property="og:title" content="${escapeHTML(entry.title)}" />
+    <meta property="og:title" content="${escapeHTML(entry.seoTitle ?? entry.title)}" />
     <meta property="og:description" content="${escapeHTML(entry.description)}" />
     <meta property="og:image" content="${escapeHTML(imageURL)}" />
     <meta property="og:image:secure_url" content="${escapeHTML(imageURL)}" />
@@ -250,7 +260,7 @@ function routeSEO(entry, pathname, isPost) {
     <meta property="og:image:alt" content="${escapeHTML(entry.imageAlt)}" />
 ${articleMeta}
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="${escapeHTML(entry.title)}" />
+    <meta name="twitter:title" content="${escapeHTML(entry.seoTitle ?? entry.title)}" />
     <meta name="twitter:description" content="${escapeHTML(entry.description)}" />
     <meta name="twitter:image" content="${escapeHTML(imageURL)}" />
     <meta name="twitter:image:alt" content="${escapeHTML(entry.imageAlt)}" />

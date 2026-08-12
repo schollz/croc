@@ -12,8 +12,8 @@
     "logo": "/croc.png"
   },
   "index": {
-    "title": "croc field notes — secure file transfer explained",
-    "description": "Notes on why I built croc this way: live relays, PAKE encryption, four-word codes, browser transfers, and temporary storage.",
+    "title": "croc field notes: secure file transfer explained",
+    "description": "Notes on why I built croc this way: live relays, PAKE encryption, browser transfers, temporary storage, and comparisons with other file-transfer tools.",
     "keywords": [
       "croc blog",
       "encrypted file transfer",
@@ -57,8 +57,8 @@
       "category": "How it works",
       "publishedAt": "2026-08-08",
       "modifiedAt": "2026-08-10",
-      "wordCount": 417,
-      "readingMinutes": 2,
+      "wordCount": 421,
+      "readingMinutes": 3,
       "relatedSlugs": [
         "why-croc-works-this-way",
         "stored-transfer-one-download"
@@ -105,7 +105,7 @@
       "category": "Security",
       "publishedAt": "2026-08-08",
       "modifiedAt": "2026-08-10",
-      "wordCount": 1052,
+      "wordCount": 1053,
       "readingMinutes": 6,
       "relatedSlugs": [
         "what-four-word-code-does",
@@ -177,7 +177,7 @@
       "category": "Stored transfers",
       "publishedAt": "2026-08-08",
       "modifiedAt": "2026-08-11",
-      "wordCount": 538,
+      "wordCount": 540,
       "readingMinutes": 3,
       "relatedSlugs": [
         "share-stored-file-with-group",
@@ -217,6 +217,34 @@
       "image": "/blog/images/share-stored-file-with-group.webp",
       "socialImage": "/blog/images/share-stored-file-with-group.jpg",
       "imageAlt": "One locked parcel branches toward three recipient devices while a clock marks the shared download window."
+    },
+    {
+      "slug": "compare-file-transfer-tools",
+      "title": "36 ways to send a file",
+      "seoTitle": "36 Ways to Send a File: croc and 35 Alternatives",
+      "description": "Compare croc with 35 file transfer tools by resume support, account requirements, browser and CLI transfers, encryption, availability, and transfer paths.",
+      "category": "Field guide",
+      "publishedAt": "2026-08-12",
+      "modifiedAt": "2026-08-12",
+      "wordCount": 2244,
+      "readingMinutes": 11,
+      "relatedSlugs": [
+        "browser-meets-terminal",
+        "send-file-from-browser"
+      ],
+      "keywords": [
+        "file transfer tools comparison",
+        "croc alternatives",
+        "resumable file transfer",
+        "browser to CLI file transfer",
+        "secure file transfer",
+        "peer-to-peer file transfer",
+        "cross-platform file sharing",
+        "no account file transfer"
+      ],
+      "image": "/blog/images/compare-file-transfer-tools.webp",
+      "socialImage": "/blog/images/compare-file-transfer-tools.jpg",
+      "imageAlt": "File transfer tools comparison showing one file connected to browser, CLI, desktop, mobile, cloud, and synchronization routes."
     }
   ]
 }
