@@ -998,7 +998,7 @@ export const blogPosts: BlogPost[] = drafts
     if (!seo) throw new Error(`Missing SEO metadata for blog post ${post.slug}`);
     return {
       ...post,
-      seoTitle: "seoTitle" in seo ? seo.seoTitle : post.title,
+      seoTitle: seo.seoTitle ?? post.title,
       modifiedAt: seo.modifiedAt,
       keywords: [...seo.keywords],
       image: seo.image,

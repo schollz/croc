@@ -125,11 +125,11 @@ describe("Blog", () => {
     expect(
       within(capabilityTable).getAllByRole("rowheader").slice(0, 3)
         .map((header) => header.textContent),
-    ).toEqual(["croc", "MEGA", "Syncthing"]);
+    ).toEqual(["croc", "MEGA", "Filemail"]);
     expect(
       within(architectureTable).getAllByRole("rowheader").slice(0, 3)
         .map((header) => header.textContent),
-    ).toEqual(["croc", "MEGA", "Syncthing"]);
+    ).toEqual(["croc", "MEGA", "Filemail"]);
     expect(
       screen.getByRole("region", {
         name: "Availability, account requirement, resumption, and supported endpoint combinations",
