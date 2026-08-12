@@ -423,7 +423,7 @@ func injectUmamiScript(index []byte, baseURL, websiteID string) []byte {
 		return index
 	}
 	script := `<script defer src="` + html.EscapeString(scriptURL) +
-		`" data-website-id="` + html.EscapeString(websiteID) + `"></script>`
+		`" data-website-id="` + html.EscapeString(websiteID) + `" data-performance="true"></script>`
 	return []byte(strings.Replace(string(index), closingHead, script+closingHead, 1))
 }
 
