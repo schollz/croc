@@ -418,29 +418,35 @@ select:disabled {
   outline: 0;
 }
 
-.field-with-actions {
+.send-code {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 42px 42px;
+  grid-template-columns: auto minmax(0, 1fr) 42px;
+  gap: 10px;
+  align-items: center;
+  margin-top: 20px;
 }
 
-.field-with-actions:focus-within {
-  box-shadow: 0 0 0 1px var(--foreground);
+.send-code-label {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
-.field-with-actions input {
-  border-right: 0;
+.send-code-value {
+  min-width: 0;
+  color: var(--foreground);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
 }
 
-.field-with-actions input:focus {
-  border-color: var(--subtle);
+.send-code-value.copied {
+  animation: copy-confirmed-code 800ms ease-out;
 }
 
-.field-with-actions input:focus-visible {
-  outline: 0;
-}
-
-.field-action {
+.send-code-copy {
   display: grid;
   width: 42px;
   height: 42px;
@@ -452,33 +458,62 @@ select:disabled {
   cursor: pointer;
 }
 
-.field-action + .field-action {
-  border-left: 0;
-}
-
-.field-action:hover:not(:disabled) {
+.send-code-copy:hover:not(:disabled) {
   color: var(--background);
   border-color: var(--foreground);
   background: var(--foreground);
 }
 
-.field-action svg {
+.send-code-copy svg {
   width: 15px;
   height: 15px;
 }
 
-.copy-feedback {
-  position: absolute;
-  top: calc(100% + 5px);
-  right: 0;
-  color: var(--muted);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.send-code-copy.copied {
+  animation: copy-confirmed-button 800ms ease-out;
 }
 
-.copy-feedback.error {
+.send-code-copy.error {
   color: var(--danger);
+  border-color: var(--danger);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  margin: -1px;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@keyframes copy-confirmed-code {
+  0%,
+  40% {
+    color: var(--background);
+    background: var(--foreground);
+  }
+  100% {
+    color: var(--foreground);
+    background: transparent;
+  }
+}
+
+@keyframes copy-confirmed-button {
+  0%,
+  40% {
+    color: var(--background);
+    border-color: var(--foreground);
+    background: var(--foreground);
+  }
+  100% {
+    color: var(--foreground);
+    border-color: var(--subtle);
+    background: var(--background);
+  }
 }
 
 .field-help {
@@ -3216,11 +3251,11 @@ a.cli-download-primary:hover {
     font-size: 16px;
   }
 
-  .field-with-actions {
-    grid-template-columns: minmax(0, 1fr) 48px 48px;
+  .send-code-value {
+    font-size: 14px;
   }
 
-  .field-action {
+  .send-code-copy {
     width: 48px;
     height: 48px;
   }
@@ -3251,7 +3286,6 @@ a.cli-download-primary:hover {
   }
 
   .selection-summary,
-  .copy-feedback,
   .completed-count,
   .completed-files,
   .progress-block {

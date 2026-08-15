@@ -10,7 +10,6 @@ import {
   File as FileIcon,
   Heart,
   Moon,
-  RefreshCw,
   Settings2,
   Sun,
   Terminal,
@@ -674,9 +673,10 @@ export function App() {
   );
   const [mobileTransferPanel, setMobileTransferPanel] =
     useState<MobileTransferPanel>(receiveOnly ? "receive" : "send");
-  const [sendCode, setSendCode] = useState(() =>
+  const [sendCode] = useState(() =>
     receiveOnly ? "" : generateCode(),
   );
+  const [sendDetailsVisible, setSendDetailsVisible] = useState(false);
   const [sendActivity, setSendActivity] = useState<Activity>("idle");
   const [sendStatus, setSendStatus] = useState("");
   const [sendProgress, setSendProgress] = useState<FileProgress>();
@@ -805,12 +805,6 @@ export function App() {
     setSendStatus("");
   }
 
-  function regenerateCode() {
-    if (sendActivity === "working") return;
-    setCopyState("idle");
-    setSendCode(generateCode());
-  }
-
   async function copyValue(value: string) {
     if (copyReset.current !== undefined) {
       window.clearTimeout(copyReset.current);
@@ -895,6 +889,7 @@ export function App() {
     sendAbort.current?.abort();
     const controller = new AbortController();
     const currentSendMode = sendMode;
+    if (currentSendMode === "direct") setSendDetailsVisible(true);
     sendAbort.current = controller;
     setSendActivity("working");
     setSendStatus("Preparing files…");
@@ -1324,13 +1319,14 @@ export function App() {
           {storeEnabled && (
             <StoredModeSwitch
               mode={sendMode}
-              disabled={sendBusy}
+              disabled={sendBusy || storedUpload !== undefined}
               durationLabel={formatStoredExpiration(
                 storedExpiration.value,
                 storedExpiration.unit,
               )}
               onChange={(mode) => {
                 setSendMode(mode);
+                setSendDetailsVisible(false);
                 setStoredUpload(undefined);
                 setSendStatus("");
                 setSendActivity("idle");
@@ -1404,36 +1400,18 @@ export function App() {
             </ul>
           )}
 
-          {sendMode === "direct" && (
+          {sendMode === "direct" && sendDetailsVisible && (
             <>
-              <label className="field-label" htmlFor="send-code">
-                Croc code
-              </label>
-              <div className="field-with-actions">
-                <input
-                  id="send-code"
-                  value={sendCode}
-                  disabled={sendBusy}
-                  spellCheck={false}
-                  autoComplete="off"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  onChange={(event) => {
-                    setCopyState("idle");
-                    setSendCode(event.target.value);
-                  }}
-                />
-                <button
-                  className="field-action"
-                  type="button"
-                  aria-label="Generate a new code"
-                  disabled={sendBusy}
-                  onClick={() => void regenerateCode()}
+              <div className="send-code">
+                <span className="send-code-label">Use this code:</span>
+                <code
+                  className={`send-code-value ${copyState}`}
+                  aria-label="Croc code"
                 >
-                  <RefreshCw />
-                </button>
+                  {sendCode}
+                </code>
                 <button
-                  className="field-action"
+                  className={`send-code-copy ${copyState}`}
                   type="button"
                   aria-label={copyState === "copied" ? "Code copied" : "Copy code"}
                   disabled={!sendCode}
@@ -1442,7 +1420,7 @@ export function App() {
                   {copyState === "copied" ? <Check /> : <Copy />}
                 </button>
                 <span
-                  className={`copy-feedback ${copyState}`}
+                  className="visually-hidden"
                   role="status"
                   aria-live="polite"
                 >
@@ -1453,10 +1431,6 @@ export function App() {
                       : ""}
                 </span>
               </div>
-              <p className="field-help">
-                Generated codes use the first word to find the transfer and the
-                last two words to secure it.
-              </p>
               <ShareQRCode
                 value={directReceiveURL}
                 disabled={sendCode.trim().length < 6}
@@ -1465,7 +1439,7 @@ export function App() {
             </>
           )}
 
-          {sendMode === "stored" && (
+          {sendMode === "stored" && !sendBusy && !storedUpload && (
             <>
               <StoredExpirationControl
                 value={storedExpiration.value}
@@ -1548,9 +1522,10 @@ export function App() {
                 }
                 onClick={() => void startSend()}
               >
-                <Upload /> {sendMode === "stored" ? "Store" : "Send"}{" "}
-                {selectedFiles.length || ""} file
-                {selectedFiles.length === 1 ? "" : "s"}
+                <Upload /> {sendMode === "stored" ? "Store" : "Send"}
+                {selectedFiles.length > 1
+                  ? ` ${selectedFiles.length} files`
+                  : " file"}
               </button>
             )
           )}
