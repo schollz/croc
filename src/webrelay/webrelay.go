@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"io/fs"
 	"net"
@@ -360,7 +361,7 @@ func newStaticHandler(
 		if readErr != nil {
 			return readErr
 		}
-		page = injectUmamiConfig(page, umamiURL, umamiWebsiteID)
+		page = injectUmamiScript(page, umamiURL, umamiWebsiteID)
 		page = injectGoogleAdSense(page, googleAdSense)
 		htmlPages[filePath] = page
 		return nil
@@ -401,7 +402,7 @@ func injectGoogleAdSense(index []byte, publisherID string) []byte {
 	return []byte(strings.Replace(string(index), closingHead, script+closingHead, 1))
 }
 
-func injectUmamiConfig(index []byte, baseURL, websiteID string) []byte {
+func injectUmamiScript(index []byte, baseURL, websiteID string) []byte {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	websiteID = strings.TrimSpace(websiteID)
 	if baseURL == "" || websiteID == "" {
@@ -417,25 +418,13 @@ func injectUmamiConfig(index []byte, baseURL, websiteID string) []byte {
 		return index
 	}
 
-	const closingBody = "</body>"
-	if !strings.Contains(string(index), closingBody) {
+	const closingHead = "</head>"
+	if !strings.Contains(string(index), closingHead) {
 		return index
 	}
-	config, err := json.Marshal(struct {
-		ScriptURL string `json:"scriptURL"`
-		WebsiteID string `json:"websiteID"`
-	}{
-		ScriptURL: scriptURL,
-		WebsiteID: websiteID,
-	})
-	if err != nil {
-		return index
-	}
-
-	// Only expose inert configuration here. The browser client loads the
-	// analytics script after the visitor has explicitly opted in.
-	script := `<script>window.__CROC_ANALYTICS__ = ` + string(config) + `;</script>`
-	return []byte(strings.Replace(string(index), closingBody, script+closingBody, 1))
+	script := `<script defer src="` + html.EscapeString(scriptURL) +
+		`" data-website-id="` + html.EscapeString(websiteID) + `" data-performance="true"></script>`
+	return []byte(strings.Replace(string(index), closingHead, script+closingHead, 1))
 }
 
 func (h *staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

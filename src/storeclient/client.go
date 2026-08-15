@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -48,6 +49,14 @@ type UploadResult struct {
 	Share       storecrypto.Share
 	UploadToken string
 	ExpiresAt   time.Time
+	Downloads   int
+}
+
+// UploadOptions configures a stored upload. Zero values select the historical
+// defaults of one verified download and one day of storage.
+type UploadOptions struct {
+	Downloads  int
+	Expiration time.Duration
 }
 
 type createRequest struct {
@@ -57,6 +66,8 @@ type createRequest struct {
 	RedeemVerifier string  `json:"redeemVerifier"`
 	Files          int     `json:"files"`
 	PlaintextBytes int64   `json:"plaintextBytes"`
+	Downloads      *int    `json:"downloads,omitempty"`
+	ExpiresSeconds *int64  `json:"expiresSeconds,omitempty"`
 }
 
 type createResponse struct {
@@ -214,8 +225,50 @@ func (c *Client) Upload(
 	paths []string,
 	callbacks Callbacks,
 ) (result UploadResult, err error) {
+	return c.UploadWithOptions(ctx, origin, paths, UploadOptions{}, callbacks)
+}
+
+// UploadWithDownloads uploads regular files with a requested verified-download
+// allowance. Servers reject values above their configured maximum.
+func (c *Client) UploadWithDownloads(
+	ctx context.Context,
+	origin string,
+	paths []string,
+	downloads int,
+	callbacks Callbacks,
+) (result UploadResult, err error) {
+	if downloads < 1 {
+		return result, errors.New("stored-transfer downloads must be positive")
+	}
+	return c.UploadWithOptions(ctx, origin, paths, UploadOptions{Downloads: downloads}, callbacks)
+}
+
+// UploadWithOptions uploads regular files with a requested verified-download
+// allowance and finite storage lifetime.
+func (c *Client) UploadWithOptions(
+	ctx context.Context,
+	origin string,
+	paths []string,
+	options UploadOptions,
+	callbacks Callbacks,
+) (result UploadResult, err error) {
 	if err = validateOrigin(origin); err != nil {
 		return result, err
+	}
+	if options.Downloads == 0 {
+		options.Downloads = 1
+	}
+	if options.Downloads < 1 {
+		return result, errors.New("stored-transfer downloads must be positive")
+	}
+	if options.Expiration == 0 {
+		options.Expiration = 24 * time.Hour
+	}
+	if options.Expiration < time.Minute {
+		return result, errors.New("stored-transfer expiration must be at least one minute")
+	}
+	if options.Expiration%time.Second != 0 {
+		return result, errors.New("stored-transfer expiration must use whole seconds")
 	}
 	prepared, err := prepareUpload(ctx, paths, callbacks)
 	if err != nil {
@@ -225,7 +278,7 @@ func (c *Client) Upload(
 	if err != nil {
 		return result, err
 	}
-	result, err = c.createUpload(ctx, origin, master, prepared, callbacks)
+	result, err = c.createUploadWithOptions(ctx, origin, master, prepared, options, callbacks)
 	if err != nil {
 		return result, err
 	}
@@ -351,11 +404,35 @@ func (c *Client) createUpload(
 	origin string,
 	master []byte,
 	prepared preparedUpload,
+	downloads int,
+	callbacks Callbacks,
+) (UploadResult, error) {
+	return c.createUploadWithOptions(ctx, origin, master, prepared, UploadOptions{
+		Downloads:  downloads,
+		Expiration: 24 * time.Hour,
+	}, callbacks)
+}
+
+func (c *Client) createUploadWithOptions(
+	ctx context.Context,
+	origin string,
+	master []byte,
+	prepared preparedUpload,
+	options UploadOptions,
 	callbacks Callbacks,
 ) (UploadResult, error) {
 	redeem, err := storecrypto.RedeemCapability(master)
 	if err != nil {
 		return UploadResult{}, err
+	}
+	var requestedDownloads *int
+	if options.Downloads != 1 {
+		requestedDownloads = &options.Downloads
+	}
+	var requestedExpiration *int64
+	if options.Expiration != 24*time.Hour {
+		seconds := int64(options.Expiration / time.Second)
+		requestedExpiration = &seconds
 	}
 	create := createRequest{
 		Protocol:       storecrypto.Protocol,
@@ -364,6 +441,8 @@ func (c *Client) createUpload(
 		RedeemVerifier: storecrypto.EncodeBase64URL(storecrypto.CapabilityVerifier(redeem)),
 		Files:          len(prepared.files),
 		PlaintextBytes: prepared.totalBytes,
+		Downloads:      requestedDownloads,
+		ExpiresSeconds: requestedExpiration,
 	}
 	status(callbacks, "Reserving encrypted temporary storage…")
 	request, err := jsonRequest(ctx, http.MethodPost, apiURL(origin, ""), "", create)
@@ -373,6 +452,14 @@ func (c *Client) createUpload(
 	response, err := c.do(request)
 	if err != nil {
 		return UploadResult{}, err
+	}
+	acceptedDownloads := 1
+	if header := strings.TrimSpace(response.Header.Get("X-Croc-Downloads")); header != "" {
+		acceptedDownloads, err = strconv.Atoi(header)
+		if err != nil || acceptedDownloads < 1 {
+			response.Body.Close()
+			return UploadResult{}, errors.New("storage service returned an invalid download count")
+		}
 	}
 	var created createResponse
 	if err := decodeResponse(response, &created); err != nil {
@@ -384,6 +471,13 @@ func (c *Client) createUpload(
 			created.ChunkSize,
 		)
 	}
+	if acceptedDownloads != options.Downloads {
+		return UploadResult{}, fmt.Errorf(
+			"storage service created %d downloads instead of %d",
+			acceptedDownloads,
+			options.Downloads,
+		)
+	}
 	result := UploadResult{
 		Share: storecrypto.Share{
 			Origin:    origin,
@@ -391,6 +485,7 @@ func (c *Client) createUpload(
 			MasterKey: master,
 		},
 		UploadToken: created.UploadToken,
+		Downloads:   acceptedDownloads,
 	}
 	if _, err := result.Share.BrowserURL(); err != nil {
 		return result, fmt.Errorf(
@@ -679,8 +774,16 @@ func (c *Client) Receive(
 		return err
 	}
 	status(callbacks, "Committing verified download…")
-	if err = c.commitWithClaimRetry(ctx, session); err != nil {
+	remaining, err := c.commitWithClaimRetry(ctx, session)
+	if err != nil {
 		return err
+	}
+	if remaining == 0 {
+		status(callbacks, "Verified download committed; stored ciphertext removed")
+	} else if remaining == 1 {
+		status(callbacks, "Verified download committed; one download remains")
+	} else {
+		status(callbacks, fmt.Sprintf("Verified download committed; %d downloads remain", remaining))
 	}
 	return os.Remove(session.statePath)
 }
@@ -919,11 +1022,10 @@ func (c *Client) getChunkWithClaimRetry(
 func (c *Client) commitWithClaimRetry(
 	ctx context.Context,
 	session *downloadSession,
-) error {
-	_, err := withFreshClaim(ctx, c, session, func(token string) (struct{}, error) {
-		return struct{}{}, c.commit(ctx, session.share, token)
+) (int, error) {
+	return withFreshClaim(ctx, c, session, func(token string) (int, error) {
+		return c.commit(ctx, session.share, token)
 	})
-	return err
 }
 
 func readDownloadState(path string) (downloadState, error) {
@@ -1021,7 +1123,7 @@ func (c *Client) getChunk(
 	return io.ReadAll(io.LimitReader(response.Body, storecrypto.ChunkSize+29))
 }
 
-func (c *Client) commit(ctx context.Context, share storecrypto.Share, claimToken string) error {
+func (c *Client) commit(ctx context.Context, share storecrypto.Share, claimToken string) (int, error) {
 	request, err := jsonRequest(
 		ctx,
 		http.MethodPost,
@@ -1030,13 +1132,23 @@ func (c *Client) commit(ctx context.Context, share storecrypto.Share, claimToken
 		nil,
 	)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	response, err := c.do(request)
-	if err == nil {
-		response.Body.Close()
+	if err != nil {
+		return 0, err
 	}
-	return err
+	defer response.Body.Close()
+	header := strings.TrimSpace(response.Header.Get("X-Croc-Downloads-Remaining"))
+	if header == "" {
+		// A compatible older server always consumes its sole download.
+		return 0, nil
+	}
+	remaining, parseErr := strconv.Atoi(header)
+	if parseErr != nil || remaining < 0 {
+		return 0, errors.New("storage service returned an invalid remaining-download count")
+	}
+	return remaining, nil
 }
 
 // Revoke deletes an incomplete or available transfer using the sender receipt.

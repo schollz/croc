@@ -145,7 +145,7 @@ func TestServesSiteAndRuntimeConfig(t *testing.T) {
 	assert.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
 	assert.JSONEq(
 		t,
-		`{"gatewayURL":"/ws","relayAddress":"relay.example.test:9109","relayPassword":"relay-secret","store":{"enabled":false,"maxTransferBytes":0,"maxFiles":0,"expiresSeconds":0}}`,
+		`{"gatewayURL":"/ws","relayAddress":"relay.example.test:9109","relayPassword":"relay-secret","store":{"enabled":false,"maxTransferBytes":0,"maxFiles":0,"maxDownloads":0,"expiresSeconds":0,"maxExpiresSeconds":0}}`,
 		strings.TrimSuffix(
 			strings.TrimPrefix(recorder.Body.String(), "window.__CROC_RUNTIME_CONFIG__ = "),
 			";\n",
@@ -153,7 +153,7 @@ func TestServesSiteAndRuntimeConfig(t *testing.T) {
 	)
 }
 
-func TestUmamiConfigRequiresBothEnvironmentValues(t *testing.T) {
+func TestUmamiScriptRequiresBothEnvironmentValues(t *testing.T) {
 	for _, testCase := range []struct {
 		name       string
 		url        string
@@ -180,19 +180,20 @@ func TestUmamiConfigRequiresBothEnvironmentValues(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			recorder := httptest.NewRecorder()
-			handler.ServeHTTP(
-				recorder,
-				httptest.NewRequest(http.MethodGet, "/", nil),
-			)
+			script := `<script defer src="https://umami.schollz.com/script.js" data-website-id="website-uuid" data-performance="true"></script>`
+			for _, requestPath := range []string{"/", "/blog"} {
+				recorder := httptest.NewRecorder()
+				handler.ServeHTTP(
+					recorder,
+					httptest.NewRequest(http.MethodGet, requestPath, nil),
+				)
 
-			config := `<script>window.__CROC_ANALYTICS__ = {"scriptURL":"https://umami.schollz.com/script.js","websiteID":"website-uuid"};</script>`
-			assert.Equal(
-				t,
-				testCase.configured,
-				strings.Contains(recorder.Body.String(), config),
-			)
-			assert.NotContains(t, recorder.Body.String(), `src="https://umami.schollz.com/script.js"`)
+				assert.Equal(
+					t,
+					testCase.configured,
+					strings.Contains(recorder.Body.String(), script),
+				)
+			}
 		})
 	}
 }
@@ -287,6 +288,8 @@ func TestEnablesStoredTransferRuntimeAndAPI(t *testing.T) {
 		MaxTotalBytes:    32 << 20,
 		MinFreeBytes:     1,
 		MaxFiles:         7,
+		MaxDownloads:     9,
+		MaxExpiration:    3 * 24 * time.Hour,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, storage.Close()) })
@@ -304,6 +307,9 @@ func TestEnablesStoredTransferRuntimeAndAPI(t *testing.T) {
 	assert.Contains(t, recorder.Body.String(), `"enabled":true`)
 	assert.Contains(t, recorder.Body.String(), `"maxTransferBytes":8388608`)
 	assert.Contains(t, recorder.Body.String(), `"maxFiles":7`)
+	assert.Contains(t, recorder.Body.String(), `"maxDownloads":9`)
+	assert.Contains(t, recorder.Body.String(), `"expiresSeconds":86400`)
+	assert.Contains(t, recorder.Body.String(), `"maxExpiresSeconds":259200`)
 
 	recorder = httptest.NewRecorder()
 	handler.ServeHTTP(

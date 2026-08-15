@@ -8,11 +8,11 @@ address. File metadata and contents remain encrypted between the browser and
 the other croc client.
 
 When the server is started with `--store-dir`, the UI also offers an explicit
-**Store for 24 hours** mode. It encrypts file names, metadata, and 4 MiB chunks
-in the browser, uploads only ciphertext, and produces both a browser link and a
-CLI token. The transfer is deleted after one fully verified download or 24
-hours, whichever comes first. The normal direct-transfer mode remains the
-default.
+stored mode with a sender-selected finite lifetime. It encrypts file names,
+metadata, and 4 MiB chunks in the browser, uploads only ciphertext, and
+produces both a browser link and a CLI token. The transfer is deleted after its
+verified-download allowance or selected lifetime, whichever comes first. The
+normal direct-transfer mode remains the default.
 
 Both send modes can display a QR code for the browser receive URL. Direct-mode
 codes open the receive page with the croc code filled in and connecting, while
@@ -122,11 +122,10 @@ croc-web --bind 127.0.0.1:9014 getcroc.com
 
 Successful browser transfers emit the custom events `send-direct`,
 `send-with-storage`, and `receive`. When Umami is not configured, event
-tracking is disabled and transfers behave identically. The browser receives
-only inert analytics configuration from the server: the Umami script is loaded
-after an explicit opt-in in the first-visit privacy dialog. Automatic
-pageviews are disabled, and custom transfer events remove query strings and
-fragments from the reported URL.
+tracking is disabled and transfers behave identically. When configured, the
+server injects Umami's deferred script directly into every page's `<head>`.
+Umami records its normal pageviews, and custom transfer events remove query
+strings and fragments from the reported URL.
 
 Proxy the complete origin—including WebSocket upgrades—to
 `127.0.0.1:9014`, preserving the original `Host` header. The server returns the
@@ -143,6 +142,7 @@ croc-web \
   --store-max-transfer 1GiB \
   --store-quota 5GiB \
   --store-min-free 512MiB \
+  --store-max-expiration 2w \
   getcroc.com
 ```
 

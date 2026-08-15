@@ -554,7 +554,7 @@ main() {
   local autocomplete_install_rcode
 
   croc_bin_name="croc"
-  croc_version="11.0.2"
+  croc_version="11.1.0"
   croc_dl_ext="tar.gz"
   croc_base_url="https://github.com/schollz/croc/releases/download"
   prefix="${1}"

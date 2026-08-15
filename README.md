@@ -213,13 +213,18 @@ regular files as client-side encrypted ciphertext:
 
 ```bash
 croc send --store [file1] [file2]
+croc send --store --store-downloads 3 [file1] [file2]
+croc send --store --store-expiration 3d [file1] [file2]
 ```
 
 The command prints a browser link and a CLI token. The transfer expires after
-24 hours or after the first receiver downloads, authenticates, and verifies
-every file—whichever happens first. Run `croc` with no arguments and paste the
-token at the prompt to receive it. For automation, keep the token out of the
-process list:
+the selected lifetime, measured from successful upload completion, or after
+its configured number of receivers download, authenticate, and verify every
+file—whichever happens first. The lifetime defaults to one day and accepts
+whole minutes (`m`), hours (`h`), days (`d`), or weeks (`w`). The download
+limit defaults to one. Both values are subject to server policy. Run `croc`
+with no arguments and paste the token at the prompt to receive it. For
+automation, keep the token out of the process list:
 
 ```bash
 CROC_STORE_TOKEN='croc-store-v1....' croc --out ./downloads
@@ -229,10 +234,10 @@ The browser link has the form
 `https://host/s/id#v1.decryption-key`. The decryption key is after `#` because
 URL fragments are not included in HTTP requests, so the storage service gets
 the opaque transfer ID but not the key. The full link is still a secret: anyone
-who has it can decrypt and claim the one allowed download.
+who has it can decrypt the files and claim one of the allowed downloads.
 
-Until a transfer is downloaded or expires, its sender can delete it with the
-locally saved revoke receipt:
+While a transfer remains available, its sender can delete it with the locally
+saved revoke receipt:
 
 ```bash
 croc --revoke [transfer-id]
@@ -480,7 +485,6 @@ Set the deployment environment variables with:
 
 ```bash
 disco env:set \
-  STORE_DIR=/www/croc/storage \
   SITE_URL=yoururl.com \
   CROC_RELAY_PORTS=9009,9010,9011,9012,9013,9014,9015,9016,9017 \
   CROC_PASS=yourpass \
@@ -488,14 +492,20 @@ disco env:set \
 ```
 
 `SITE_URL` must be the public website hostname without `https://`. Change the
-project name if it is not `croc`. The storage directory is intentionally not
-attached to a Disco volume, so stored transfers are erased whenever the
-container is replaced.
+project name if it is not `croc`. The `web` service mounts the named
+`croc-store` volume at `/www/croc/storage`, which is also its configured
+`--store-dir`, so stored ciphertext and metadata survive container replacement
+and redeployment. The `web` service also reserves published TCP port 9020 and
+maps it to unused container port 65535. This deliberate port collision makes
+Disco stop the previous volume-owning web service before starting its
+replacement, avoiding concurrent access to the store. Port 9020 carries no
+application traffic and should remain blocked by the server firewall.
 
 The ports in `CROC_RELAY_PORTS` must match the `publishedPorts` entries in
-[`disco.json`](disco.json); Disco cannot generate host port mappings from an
-environment variable. Make sure the same TCP ports are also open in the
-server's firewall or cloud security group.
+the `relay` service in [`disco.json`](disco.json); do not include the web
+service's deployment-only port 9020. Disco cannot generate host port mappings
+from an environment variable. Make sure the relay TCP ports are also open in
+the server's firewall or cloud security group.
 
 ## Acknowledgements
 

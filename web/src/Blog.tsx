@@ -4,6 +4,7 @@ import {
   ArrowRight,
   BookOpenText,
   Check,
+  Circle,
   Clock3,
   Download,
   FileText,
@@ -74,7 +75,7 @@ function blogStructuredData(post?: BlogPost) {
       name: site.publisherName,
       url: `${siteURL}/`,
       logo: { "@type": "ImageObject", url: absoluteURL(site.logo) },
-      sameAs: ["https://github.com/schollz/croc"],
+      sameAs: [site.projectUrl, site.repositoryUrl],
     },
     {
       "@type": "Person",
@@ -94,7 +95,7 @@ function blogStructuredData(post?: BlogPost) {
           "@type": "WebPage",
           "@id": canonicalURL,
           url: canonicalURL,
-          name: post.title,
+          name: post.seoTitle,
           description: post.description,
           inLanguage: site.language,
           isPartOf: { "@id": `${siteURL}/#website` },
@@ -121,6 +122,9 @@ function blogStructuredData(post?: BlogPost) {
           about: post.keywords.map((name) => ({ "@type": "Thing", name })),
           wordCount: post.wordCount,
           timeRequired: `PT${post.readingMinutes}M`,
+          relatedLink: post.relatedSlugs.map(
+            (slug) => `${siteURL}/blog/${slug}`,
+          ),
           inLanguage: site.language,
           isAccessibleForFree: true,
           license: "https://github.com/schollz/croc/blob/main/LICENSE",
@@ -170,6 +174,8 @@ function blogStructuredData(post?: BlogPost) {
           url: `${siteURL}/blog/${entry.slug}`,
           datePublished: entry.publishedAt,
           dateModified: entry.modifiedAt,
+          description: entry.description,
+          articleSection: entry.category,
           image: absoluteURL(entry.socialImage),
         })),
       },
@@ -189,11 +195,13 @@ function blogStructuredData(post?: BlogPost) {
 function useBlogMetadata(post?: BlogPost, missing = false, missingSlug?: string) {
   useEffect(() => {
     const pageTitle = missing
-      ? "Article not found — croc field notes"
+      ? "Article not found | croc field notes"
       : post
-        ? `${post.title} — croc field notes`
+        ? post.seoTitle === post.title
+          ? `${post.title} | croc field notes`
+          : post.seoTitle
         : indexSEO.title;
-    const shareTitle = missing ? pageTitle : post?.title ?? indexSEO.title;
+    const shareTitle = missing ? pageTitle : post?.seoTitle ?? indexSEO.title;
     const description = missing
       ? "This field note could not be found."
       : post?.description ?? indexSEO.description;
@@ -237,7 +245,7 @@ function useBlogMetadata(post?: BlogPost, missing = false, missingSlug?: string)
       ['meta[name="twitter:image"]', "content", imageURL],
       ['meta[name="twitter:image:alt"]', "content", imageAlt],
       ['meta[itemprop="image"]', "content", imageURL],
-      ['meta[name="robots"]', "content", missing ? "noindex, follow" : "index, follow, max-image-preview:large"],
+      ['meta[name="robots"]', "content", missing ? "noindex, follow" : "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"],
       ['link[rel="canonical"]', "href", canonicalURL],
       ['link[rel="image_src"]', "href", imageURL],
     ] as const;
@@ -405,7 +413,8 @@ function BlogFooter() {
       <span>croc field notes · written in the open</span>
       <nav aria-label="Blog footer navigation">
         <a href="/">transfer files</a>
-        <a href="https://github.com/schollz/croc">source code</a>
+        <a href={site.projectUrl}>croc website</a>
+        <a href={site.repositoryUrl}>source code</a>
         <a href="https://github.com/sponsors/schollz">support croc</a>
       </nav>
     </footer>
@@ -526,7 +535,7 @@ function StoredVisual() {
     <div className="stored-visual">
       <span className="stored-file"><FileText /><i>ciphertext</i></span>
       <span className="stored-link"><Link2 />/s/id<strong>#v1.key</strong></span>
-      <span className="stored-expiry"><Timer />24 hours <i>/</i> one download</span>
+      <span className="stored-expiry"><Timer />chosen lifetime <i>/</i> download limit</span>
     </div>
   );
 }
@@ -586,9 +595,9 @@ function BlogIndex() {
             <h1>Notes from inside the transfer.</h1>
           </div>
           <p>
-            Seven plainspoken guides to the small code phrase, the relay in the
+            Plainspoken guides to the small code phrase, the relay in the
             middle, the encryption around it, and the useful ways a file gets
-            from this computer to that one.
+            from this computer to one person or a group.
           </p>
         </section>
 
@@ -615,7 +624,7 @@ function BlogIndex() {
           <div className="blog-section-heading">
             <div>
               <p className="blog-kicker"><FileText /> The notebook</p>
-              <h2 id="more-notes-title">Six more ways into croc</h2>
+              <h2 id="more-notes-title">More ways into croc</h2>
             </div>
             <span>{String(blogPosts.length).padStart(2, "0")} notes</span>
           </div>
@@ -650,7 +659,12 @@ function BlogIndex() {
             <h2>Move the file.</h2>
             <p>No account. No port forwarding. The browser is already a croc peer.</p>
           </div>
-          <a href="/">Open croc web <ArrowRight /></a>
+          <div className="blog-transfer-links">
+            <a href="/#send-panel">Send files <ArrowRight /></a>
+            <a href="/#receive">Receive files</a>
+            <a href={site.projectUrl}>Install croc</a>
+            <a href={site.repositoryUrl}>View source</a>
+          </div>
         </section>
       </main>
       <BlogFooter />
@@ -658,8 +672,95 @@ function BlogIndex() {
   );
 }
 
+function headingID(text: string, index: number) {
+  const slug = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return slug || `section-${index}`;
+}
+
+function useActiveArticleSection(sectionIDs: string[]) {
+  const sectionKey = sectionIDs.join("\n");
+  const [activeSectionID, setActiveSectionID] = useState(sectionIDs[0] ?? "");
+
+  useEffect(() => {
+    if (sectionIDs.length === 0) return;
+
+    const updateActiveSection = () => {
+      const readingLine = Math.max(120, window.innerHeight * 0.25);
+      let currentSectionID = sectionIDs[0];
+
+      for (const sectionID of sectionIDs) {
+        const heading = document.getElementById(sectionID);
+        if (!heading || heading.getBoundingClientRect().top > readingLine) break;
+        currentSectionID = sectionID;
+      }
+
+      setActiveSectionID(currentSectionID);
+    };
+
+    updateActiveSection();
+    window.addEventListener("scroll", updateActiveSection, { passive: true });
+    window.addEventListener("resize", updateActiveSection);
+
+    return () => {
+      window.removeEventListener("scroll", updateActiveSection);
+      window.removeEventListener("resize", updateActiveSection);
+    };
+  }, [sectionKey]);
+
+  return activeSectionID;
+}
+
+type TableIndicatorLevel = "full" | "partial" | "empty";
+
+function parseTableIndicator(value: string) {
+  const markers: Record<string, TableIndicatorLevel> = {
+    "●": "full",
+    "◐": "partial",
+    "○": "empty",
+  };
+  const level = markers[value.charAt(0)];
+  if (!level) return undefined;
+  const note = value.slice(1).trim();
+  return { level, note: note || undefined };
+}
+
+function TableStatusIndicator({
+  label,
+  level,
+  note,
+}: {
+  label: string;
+  level: TableIndicatorLevel;
+  note?: string;
+}) {
+  const accessibleLabel = note ? `${label}; ${note}` : label;
+  return (
+    <span
+      className={`blog-status-indicator is-${level}`}
+      role="img"
+      aria-label={accessibleLabel}
+      title={accessibleLabel}
+    >
+      <Circle className="blog-status-outline" aria-hidden="true" />
+      {level !== "empty" && (
+        <Circle
+          className="blog-status-fill"
+          aria-hidden="true"
+          fill="currentColor"
+          strokeWidth={0}
+        />
+      )}
+    </span>
+  );
+}
+
 function BlogBlockView({ block, index }: { block: BlogBlock; index: number }) {
-  if (block.type === "heading") return <h2 id={`section-${index}`}>{block.text}</h2>;
+  if (block.type === "heading") {
+    return <h2 id={headingID(block.text, index)}>{block.text}</h2>;
+  }
   if (block.type === "list") {
     return <ul>{block.items.map((item) => <li key={item}>{item}</li>)}</ul>;
   }
@@ -680,6 +781,161 @@ function BlogBlockView({ block, index }: { block: BlogBlock; index: number }) {
       </aside>
     );
   }
+  if (block.type === "table") {
+    const indicatorColumns = new Set(block.indicatorColumns ?? []);
+    const rowPositions = new Map(
+      block.rowOrder?.map((tool, position) => [tool, position]),
+    );
+    const rows = rowPositions.size > 0
+      ? [...block.rows].sort(
+          (left, right) =>
+            (rowPositions.get(left.cells[0]) ?? Number.MAX_SAFE_INTEGER) -
+            (rowPositions.get(right.cells[0]) ?? Number.MAX_SAFE_INTEGER),
+        )
+      : block.rows;
+    const tableID = `blog-table-${index}`;
+    const qualifierNotes = rows.flatMap((row) =>
+      [...indicatorColumns].flatMap((columnIndex) => {
+        const indicator = parseTableIndicator(row.cells[columnIndex]);
+        return indicator?.note
+          ? [{
+              column: block.headers[columnIndex],
+              href: row.href,
+              note: indicator.note,
+              tool: row.cells[0],
+            }]
+          : [];
+      }),
+    );
+
+    return (
+      <div className="blog-table-block">
+        <p className="blog-table-caption" id={`${tableID}-caption`}>
+          {block.caption}
+        </p>
+        {block.indicatorLegend && (
+          <div
+            className="blog-table-legend"
+            id={`${tableID}-legend`}
+            role="note"
+            aria-label={`${block.caption} legend`}
+          >
+            <div className="blog-table-status-key">
+              <TableStatusIndicator
+                level="full"
+                label={`Full circle: ${block.indicatorLegend.full}`}
+              />
+              <span>{block.indicatorLegend.full}</span>
+              <TableStatusIndicator
+                level="partial"
+                label={`Half circle: ${block.indicatorLegend.partial}`}
+              />
+              <span>{block.indicatorLegend.partial}</span>
+              <TableStatusIndicator
+                level="empty"
+                label={`Empty circle: ${block.indicatorLegend.empty}`}
+              />
+              <span>{block.indicatorLegend.empty}</span>
+            </div>
+            {block.indicatorLegend.terms && (
+              <dl className="blog-table-terms">
+                {block.indicatorLegend.terms.map(({ term, definition }) => (
+                  <div key={term}>
+                    <dt>{term}</dt>
+                    <dd>{definition}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {qualifierNotes.length > 0 && (
+              <details className="blog-table-qualifiers">
+                <summary>Caveats and qualifiers ({qualifierNotes.length})</summary>
+                <ul>
+                  {qualifierNotes.map(({ column, href, note, tool }) => (
+                    <li key={`${tool}-${column}`}>
+                      <a href={href}>{tool}</a>
+                      <span>{column}: {note}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
+        <div
+          className="blog-table-scroll"
+          role="region"
+          aria-label={block.caption}
+          tabIndex={0}
+        >
+          <table
+            className="blog-comparison-table"
+            aria-describedby={block.indicatorLegend ? `${tableID}-legend` : undefined}
+          >
+            <caption className="blog-visually-hidden">{block.caption}</caption>
+            <colgroup>
+              {block.headers.map((header, columnIndex) => (
+                <col
+                  className={indicatorColumns.has(columnIndex) ? "is-indicator-column" : undefined}
+                  key={header}
+                />
+              ))}
+            </colgroup>
+            <thead>
+              <tr>
+                {block.headers.map((header, columnIndex) => (
+                  <th
+                    className={indicatorColumns.has(columnIndex) ? "is-indicator-column" : undefined}
+                    scope="col"
+                    key={header}
+                  >
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr className={row.highlight ? "is-highlighted" : undefined} key={row.cells.join("\n")}>
+                  {row.cells.map((cell, cellIndex) => {
+                    if (cellIndex === 0) {
+                      return (
+                        <th scope="row" key={cell}>
+                          <a href={row.href}>{cell}</a>
+                        </th>
+                      );
+                    }
+
+                    const indicator = indicatorColumns.has(cellIndex)
+                      ? parseTableIndicator(cell)
+                      : undefined;
+                    if (indicator && block.indicatorLegend) {
+                      const levelLabel = block.indicatorLegend[indicator.level];
+                      return (
+                        <td
+                          className="is-indicator-column"
+                          key={`${cellIndex}-${cell}`}
+                          title={indicator.note}
+                        >
+                          <TableStatusIndicator
+                            level={indicator.level}
+                            label={`${block.headers[cellIndex]}: ${levelLabel}`}
+                            note={indicator.note}
+                          />
+                        </td>
+                      );
+                    }
+
+                    return <td key={`${cellIndex}-${cell}`}>{cell}</td>;
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
   return <p>{block.text}</p>;
 }
 
@@ -688,6 +944,18 @@ function BlogArticle({ post }: { post: BlogPost }) {
   const index = blogPosts.findIndex((candidate) => candidate.slug === post.slug);
   const previous = index > 0 ? blogPosts[index - 1] : undefined;
   const next = index < blogPosts.length - 1 ? blogPosts[index + 1] : blogPosts[0];
+  const sections = post.blocks.flatMap((block, blockIndex) =>
+    block.type === "heading"
+      ? [{ id: headingID(block.text, blockIndex), text: block.text }]
+      : [],
+  );
+  const activeSectionID = useActiveArticleSection(
+    sections.map((section) => section.id),
+  );
+  const relatedPosts = post.relatedSlugs.flatMap((slug) => {
+    const related = getBlogPost(slug);
+    return related ? [related] : [];
+  });
 
   return (
     <div className="blog-shell">
@@ -713,21 +981,59 @@ function BlogArticle({ post }: { post: BlogPost }) {
 
           <div className="blog-article-layout">
             <aside className="article-rail">
-              <span><KeyRound /></span>
-              <p>IN ONE SENTENCE</p>
-              <strong>{post.takeaway}</strong>
+              <div className="article-rail-summary">
+                <span><KeyRound /></span>
+                <div>
+                  <p>IN ONE SENTENCE</p>
+                  <strong>{post.takeaway}</strong>
+                </div>
+              </div>
+              <nav className="article-toc" aria-label="In this field note">
+                <p>IN THIS NOTE</p>
+                <ol>
+                  {sections.map((section) => (
+                    <li key={section.id}>
+                      <a
+                        href={`#${section.id}`}
+                        aria-current={section.id === activeSectionID ? "location" : undefined}
+                      >
+                        {section.text}
+                      </a>
+                    </li>
+                  ))}
+                </ol>
+              </nav>
             </aside>
             <div className="blog-article-body">
               {post.blocks.map((block, blockIndex) => (
                 <BlogBlockView block={block} index={blockIndex} key={`${block.type}-${blockIndex}`} />
               ))}
+              <section className="blog-related-notes" aria-labelledby={`related-${post.slug}`}>
+                <p className="blog-kicker"><BookOpenText /> Related field notes</p>
+                <h2 id={`related-${post.slug}`}>Keep following the transfer.</h2>
+                <div>
+                  {relatedPosts.map((related) => (
+                    <a href={`/blog/${related.slug}`} key={related.slug}>
+                      <span>FIELD NOTE {related.number}</span>
+                      <strong>{related.title}</strong>
+                      <small>{related.description}</small>
+                      <ArrowRight aria-hidden="true" />
+                    </a>
+                  ))}
+                </div>
+              </section>
               <section className="article-transfer-card">
                 <div>
                   <p className="blog-kicker"><Upload /> Try the protocol</p>
                   <h2>Send something small.</h2>
                   <p>The quickest explanation is still a transfer between two devices.</p>
                 </div>
-                <a href="/">Open croc web <ArrowRight /></a>
+                <div className="article-transfer-actions">
+                  <a href="/#send-panel">Send files <ArrowRight /></a>
+                  <a href="/#receive">Receive files</a>
+                  <a href={site.projectUrl}>Install croc</a>
+                  <a href={site.repositoryUrl}>Browse source</a>
+                </div>
               </section>
             </div>
           </div>
@@ -759,7 +1065,7 @@ function BlogNotFound({ slug }: { slug: string }) {
       <main className="blog-not-found">
         <span>404</span>
         <h1>This note wandered off.</h1>
-        <p>The transfer is fine. This address is not one of the seven field notes.</p>
+        <p>The transfer is fine. This address is not one of the published field notes.</p>
         <a href="/blog">Return to all notes <ArrowRight /></a>
       </main>
       <BlogFooter />

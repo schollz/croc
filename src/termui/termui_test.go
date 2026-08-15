@@ -76,6 +76,13 @@ func TestPromptChoices(t *testing.T) {
 	}
 }
 
+func TestPlainRemovesTerminalStyles(t *testing.T) {
+	styled := Filename("croc.txt", true) + " " + Success("done", true)
+	if got := Plain(styled); got != "croc.txt done" {
+		t.Fatalf("plain text = %q; want %q", got, "croc.txt done")
+	}
+}
+
 func TestLoggerWriterNormalizesAndStylesLevels(t *testing.T) {
 	const input = "\x1b[0;33m[warn]\t\x1b[0mwarning\n\x1b[0;31;1m[error]\t\x1b[0mfailure\n"
 

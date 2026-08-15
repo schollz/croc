@@ -25,6 +25,10 @@ func TestEmbeddedClientContainsEntryPointAndWasm(t *testing.T) {
 		[]byte(`name="twitter:card"`),
 		[]byte(`type="application/ld+json"`),
 		[]byte(`"@type": "WebApplication"`),
+		[]byte(`"@type": "AggregateRating"`),
+		[]byte(`"ratingCount": 10`),
+		[]byte(`"reviewCount": 10`),
+		[]byte(`"reviewBody": "I use croc here a lot. Awesome binary for me"`),
 	} {
 		if !bytes.Contains(index, fragment) {
 			t.Fatalf("embedded index does not contain metadata %q", fragment)

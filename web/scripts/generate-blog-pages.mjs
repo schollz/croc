@@ -6,6 +6,14 @@ const distRoot = path.join(webRoot, "dist");
 const metadata = JSON.parse(
   await readFile(path.join(webRoot, "src", "blog-seo.json"), "utf8"),
 );
+const sourceOrder = new Map(
+  metadata.posts.map((post, index) => [post.slug, index]),
+);
+metadata.posts.sort(
+  (left, right) =>
+    right.publishedAt.localeCompare(left.publishedAt) ||
+    sourceOrder.get(right.slug) - sourceOrder.get(left.slug),
+);
 const template = await readFile(path.join(distRoot, "index.html"), "utf8");
 const routeMarker =
   /<!-- ROUTE_SEO_START -->[\s\S]*?<!-- ROUTE_SEO_END -->/;
@@ -41,7 +49,7 @@ function commonGraph() {
         "@type": "ImageObject",
         url: absoluteURL(metadata.site.logo),
       },
-      sameAs: ["https://github.com/schollz/croc"],
+      sameAs: [metadata.site.projectUrl, metadata.site.repositoryUrl],
     },
     {
       "@type": "Person",
@@ -98,6 +106,8 @@ function indexJSONLD(entry, canonicalURL) {
           url: `${metadata.site.url}/blog/${post.slug}`,
           datePublished: post.publishedAt,
           dateModified: post.modifiedAt,
+          description: post.description,
+          articleSection: post.category,
           image: absoluteURL(post.socialImage),
         })),
       },
@@ -134,7 +144,7 @@ function postJSONLD(entry, canonicalURL) {
         "@type": "WebPage",
         "@id": canonicalURL,
         url: canonicalURL,
-        name: entry.title,
+        name: entry.seoTitle ?? entry.title,
         description: entry.description,
         inLanguage: metadata.site.language,
         isPartOf: { "@id": `${metadata.site.url}/#website` },
@@ -159,6 +169,11 @@ function postJSONLD(entry, canonicalURL) {
         articleSection: entry.category,
         keywords: entry.keywords,
         about: entry.keywords.map((name) => ({ "@type": "Thing", name })),
+        wordCount: entry.wordCount,
+        timeRequired: `PT${entry.readingMinutes}M`,
+        relatedLink: entry.relatedSlugs.map(
+          (slug) => `${metadata.site.url}/blog/${slug}`,
+        ),
         inLanguage: metadata.site.language,
         isAccessibleForFree: true,
         license: "https://github.com/schollz/croc/blob/main/LICENSE",
@@ -195,7 +210,9 @@ function postJSONLD(entry, canonicalURL) {
 function routeSEO(entry, pathname, isPost) {
   const canonicalURL = `${metadata.site.url}${pathname}`;
   const imageURL = absoluteURL(entry.socialImage);
-  const pageTitle = isPost ? `${entry.title} — croc field notes` : entry.title;
+  const pageTitle = isPost
+    ? entry.seoTitle ?? `${entry.title} | croc field notes`
+    : entry.title;
   const keywords = entry.keywords.join(", ");
   const jsonLD = isPost
     ? postJSONLD(entry, canonicalURL)
@@ -220,10 +237,11 @@ function routeSEO(entry, pathname, isPost) {
     <meta name="author" content="${escapeHTML(metadata.site.authorName)}" />
     <meta name="title" content="${escapeHTML(pageTitle)}" />
     <meta name="keywords" content="${escapeHTML(keywords)}" />
-    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="description" content="${escapeHTML(entry.description)}" />
     <link rel="canonical" href="${escapeHTML(canonicalURL)}" />
+    <link rel="author" href="${escapeHTML(metadata.site.authorUrl)}" />
     <link rel="image_src" href="${escapeHTML(imageURL)}" />
     <link rel="alternate" type="application/rss+xml" title="croc field notes" href="${metadata.site.url}/blog/feed.xml" />${imagePreload}
     <meta itemprop="image" content="${escapeHTML(imageURL)}" />
@@ -232,7 +250,7 @@ function routeSEO(entry, pathname, isPost) {
     <meta property="og:locale" content="${escapeHTML(metadata.site.locale)}" />
     <meta property="og:site_name" content="${escapeHTML(metadata.site.name)}" />
     <meta property="og:url" content="${escapeHTML(canonicalURL)}" />
-    <meta property="og:title" content="${escapeHTML(entry.title)}" />
+    <meta property="og:title" content="${escapeHTML(entry.seoTitle ?? entry.title)}" />
     <meta property="og:description" content="${escapeHTML(entry.description)}" />
     <meta property="og:image" content="${escapeHTML(imageURL)}" />
     <meta property="og:image:secure_url" content="${escapeHTML(imageURL)}" />
@@ -242,7 +260,7 @@ function routeSEO(entry, pathname, isPost) {
     <meta property="og:image:alt" content="${escapeHTML(entry.imageAlt)}" />
 ${articleMeta}
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="${escapeHTML(entry.title)}" />
+    <meta name="twitter:title" content="${escapeHTML(entry.seoTitle ?? entry.title)}" />
     <meta name="twitter:description" content="${escapeHTML(entry.description)}" />
     <meta name="twitter:image" content="${escapeHTML(imageURL)}" />
     <meta name="twitter:image:alt" content="${escapeHTML(entry.imageAlt)}" />

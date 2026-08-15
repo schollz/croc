@@ -1,5 +1,5 @@
-// Package store implements croc's anonymous, encrypted, one-download temporary
-// storage service. It stores only ciphertext and capability verifiers.
+// Package store implements croc's anonymous, encrypted, download-limited
+// temporary storage service. It stores only ciphertext and capability verifiers.
 package store
 
 import (
@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/maphash"
 	"io"
 	"net"
 	"net/http"
@@ -31,13 +32,14 @@ const (
 	DefaultMaxTotal      = int64(5 << 30)
 	DefaultMinFree       = int64(512 << 20)
 	DefaultMaxFiles      = 100
+	DefaultMaxDownloads  = 1
 	DefaultCreatePerHour = 5
 	DefaultActiveUploads = 2
 	MaxManifestBytes     = int64(256 << 10)
 	MaxChunkObjects      = 512
+	transferLockStripes  = 256
 
 	uploadLifetime    = time.Hour
-	availableLifetime = 24 * time.Hour
 	claimLifetime     = 30 * time.Minute
 	tombstoneLifetime = 24 * time.Hour
 	cleanupInterval   = time.Minute
@@ -61,6 +63,8 @@ type Config struct {
 	MaxTotalBytes    int64
 	MinFreeBytes     int64
 	MaxFiles         int
+	MaxDownloads     int
+	MaxExpiration    time.Duration
 	CreatePerHour    int
 	MaxActiveUploads int
 	TrustedProxies   []netip.Prefix
@@ -71,10 +75,12 @@ type Config struct {
 
 // PublicConfig is safe to expose to web clients.
 type PublicConfig struct {
-	Enabled          bool  `json:"enabled"`
-	MaxTransferBytes int64 `json:"maxTransferBytes"`
-	MaxFiles         int   `json:"maxFiles"`
-	ExpiresSeconds   int64 `json:"expiresSeconds"`
+	Enabled           bool  `json:"enabled"`
+	MaxTransferBytes  int64 `json:"maxTransferBytes"`
+	MaxFiles          int   `json:"maxFiles"`
+	MaxDownloads      int   `json:"maxDownloads"`
+	ExpiresSeconds    int64 `json:"expiresSeconds"`
+	MaxExpiresSeconds int64 `json:"maxExpiresSeconds"`
 }
 
 type metadata struct {
@@ -85,6 +91,7 @@ type metadata struct {
 	UploadExpiresAt    time.Time `json:"uploadExpiresAt,omitempty"`
 	CompletedAt        time.Time `json:"completedAt,omitempty"`
 	ExpiresAt          time.Time `json:"expiresAt,omitempty"`
+	ExpiresSeconds     int64     `json:"expiresSeconds,omitempty"`
 	TombstoneExpiresAt time.Time `json:"tombstoneExpiresAt,omitempty"`
 	ManifestBytes      int64     `json:"manifestBytes"`
 	ChunkBytes         []int64   `json:"chunkBytes"`
@@ -93,6 +100,9 @@ type metadata struct {
 	RedeemVerifier     string    `json:"redeemVerifier"`
 	ClaimVerifier      string    `json:"claimVerifier,omitempty"`
 	ClaimExpiresAt     time.Time `json:"claimExpiresAt,omitempty"`
+	DownloadsTotal     int       `json:"downloadsTotal,omitempty"`
+	DownloadsRemaining int       `json:"downloadsRemaining,omitempty"`
+	CommittedClaims    []string  `json:"committedClaims,omitempty"`
 	ClientIP           string    `json:"clientIP,omitempty"`
 }
 
@@ -105,12 +115,13 @@ type Service struct {
 	config Config
 	now    func() time.Time
 
-	mu              sync.Mutex
-	transferLocks   map[string]*sync.Mutex
-	reservedBytes   int64
-	activeUploads   map[string]int
-	creationWindows map[string]*creationWindow
-	rootLock        *rootLock
+	mu               sync.Mutex
+	transferLockSeed maphash.Seed
+	transferLocks    [transferLockStripes]sync.Mutex
+	reservedBytes    int64
+	activeUploads    map[string]int
+	creationWindows  map[string]*creationWindow
+	rootLock         *rootLock
 }
 
 type createRequest struct {
@@ -120,6 +131,8 @@ type createRequest struct {
 	RedeemVerifier string  `json:"redeemVerifier"`
 	DeclaredFiles  int     `json:"files"`
 	PlaintextBytes int64   `json:"plaintextBytes"`
+	Downloads      *int    `json:"downloads,omitempty"`
+	ExpiresSeconds *int64  `json:"expiresSeconds,omitempty"`
 }
 
 type createResponse struct {
@@ -173,6 +186,15 @@ func New(config Config) (*Service, error) {
 	if config.MaxFiles > storecrypto.MaxFiles {
 		return nil, fmt.Errorf("stored-transfer file limit cannot exceed %d", storecrypto.MaxFiles)
 	}
+	if config.MaxDownloads <= 0 {
+		config.MaxDownloads = DefaultMaxDownloads
+	}
+	if config.MaxExpiration < 0 {
+		return nil, errors.New("stored-transfer maximum expiration cannot be negative")
+	}
+	if config.MaxExpiration > 0 && config.MaxExpiration < MinExpiration {
+		return nil, fmt.Errorf("stored-transfer maximum expiration must be at least %s", MinExpiration)
+	}
 	if config.CreatePerHour <= 0 {
 		config.CreatePerHour = DefaultCreatePerHour
 	}
@@ -201,12 +223,12 @@ func New(config Config) (*Service, error) {
 	}
 
 	service := &Service{
-		config:          config,
-		now:             config.Now,
-		transferLocks:   make(map[string]*sync.Mutex),
-		activeUploads:   make(map[string]int),
-		creationWindows: make(map[string]*creationWindow),
-		rootLock:        lock,
+		config:           config,
+		now:              config.Now,
+		transferLockSeed: maphash.MakeSeed(),
+		activeUploads:    make(map[string]int),
+		creationWindows:  make(map[string]*creationWindow),
+		rootLock:         lock,
 	}
 	if err = service.recover(); err != nil {
 		if lock != nil {
@@ -247,11 +269,17 @@ func (s *Service) RunCleanup(ctx context.Context) {
 
 // PublicConfig returns browser-safe limits.
 func (s *Service) PublicConfig() PublicConfig {
+	effectiveDefault := DefaultExpiration
+	if s.config.MaxExpiration > 0 && s.config.MaxExpiration < effectiveDefault {
+		effectiveDefault = s.config.MaxExpiration
+	}
 	return PublicConfig{
-		Enabled:          true,
-		MaxTransferBytes: s.config.MaxTransferBytes,
-		MaxFiles:         s.config.MaxFiles,
-		ExpiresSeconds:   int64(availableLifetime / time.Second),
+		Enabled:           true,
+		MaxTransferBytes:  s.config.MaxTransferBytes,
+		MaxFiles:          s.config.MaxFiles,
+		MaxDownloads:      s.config.MaxDownloads,
+		ExpiresSeconds:    int64(effectiveDefault / time.Second),
+		MaxExpiresSeconds: int64(s.config.MaxExpiration / time.Second),
 	}
 }
 
@@ -278,14 +306,9 @@ func validID(id string) bool {
 }
 
 func (s *Service) lockFor(id string) *sync.Mutex {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	lock := s.transferLocks[id]
-	if lock == nil {
-		lock = new(sync.Mutex)
-		s.transferLocks[id] = lock
-	}
-	return lock
+	// ponytail: fixed striping bounds attacker-controlled lock state; increase
+	// the stripe count only if profiling shows meaningful contention.
+	return &s.transferLocks[maphash.String(s.transferLockSeed, id)%transferLockStripes]
 }
 
 func (s *Service) recover() error {
@@ -386,6 +409,14 @@ func readMetadata(path string) (*metadata, error) {
 	if err = json.Unmarshal(bytes, &meta); err != nil {
 		return nil, err
 	}
+	// Metadata written before configurable downloads implicitly represented one
+	// download. Preserve that behavior when an existing store is reopened.
+	if meta.DownloadsTotal == 0 {
+		meta.DownloadsTotal = 1
+		if !isTombstone(meta.State) {
+			meta.DownloadsRemaining = 1
+		}
+	}
 	return &meta, nil
 }
 
@@ -445,9 +476,7 @@ func (s *Service) tombstone(meta *metadata, terminal state) error {
 	meta.State = terminal
 	meta.ClaimExpiresAt = time.Time{}
 	meta.TombstoneExpiresAt = s.now().Add(tombstoneLifetime)
-	if terminal != stateConsumed {
-		meta.ClaimVerifier = ""
-	}
+	meta.ClaimVerifier = ""
 	reservation := meta.ReservedBytes
 	meta.ReservedBytes = 0
 	if err := s.save(meta); err != nil {
@@ -489,7 +518,6 @@ func (s *Service) removeTransfer(meta *metadata) error {
 	if s.reservedBytes < 0 {
 		s.reservedBytes = 0
 	}
-	delete(s.transferLocks, meta.ID)
 	s.mu.Unlock()
 	return nil
 }
@@ -720,12 +748,28 @@ func (s *Service) create(response http.ResponseWriter, request *http.Request) {
 		http.Error(response, "invalid stored-transfer request", http.StatusBadRequest)
 		return
 	}
+	downloads := DefaultMaxDownloads
+	if input.Downloads != nil {
+		downloads = *input.Downloads
+	}
+	expiresSeconds := int64(DefaultExpiration / time.Second)
+	if input.ExpiresSeconds != nil {
+		expiresSeconds = *input.ExpiresSeconds
+	}
+	if expiresSeconds < int64(MinExpiration/time.Second) || expiresSeconds > MaxExpirationSeconds {
+		http.Error(response, "invalid stored-transfer declaration", http.StatusBadRequest)
+		return
+	}
+	if maximum := int64(s.config.MaxExpiration / time.Second); maximum > 0 && expiresSeconds > maximum {
+		expiresSeconds = maximum
+	}
 	redeemVerifier, err := storecrypto.DecodeBase64URL(input.RedeemVerifier)
 	if input.Protocol != storecrypto.Protocol || err != nil || len(redeemVerifier) != sha256.Size ||
 		input.ManifestBytes < 29 || input.ManifestBytes > MaxManifestBytes ||
 		input.DeclaredFiles < 1 || input.DeclaredFiles > s.config.MaxFiles ||
 		input.PlaintextBytes < 0 || input.PlaintextBytes > s.config.MaxTransferBytes ||
-		len(input.ChunkBytes) > MaxChunkObjects {
+		len(input.ChunkBytes) > MaxChunkObjects ||
+		downloads < 1 || downloads > s.config.MaxDownloads {
 		http.Error(response, "invalid stored-transfer declaration", http.StatusBadRequest)
 		return
 	}
@@ -766,17 +810,20 @@ func (s *Service) create(response http.ResponseWriter, request *http.Request) {
 	}
 	now := s.now()
 	meta := &metadata{
-		Version:         storecrypto.Version,
-		ID:              id,
-		State:           stateUploading,
-		CreatedAt:       now,
-		UploadExpiresAt: now.Add(uploadLifetime),
-		ManifestBytes:   input.ManifestBytes,
-		ChunkBytes:      append([]int64(nil), input.ChunkBytes...),
-		ReservedBytes:   reserved,
-		UploadVerifier:  verifier(uploadToken),
-		RedeemVerifier:  input.RedeemVerifier,
-		ClientIP:        ip,
+		Version:            storecrypto.Version,
+		ID:                 id,
+		State:              stateUploading,
+		CreatedAt:          now,
+		UploadExpiresAt:    now.Add(uploadLifetime),
+		ManifestBytes:      input.ManifestBytes,
+		ChunkBytes:         append([]int64(nil), input.ChunkBytes...),
+		ReservedBytes:      reserved,
+		UploadVerifier:     verifier(uploadToken),
+		RedeemVerifier:     input.RedeemVerifier,
+		DownloadsTotal:     downloads,
+		DownloadsRemaining: downloads,
+		ExpiresSeconds:     expiresSeconds,
+		ClientIP:           ip,
 	}
 	if err = s.save(meta); err != nil {
 		http.Error(response, "could not persist stored transfer", http.StatusInternalServerError)
@@ -784,6 +831,7 @@ func (s *Service) create(response http.ResponseWriter, request *http.Request) {
 	}
 	keepReservation = true
 	releaseActive = false
+	response.Header().Set("X-Croc-Downloads", strconv.Itoa(meta.DownloadsTotal))
 	writeJSON(response, http.StatusCreated, createResponse{
 		ID:              id,
 		UploadToken:     storecrypto.EncodeBase64URL(uploadToken),
@@ -872,7 +920,12 @@ func (s *Service) complete(response http.ResponseWriter, request *http.Request, 
 	now := s.now()
 	meta.State = stateAvailable
 	meta.CompletedAt = now
-	meta.ExpiresAt = now.Add(availableLifetime)
+	expiresSeconds := meta.ExpiresSeconds
+	if expiresSeconds == 0 {
+		// Metadata written before configurable expiration used one day.
+		expiresSeconds = int64(DefaultExpiration / time.Second)
+	}
+	meta.ExpiresAt = now.Add(time.Duration(expiresSeconds) * time.Second)
 	if err = s.save(meta); err != nil {
 		http.Error(response, "could not finalize stored transfer", http.StatusInternalServerError)
 		return
@@ -900,8 +953,25 @@ func (s *Service) authorizeClaim(request *http.Request, meta *metadata) bool {
 	return capabilityMatches(bearer(request), valueOrEmpty(meta, func(m *metadata) string { return m.ClaimVerifier }))
 }
 
+func (s *Service) authorizeCommittedClaim(request *http.Request, meta *metadata) bool {
+	if meta == nil {
+		return false
+	}
+	token := bearer(request)
+	for _, committed := range meta.CommittedClaims {
+		if capabilityMatches(token, committed) {
+			return true
+		}
+	}
+	return false
+}
+
+func remainingDownloadsHeader(response http.ResponseWriter, remaining int) {
+	response.Header().Set("X-Croc-Downloads-Remaining", strconv.Itoa(remaining))
+}
+
 func (s *Service) availableState(response http.ResponseWriter, request *http.Request, meta *metadata) bool {
-	if isTombstone(meta.State) || !meta.ExpiresAt.After(s.now()) {
+	if isTombstone(meta.State) || meta.DownloadsRemaining < 1 || !meta.ExpiresAt.After(s.now()) {
 		if isTombstone(meta.State) {
 			_ = s.purgeCiphertext(meta.ID)
 		}
@@ -925,10 +995,12 @@ func (s *Service) downloadManifest(response http.ResponseWriter, request *http.R
 		return
 	}
 	expires := meta.ExpiresAt
+	remaining := meta.DownloadsRemaining
 	path := s.manifestPath(id)
 	lock.Unlock()
 	response.Header().Set("Content-Type", "application/octet-stream")
 	response.Header().Set("X-Croc-Expires-At", expires.UTC().Format(time.RFC3339))
+	remainingDownloadsHeader(response, remaining)
 	http.ServeFile(response, request, path)
 }
 
@@ -966,6 +1038,7 @@ func (s *Service) claim(response http.ResponseWriter, request *http.Request, id 
 		http.Error(response, "could not persist stored-transfer claim", http.StatusInternalServerError)
 		return
 	}
+	remainingDownloadsHeader(response, meta.DownloadsRemaining)
 	writeJSON(response, http.StatusCreated, claimResponse{
 		ClaimToken:     storecrypto.EncodeBase64URL(token),
 		ClaimExpiresAt: meta.ClaimExpiresAt,
@@ -1042,16 +1115,25 @@ func (s *Service) commit(response http.ResponseWriter, request *http.Request, id
 	lock.Lock()
 	defer lock.Unlock()
 	meta, err := s.load(id)
-	if err != nil || meta == nil || !s.authorizeClaim(request, meta) {
+	if err != nil || meta == nil {
 		http.NotFound(response, request)
 		return
 	}
-	if meta.State == stateConsumed {
+	if s.authorizeCommittedClaim(request, meta) {
+		remainingDownloadsHeader(response, meta.DownloadsRemaining)
+		if meta.State != stateConsumed {
+			response.WriteHeader(http.StatusNoContent)
+			return
+		}
 		if err = s.purgeCiphertext(meta.ID); err != nil {
 			http.Error(response, "could not remove stored ciphertext", http.StatusInternalServerError)
 			return
 		}
 		response.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if !s.authorizeClaim(request, meta) {
+		http.NotFound(response, request)
 		return
 	}
 	if meta.State != stateClaimed || !s.availableState(response, request, meta) {
@@ -1061,10 +1143,21 @@ func (s *Service) commit(response http.ResponseWriter, request *http.Request, id
 		http.Error(response, "stored-transfer claim expired", http.StatusGone)
 		return
 	}
-	if err = s.tombstone(meta, stateConsumed); err != nil {
-		http.Error(response, "could not consume stored transfer", http.StatusInternalServerError)
+	meta.CommittedClaims = append(meta.CommittedClaims, meta.ClaimVerifier)
+	meta.DownloadsRemaining--
+	meta.State = stateAvailable
+	meta.ClaimVerifier = ""
+	meta.ClaimExpiresAt = time.Time{}
+	if meta.DownloadsRemaining == 0 {
+		if err = s.tombstone(meta, stateConsumed); err != nil {
+			http.Error(response, "could not consume stored transfer", http.StatusInternalServerError)
+			return
+		}
+	} else if err = s.save(meta); err != nil {
+		http.Error(response, "could not commit stored download", http.StatusInternalServerError)
 		return
 	}
+	remainingDownloadsHeader(response, meta.DownloadsRemaining)
 	response.WriteHeader(http.StatusNoContent)
 }
 
