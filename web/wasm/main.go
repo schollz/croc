@@ -48,7 +48,6 @@ func main() {
 	b.expose(api, "hashInit", b.hashInit)
 	b.expose(api, "hashUpdate", b.hashUpdate)
 	b.expose(api, "hashFinal", b.hashFinal)
-	b.expose(api, "randomCode", b.randomCode)
 	b.expose(api, "codeComponents", b.codeComponents)
 	b.expose(api, "sha256Init", b.sha256Init)
 	b.expose(api, "sha256Update", b.sha256Update)
@@ -384,13 +383,6 @@ func (b *bridge) hashFinal(args []js.Value) (any, error) {
 		return nil, fmt.Errorf("unknown hash handle")
 	}
 	return bytesToJS(hash.Sum(nil)), nil
-}
-
-func (b *bridge) randomCode(args []js.Value) (any, error) {
-	if len(args) != 0 {
-		return nil, fmt.Errorf("randomCode expects no arguments")
-	}
-	return codephrase.Generate()
 }
 
 func (b *bridge) codeComponents(args []js.Value) (any, error) {

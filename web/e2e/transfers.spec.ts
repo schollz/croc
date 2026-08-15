@@ -671,12 +671,20 @@ test("copying a croc code shows confirmation", async ({ page }) => {
   await expect(panel.getByRole("button", { name: "Code copied" })).toBeVisible();
 });
 
-test("generates a complete three-word code on narrow screens", async ({ page }) => {
+test("generates a complete three-word code before loading WASM", async ({ page }) => {
+  const wasmRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.endsWith("/croc.wasm")) {
+      wasmRequests.push(request.url());
+    }
+  });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await expect(page.locator(".send-panel").getByLabel("Croc code")).toHaveValue(
     /^[a-z]+(?:-[a-z]+){2,5}$/,
   );
+  await page.waitForTimeout(250);
+  expect(wasmRequests).toEqual([]);
 });
 
 test("CLI → Web transfers and verifies multiple files", async ({

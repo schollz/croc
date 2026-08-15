@@ -7,6 +7,9 @@ const gatewayProxy =
 export default defineConfig({
   plugins: [react()],
   server: {
+    fs: {
+      allow: [".."],
+    },
     host: "127.0.0.1",
     proxy: {
       "/ws": {

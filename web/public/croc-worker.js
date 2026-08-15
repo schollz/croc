@@ -11,8 +11,16 @@ function initialize() {
     if (!response.ok) {
       throw new Error(`Could not load croc.wasm (${response.status})`);
     }
-    const bytes = await response.arrayBuffer();
-    const { instance } = await WebAssembly.instantiate(bytes, go.importObject);
+    const contentType = response.headers.get("content-type")?.split(";", 1)[0];
+    const result =
+      typeof WebAssembly.instantiateStreaming === "function" &&
+      contentType === "application/wasm"
+        ? await WebAssembly.instantiateStreaming(response, go.importObject)
+        : await WebAssembly.instantiate(
+            await response.arrayBuffer(),
+            go.importObject,
+          );
+    const { instance } = result;
     void go.run(instance);
     for (let attempts = 0; !self.crocWasm && attempts < 100; attempts += 1) {
       await new Promise((resolve) => setTimeout(resolve, 10));
