@@ -242,6 +242,10 @@ export class CrocWasm {
 
 let shared: CrocWasm | undefined;
 
+export function preloadWasm() {
+  wasm();
+}
+
 export function wasm() {
   shared ??= new CrocWasm();
   return shared;
