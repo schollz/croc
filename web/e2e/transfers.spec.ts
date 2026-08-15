@@ -712,10 +712,23 @@ test("reveals a mobile-sized three-word code only after Send file is pressed", a
   await sendButton.click();
   await expect(sendButton).toHaveCount(0);
   const code = panel.getByLabel("Croc code");
+  const codeLabel = panel.getByText("Use this code:", { exact: true });
+  const copyButton = panel.getByRole("button", { name: "Copy code" });
   await expect(code).toHaveText(/^[a-z]+(?:-[a-z]+){2,5}$/);
   await expect(code).toHaveCSS("font-size", "14px");
   await expect(panel.getByRole("button", { name: "Generate a new code" })).toHaveCount(0);
   await expect(panel.getByRole("button", { name: "Show QR code" })).toBeVisible();
+  const [labelBox, codeBox, copyBox] = await Promise.all([
+    codeLabel.boundingBox(),
+    code.boundingBox(),
+    copyButton.boundingBox(),
+  ]);
+  expect(labelBox!.y + labelBox!.height).toBeLessThanOrEqual(codeBox!.y);
+  expect(Math.abs(codeBox!.y - copyBox!.y)).toBeLessThanOrEqual(1);
+  expect(codeBox!.x + codeBox!.width).toBeLessThanOrEqual(copyBox!.x);
+  expect(await code.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+    true,
+  );
 });
 
 test("CLI → Web transfers and verifies multiple files", async ({

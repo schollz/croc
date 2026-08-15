@@ -3251,11 +3251,23 @@ a.cli-download-primary:hover {
     font-size: 16px;
   }
 
+  .send-code {
+    grid-template-columns: minmax(0, 1fr) 48px;
+  }
+
+  .send-code-label {
+    grid-column: 1 / -1;
+  }
+
   .send-code-value {
+    grid-column: 1;
+    grid-row: 2;
     font-size: 14px;
   }
 
   .send-code-copy {
+    grid-column: 2;
+    grid-row: 2;
     width: 48px;
     height: 48px;
   }
