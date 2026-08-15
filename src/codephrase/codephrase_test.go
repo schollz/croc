@@ -87,11 +87,11 @@ func TestParse(t *testing.T) {
 		pakePassphrase string
 	}{
 		{
-			name:           "EFF three-word code",
-			secret:         "acid-acorn-acre",
+			name:           "EFF three-word code uses the complete first word as the room",
+			secret:         "poker-hedge-floss",
 			format:         FormatThreeWord,
-			roomSelector:   "acid",
-			pakePassphrase: "acorn-acre",
+			roomSelector:   "poker",
+			pakePassphrase: "hedge-floss",
 		},
 		{
 			name:           "arbitrary lowercase words reserve three-word format",
@@ -177,11 +177,11 @@ func TestParse(t *testing.T) {
 }
 
 func TestParseUsesStableRoomHash(t *testing.T) {
-	components, err := Parse("acid-acorn-acre")
+	components, err := Parse("poker-hedge-floss")
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		"f72491c26f320da8a93ea323d8d23b4561e0634f967ba21cb268a1cd0df48a12",
+		"fced940f7e6edf059a837d10515c2b095fc4e9d9a079ed62229b0fb8ddba8be1",
 		components.RoomName,
 	)
 }

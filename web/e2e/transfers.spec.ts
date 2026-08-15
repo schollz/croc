@@ -690,7 +690,9 @@ test("generates a complete three-word code before loading WASM", async ({ page }
 test("CLI → Web transfers and verifies multiple files", async ({
   page,
 }, testInfo) => {
-  const secret = "acid-acorn-acre";
+  // Keep a five-letter first word here: the complete first word is the room,
+  // rather than the legacy protocol's first four characters.
+  const secret = "poker-hedge-floss";
   const fixtures = await createFixtures(testInfo);
   const configDirectory = testInfo.outputPath("croc-config");
   await fs.mkdir(configDirectory, { recursive: true });
