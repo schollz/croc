@@ -93,6 +93,7 @@ type Options struct {
 	Ask               bool
 	SendingText       bool
 	NoCompress        bool
+	NoEncrypt         bool
 	IP                string
 	Overwrite         bool
 	Rename            bool
@@ -233,6 +234,7 @@ type SenderInfo struct {
 	Ask                    bool
 	SendingText            bool
 	NoCompress             bool
+	NoEncrypt              bool
 	HashAlgorithm          string
 	ReconnectVersion       int
 	NextReconnectRoom      string
@@ -1401,7 +1403,18 @@ func (c *Client) receiverReconnectRelayAttempt(attempt int) error {
 }
 
 // Send will send the specified file
+// printNoEncryptWarning warns that file contents travel in the clear when
+// --no-encrypt is used. The control channel stays encrypted either way.
+func printNoEncryptWarning() {
+	output, colorEnabled := termui.Output(os.Stderr)
+	fmt.Fprintf(output, "\n%s: file contents are sent unencrypted and can be read by the relay and anyone on the network path.\n",
+		termui.Warning("warning", colorEnabled))
+}
+
 func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, totalNumberFolders int) (err error) {
+	if c.Options.NoEncrypt {
+		printNoEncryptWarning()
+	}
 	go c.stop.done()
 	defer c.stop.Cancel()
 	c.EmptyFoldersToTransfer = emptyFoldersToTransfer
@@ -2050,8 +2063,12 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 		log.Debug(err)
 		return
 	}
+	// the receiver may pass --no-encrypt itself to say it expects a plaintext
+	// transfer; the sender's setting is what actually drives the data path
+	noEncryptPreapproved := c.Options.NoEncrypt
 	c.Options.SendingText = senderInfo.SendingText
 	c.Options.NoCompress = senderInfo.NoCompress
+	c.Options.NoEncrypt = senderInfo.NoEncrypt
 	c.Options.HashAlgorithm = senderInfo.HashAlgorithm
 	c.peerReconnectVersion = senderInfo.ReconnectVersion
 	c.nextReconnectRoom = senderInfo.NextReconnectRoom
@@ -2106,6 +2123,14 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	// }
 
 	// c.spinner.Stop()
+	if c.Options.NoEncrypt {
+		if noEncryptPreapproved {
+			output, _ := termui.Output(os.Stderr)
+			fmt.Fprintf(output, "\nunencrypted transfer, accepted via --no-encrypt\n")
+		} else {
+			printNoEncryptWarning()
+		}
+	}
 	action := "Accept"
 	if c.Options.SendingText {
 		action = "Display"
@@ -2548,6 +2573,7 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 			TotalNumberFolders:     c.TotalNumberFolders,
 			SendingText:            c.Options.SendingText,
 			NoCompress:             c.Options.NoCompress,
+			NoEncrypt:              c.Options.NoEncrypt,
 			HashAlgorithm:          c.Options.HashAlgorithm,
 			ReconnectVersion:       c.reconnectVersion,
 			NextReconnectRoom:      nextReconnectRoom,
@@ -3008,10 +3034,12 @@ func (c *Client) receiveData(i int, dataConn *comm.Comm, attempt *transferAttemp
 			continue
 		}
 
-		data, err = crypt.Decrypt(data, c.Key)
-		if err != nil {
-			attempt.report(err)
-			return
+		if !c.Options.NoEncrypt {
+			data, err = crypt.Decrypt(data, c.Key)
+			if err != nil {
+				attempt.report(err)
+				return
+			}
 		}
 		if !c.Options.NoCompress {
 			data, err = compress.Decompress(data, maxDecompressedChunkSize)
@@ -3146,23 +3174,16 @@ func (c *Client) sendData(i int, dataConn *comm.Comm, fread *os.File, attempt *t
 					posByte := make([]byte, 8)
 					binary.LittleEndian.PutUint64(posByte, pos)
 					var err error
-					var dataToSend []byte
-					if c.Options.NoCompress {
-						dataToSend, err = crypt.Encrypt(
-							append(posByte, data[:n]...),
-							c.Key,
-						)
-					} else {
-						dataToSend, err = crypt.Encrypt(
-							compress.Compress(
-								append(posByte, data[:n]...),
-							),
-							c.Key,
-						)
+					dataToSend := append(posByte, data[:n]...)
+					if !c.Options.NoCompress {
+						dataToSend = compress.Compress(dataToSend)
 					}
-					if err != nil {
-						attempt.report(err)
-						return
+					if !c.Options.NoEncrypt {
+						dataToSend, err = crypt.Encrypt(dataToSend, c.Key)
+						if err != nil {
+							attempt.report(err)
+							return
+						}
 					}
 
 					err = dataConn.Send(dataToSend)

@@ -352,6 +352,29 @@ To choose a different elliptic curve for encryption, use the `--curve` flag:
 croc --curve p521 <codephrase>
 ```
 
+#### Send Unencrypted (trusted networks only)
+
+On a trusted LAN or a direct point-to-point link you can skip encrypting the file contents:
+
+```bash
+croc --no-encrypt send SOMEFILE
+```
+
+The code-phrase handshake and all control messages stay encrypted, and the file
+is still hash-verified after transfer, but the file contents travel in the clear
+and can be read by the relay and by anyone on the network path. The receiver is
+warned and must accept before the transfer starts. Both sides must run a croc
+version that supports this flag.
+
+The receiver can pass the same flag to say it expects a plaintext transfer:
+
+```bash
+croc --no-encrypt <codephrase>
+```
+
+On a 1 GiB loopback transfer with compression off this cut wall time from
+~2.75 s to ~2.26 s (~390 MB/s to ~475 MB/s).
+
 #### Change Hash Algorithm
 
 For faster hashing, use the `imohash` algorithm:
