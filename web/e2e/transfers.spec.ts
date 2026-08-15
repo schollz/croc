@@ -148,12 +148,10 @@ async function configurePage(page: Page) {
 
 async function prepareWebSender(
   page: Page,
-  secret: string,
   fixtures: FixtureSet,
 ) {
   const panel = page.locator(".send-panel");
   await panel.locator('input[type="file"]').setInputFiles(fixtures.paths);
-  await panel.getByLabel("Croc code").fill(secret);
   await expect(panel.getByText("3 files", { exact: true })).toBeVisible();
   return panel;
 }
@@ -665,13 +663,29 @@ test("copying a croc code shows confirmation", async ({ page }) => {
     });
   });
   const panel = page.locator(".send-panel");
-  await panel.getByLabel("Croc code").fill("1234-copy-test-code");
-  await panel.getByRole("button", { name: "Copy code" }).click();
+  await panel.locator('input[type="file"]').setInputFiles({
+    name: "copy-test.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("copy test"),
+  });
+  await panel.getByRole("button", { name: "Send file" }).click();
+  const copyButton = panel.getByRole("button", { name: "Copy code" });
+  await copyButton.click();
   await expect(panel.getByRole("status")).toHaveText("Copied");
-  await expect(panel.getByRole("button", { name: "Code copied" })).toBeVisible();
+  await expect(panel.getByRole("status")).toHaveClass("visually-hidden");
+  await expect(panel.getByRole("button", { name: "Code copied" })).toHaveClass(
+    /copied/,
+  );
+  await expect(panel.getByLabel("Croc code")).toHaveClass(/copied/);
+  await expect(panel.getByLabel("Croc code")).toHaveCSS(
+    "animation-name",
+    "copy-confirmed-code",
+  );
 });
 
-test("generates a complete three-word code before loading WASM", async ({ page }) => {
+test("reveals a mobile-sized three-word code only after Send file is pressed", async ({
+  page,
+}) => {
   const wasmRequests: string[] = [];
   page.on("request", (request) => {
     if (new URL(request.url()).pathname.endsWith("/croc.wasm")) {
@@ -680,11 +694,28 @@ test("generates a complete three-word code before loading WASM", async ({ page }
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await expect(page.locator(".send-panel").getByLabel("Croc code")).toHaveValue(
-    /^[a-z]+(?:-[a-z]+){2,5}$/,
-  );
+  const panel = page.locator(".send-panel");
+  const sendButton = panel.getByRole("button", { name: "Send file" });
+  await expect(sendButton).toBeDisabled();
+  await expect(panel.getByLabel("Croc code")).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: "Show QR code" })).toHaveCount(0);
+  await expect(panel).not.toContainText("Generated codes use");
   await page.waitForTimeout(250);
   expect(wasmRequests).toEqual([]);
+
+  await panel.locator('input[type="file"]').setInputFiles({
+    name: "mobile-test.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("mobile test"),
+  });
+  await expect(sendButton).toBeEnabled();
+  await sendButton.click();
+  await expect(sendButton).toHaveCount(0);
+  const code = panel.getByLabel("Croc code");
+  await expect(code).toHaveText(/^[a-z]+(?:-[a-z]+){2,5}$/);
+  await expect(code).toHaveCSS("font-size", "14px");
+  await expect(panel.getByRole("button", { name: "Generate a new code" })).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: "Show QR code" })).toBeVisible();
 });
 
 test("CLI → Web transfers and verifies multiple files", async ({
@@ -756,7 +787,6 @@ test("CLI → Web verifies a large croc executable", async ({
 test("Web → CLI transfers and verifies multiple files", async ({
   page,
 }, testInfo) => {
-  const secret = "acts-afar-affix";
   const fixtures = await createFixtures(testInfo);
   const destination = testInfo.outputPath("received");
   const configDirectory = testInfo.outputPath("croc-config");
@@ -765,8 +795,9 @@ test("Web → CLI transfers and verifies multiple files", async ({
     fs.mkdir(configDirectory, { recursive: true }),
   ]);
   await configurePage(page);
-  const sendPanel = await prepareWebSender(page, secret, fixtures);
+  const sendPanel = await prepareWebSender(page, fixtures);
   await sendPanel.getByRole("button", { name: "Send 3 files" }).click();
+  const secret = (await sendPanel.getByLabel("Croc code").textContent())!;
   const cli = runCroc(
     [...commonCLIArgs(), "--out", destination],
     secret,
@@ -789,7 +820,6 @@ test("Web → CLI transfers and verifies multiple files", async ({
 test("Web → Web transfers and verifies multiple files", async ({
   browser,
 }, testInfo) => {
-  const secret = "aged-agent-agile";
   const fixtures = await createFixtures(testInfo);
   const senderContext = await browser.newContext({ acceptDownloads: true });
   const receiverContext = await browser.newContext({ acceptDownloads: true });
@@ -800,9 +830,10 @@ test("Web → Web transfers and verifies multiple files", async ({
       configurePage(senderPage),
       configurePage(receiverPage),
     ]);
-    const sendPanel = await prepareWebSender(senderPage, secret, fixtures);
-    const receivePanel = await connectWebReceiver(receiverPage, secret);
+    const sendPanel = await prepareWebSender(senderPage, fixtures);
     await sendPanel.getByRole("button", { name: "Send 3 files" }).click();
+    const secret = (await sendPanel.getByLabel("Croc code").textContent())!;
+    const receivePanel = await connectWebReceiver(receiverPage, secret);
     const downloads = await acceptAsDownloads(receiverPage, receivePanel);
     await Promise.all([
       expect(sendPanel).toContainText("All files arrived safely", {
@@ -832,7 +863,11 @@ test("Web stored upload → CLI download consumes the transfer", async ({
   const panel = page.locator(".send-panel");
   await panel.getByRole("button", { name: "Store for 1 day" }).click();
   await panel.locator('input[type="file"]').setInputFiles(fixtures.paths);
+  await expect(panel.getByText("Storage lifetime", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Verified downloads", { exact: true })).toBeVisible();
   await panel.getByRole("button", { name: "Store 3 files" }).click();
+  await expect(panel.getByText("Storage lifetime", { exact: true })).toHaveCount(0);
+  await expect(panel.getByText("Verified downloads", { exact: true })).toHaveCount(0);
   await expect(panel.getByText("Encrypted link ready")).toBeVisible({
     timeout: transferTimeout,
   });
@@ -852,6 +887,30 @@ test("Web stored upload → CLI download consumes the transfer", async ({
     receiver.stop();
     await receiver.done.catch(() => undefined);
   }
+});
+
+test("stored settings return after an upload is revoked", async ({ page }) => {
+  await configurePage(page);
+  const panel = page.locator(".send-panel");
+  await panel.getByRole("button", { name: "Store for 1 day" }).click();
+  await panel.locator('input[type="file"]').setInputFiles({
+    name: "revoke-test.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("revoke test"),
+  });
+  await panel.getByRole("button", { name: "Store file" }).click();
+  await expect(panel.getByText("Encrypted link ready")).toBeVisible({
+    timeout: transferTimeout,
+  });
+  await expect(panel.getByText("Storage lifetime", { exact: true })).toHaveCount(0);
+  await expect(panel.getByText("Verified downloads", { exact: true })).toHaveCount(0);
+
+  await panel.getByRole("button", { name: "Revoke now" }).click();
+  await expect(panel).toContainText("Stored transfer revoked", {
+    timeout: transferTimeout,
+  });
+  await expect(panel.getByText("Storage lifetime", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Verified downloads", { exact: true })).toBeVisible();
 });
 
 test("CLI stored upload → Web download verifies and consumes files", async ({
