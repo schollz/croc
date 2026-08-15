@@ -23,6 +23,7 @@ import {
   trackTransferEvent,
   transferEvents,
 } from "./analytics";
+import { generateCode } from "./codephrase";
 import { errorMessage, formatBytes } from "./protocol/bytes";
 import {
   prepareFiles,
@@ -673,7 +674,9 @@ export function App() {
   );
   const [mobileTransferPanel, setMobileTransferPanel] =
     useState<MobileTransferPanel>(receiveOnly ? "receive" : "send");
-  const [sendCode, setSendCode] = useState("");
+  const [sendCode, setSendCode] = useState(() =>
+    receiveOnly ? "" : generateCode(),
+  );
   const [sendActivity, setSendActivity] = useState<Activity>("idle");
   const [sendStatus, setSendStatus] = useState("");
   const [sendProgress, setSendProgress] = useState<FileProgress>();
@@ -757,22 +760,7 @@ export function App() {
   }, [settings, rememberPassword]);
 
   useEffect(() => {
-    let active = true;
-    void wasm()
-      .randomCode()
-      .then((code) => {
-        if (active) {
-          setSendCode((current) => current || code);
-        }
-      })
-      .catch((error) => {
-        if (active) {
-          setSendActivity("error");
-          setSendStatus(`Could not initialize croc: ${errorMessage(error)}`);
-        }
-      });
     return () => {
-      active = false;
       if (copyReset.current !== undefined) {
         window.clearTimeout(copyReset.current);
       }
@@ -817,10 +805,10 @@ export function App() {
     setSendStatus("");
   }
 
-  async function regenerateCode() {
+  function regenerateCode() {
     if (sendActivity === "working") return;
     setCopyState("idle");
-    setSendCode(await wasm().randomCode());
+    setSendCode(generateCode());
   }
 
   async function copyValue(value: string) {

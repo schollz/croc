@@ -157,10 +157,6 @@ export class CrocWasm {
     return this.call<Uint8Array>("hashFinal", [handle]);
   }
 
-  randomCode() {
-    return this.call<string>("randomCode");
-  }
-
   codeComponents(secret: string) {
     return this.call<CodeComponents>("codeComponents", [secret]);
   }
