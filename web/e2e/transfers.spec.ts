@@ -882,7 +882,7 @@ test("Web stored upload → CLI download consumes the transfer", async ({
   try {
     await receiver.done;
     await expectDirectory(destination, fixtures);
-    await expect(panel).toContainText("Encrypted upload ready to share");
+    await expect(panel.getByText("Encrypted link ready")).toBeVisible();
   } finally {
     receiver.stop();
     await receiver.done.catch(() => undefined);
