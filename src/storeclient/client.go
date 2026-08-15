@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/schollz/croc/v10/src/storecrypto"
+	"github.com/schollz/croc/v11/src/storecrypto"
 )
 
 const maxJSONResponse = 1 << 20

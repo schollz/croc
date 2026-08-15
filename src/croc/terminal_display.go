@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/schollz/croc/v10/src/termui"
+	"github.com/schollz/croc/v11/src/termui"
 	"github.com/schollz/progressbar/v3"
 )
 

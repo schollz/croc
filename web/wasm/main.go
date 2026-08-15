@@ -11,11 +11,11 @@ import (
 	"syscall/js"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/schollz/croc/v10/src/codephrase"
-	croccompress "github.com/schollz/croc/v10/src/compress"
-	"github.com/schollz/croc/v10/src/crypt"
-	"github.com/schollz/croc/v10/src/pakekey"
-	"github.com/schollz/croc/v10/src/storecrypto"
+	"github.com/schollz/croc/v11/src/codephrase"
+	croccompress "github.com/schollz/croc/v11/src/compress"
+	"github.com/schollz/croc/v11/src/crypt"
+	"github.com/schollz/croc/v11/src/pakekey"
+	"github.com/schollz/croc/v11/src/storecrypto"
 	"github.com/schollz/pake/v3"
 )
 

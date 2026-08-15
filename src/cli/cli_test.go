@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/schollz/croc/v10/internal/cli"
-	"github.com/schollz/croc/v10/src/tcp"
+	"github.com/schollz/croc/v11/internal/cli"
+	"github.com/schollz/croc/v11/src/tcp"
 )
 
 func TestRelayMaxRoomsOpenConfiguration(t *testing.T) {

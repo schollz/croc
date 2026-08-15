@@ -17,7 +17,7 @@ export interface PeerKeys {
 export interface CodeComponents {
   room: string;
   passphrase: string;
-  format: "legacy" | "four-word";
+  format: "legacy" | "three-word" | "four-word";
 }
 
 type Pending = {

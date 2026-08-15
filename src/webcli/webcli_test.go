@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	internalcli "github.com/schollz/croc/v10/internal/cli"
+	internalcli "github.com/schollz/croc/v11/internal/cli"
 )
 
 func TestAppIdentityAndArguments(t *testing.T) {

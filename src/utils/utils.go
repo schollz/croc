@@ -27,8 +27,8 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/kalafut/imohash"
 	"github.com/minio/highwayhash"
-	"github.com/schollz/croc/v10/src/codephrase"
-	"github.com/schollz/croc/v10/src/termui"
+	"github.com/schollz/croc/v11/src/codephrase"
+	"github.com/schollz/croc/v11/src/termui"
 	log "github.com/schollz/logger"
 	"github.com/schollz/progressbar/v3"
 )
@@ -328,7 +328,7 @@ func GenerateRandomPin() string {
 	return s
 }
 
-// GetRandomName returns a random four-word croc code.
+// GetRandomName returns a random three-word croc code.
 //
 // It retains its historical signature for callers outside croc. New code that
 // needs to handle a random-source failure should call codephrase.Generate.

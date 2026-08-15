@@ -26,7 +26,7 @@ Go packages into WebAssembly:
 - PBKDF2 for the legacy-compatible relay hop and AES-GCM encryption
 - raw DEFLATE compression
 - xxhash verification
-- Orchard Street four-word code generation and compatibility parsing
+- EFF three-word code generation and compatibility parsing
 
 Active sends and receives show total and per-file progress, measured bytes per
 second, and an ETA calculated with `arrival-time`.

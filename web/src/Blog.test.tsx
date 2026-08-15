@@ -42,15 +42,15 @@ describe("Blog", () => {
     render(<Blog slug="what-four-word-code-does" />);
 
     expect(
-      screen.getByRole("heading", { name: "What the four words are doing" }),
+      screen.getByRole("heading", { name: "What the three words are doing" }),
     ).toBeVisible();
     expect(screen.getByText("IN ONE SENTENCE")).toBeVisible();
     expect(document.title).toBe(
-      "What the four words are doing | croc field notes",
+      "What the three words are doing | croc field notes",
     );
     expect(
       screen.getByRole("img", {
-        name: /Four blank code tiles converge into one cryptographic key/i,
+        name: /Blank code tiles converge into one cryptographic key/i,
       }),
     ).toHaveAttribute(
       "src",

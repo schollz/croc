@@ -15,8 +15,7 @@ import (
 )
 
 const (
-	alphaWordCount = 1296
-	longWordCount  = 17576
+	effWordCount   = 1296
 	roomHashSuffix = "croc"
 )
 
@@ -27,8 +26,11 @@ const (
 	// FormatLegacy uses the first four bytes for the room and bytes after the
 	// fifth byte for PAKE.
 	FormatLegacy Format = "legacy"
+	// FormatThreeWord uses the first word for the room and the final two words
+	// for PAKE.
+	FormatThreeWord Format = "three-word"
 	// FormatFourWord uses the first two words for the room and the final two
-	// words for PAKE.
+	// words for PAKE. It is retained for compatibility with older codes.
 	FormatFourWord Format = "four-word"
 )
 
@@ -43,15 +45,12 @@ type Components struct {
 	Format         Format
 }
 
-//go:embed wordlists/orchard-street-alpha.txt
-var alphaWordList string
-
-//go:embed wordlists/orchard-street-long.txt
-var longWordList string
+//go:embed wordlists/eff-short-wordlist-1.txt
+var effWordList string
 
 var (
-	alphaWords = mustLoadWords("Orchard Street Alpha", alphaWordList, alphaWordCount)
-	longWords  = mustLoadWords("Orchard Street Long", longWordList, longWordCount)
+	effWords   = mustLoadWords("EFF Short Wordlist #1", effWordList, effWordCount)
+	effWordSet = makeWordSet(effWords)
 )
 
 func mustLoadWords(name, contents string, expected int) []string {
@@ -61,7 +60,7 @@ func mustLoadWords(name, contents string, expected int) []string {
 	}
 	seen := make(map[string]struct{}, len(words))
 	for _, word := range words {
-		if !isLowercaseWord(word) {
+		if !isLowercaseListWord(word) {
 			panic(fmt.Sprintf("%s word list contains invalid word %q", name, word))
 		}
 		if _, exists := seen[word]; exists {
@@ -72,27 +71,35 @@ func mustLoadWords(name, contents string, expected int) []string {
 	return words
 }
 
-// Generate returns a cryptographically random Alpha-Alpha-Long-Long code.
+func makeWordSet(words []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(words))
+	for _, word := range words {
+		set[word] = struct{}{}
+	}
+	return set
+}
+
+// Generate returns a cryptographically random three-word EFF code.
 func Generate() (string, error) {
 	return generate(rand.Reader)
 }
 
 func generate(reader io.Reader) (string, error) {
-	lists := [][]string{alphaWords, alphaWords, longWords, longWords}
-	words := make([]string, len(lists))
-	for i, list := range lists {
-		index, err := rand.Int(reader, big.NewInt(int64(len(list))))
+	words := make([]string, 3)
+	for i := range words {
+		index, err := rand.Int(reader, big.NewInt(int64(len(effWords))))
 		if err != nil {
 			return "", fmt.Errorf("generate croc code word %d: %w", i+1, err)
 		}
-		words[i] = list[index.Int64()]
+		words[i] = effWords[index.Int64()]
 	}
 	return strings.Join(words, "-"), nil
 }
 
 // Parse resolves a croc code into the relay room and PAKE passphrase used by
-// the protocol. Exactly four lowercase ASCII words use the four-word format;
-// every other valid code keeps croc's legacy byte-based split.
+// the protocol. Exactly three lowercase ASCII words use the current three-word
+// format. Four lowercase ASCII words keep compatibility with the previous
+// four-word format; every other valid code uses croc's legacy byte-based split.
 func Parse(secret string) (Components, error) {
 	if len(secret) < 6 {
 		return Components{}, ErrCodeTooShort
@@ -101,7 +108,15 @@ func Parse(secret string) (Components, error) {
 	roomSelector := secret[:4]
 	passphrase := secret[5:]
 	format := FormatLegacy
-	if words, ok := fourLowercaseWords(secret); ok {
+	if words, ok := threeEFFWords(secret); ok {
+		roomSelector = words[0]
+		passphrase = strings.Join(words[1:], "-")
+		format = FormatThreeWord
+	} else if words, ok := lowercaseWords(secret, 3); ok {
+		roomSelector = words[0]
+		passphrase = strings.Join(words[1:], "-")
+		format = FormatThreeWord
+	} else if words, ok := lowercaseWords(secret, 4); ok {
 		roomSelector = strings.Join(words[:2], "-")
 		passphrase = strings.Join(words[2:], "-")
 		format = FormatFourWord
@@ -115,9 +130,42 @@ func Parse(secret string) (Components, error) {
 	}, nil
 }
 
-func fourLowercaseWords(secret string) ([]string, bool) {
+// threeEFFWords recognizes generated codes even though the EFF list contains
+// the word "yo-yo", which uses the same hyphen as croc's word separator.
+func threeEFFWords(secret string) ([]string, bool) {
+	parts := strings.Split(secret, "-")
+	if len(parts) < 3 || len(parts) > 6 {
+		return nil, false
+	}
+
+	words := make([]string, 0, 3)
+	var parse func(int) bool
+	parse = func(start int) bool {
+		if len(words) == 3 {
+			return start == len(parts)
+		}
+		for end := start + 1; end <= len(parts); end++ {
+			word := strings.Join(parts[start:end], "-")
+			if _, ok := effWordSet[word]; !ok {
+				continue
+			}
+			words = append(words, word)
+			if parse(end) {
+				return true
+			}
+			words = words[:len(words)-1]
+		}
+		return false
+	}
+	if !parse(0) {
+		return nil, false
+	}
+	return words, true
+}
+
+func lowercaseWords(secret string, count int) ([]string, bool) {
 	words := strings.Split(secret, "-")
-	if len(words) != 4 {
+	if len(words) != count {
 		return nil, false
 	}
 	for _, word := range words {
@@ -134,6 +182,16 @@ func isLowercaseWord(word string) bool {
 	}
 	for _, char := range word {
 		if char < 'a' || char > 'z' {
+			return false
+		}
+	}
+	return true
+}
+
+func isLowercaseListWord(word string) bool {
+	parts := strings.Split(word, "-")
+	for _, part := range parts {
+		if !isLowercaseWord(part) {
 			return false
 		}
 	}

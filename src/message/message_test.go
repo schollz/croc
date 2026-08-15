@@ -5,8 +5,8 @@ import (
 	"net"
 	"testing"
 
-	"github.com/schollz/croc/v10/src/comm"
-	"github.com/schollz/croc/v10/src/crypt"
+	"github.com/schollz/croc/v11/src/comm"
+	"github.com/schollz/croc/v11/src/crypt"
 	log "github.com/schollz/logger"
 	"github.com/stretchr/testify/assert"
 )

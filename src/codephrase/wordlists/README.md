@@ -1,12 +1,13 @@
-# Orchard Street word-list snapshot
+# EFF Short Wordlist #1 snapshot
 
-The files in this directory are unmodified snapshots from
-[`sts10/orchard-street-wordlists`](https://github.com/sts10/orchard-street-wordlists)
-at commit [`4fd015fe9a8e50d837d9f54cb39883bb801da1ed`](https://github.com/sts10/orchard-street-wordlists/commit/4fd015fe9a8e50d837d9f54cb39883bb801da1ed):
+`eff-short-wordlist-1.txt` contains the word column from the Electronic
+Frontier Foundation's [Short Wordlist #1](https://www.eff.org/files/2016/09/08/eff_short_wordlist_1.txt).
+The original four-dice labels were removed; the words and their order are
+otherwise unchanged.
 
-- `orchard-street-alpha.txt` — SHA-256 `f50e9890e62c5cfac535f51193914018591e49e50b56b38b8fd60bcbe7af8796`
-- `orchard-street-long.txt` — SHA-256 `21b00942246dc7f0ecf5321dc22bc4ce2326b51ea72ea55697d754601ca115d2`
+- Original EFF file SHA-256: `8f5ca830b8bffb6fe39c9736c024a00a6a6411adb3f83a9be8bfeeb6e067ae69`
+- Vendored word-only file SHA-256: `36ecca49e4fa20ca84b176c32f2e9c82f98f446585190e75f9879a95c08247bf`
 
-The word lists are by sts10 and contributors and are licensed under the
-Creative Commons Attribution-ShareAlike 4.0 International License. See
-`LICENSE.txt` for the license text.
+The word list is by the Electronic Frontier Foundation and is licensed under
+the Creative Commons Attribution 4.0 International License. See `LICENSE.txt`
+for the license text.

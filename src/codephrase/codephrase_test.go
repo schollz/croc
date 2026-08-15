@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,67 +23,52 @@ func (failingReader) Read([]byte) (int, error) {
 	return 0, errors.New("random source failed")
 }
 
-func TestVendoredWordLists(t *testing.T) {
-	tests := []struct {
-		name      string
-		raw       string
-		words     []string
-		count     int
-		firstWord string
-		lastWord  string
-		sha256    string
-	}{
-		{
-			name:      "alpha",
-			raw:       alphaWordList,
-			words:     alphaWords,
-			count:     1296,
-			firstWord: "abbot",
-			lastWord:  "zoom",
-			sha256:    "f50e9890e62c5cfac535f51193914018591e49e50b56b38b8fd60bcbe7af8796",
-		},
-		{
-			name:      "long",
-			raw:       longWordList,
-			words:     longWords,
-			count:     17576,
-			firstWord: "abandon",
-			lastWord:  "zoom",
-			sha256:    "21b00942246dc7f0ecf5321dc22bc4ce2326b51ea72ea55697d754601ca115d2",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Len(t, tt.words, tt.count)
-			assert.Equal(t, tt.firstWord, tt.words[0])
-			assert.Equal(t, tt.lastWord, tt.words[len(tt.words)-1])
-			digest := sha256.Sum256([]byte(tt.raw))
-			assert.Equal(t, tt.sha256, hex.EncodeToString(digest[:]))
-			seen := make(map[string]struct{}, len(tt.words))
-			for _, word := range tt.words {
-				assert.Truef(t, isLowercaseWord(word), "invalid word %q", word)
-				_, duplicate := seen[word]
-				assert.Falsef(t, duplicate, "duplicate word %q", word)
-				seen[word] = struct{}{}
-			}
-		})
+func TestVendoredWordList(t *testing.T) {
+	require.Len(t, effWords, 1296)
+	assert.Equal(t, "acid", effWords[0])
+	assert.Equal(t, "zoom", effWords[len(effWords)-1])
+	digest := sha256.Sum256([]byte(effWordList))
+	assert.Equal(t, "36ecca49e4fa20ca84b176c32f2e9c82f98f446585190e75f9879a95c08247bf", hex.EncodeToString(digest[:]))
+	seen := make(map[string]struct{}, len(effWords))
+	for _, word := range effWords {
+		assert.Truef(t, isLowercaseListWord(word), "invalid word %q", word)
+		_, duplicate := seen[word]
+		assert.Falsef(t, duplicate, "duplicate word %q", word)
+		seen[word] = struct{}{}
 	}
 }
 
 func TestGenerate(t *testing.T) {
 	code, err := generate(zeroReader{})
 	require.NoError(t, err)
-	assert.Equal(t, "abbot-abbot-abandon-abandon", code)
+	assert.Equal(t, "acid-acid-acid", code)
 
 	randomCode, err := Generate()
 	require.NoError(t, err)
-	words := strings.Split(randomCode, "-")
-	require.Len(t, words, 4)
-	assert.Contains(t, alphaWords, words[0])
-	assert.Contains(t, alphaWords, words[1])
-	assert.Contains(t, longWords, words[2])
-	assert.Contains(t, longWords, words[3])
+	words, ok := threeEFFWords(randomCode)
+	require.True(t, ok)
+	require.Len(t, words, 3)
+	for _, word := range words {
+		assert.Contains(t, effWords, word)
+	}
+}
+
+func TestThreeEFFWordsSupportsHyphenatedWord(t *testing.T) {
+	tests := []string{
+		"yo-yo-acid-acorn",
+		"acid-yo-yo-acorn",
+		"acid-acorn-yo-yo",
+		"yo-yo-yo-yo-yo-yo",
+	}
+	for _, secret := range tests {
+		words, ok := threeEFFWords(secret)
+		require.Truef(t, ok, "did not recognize %q", secret)
+		assert.Contains(t, words, "yo-yo")
+
+		components, err := Parse(secret)
+		require.NoError(t, err)
+		assert.Equal(t, FormatThreeWord, components.Format)
+	}
 }
 
 func TestGeneratePropagatesRandomSourceErrors(t *testing.T) {
@@ -103,14 +87,28 @@ func TestParse(t *testing.T) {
 		pakePassphrase string
 	}{
 		{
-			name:           "orchard street code",
+			name:           "EFF three-word code",
+			secret:         "acid-acorn-acre",
+			format:         FormatThreeWord,
+			roomSelector:   "acid",
+			pakePassphrase: "acorn-acre",
+		},
+		{
+			name:           "arbitrary lowercase words reserve three-word format",
+			secret:         "foo-bar-baz",
+			format:         FormatThreeWord,
+			roomSelector:   "foo",
+			pakePassphrase: "bar-baz",
+		},
+		{
+			name:           "previous four-word code remains compatible",
 			secret:         "abbot-abide-abandon-abandoned",
 			format:         FormatFourWord,
 			roomSelector:   "abbot-abide",
 			pakePassphrase: "abandon-abandoned",
 		},
 		{
-			name:           "arbitrary lowercase words reserve new format",
+			name:           "arbitrary lowercase words reserve four-word format",
 			secret:         "foo-bar-baz-qux",
 			format:         FormatFourWord,
 			roomSelector:   "foo-bar",
@@ -139,24 +137,24 @@ func TestParse(t *testing.T) {
 		},
 		{
 			name:           "uppercase word falls back",
-			secret:         "Word-word-word-word",
+			secret:         "Word-word-word",
 			format:         FormatLegacy,
 			roomSelector:   "Word",
-			pakePassphrase: "word-word-word",
+			pakePassphrase: "word-word",
 		},
 		{
 			name:           "numeric character falls back",
-			secret:         "word1-word-word-word",
-			format:         FormatLegacy,
-			roomSelector:   "word",
-			pakePassphrase: "-word-word-word",
-		},
-		{
-			name:           "empty component falls back",
-			secret:         "word--word-word",
+			secret:         "word1-word-word",
 			format:         FormatLegacy,
 			roomSelector:   "word",
 			pakePassphrase: "-word-word",
+		},
+		{
+			name:           "empty component falls back",
+			secret:         "word--word",
+			format:         FormatLegacy,
+			roomSelector:   "word",
+			pakePassphrase: "-word",
 		},
 		{
 			name:           "extra component falls back",
@@ -179,11 +177,11 @@ func TestParse(t *testing.T) {
 }
 
 func TestParseUsesStableRoomHash(t *testing.T) {
-	components, err := Parse("abbot-abide-abandon-abandoned")
+	components, err := Parse("acid-acorn-acre")
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		"94707140c3581a1d897d27dd93462cdb7df85df84d7e9d7b874e8267fb1cee67",
+		"f72491c26f320da8a93ea323d8d23b4561e0634f967ba21cb268a1cd0df48a12",
 		components.RoomName,
 	)
 }

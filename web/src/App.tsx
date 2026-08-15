@@ -575,7 +575,7 @@ function BlogTeaser() {
           <p className="eyebrow">Field notes</p>
           <h2 id="home-blog-title">What happens after you press Send?</h2>
           <p>
-            Plainspoken notes about the relay, the four-word code, and the ways
+            Plainspoken notes about the relay, the three-word code, and the ways
             browsers and terminals meet in the same transfer.
           </p>
         </div>
@@ -1466,8 +1466,8 @@ export function App() {
                 </span>
               </div>
               <p className="field-help">
-                Generated codes use the first two words to find the transfer
-                and the last two words to secure it.
+                Generated codes use the first word to find the transfer and the
+                last two words to secure it.
               </p>
               <ShareQRCode
                 value={directReceiveURL}
@@ -1597,7 +1597,7 @@ export function App() {
             id="receive-code"
             value={receiveCode}
             disabled={receiveBusy}
-            placeholder="word-word-word-word or encrypted link"
+            placeholder="word-word-word or encrypted link"
             spellCheck={false}
             autoComplete="off"
             autoCapitalize="none"

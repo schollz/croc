@@ -513,7 +513,7 @@ function BrowserVisual() {
       <div className="mock-browser-bar"><i /><i /><i /><span>getcroc.com</span></div>
       <div className="mock-browser-body">
         <span><Upload /> Choose files</span>
-        <code>river-cabin-lantern-moss</code>
+        <code>river-cloud-daisy</code>
         <strong><ArrowRight /> Send files</strong>
       </div>
     </div>

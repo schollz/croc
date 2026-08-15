@@ -19,7 +19,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/schollz/croc/v10/src/codephrase"
+	"github.com/schollz/croc/v11/src/codephrase"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -360,10 +360,9 @@ func TestLocalIPsFromAddrsIncludesRoutableIPv4AndIPv6(t *testing.T) {
 
 func TestGetRandomName(t *testing.T) {
 	name := GetRandomName()
-	assert.Regexp(t, `^[a-z]+-[a-z]+-[a-z]+-[a-z]+$`, name)
 	components, err := codephrase.Parse(name)
 	assert.NoError(t, err)
-	assert.Equal(t, codephrase.FormatFourWord, components.Format)
+	assert.Equal(t, codephrase.FormatThreeWord, components.Format)
 }
 
 func intSliceSame(a, b []int) bool {

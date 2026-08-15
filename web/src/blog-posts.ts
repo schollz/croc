@@ -177,7 +177,7 @@ const drafts: DraftBlogPost[] = [
       { type: "heading", text: "A short code should stay short" },
       {
         type: "paragraph",
-        text: "The code also had to be something I could tell another person without reading a small novel of random characters. Four words are manageable. Four words are not, by themselves, the sort of key I want encrypting gigabytes of data. Making the code fifty characters long would help the cryptography and ruin the interface.",
+        text: "The code also had to be something I could tell another person without reading a small novel of random characters. Three words are manageable. Three words are not, by themselves, the sort of key I want encrypting gigabytes of data. Making the code fifty characters long would help the cryptography and ruin the interface.",
       },
       {
         type: "paragraph",
@@ -217,14 +217,14 @@ const drafts: DraftBlogPost[] = [
         label: "The whole interface",
         lines: [
           "$ croc send sketchbook.zip",
-          "Code is: river-cabin-lantern-moss",
+          "Code is: river-cloud-daisy",
           "",
-          "$ croc river-cabin-lantern-moss",
+          "$ croc river-cloud-daisy",
         ],
       },
       {
         type: "paragraph",
-        text: "That is still more or less my test for croc. If sending one file begins to feel like configuring a file-transfer system, something has gone wrong. I want to choose the file, tell my friend four words, and get back to the turkey documentary.",
+        text: "That is still more or less my test for croc. If sending one file begins to feel like configuring a file-transfer system, something has gone wrong. I want to choose the file, tell my friend three words, and get back to the turkey documentary.",
       },
     ],
   },
@@ -275,10 +275,10 @@ const drafts: DraftBlogPost[] = [
         label: "A complete direct transfer",
         lines: [
           "$ croc send field-notes.pdf",
-          "Code is: river-cabin-lantern-moss",
+          "Code is: river-cloud-daisy",
           "",
           "$ croc",
-          "Enter receive code: river-cabin-lantern-moss",
+          "Enter receive code: river-cloud-daisy",
         ],
       },
       { type: "heading", text: "The browser is another croc peer" },
@@ -291,9 +291,9 @@ const drafts: DraftBlogPost[] = [
   {
     slug: "what-four-word-code-does",
     number: "03",
-    title: "What the four words are doing",
+    title: "What the three words are doing",
     description:
-      "I wanted a croc code to be easy to read aloud. Making four ordinary words secure enough for a file transfer takes a little more work.",
+      "I wanted a croc code to be easy to read aloud. Making three ordinary words secure enough for a file transfer takes a little more work.",
     category: "Security",
     publishedAt: "2026-08-08",
     publishedLabel: "August 8, 2026",
@@ -304,11 +304,11 @@ const drafts: DraftBlogPost[] = [
     blocks: [
       {
         type: "paragraph",
-        text: "A croc code looks almost too friendly for cryptography. It is four ordinary words with hyphens between them. I chose words because they survive being copied into a message, read over the phone, or typed on a tiny keyboard much better than a long string of punctuation. You can also notice when somebody only sent three of them.",
+        text: "A croc code looks almost too friendly for cryptography. It is three ordinary words with hyphens between them. I chose words because they survive being copied into a message, read over the phone, or typed on a tiny keyboard much better than a long string of punctuation. You can also notice when somebody only sent two of them.",
       },
       {
         type: "paragraph",
-        text: "The code has two jobs. It helps the clients meet in the same transfer, and it gives them a small secret that both people know. What it does not do is directly encrypt the file. Four words would be carrying far too much weight if that were the complete scheme.",
+        text: "The code has two jobs. It helps the clients meet in the same transfer, and it gives them a small secret that both people know. What it does not do is directly encrypt the file. Three words would be carrying far too much weight if that were the complete scheme.",
       },
       { type: "heading", text: "The words start the exchange" },
       {
@@ -333,7 +333,7 @@ const drafts: DraftBlogPost[] = [
       {
         type: "list",
         items: [
-          "Copy all four words, including their order.",
+          "Copy all three words, including their order.",
           "Treat a QR code as another representation of the same secret.",
           "Do not post a live code in a public room for a private file.",
           "Let croc generate a fresh phrase unless there is a good reason to choose one.",
@@ -346,7 +346,7 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "So the four words are doing more than naming a room, and less than encrypting the file. They are the small thing the two people move. PAKE uses that small thing to make the large secret the computers actually need.",
+        text: "So the three words are doing more than naming a room, and less than encrypting the file. They are the small thing the two people move. PAKE uses that small thing to make the large secret the computers actually need.",
       },
     ],
   },
@@ -483,7 +483,7 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "On screen this all becomes four words and a progress bar. Underneath are two curve points, two random values, a transcript, a key schedule, and two confirmation checks. That is quite a lot of machinery for a short code, but it lets the short code remain short. That was the problem in the first place.",
+        text: "On screen this all becomes three words and a progress bar. Underneath are two curve points, two random values, a transcript, a key schedule, and two confirmation checks. That is quite a lot of machinery for a short code, but it lets the short code remain short. That was the problem in the first place.",
       },
     ],
   },
@@ -513,7 +513,7 @@ const drafts: DraftBlogPost[] = [
       { type: "heading", text: "2. Send the code to the other person" },
       {
         type: "paragraph",
-        text: "croc makes a four-word code. Copy it into a message, or show the QR code if the other device is close enough to scan it. I added the QR version mostly for laptop-to-phone transfers because typing four hyphenated words on a phone is not difficult, but scanning them is nicer. The code is a live secret, so send it privately when the file is private.",
+        text: "croc makes a three-word code. Copy it into a message, or show the QR code if the other device is close enough to scan it. I added the QR version mostly for laptop-to-phone transfers because typing three hyphenated words on a phone is not difficult, but scanning them is nicer. The code is a live secret, so send it privately when the file is private.",
       },
       {
         type: "aside",
@@ -579,7 +579,7 @@ const drafts: DraftBlogPost[] = [
         lines: [
           "$ croc send --qr photos.zip",
           "Sending 'photos.zip' (842 MB)",
-          "Code is: amber-ferry-piano-rain",
+          "Code is: flame-ferry-tiger",
         ],
       },
       { type: "heading", text: "Browser to terminal" },
@@ -590,7 +590,7 @@ const drafts: DraftBlogPost[] = [
       {
         type: "code",
         label: "Receive without exposing the phrase as an argument",
-        lines: ["$ croc", "Enter receive code: amber-ferry-piano-rain"],
+        lines: ["$ croc", "Enter receive code: flame-ferry-tiger"],
       },
       {
         type: "aside",

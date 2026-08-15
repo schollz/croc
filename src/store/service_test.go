@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/schollz/croc/v10/src/storecrypto"
+	"github.com/schollz/croc/v11/src/storecrypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

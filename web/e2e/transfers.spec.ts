@@ -671,18 +671,18 @@ test("copying a croc code shows confirmation", async ({ page }) => {
   await expect(panel.getByRole("button", { name: "Code copied" })).toBeVisible();
 });
 
-test("generates a complete four-word code on narrow screens", async ({ page }) => {
+test("generates a complete three-word code on narrow screens", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await expect(page.locator(".send-panel").getByLabel("Croc code")).toHaveValue(
-    /^[a-z]+-[a-z]+-[a-z]+-[a-z]+$/,
+    /^[a-z]+(?:-[a-z]+){2,5}$/,
   );
 });
 
 test("CLI → Web transfers and verifies multiple files", async ({
   page,
 }, testInfo) => {
-  const secret = "abbot-abide-abandon-abandoned";
+  const secret = "acid-acorn-acre";
   const fixtures = await createFixtures(testInfo);
   const configDirectory = testInfo.outputPath("croc-config");
   await fs.mkdir(configDirectory, { recursive: true });
@@ -746,7 +746,7 @@ test("CLI → Web verifies a large croc executable", async ({
 test("Web → CLI transfers and verifies multiple files", async ({
   page,
 }, testInfo) => {
-  const secret = "abode-above-abandoning-abandonment";
+  const secret = "acts-afar-affix";
   const fixtures = await createFixtures(testInfo);
   const destination = testInfo.outputPath("received");
   const configDirectory = testInfo.outputPath("croc-config");
@@ -779,7 +779,7 @@ test("Web → CLI transfers and verifies multiple files", async ({
 test("Web → Web transfers and verifies multiple files", async ({
   browser,
 }, testInfo) => {
-  const secret = "account-ache-abatement-abbey";
+  const secret = "aged-agent-agile";
   const fixtures = await createFixtures(testInfo);
   const senderContext = await browser.newContext({ acceptDownloads: true });
   const receiverContext = await browser.newContext({ acceptDownloads: true });

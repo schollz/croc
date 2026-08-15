@@ -23,8 +23,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/schollz/croc/v10/src/diskusage"
-	"github.com/schollz/croc/v10/src/storecrypto"
+	"github.com/schollz/croc/v11/src/diskusage"
+	"github.com/schollz/croc/v11/src/storecrypto"
 )
 
 const (
