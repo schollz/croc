@@ -164,7 +164,7 @@ You can also just paste it in the terminal for current session. On first run Doc
 
 ### Build from Source
 
-If you prefer, you can [install Go](https://go.dev/dl/) and build from source (requires Go 1.22+):
+If you prefer, you can [install Go](https://go.dev/dl/) and build from source (requires Go 1.25+):
 
 ```bash
 go install github.com/schollz/croc/v10@latest
