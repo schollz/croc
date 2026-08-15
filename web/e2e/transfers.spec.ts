@@ -724,7 +724,11 @@ test("reveals a mobile-sized three-word code only after Send file is pressed", a
     copyButton.boundingBox(),
   ]);
   expect(labelBox!.y + labelBox!.height).toBeLessThanOrEqual(codeBox!.y);
-  expect(Math.abs(codeBox!.y - copyBox!.y)).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(
+      codeBox!.y + codeBox!.height / 2 - (copyBox!.y + copyBox!.height / 2),
+    ),
+  ).toBeLessThanOrEqual(1);
   expect(codeBox!.x + codeBox!.width).toBeLessThanOrEqual(copyBox!.x);
   expect(await code.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
     true,
