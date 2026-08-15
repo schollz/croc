@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/schollz/croc/v10/internal/cli"
-	"github.com/schollz/croc/v10/src/models"
-	storeapi "github.com/schollz/croc/v10/src/store"
-	buildversion "github.com/schollz/croc/v10/src/version"
-	"github.com/schollz/croc/v10/src/webassets"
-	"github.com/schollz/croc/v10/src/webrelay"
+	"github.com/schollz/croc/v11/internal/cli"
+	"github.com/schollz/croc/v11/src/models"
+	storeapi "github.com/schollz/croc/v11/src/store"
+	buildversion "github.com/schollz/croc/v11/src/version"
+	"github.com/schollz/croc/v11/src/webassets"
+	"github.com/schollz/croc/v11/src/webrelay"
 	log "github.com/schollz/logger"
 )
 

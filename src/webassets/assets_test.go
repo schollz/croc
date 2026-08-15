@@ -26,8 +26,8 @@ func TestEmbeddedClientContainsEntryPointAndWasm(t *testing.T) {
 		[]byte(`type="application/ld+json"`),
 		[]byte(`"@type": "WebApplication"`),
 		[]byte(`"@type": "AggregateRating"`),
-		[]byte(`"ratingCount": 10`),
-		[]byte(`"reviewCount": 10`),
+		[]byte(`"ratingCount": 50`),
+		[]byte(`"reviewCount": 50`),
 		[]byte(`"reviewBody": "I use croc here a lot. Awesome binary for me"`),
 	} {
 		if !bytes.Contains(index, fragment) {
@@ -39,7 +39,7 @@ func TestEmbeddedClientContainsEntryPointAndWasm(t *testing.T) {
 		t.Fatalf("read embedded PAKE article: %v", err)
 	}
 	for _, fragment := range [][]byte{
-		[]byte(`<title>PAKE, step by step — croc field notes</title>`),
+		[]byte(`<title>PAKE, step by step | croc field notes</title>`),
 		[]byte(`rel="canonical" href="https://getcroc.com/blog/pake-step-by-step"`),
 		[]byte(`property="og:image" content="https://getcroc.com/blog/images/pake-step-by-step.jpg"`),
 		[]byte(`name="twitter:card" content="summary_large_image"`),

@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/rivo/uniseg"
-	"github.com/schollz/croc/v10/src/storeclient"
-	"github.com/schollz/croc/v10/src/termui"
-	"github.com/schollz/croc/v10/src/utils"
+	"github.com/schollz/croc/v11/src/storeclient"
+	"github.com/schollz/croc/v11/src/termui"
+	"github.com/schollz/croc/v11/src/utils"
 )
 
 func TestStoredCallbacksClearPreviousLine(t *testing.T) {

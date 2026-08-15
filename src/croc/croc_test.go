@@ -19,9 +19,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/schollz/croc/v10/src/message"
-	"github.com/schollz/croc/v10/src/tcp"
-	"github.com/schollz/croc/v10/src/utils"
+	"github.com/schollz/croc/v11/src/message"
+	"github.com/schollz/croc/v11/src/tcp"
+	"github.com/schollz/croc/v11/src/utils"
 	log "github.com/schollz/logger"
 	"github.com/schollz/peerdiscovery"
 	"github.com/stretchr/testify/assert"
@@ -419,7 +419,7 @@ func TestHostileExistingSymlinkParentRejected(t *testing.T) {
 
 func TestCrocReadme(t *testing.T) {
 	defer os.Remove("README.md")
-	const secret = "abbot-abide-abandon-abandoned"
+	const secret = "acid-acorn-acre"
 
 	log.Debug("setting up sender")
 	sender, err := New(Options{

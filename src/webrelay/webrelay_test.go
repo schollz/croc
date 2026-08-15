@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/schollz/croc/v10/src/store"
+	"github.com/schollz/croc/v11/src/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

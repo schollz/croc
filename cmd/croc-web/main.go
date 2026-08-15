@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/schollz/croc/v10/src/webcli"
+	"github.com/schollz/croc/v11/src/webcli"
 )
 
 func main() {

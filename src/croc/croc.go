@@ -34,16 +34,16 @@ import (
 	"golang.org/x/term"
 	"golang.org/x/time/rate"
 
-	"github.com/schollz/croc/v10/src/codephrase"
-	"github.com/schollz/croc/v10/src/comm"
-	"github.com/schollz/croc/v10/src/compress"
-	"github.com/schollz/croc/v10/src/crypt"
-	"github.com/schollz/croc/v10/src/message"
-	"github.com/schollz/croc/v10/src/models"
-	"github.com/schollz/croc/v10/src/pakekey"
-	"github.com/schollz/croc/v10/src/tcp"
-	"github.com/schollz/croc/v10/src/termui"
-	"github.com/schollz/croc/v10/src/utils"
+	"github.com/schollz/croc/v11/src/codephrase"
+	"github.com/schollz/croc/v11/src/comm"
+	"github.com/schollz/croc/v11/src/compress"
+	"github.com/schollz/croc/v11/src/crypt"
+	"github.com/schollz/croc/v11/src/message"
+	"github.com/schollz/croc/v11/src/models"
+	"github.com/schollz/croc/v11/src/pakekey"
+	"github.com/schollz/croc/v11/src/tcp"
+	"github.com/schollz/croc/v11/src/termui"
+	"github.com/schollz/croc/v11/src/utils"
 )
 
 var (

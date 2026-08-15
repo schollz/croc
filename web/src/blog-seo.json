@@ -76,8 +76,8 @@
     },
     {
       "slug": "what-four-word-code-does",
-      "title": "What the four words are doing",
-      "description": "I wanted a croc code to be easy to read aloud. Making four ordinary words secure enough for a file transfer takes a little more work.",
+      "title": "What the three words are doing",
+      "description": "I wanted a croc code to be easy to read aloud. Making three ordinary words secure enough for a file transfer takes a little more work.",
       "category": "Security",
       "publishedAt": "2026-08-08",
       "modifiedAt": "2026-08-10",
@@ -96,7 +96,7 @@
       ],
       "image": "/blog/images/what-four-word-code-does.webp",
       "socialImage": "/blog/images/what-four-word-code-does.jpg",
-      "imageAlt": "Four blank code tiles converge into one cryptographic key."
+      "imageAlt": "Blank code tiles converge into one cryptographic key."
     },
     {
       "slug": "pake-step-by-step",
