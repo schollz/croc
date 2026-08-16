@@ -1,13 +1,19 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { preloadWasm, wasm } from "./client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("WASM preloading", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  beforeEach(() => vi.resetModules());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
 
-  it("starts one shared protocol worker before the first method call", () => {
+  it("compiles the document preload and sends the module to one shared worker", async () => {
     const workers: FakeWorker[] = [];
+    const module = {} as WebAssembly.Module;
 
     class FakeWorker {
+      readonly messages: unknown[] = [];
+
       constructor(
         readonly url: string,
         readonly options: WorkerOptions,
@@ -16,11 +22,23 @@ describe("WASM preloading", () => {
       }
 
       addEventListener() {}
-      postMessage() {}
+      postMessage(message: unknown) {
+        this.messages.push(message);
+      }
       terminate() {}
     }
 
     vi.stubGlobal("Worker", FakeWorker);
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("", {
+        headers: { "content-type": "application/wasm" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const compileStreaming = vi
+      .spyOn(WebAssembly, "compileStreaming")
+      .mockResolvedValue(module);
+    const { preloadWasm, wasm } = await import("./client");
 
     preloadWasm();
 
@@ -31,5 +49,13 @@ describe("WASM preloading", () => {
     });
     expect(wasm()).toBe(wasm());
     expect(workers).toHaveLength(1);
+    await vi.waitFor(() => {
+      expect(workers[0].messages).toEqual([
+        { type: "initialize", module },
+      ]);
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith("/croc.wasm");
+    expect(compileStreaming).toHaveBeenCalledOnce();
   });
 });

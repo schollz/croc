@@ -25,10 +25,27 @@ type Pending = {
   reject(reason: Error): void;
 };
 
+async function compileWasmModule() {
+  const response = await fetch(`${import.meta.env.BASE_URL}croc.wasm`);
+  if (!response.ok) {
+    throw new Error(`Could not load croc.wasm (${response.status})`);
+  }
+
+  const contentType = response.headers.get("content-type")?.split(";", 1)[0];
+  if (
+    typeof WebAssembly.compileStreaming === "function" &&
+    contentType === "application/wasm"
+  ) {
+    return WebAssembly.compileStreaming(response);
+  }
+  return WebAssembly.compile(await response.arrayBuffer());
+}
+
 export class CrocWasm {
   private worker: Worker;
   private nextID = 1;
   private pending = new Map<number, Pending>();
+  private fatalError: Error | undefined;
 
   constructor(worker?: Worker) {
     this.worker =
@@ -43,10 +60,7 @@ export class CrocWasm {
         error?: string;
       };
       if (id === 0) {
-        for (const pending of this.pending.values()) {
-          pending.reject(new Error(error ?? "WASM worker failed"));
-        }
-        this.pending.clear();
+        this.fail(new Error(error ?? "WASM worker failed"));
         return;
       }
       const pending = this.pending.get(id);
@@ -56,20 +70,32 @@ export class CrocWasm {
       else pending.resolve(result);
     });
     this.worker.addEventListener("error", (event) => {
-      const error = new Error(event.message || "WASM worker crashed");
-      for (const pending of this.pending.values()) pending.reject(error);
-      this.pending.clear();
+      this.fail(new Error(event.message || "WASM worker crashed"));
     });
+    void compileWasmModule()
+      .then((module) => {
+        if (!this.fatalError) {
+          this.worker.postMessage({ type: "initialize", module });
+        }
+      })
+      .catch((error) => this.fail(error));
   }
 
   close() {
     this.worker.terminate();
-    const error = new Error("WASM worker closed");
+    this.fail(new Error("WASM worker closed"));
+  }
+
+  private fail(reason: unknown) {
+    const error =
+      reason instanceof Error ? reason : new Error(String(reason));
+    this.fatalError = error;
     for (const pending of this.pending.values()) pending.reject(error);
     this.pending.clear();
   }
 
   private call<T>(method: string, args: unknown[] = [], transfer: Transferable[] = []) {
+    if (this.fatalError) return Promise.reject(this.fatalError);
     const id = this.nextID++;
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject });

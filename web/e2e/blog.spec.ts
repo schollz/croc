@@ -35,6 +35,7 @@ test("every article exposes complete crawler metadata before JavaScript", async 
     expect(html).toContain(`"wordCount":${post.wordCount}`);
     expect(html).toContain(`"timeRequired":"PT${post.readingMinutes}M"`);
     expect(html).toContain('"relatedLink"');
+    expect(html).not.toContain('href="/croc.wasm"');
   }
 
   const comparison = blogSEO.posts.find(

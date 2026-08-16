@@ -17,10 +17,17 @@ metadata.posts.sort(
 const template = await readFile(path.join(distRoot, "index.html"), "utf8");
 const routeMarker =
   /<!-- ROUTE_SEO_START -->[\s\S]*?<!-- ROUTE_SEO_END -->/;
+const wasmPreloadMarker =
+  /\s*<!-- WASM_PRELOAD_START -->[\s\S]*?<!-- WASM_PRELOAD_END -->/;
 
 if (!routeMarker.test(template)) {
   throw new Error("Built index.html is missing the route SEO markers");
 }
+if (!wasmPreloadMarker.test(template)) {
+  throw new Error("Built index.html is missing the WASM preload markers");
+}
+
+const blogTemplate = template.replace(wasmPreloadMarker, "");
 
 const absoluteURL = (value) => new URL(value, `${metadata.site.url}/`).href;
 const escapeHTML = (value) => String(value)
@@ -280,7 +287,7 @@ const routes = [
 ];
 
 for (const route of routes) {
-  const routeHTML = template.replace(
+  const routeHTML = blogTemplate.replace(
     routeMarker,
     routeSEO(route.entry, route.pathname, route.isPost),
   );

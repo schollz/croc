@@ -702,6 +702,8 @@ test("preloads WASM and reveals a mobile-sized code only after Send is pressed",
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
+  await expect(page.locator('link[rel="preload"][href="/croc.wasm"]'))
+    .toHaveAttribute("as", "fetch");
   const panel = page.locator(".send-panel");
   const sendButton = panel.getByRole("button", { name: "Send file" });
   await expect(sendButton).toBeDisabled();
@@ -709,7 +711,7 @@ test("preloads WASM and reveals a mobile-sized code only after Send is pressed",
   await expect(panel.getByRole("button", { name: "Show QR code" })).toHaveCount(0);
   await expect(panel).not.toContainText("Generated codes use");
   await page.waitForTimeout(250);
-  expect(wasmRequests.length).toBeGreaterThan(0);
+  expect(wasmRequests).toHaveLength(1);
   expect(
     new Set(wasmRequests.map((url) => new URL(url).pathname)),
   ).toEqual(new Set(["/croc.wasm"]));
