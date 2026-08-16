@@ -25,6 +25,10 @@ import {
 import { generateCode } from "./codephrase";
 import { errorMessage, formatBytes } from "./protocol/bytes";
 import {
+  FileHashCache,
+  type FileHashAlgorithm,
+} from "./protocol/hash";
+import {
   prepareFiles,
   receiveFiles,
   sendFiles,
@@ -81,13 +85,16 @@ import {
   type DetectedArchitecture,
   type GitHubRelease,
 } from "./releases";
-import { wasm } from "./wasm/client";
 import { blogPosts } from "./blog-posts";
 
 type Activity = "idle" | "working" | "done" | "error";
 type Theme = "dark" | "light";
 type CopyState = "idle" | "copied" | "error";
 type MobileTransferPanel = "send" | "receive";
+
+function sendHashAlgorithm(mode: SendMode): FileHashAlgorithm {
+  return mode === "stored" ? "sha256" : "xxhash";
+}
 
 const runtimeSettings = window.__CROC_RUNTIME_CONFIG__ ?? {};
 const requestedReceiveCode =
@@ -645,6 +652,7 @@ function HomeReviews() {
 }
 
 export function App() {
+  const [fileHashes] = useState(() => new FileHashCache());
   const restoredStoredUpload = useMemo(restoreStoredUpload, []);
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [settings, setSettings] = useState<TransferSettings>(() => ({
@@ -760,6 +768,11 @@ export function App() {
   }, [settings, rememberPassword]);
 
   useEffect(() => {
+    fileHashes.retain(selectedFiles);
+    fileHashes.prime(selectedFiles, sendHashAlgorithm(sendMode));
+  }, [fileHashes, selectedFiles, sendMode]);
+
+  useEffect(() => {
     return () => {
       if (copyReset.current !== undefined) {
         window.clearTimeout(copyReset.current);
@@ -767,8 +780,9 @@ export function App() {
       tour.current?.destroy();
       sendAbort.current?.abort();
       receiveAbort.current?.abort();
+      fileHashes.clear();
     };
-  }, []);
+  }, [fileHashes]);
 
   useEffect(() => {
     if (!requestedReceiveValue) return;
@@ -796,6 +810,7 @@ export function App() {
 
   function addFiles(files: File[]) {
     if (sendActivity === "working") return;
+    fileHashes.prime(files, sendHashAlgorithm(sendMode));
     setSelectedFiles((current) => {
       const byName = new Map(current.map((file) => [file.name, file]));
       for (const file of files) byName.set(file.name, file);
@@ -847,6 +862,7 @@ export function App() {
       storedSettings,
       { onStatus: setSendStatus },
       signal,
+      (file) => fileHashes.hash(file, "sha256"),
     );
     const result = await uploadStoredFiles({
       files: prepared,
@@ -870,6 +886,7 @@ export function App() {
       selectedFiles,
       { onStatus: setSendStatus },
       signal,
+      (file) => fileHashes.hash(file, "xxhash"),
     );
     await sendFiles({
       files: prepared,
@@ -1325,6 +1342,7 @@ export function App() {
                 storedExpiration.unit,
               )}
               onChange={(mode) => {
+                fileHashes.prime(selectedFiles, sendHashAlgorithm(mode));
                 setSendMode(mode);
                 setSendDetailsVisible(false);
                 setStoredUpload(undefined);

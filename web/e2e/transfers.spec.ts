@@ -683,10 +683,18 @@ test("copying a croc code shows confirmation", async ({ page }) => {
   );
 });
 
-test("reveals a mobile-sized three-word code only after Send file is pressed", async ({
+test("preloads WASM and reveals a mobile-sized code only after Send is pressed", async ({
   page,
 }) => {
   const wasmRequests: string[] = [];
+  await page.addInitScript(() => {
+    const originalStream = Blob.prototype.stream;
+    Blob.prototype.stream = function stream() {
+      const state = window as typeof window & { __crocHashReads?: number };
+      state.__crocHashReads = (state.__crocHashReads ?? 0) + 1;
+      return originalStream.call(this);
+    };
+  });
   page.on("request", (request) => {
     if (new URL(request.url()).pathname.endsWith("/croc.wasm")) {
       wasmRequests.push(request.url());
@@ -701,13 +709,32 @@ test("reveals a mobile-sized three-word code only after Send file is pressed", a
   await expect(panel.getByRole("button", { name: "Show QR code" })).toHaveCount(0);
   await expect(panel).not.toContainText("Generated codes use");
   await page.waitForTimeout(250);
-  expect(wasmRequests).toEqual([]);
+  expect(wasmRequests.length).toBeGreaterThan(0);
+  expect(
+    new Set(wasmRequests.map((url) => new URL(url).pathname)),
+  ).toEqual(new Set(["/croc.wasm"]));
+  const wasmRequestCount = wasmRequests.length;
+  const hashReadsBeforeSelection = await page.evaluate(
+    () =>
+      (window as typeof window & { __crocHashReads?: number })
+        .__crocHashReads ?? 0,
+  );
 
   await panel.locator('input[type="file"]').setInputFiles({
     name: "mobile-test.txt",
     mimeType: "text/plain",
     buffer: Buffer.from("mobile test"),
   });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as typeof window & { __crocHashReads?: number })
+            .__crocHashReads ?? 0,
+      ),
+    )
+    .toBeGreaterThan(hashReadsBeforeSelection);
+  expect(wasmRequests).toHaveLength(wasmRequestCount);
   await expect(sendButton).toBeEnabled();
   await sendButton.click();
   await expect(sendButton).toHaveCount(0);

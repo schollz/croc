@@ -11,6 +11,7 @@ import {
   formatStoredBrowserURL,
   formatStoredCLIToken,
   parseStoredShare,
+  prepareStoredFiles,
   receiveStoredTransfer,
   uploadStoredFiles,
 } from "./stored";
@@ -42,6 +43,33 @@ describe("stored-transfer shares", () => {
         "https://files.example.test/s/AwMDAwMDAwMDAwMDAwMDAw?tracking=1#v1.BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ",
       ),
     ).toThrow(/invalid stored-transfer URL/i);
+  });
+});
+
+describe("stored file preparation", () => {
+  it("reuses a SHA-256 hash that was started before Store", async () => {
+    const file = new File(["croc"], "croc.txt", {
+      lastModified: 1_723_420_800_000,
+    });
+    const digest = Uint8Array.of(4, 3, 2, 1);
+    const hashProvider = vi.fn(async () => digest);
+
+    const [prepared] = await prepareStoredFiles(
+      [file],
+      {
+        storeAPI: "/api/v1/store",
+        maxTransferBytes: 1024,
+        maxFiles: 10,
+        maxDownloads: 3,
+        maxExpiresSeconds: 0,
+      },
+      {},
+      undefined,
+      hashProvider,
+    );
+
+    expect(hashProvider).toHaveBeenCalledWith(file);
+    expect(prepared.sha256).toBe(digest);
   });
 });
 

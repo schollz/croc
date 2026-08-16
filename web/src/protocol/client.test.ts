@@ -10,7 +10,7 @@ vi.mock("../wasm/client", () => ({
   wasm: () => wasmMocks,
 }));
 
-import { DataReceiver } from "./client";
+import { DataReceiver, prepareFiles } from "./client";
 import type { CrocSocket } from "./transport";
 import type { OfferedFile, ReceiveSink } from "./types";
 
@@ -98,5 +98,30 @@ describe("DataReceiver failure handling", () => {
 
     expect(wasmMocks.decompress).toHaveBeenCalledWith(compressed, 32 * 1024 + 8);
     receiver.stop();
+  });
+});
+
+describe("outgoing file preparation", () => {
+  it("reuses a hash that was started before Send", async () => {
+    const file = new File(["croc"], "croc.txt", {
+      lastModified: 1_723_420_800_000,
+    });
+    const digest = Uint8Array.of(1, 2, 3, 4);
+    const hashProvider = vi.fn(async () => digest);
+
+    const [prepared] = await prepareFiles(
+      [file],
+      {},
+      undefined,
+      hashProvider,
+    );
+
+    expect(hashProvider).toHaveBeenCalledWith(file);
+    expect(prepared).toMatchObject({
+      file,
+      name: "croc.txt",
+      size: 4,
+      hash: digest,
+    });
   });
 });

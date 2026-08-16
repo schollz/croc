@@ -11,6 +11,11 @@ import {
 import { CrocSocket } from "./transport";
 import { normalizeOutgoingFileName, validateSenderInfo } from "./metadata";
 import { verifySink } from "./storage";
+import {
+  hashFileContents,
+  waitForHash,
+  type FileHashProvider,
+} from "./hash";
 import type {
   CrocMessage,
   FileProgress,
@@ -266,6 +271,7 @@ export async function prepareFiles(
   selected: File[],
   callbacks: TransferCallbacks = {},
   signal?: AbortSignal,
+  hashProvider?: FileHashProvider,
 ) {
   if (selected.length === 0) throw new Error("Choose at least one file");
   const names = new Set<string>();
@@ -279,28 +285,18 @@ export async function prepareFiles(
   }
 
   const prepared: PreparedFile[] = [];
-  const engine = wasm();
   for (let index = 0; index < selected.length; index += 1) {
     checkAbort(signal);
     const file = selected[index];
     callbacks.onStatus?.(`Hashing ${index + 1}/${selected.length}: ${file.name}`);
-    const hashHandle = await engine.hashInit();
-    const reader = file.stream().getReader();
-    try {
-      for (;;) {
-        checkAbort(signal);
-        const { done, value } = await reader.read();
-        if (done) break;
-        await engine.hashUpdate(hashHandle, value);
-      }
-    } finally {
-      reader.releaseLock();
-    }
+    const hash = hashProvider
+      ? await waitForHash(hashProvider(file), signal)
+      : await hashFileContents(file, "xxhash", signal);
     prepared.push({
       file,
       name: outgoingNames[index],
       size: file.size,
-      hash: await engine.hashFinal(hashHandle),
+      hash,
       modified: new Date(file.lastModified).toISOString(),
     });
   }

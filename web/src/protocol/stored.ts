@@ -1,4 +1,9 @@
 import { errorMessage, textDecoder, textEncoder } from "./bytes";
+import {
+  hashFileContents,
+  waitForHash,
+  type FileHashProvider,
+} from "./hash";
 import { normalizeOutgoingFileName } from "./metadata";
 import { verifySinkSHA256 } from "./storage";
 import type {
@@ -269,28 +274,12 @@ async function authorizedFetch(
   return response;
 }
 
-async function sha256Blob(blob: Blob, signal?: AbortSignal) {
-  const engine = wasm();
-  const handle = await engine.sha256Init();
-  const reader = blob.stream().getReader();
-  try {
-    for (;;) {
-      checkAbort(signal);
-      const { done, value } = await reader.read();
-      if (done) break;
-      await engine.sha256Update(handle, value);
-    }
-    return await engine.sha256Final(handle);
-  } finally {
-    reader.releaseLock();
-  }
-}
-
 export async function prepareStoredFiles(
   selected: File[],
   settings: StoredSettings,
   callbacks: { onStatus?(status: string): void } = {},
   signal?: AbortSignal,
+  hashProvider?: FileHashProvider,
 ) {
   if (selected.length === 0) throw new Error("Choose at least one file");
   if (selected.length > settings.maxFiles) {
@@ -315,7 +304,9 @@ export async function prepareStoredFiles(
       name,
       size: file.size,
       hash: new Uint8Array(),
-      sha256: await sha256Blob(file, signal),
+      sha256: hashProvider
+        ? await waitForHash(hashProvider(file), signal)
+        : await hashFileContents(file, "sha256", signal),
       modified: new Date(file.lastModified).toISOString(),
       firstChunk,
       chunkCount,
