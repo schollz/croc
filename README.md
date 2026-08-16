@@ -98,6 +98,15 @@ apk add bash coreutils
 wget -qO- https://getcroc.com | bash
 ```
 
+### On Debian
+
+Install from the pkg.haus APT archive:
+
+```bash
+# Add the repository (see https://pkg.haus for setup instructions)
+sudo apt install croc
+```
+
 ### On Arch Linux
 
 Install with `pacman`:
