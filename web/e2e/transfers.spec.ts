@@ -215,6 +215,12 @@ async function expectTransferMetrics(panel: Locator) {
 test.describe.configure({ mode: "serial" });
 
 test("publishes rich metadata and project links", async ({ page }) => {
+  const domWarnings: string[] = [];
+  page.on("console", (message) => {
+    if (message.text().startsWith("[DOM]")) {
+      domWarnings.push(message.text());
+    }
+  });
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "platform", {
       configurable: true,
@@ -253,6 +259,11 @@ test("publishes rich metadata and project links", async ({ page }) => {
     "croc — fast, simple, secure file transfer",
   );
   await expect(page).toHaveTitle("croc — fast, simple, secure file transfer");
+  const relayPassword = page.getByLabel("Relay password", { exact: true });
+  await expect(relayPassword).toHaveAttribute("autocomplete", "off");
+  await expect(relayPassword.locator("xpath=ancestor::form"))
+    .toHaveClass("settings-grid");
+  expect(domWarnings).toEqual([]);
   const structuredData = JSON.parse(
     (await page.locator('script[type="application/ld+json"]').textContent()) ?? "{}",
   ) as {

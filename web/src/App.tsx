@@ -1679,7 +1679,11 @@ export function App() {
           </span>
           <span>advanced</span>
         </summary>
-        <div className="settings-grid">
+        <form
+          className="settings-grid"
+          autoComplete="off"
+          onSubmit={(event) => event.preventDefault()}
+        >
           <label>
             <span>WebSocket gateway</span>
             <input
@@ -1712,6 +1716,8 @@ export function App() {
             <span>Relay password</span>
             <input
               type="password"
+              name="relay-password"
+              autoComplete="off"
               value={settings.relayPassword}
               disabled={sendBusy || receiveBusy}
               onChange={(event) =>
@@ -1730,7 +1736,7 @@ export function App() {
             />
             <span>Remember relay password on this device</span>
           </label>
-        </div>
+        </form>
       </details>
 
       <CliDownload />
