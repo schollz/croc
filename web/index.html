@@ -5,6 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#000000" />
     <meta name="color-scheme" content="dark light" />
+    <script data-croc-theme-bootstrap>
+      (() => {
+        let theme;
+        try {
+          const stored = localStorage.getItem("croc-web-theme");
+          if (stored === "light" || stored === "dark") theme = stored;
+        } catch {
+          // Use the system preference when storage is unavailable.
+        }
+        if (!theme) {
+          theme = window.matchMedia?.("(prefers-color-scheme: light)").matches
+            ? "light"
+            : "dark";
+        }
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        document
+          .querySelector('meta[name="theme-color"]')
+          ?.setAttribute("content", theme === "dark" ? "#121411" : "#f2f1ec");
+      })();
+    </script>
     <!-- ROUTE_SEO_START -->
     <meta name="application-name" content="croc web" />
     <meta name="author" content="Zackary Scholl" />
