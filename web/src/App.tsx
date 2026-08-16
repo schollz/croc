@@ -12,7 +12,6 @@ import {
   Moon,
   Settings2,
   Sun,
-  Terminal,
   Upload,
   X,
 } from "lucide-react";
@@ -86,6 +85,7 @@ import {
   type GitHubRelease,
 } from "./releases";
 import { blogPosts } from "./blog-posts";
+import { TransferLinks } from "./TransferLinks";
 
 type Activity = "idle" | "working" | "done" | "error";
 type Theme = "dark" | "light";
@@ -540,33 +540,6 @@ function CliDownload() {
         </a>
       </div>
     </section>
-  );
-}
-
-function TransferLinks() {
-  return (
-    <nav className="transfer-links" aria-label="More ways to transfer with croc">
-      <a href="/#send-panel">
-        <Upload aria-hidden="true" />
-        <span><strong>Send in your browser</strong><small>No install needed</small></span>
-      </a>
-      <a href="/#receive">
-        <Download aria-hidden="true" />
-        <span><strong>Receive in your browser</strong><small>Paste a code or link</small></span>
-      </a>
-      <a href="/#cli-download">
-        <Terminal aria-hidden="true" />
-        <span><strong>Download the croc CLI</strong><small>Windows, macOS, and Linux</small></span>
-      </a>
-      <a href={crocWebsite} target="_blank" rel="noopener noreferrer">
-        <BookOpenText aria-hidden="true" />
-        <span><strong>Read the croc guide</strong><small>Install and usage docs</small></span>
-      </a>
-      <a href={crocRepository} target="_blank" rel="noopener noreferrer">
-        <FaGithub aria-hidden="true" />
-        <span><strong>Explore the codebase</strong><small>Source, issues, and releases</small></span>
-      </a>
-    </nav>
   );
 }
 
@@ -1699,8 +1672,6 @@ export function App() {
         </form>
       </section>
 
-      <TransferLinks />
-
       <details className="settings" data-tour="settings">
         <summary>
           <span>
@@ -1767,6 +1738,8 @@ export function App() {
       <BlogTeaser />
 
       {!receiveOnly && <HomeReviews />}
+
+      <TransferLinks />
 
       <footer className="site-footer">
         <div className="site-footer-links">

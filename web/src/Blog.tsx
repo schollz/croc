@@ -6,7 +6,6 @@ import {
   Check,
   Circle,
   Clock3,
-  Download,
   FileText,
   KeyRound,
   Laptop,
@@ -28,6 +27,7 @@ import {
   type BlogVisual,
 } from "./blog-posts";
 import blogSEO from "./blog-seo.json";
+import { TransferLinks } from "./TransferLinks";
 
 const { site, index: indexSEO } = blogSEO;
 const siteURL = site.url;
@@ -667,6 +667,7 @@ function BlogIndex() {
           </div>
         </section>
       </main>
+      <TransferLinks />
       <BlogFooter />
     </div>
   );
@@ -1052,6 +1053,7 @@ function BlogArticle({ post }: { post: BlogPost }) {
           </a>
         </nav>
       </main>
+      <TransferLinks />
       <BlogFooter />
     </div>
   );
@@ -1068,6 +1070,7 @@ function BlogNotFound({ slug }: { slug: string }) {
         <p>The transfer is fine. This address is not one of the published field notes.</p>
         <a href="/blog">Return to all notes <ArrowRight /></a>
       </main>
+      <TransferLinks />
       <BlogFooter />
     </div>
   );

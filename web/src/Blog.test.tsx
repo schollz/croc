@@ -21,6 +21,11 @@ describe("Blog", () => {
     expect(
       screen.getByRole("link", { name: "croc field notes home" }),
     ).toHaveAttribute("href", "/blog");
+    const transferLinks = screen.getByRole("navigation", {
+      name: "More ways to transfer with croc",
+    });
+    expect(transferLinks.previousElementSibling?.tagName).toBe("MAIN");
+    expect(transferLinks.nextElementSibling).toHaveClass("blog-footer");
     expect(document.title).toBe(
       "croc field notes: secure file transfer explained",
     );
@@ -252,6 +257,11 @@ describe("Blog", () => {
 
     expect(
       screen.getByRole("heading", { name: "This note wandered off." }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("navigation", {
+        name: "More ways to transfer with croc",
+      }),
     ).toBeVisible();
     expect(document.querySelector('meta[name="robots"]')).toHaveAttribute(
       "content",

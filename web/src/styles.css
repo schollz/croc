@@ -1460,6 +1460,15 @@ a.cli-download-primary:hover {
   margin: 0 auto;
 }
 
+.blog-shell > .transfer-links {
+  width: min(1180px, calc(100% - 32px));
+  margin: 52px auto 0;
+}
+
+.blog-shell > .transfer-links + .blog-footer {
+  margin-top: 0;
+}
+
 .blog-site-header {
   position: sticky;
   z-index: 50;
@@ -3432,7 +3441,8 @@ a.cli-download-primary:hover {
   .blog-site-header-inner,
   .blog-main,
   .article-main,
-  .blog-footer {
+  .blog-footer,
+  .blog-shell > .transfer-links {
     width: auto;
     margin-right: max(11px, env(safe-area-inset-right));
     margin-left: max(11px, env(safe-area-inset-left));
