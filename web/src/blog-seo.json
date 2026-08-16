@@ -13,9 +13,10 @@
   },
   "index": {
     "title": "croc field notes: secure file transfer explained",
-    "description": "Notes on why I built croc this way: live relays, PAKE encryption, browser transfers, temporary storage, and comparisons with other file-transfer tools.",
+    "description": "Notes and release updates from inside croc: live relays, PAKE encryption, browser transfers, temporary storage, and what changed in each version.",
     "keywords": [
       "croc blog",
+      "croc release notes",
       "encrypted file transfer",
       "secure file sharing",
       "password-authenticated key exchange",
@@ -26,6 +27,34 @@
     "imageAlt": "An open field notebook containing simple symbols for a relay, code tiles, a key, and a file."
   },
   "posts": [
+    {
+      "slug": "croc-v11-release-update",
+      "title": "From croc v10 to v11",
+      "seoTitle": "croc v11: Features and Fixes from v11.0.0 to v11.1.1",
+      "description": "croc v11 makes the handshake harder to confuse, lets one encrypted stored transfer serve a group, starts the web client faster, and closes several unsafe edge cases.",
+      "kind": "update",
+      "category": "Release notes",
+      "publishedAt": "2026-08-16",
+      "modifiedAt": "2026-08-16",
+      "wordCount": 1113,
+      "readingMinutes": 6,
+      "relatedSlugs": [
+        "share-stored-file-with-group",
+        "pake-step-by-step"
+      ],
+      "keywords": [
+        "croc v11",
+        "croc release notes",
+        "croc v11.1.1",
+        "encrypted file transfer",
+        "multi-recipient file sharing",
+        "PAKE security",
+        "croc web"
+      ],
+      "image": "/blog/images/croc-v11-release-update.webp",
+      "socialImage": "/blog/images/croc-v11-release-update.jpg",
+      "imageAlt": "Three black-and-white panels use a shield, group, and lightning icon to represent the croc v11 release."
+    },
     {
       "slug": "why-croc-works-this-way",
       "title": "Why croc works this way",

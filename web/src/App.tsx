@@ -552,14 +552,14 @@ function BlogTeaser() {
     >
       <div className="home-blog-heading">
         <div>
-          <p className="eyebrow">Field notes</p>
+          <p className="eyebrow">Notes &amp; updates</p>
           <h2 id="home-blog-title">What happens after you press Send?</h2>
           <p>
             Plainspoken notes about the relay, the three-word code, and the ways
-            browsers and terminals meet in the same transfer.
+            browsers and terminals meet, plus updates when croc changes.
           </p>
         </div>
-        <a href="/blog">Read all {blogPosts.length} notes <ArrowRight /></a>
+        <a href="/blog">Read all {blogPosts.length} posts <ArrowRight /></a>
       </div>
       <div className="home-blog-list">
         {blogPosts.slice(0, 3).map((post) => (

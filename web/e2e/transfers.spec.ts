@@ -424,7 +424,7 @@ test("publishes rich metadata and project links", async ({ page }) => {
     page.getByRole("link", { name: "View croc on GitHub" }),
   ).toHaveAttribute("href", "https://github.com/schollz/croc");
   await expect(
-    page.getByRole("link", { name: /Read all 9 notes/i }),
+    page.getByRole("link", { name: /Read all 10 posts/i }),
   ).toHaveAttribute("href", "/blog");
   await expect(
     page.getByRole("link", { name: "schollz", exact: true }),
@@ -1001,7 +1001,7 @@ test("CLI stored upload → Web download verifies and consumes files", async ({
     await panel.getByLabel("Croc code").press("Enter");
     const downloads = await acceptAsDownloads(page, panel);
     await expect(panel).toContainText(
-      "All files received, verified, and removed from storage",
+      "All files received and verified; stored ciphertext removed",
       { timeout: transferTimeout },
     );
     await expectDownloads(downloads, fixtures);
@@ -1009,7 +1009,7 @@ test("CLI stored upload → Web download verifies and consumes files", async ({
     await page.goto("about:blank");
     await page.goto(browserURL!);
     await expect(page.locator(".receive-panel")).toContainText(
-      /expired or was already downloaded/i,
+      /expired or has no downloads remaining/i,
       { timeout: transferTimeout },
     );
   } finally {

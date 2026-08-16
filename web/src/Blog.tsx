@@ -18,6 +18,8 @@ import {
   Terminal,
   Timer,
   Upload,
+  Users,
+  Zap,
 } from "lucide-react";
 import {
   blogPosts,
@@ -32,6 +34,20 @@ import { TransferLinks } from "./TransferLinks";
 const { site, index: indexSEO } = blogSEO;
 const siteURL = site.url;
 type BlogTheme = "dark" | "light";
+
+function postKindLabel(post: BlogPost) {
+  return post.kind === "update" ? "Update" : "Note";
+}
+
+function postSection(post: BlogPost) {
+  return post.kind === "update" ? "Updates" : "Notes";
+}
+
+function postNumberLabel(post: BlogPost) {
+  return post.kind === "update"
+    ? `UPDATE ${post.number}`
+    : `FIELD NOTE ${post.number}`;
+}
 
 function initialBlogTheme(): BlogTheme {
   try {
@@ -117,7 +133,8 @@ function blogStructuredData(post?: BlogPost) {
           publisher: { "@id": `${siteURL}/#organization` },
           mainEntityOfPage: { "@id": canonicalURL },
           isPartOf: { "@id": `${siteURL}/blog#blog` },
-          articleSection: post.category,
+          articleSection: postSection(post),
+          genre: post.category,
           keywords: post.keywords,
           about: post.keywords.map((name) => ({ "@type": "Thing", name })),
           wordCount: post.wordCount,
@@ -175,7 +192,7 @@ function blogStructuredData(post?: BlogPost) {
           datePublished: entry.publishedAt,
           dateModified: entry.modifiedAt,
           description: entry.description,
-          articleSection: entry.category,
+          articleSection: postSection(entry),
           image: absoluteURL(entry.socialImage),
         })),
       },
@@ -272,7 +289,7 @@ function useBlogMetadata(post?: BlogPost, missing = false, missingSlug?: string)
       ['meta[property="article:published_time"]', "content", post.publishedAt],
       ['meta[property="article:modified_time"]', "content", post.modifiedAt],
       ['meta[property="article:author"]', "content", site.authorUrl],
-      ['meta[property="article:section"]', "content", post.category],
+      ['meta[property="article:section"]', "content", postSection(post)],
     ] as const : [];
     const previousArticleValues = articleUpdates.map(([selector, attribute, value]) => {
       let element = document.querySelector(selector);
@@ -380,14 +397,14 @@ function BlogHeader() {
             aria-hidden="true"
           />
           <span>
-            <small>Notes from inside the transfer</small>
+            <small>Notes and release updates</small>
             <strong>croc field notes</strong>
           </span>
         </a>
         <nav aria-label="Blog navigation">
           <a href="/blog">
             <BookOpenText aria-hidden="true" />
-            All notes
+            All posts
           </a>
           <a href="/">
             <ArrowLeft aria-hidden="true" />
@@ -540,6 +557,29 @@ function StoredVisual() {
   );
 }
 
+function ReleaseVisual() {
+  return (
+    <div className="release-visual">
+      <span>
+        <ShieldCheck />
+        <small>bound handshake</small>
+        <strong>safer</strong>
+      </span>
+      <span>
+        <Users />
+        <small>stored transfers</small>
+        <strong>for groups</strong>
+      </span>
+      <span>
+        <Zap />
+        <small>web code</small>
+        <strong>faster</strong>
+      </span>
+      <i>croc v11 · the command stayed small</i>
+    </div>
+  );
+}
+
 function BlogVisualCard({ visual, large = false }: { visual: BlogVisual; large?: boolean }) {
   return (
     <div className={`blog-visual blog-visual-${visual}${large ? " large" : ""}`} aria-hidden="true">
@@ -550,11 +590,24 @@ function BlogVisualCard({ visual, large = false }: { visual: BlogVisual; large?:
       {visual === "browser" ? <BrowserVisual /> : null}
       {visual === "bridge" ? <BridgeVisual /> : null}
       {visual === "stored" ? <StoredVisual /> : null}
+      {visual === "release" ? <ReleaseVisual /> : null}
     </div>
   );
 }
 
 function BlogCoverImage({ post }: { post: BlogPost }) {
+  if (post.visual === "release") {
+    return (
+      <figure
+        className="blog-article-cover blog-article-visual-cover"
+        role="img"
+        aria-label={post.imageAlt}
+      >
+        <BlogVisualCard visual={post.visual} large />
+      </figure>
+    );
+  }
+
   return (
     <figure className="blog-article-cover">
       <img
@@ -572,6 +625,8 @@ function BlogCoverImage({ post }: { post: BlogPost }) {
 function PostMeta({ post }: { post: BlogPost }) {
   return (
     <p className="blog-post-meta">
+      <span className={`blog-post-kind is-${post.kind}`}>{postKindLabel(post)}</span>
+      <span aria-hidden="true">·</span>
       <span>{post.category}</span>
       <span aria-hidden="true">·</span>
       <time dateTime={post.publishedAt}>{post.publishedLabel}</time>
@@ -583,7 +638,9 @@ function PostMeta({ post }: { post: BlogPost }) {
 
 function BlogIndex() {
   useBlogMetadata();
-  const [featured, ...morePosts] = blogPosts;
+  const notes = blogPosts.filter((post) => post.kind === "note");
+  const updates = blogPosts.filter((post) => post.kind === "update");
+  const [featured, ...morePosts] = notes;
 
   return (
     <div className="blog-shell">
@@ -591,65 +648,121 @@ function BlogIndex() {
       <main className="blog-main">
         <section className="blog-index-hero">
           <div>
-            <p className="blog-kicker"><BookOpenText /> Field notes</p>
+            <p className="blog-kicker"><BookOpenText /> Notes &amp; updates</p>
             <h1>Notes from inside the transfer.</h1>
           </div>
           <p>
             Plainspoken guides to the small code phrase, the relay in the
             middle, the encryption around it, and the useful ways a file gets
-            from this computer to one person or a group.
+            from this computer to one person or a group, plus release updates
+            when the software changes underneath it.
           </p>
         </section>
 
-        <article className="featured-note">
-          <a
-            className="featured-note-visual"
-            href={`/blog/${featured.slug}`}
-            aria-label={`Read ${featured.title}`}
-          >
-            <BlogVisualCard visual={featured.visual} large />
+        <nav className="blog-kind-nav" aria-label="Blog post categories">
+          <a href="#updates">
+            <span>Updates</span>
+            <strong>{String(updates.length).padStart(2, "0")}</strong>
+            <small>What changed between releases</small>
           </a>
-          <div className="featured-note-copy">
-            <span className="note-number">FIELD NOTE {featured.number}</span>
-            <PostMeta post={featured} />
-            <h2><a href={`/blog/${featured.slug}`}>{featured.title}</a></h2>
-            <p>{featured.description}</p>
-            <a className="blog-read-link" href={`/blog/${featured.slug}`}>
-              Read the field note <ArrowRight />
-            </a>
-          </div>
-        </article>
+          <a href="#notes">
+            <span>Notes</span>
+            <strong>{String(notes.length).padStart(2, "0")}</strong>
+            <small>Guides from inside the transfer</small>
+          </a>
+        </nav>
 
-        <section className="blog-notes-section" aria-labelledby="more-notes-title">
+        <section id="updates" className="blog-kind-section" aria-labelledby="updates-title">
           <div className="blog-section-heading">
             <div>
-              <p className="blog-kicker"><FileText /> The notebook</p>
-              <h2 id="more-notes-title">More ways into croc</h2>
+              <p className="blog-kicker"><FileText /> Updates</p>
+              <h2 id="updates-title">What changed in croc</h2>
             </div>
-            <span>{String(blogPosts.length).padStart(2, "0")} notes</span>
+            <span>{String(updates.length).padStart(2, "0")} update</span>
           </div>
-          <div className="blog-grid">
-            {morePosts.map((post) => (
-              <article className="blog-card" key={post.slug}>
+          <div className="blog-updates-list">
+            {updates.map((post) => (
+              <article className="featured-note update-note" key={post.slug}>
                 <a
-                  className="blog-card-visual"
+                  className="featured-note-visual"
                   href={`/blog/${post.slug}`}
                   aria-label={`Read ${post.title}`}
                 >
-                  <BlogVisualCard visual={post.visual} />
-                  <span>{post.number}</span>
+                  <BlogVisualCard visual={post.visual} large />
                 </a>
-                <div className="blog-card-copy">
+                <div className="featured-note-copy">
+                  <span className="note-number">{postNumberLabel(post)}</span>
                   <PostMeta post={post} />
-                  <h3><a href={`/blog/${post.slug}`}>{post.title}</a></h3>
+                  <h2><a href={`/blog/${post.slug}`}>{post.title}</a></h2>
                   <p>{post.description}</p>
                   <a className="blog-read-link" href={`/blog/${post.slug}`}>
-                    Keep reading <ArrowRight />
+                    Read the update <ArrowRight />
                   </a>
                 </div>
               </article>
             ))}
           </div>
+        </section>
+
+        <section id="notes" className="blog-kind-section" aria-labelledby="notes-title">
+          <div className="blog-section-heading">
+            <div>
+              <p className="blog-kicker"><BookOpenText /> Notes</p>
+              <h2 id="notes-title">From inside the transfer</h2>
+            </div>
+            <span>{String(notes.length).padStart(2, "0")} notes</span>
+          </div>
+
+          <article className="featured-note">
+            <a
+              className="featured-note-visual"
+              href={`/blog/${featured.slug}`}
+              aria-label={`Read ${featured.title}`}
+            >
+              <BlogVisualCard visual={featured.visual} large />
+            </a>
+            <div className="featured-note-copy">
+              <span className="note-number">{postNumberLabel(featured)}</span>
+              <PostMeta post={featured} />
+              <h2><a href={`/blog/${featured.slug}`}>{featured.title}</a></h2>
+              <p>{featured.description}</p>
+              <a className="blog-read-link" href={`/blog/${featured.slug}`}>
+                Read the field note <ArrowRight />
+              </a>
+            </div>
+          </article>
+
+          <section className="blog-notes-section" aria-labelledby="more-notes-title">
+            <div className="blog-section-heading">
+              <div>
+                <p className="blog-kicker"><FileText /> The notebook</p>
+                <h2 id="more-notes-title">More ways into croc</h2>
+              </div>
+              <span>{String(morePosts.length).padStart(2, "0")} more notes</span>
+            </div>
+            <div className="blog-grid">
+              {morePosts.map((post) => (
+                <article className="blog-card" key={post.slug}>
+                  <a
+                    className="blog-card-visual"
+                    href={`/blog/${post.slug}`}
+                    aria-label={`Read ${post.title}`}
+                  >
+                    <BlogVisualCard visual={post.visual} />
+                    <span>{post.number}</span>
+                  </a>
+                  <div className="blog-card-copy">
+                    <PostMeta post={post} />
+                    <h3><a href={`/blog/${post.slug}`}>{post.title}</a></h3>
+                    <p>{post.description}</p>
+                    <a className="blog-read-link" href={`/blog/${post.slug}`}>
+                      Keep reading <ArrowRight />
+                    </a>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
         </section>
 
         <section className="blog-transfer-cta">
@@ -962,11 +1075,14 @@ function BlogArticle({ post }: { post: BlogPost }) {
     <div className="blog-shell">
       <BlogHeader />
       <main className="article-main">
-        <a className="back-to-blog" href="/blog"><ArrowLeft /> All field notes</a>
+        <a className="back-to-blog" href="/blog"><ArrowLeft /> All posts</a>
         <article className="blog-article">
           <header className="blog-article-header">
-            <p className="blog-kicker"><ShieldCheck /> {post.category}</p>
-            <span className="note-number">FIELD NOTE {post.number}</span>
+            <p className="blog-kicker">
+              {post.kind === "update" ? <FileText /> : <ShieldCheck />}
+              {postKindLabel(post)} · {post.category}
+            </p>
+            <span className="note-number">{postNumberLabel(post)}</span>
             <h1>{post.title}</h1>
             <p className="article-dek">{post.description}</p>
             <div className="article-byline">
@@ -989,8 +1105,11 @@ function BlogArticle({ post }: { post: BlogPost }) {
                   <strong>{post.takeaway}</strong>
                 </div>
               </div>
-              <nav className="article-toc" aria-label="In this field note">
-                <p>IN THIS NOTE</p>
+              <nav
+                className="article-toc"
+                aria-label={post.kind === "update" ? "In this update" : "In this field note"}
+              >
+                <p>{post.kind === "update" ? "IN THIS UPDATE" : "IN THIS NOTE"}</p>
                 <ol>
                   {sections.map((section) => (
                     <li key={section.id}>
@@ -1015,7 +1134,7 @@ function BlogArticle({ post }: { post: BlogPost }) {
                 <div>
                   {relatedPosts.map((related) => (
                     <a href={`/blog/${related.slug}`} key={related.slug}>
-                      <span>FIELD NOTE {related.number}</span>
+                      <span>{postNumberLabel(related)}</span>
                       <strong>{related.title}</strong>
                       <small>{related.description}</small>
                       <ArrowRight aria-hidden="true" />

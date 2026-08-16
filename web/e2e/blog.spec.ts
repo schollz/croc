@@ -77,7 +77,7 @@ test("every article exposes complete crawler metadata before JavaScript", async 
   expect((await image.body()).byteLength).toBeGreaterThan(50_000);
 });
 
-test("mobile blog index exposes nine field notes without overflow", async ({
+test("mobile blog index exposes notes and updates without overflow", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -86,11 +86,14 @@ test("mobile blog index exposes nine field notes without overflow", async ({
   await expect(
     page.getByRole("heading", { name: "Notes from inside the transfer." }),
   ).toBeVisible();
-  await expect(page.locator("main article")).toHaveCount(9);
+  await expect(page.locator("main article")).toHaveCount(10);
   await expect(
     page.locator("main article").first().getByRole("heading", {
-      name: "36 ways to send a file",
+      name: "From croc v10 to v11",
     }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Blog post categories" }),
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Transfer files", exact: true }),
@@ -195,7 +198,7 @@ test("the comparison tables scroll without widening the mobile article", async (
   ).toHaveText("MEGA");
   await expect(
     tableRegion.locator("tbody th a").nth(2),
-  ).toHaveText("Syncthing");
+  ).toHaveText("Filemail");
   await expect(
     tableRegion.locator("tbody tr").nth(1).locator('td[title="required to upload"]'),
   ).toHaveAttribute(

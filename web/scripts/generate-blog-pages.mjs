@@ -36,6 +36,7 @@ const escapeHTML = (value) => String(value)
   .replaceAll("<", "&lt;")
   .replaceAll(">", "&gt;");
 const safeJSON = (value) => JSON.stringify(value).replaceAll("<", "\\u003c");
+const postSection = (entry) => entry.kind === "update" ? "Updates" : "Notes";
 
 function commonGraph() {
   return [
@@ -114,7 +115,7 @@ function indexJSONLD(entry, canonicalURL) {
           datePublished: post.publishedAt,
           dateModified: post.modifiedAt,
           description: post.description,
-          articleSection: post.category,
+          articleSection: postSection(post),
           image: absoluteURL(post.socialImage),
         })),
       },
@@ -173,7 +174,8 @@ function postJSONLD(entry, canonicalURL) {
         publisher: { "@id": `${metadata.site.url}/#organization` },
         mainEntityOfPage: { "@id": canonicalURL },
         isPartOf: { "@id": `${metadata.site.url}/blog#blog` },
-        articleSection: entry.category,
+        articleSection: postSection(entry),
+        genre: entry.category,
         keywords: entry.keywords,
         about: entry.keywords.map((name) => ({ "@type": "Thing", name })),
         wordCount: entry.wordCount,
@@ -229,7 +231,7 @@ function routeSEO(entry, pathname, isPost) {
         ["article:published_time", entry.publishedAt],
         ["article:modified_time", entry.modifiedAt],
         ["article:author", metadata.site.authorUrl],
-        ["article:section", entry.category],
+        ["article:section", postSection(entry)],
         ...entry.keywords.map((tag) => ["article:tag", tag]),
       ].map(([property, content]) =>
         `    <meta property="${escapeHTML(property)}" content="${escapeHTML(content)}" />`,

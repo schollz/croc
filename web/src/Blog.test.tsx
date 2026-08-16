@@ -5,13 +5,24 @@ import { Blog } from "./Blog";
 describe("Blog", () => {
   afterEach(cleanup);
 
-  it("renders the nine-note index and updates page metadata", () => {
+  it("renders categorized notes and updates with page metadata", () => {
     render(<Blog />);
 
     expect(
       screen.getByRole("heading", { name: "Notes from inside the transfer." }),
     ).toBeVisible();
-    expect(screen.getAllByRole("article")).toHaveLength(9);
+    expect(screen.getAllByRole("article")).toHaveLength(10);
+    const categories = screen.getByRole("navigation", {
+      name: "Blog post categories",
+    });
+    expect(within(categories).getByRole("link", { name: /Updates/ })).toHaveAttribute(
+      "href",
+      "#updates",
+    );
+    expect(within(categories).getByRole("link", { name: /Notes/ })).toHaveAttribute(
+      "href",
+      "#notes",
+    );
     expect(
       screen.getByRole("heading", {
         level: 2,
@@ -40,6 +51,32 @@ describe("Blog", () => {
     expect(document.querySelector('meta[name="twitter:card"]')).toHaveAttribute(
       "content",
       "summary_large_image",
+    );
+  });
+
+  it("renders the v11 release update with its release history", () => {
+    render(<Blog slug="croc-v11-release-update" />);
+
+    expect(
+      screen.getByRole("heading", { name: "From croc v10 to v11" }),
+    ).toBeVisible();
+    expect(screen.getByText("UPDATE 01")).toBeVisible();
+    expect(
+      screen.getByRole("navigation", { name: "In this update" }),
+    ).toBeVisible();
+    expect(screen.getByRole("table")).toBeVisible();
+    expect(screen.getByRole("link", { name: "v11.1.1" })).toHaveAttribute(
+      "href",
+      "https://github.com/schollz/croc/releases/tag/v11.1.1",
+    );
+    expect(
+      screen.getByRole("img", {
+        name: /three black-and-white panels/i,
+      }),
+    ).toHaveClass("blog-article-visual-cover");
+    expect(document.querySelector('meta[property="article:section"]')).toHaveAttribute(
+      "content",
+      "Updates",
     );
   });
 

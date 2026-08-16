@@ -7,7 +7,10 @@ export type BlogVisual =
   | "handshake"
   | "browser"
   | "bridge"
-  | "stored";
+  | "stored"
+  | "release";
+
+export type BlogKind = "note" | "update";
 
 export type BlogBlock =
   | { type: "heading"; text: string }
@@ -40,6 +43,7 @@ export type BlogPost = {
   title: string;
   seoTitle: string;
   description: string;
+  kind: BlogKind;
   category: string;
   publishedAt: string;
   modifiedAt: string;
@@ -59,8 +63,8 @@ export type BlogPost = {
 
 type DraftBlogPost = Omit<
   BlogPost,
-  "seoTitle" | "modifiedAt" | "keywords" | "image" | "socialImage" | "imageAlt" | "wordCount" | "readingMinutes" | "relatedSlugs"
->;
+  "seoTitle" | "modifiedAt" | "keywords" | "image" | "socialImage" | "imageAlt" | "wordCount" | "readingMinutes" | "relatedSlugs" | "kind"
+> & { kind?: BlogKind };
 
 const wordsPerMinute = 210;
 
@@ -137,6 +141,152 @@ export function readingMinutes(blocks: BlogBlock[]) {
 }
 
 const drafts: DraftBlogPost[] = [
+  {
+    slug: "croc-v11-release-update",
+    number: "01",
+    title: "From croc v10 to v11",
+    description:
+      "croc v11 makes the handshake harder to confuse, lets one encrypted stored transfer serve a group, starts the web client faster, and closes several unsafe edge cases.",
+    kind: "update",
+    category: "Release notes",
+    publishedAt: "2026-08-16",
+    publishedLabel: "August 16, 2026",
+    author: "schollz",
+    visual: "release",
+    takeaway:
+      "v11 combines a stronger peer handshake, safer relay and stored-transfer limits, multi-recipient stored sends, faster browser startup, and clearer terminal output.",
+    blocks: [
+      {
+        type: "paragraph",
+        text: "croc v11 did not arrive as one enormous switch. The useful version is the accumulation of v11.0.0 through v11.1.1: a hardened peer handshake, tighter relay limits, multi-recipient stored transfers, a privacy choice in the browser, quicker code generation, and a long list of fixes around the edges. This is the combined update for anyone coming from v10.",
+      },
+      {
+        type: "paragraph",
+        text: "The ordinary workflow is still deliberately small. Send a file, share the three-word code, and let the other person receive it from a terminal or browser. Most of the v11 work is underneath that workflow, making the rendezvous safer and making unusual network or storage conditions fail more cleanly.",
+      },
+      { type: "heading", text: "The short version" },
+      {
+        type: "list",
+        items: [
+          "Peer handshakes are bound to the sender, receiver, room, purpose, protocol version, curve, salt, and exact transcript, with separate confirmation values for both roles.",
+          "Relay operators can cap waiting rooms and pending handshakes so idle or deliberately incomplete connections cannot grow server state without a bound.",
+          "Stored mode can allow several verified downloads and a sender-chosen finite expiration instead of always stopping after one receiver or one day.",
+          "The web client asks before loading optional analytics and now generates a secure three-word code immediately, without waiting for the WebAssembly transfer engine.",
+          "Terminal output uses restrained, TTY-aware color for codes, filenames, progress, warnings, and success while respecting NO_COLOR and redirected output.",
+        ],
+      },
+      {
+        type: "aside",
+        eyebrow: "THE COMPATIBLE PART",
+        title: "Old-looking codes still have a route forward",
+        text: "Current v11 builds generate three words from the EFF short wordlist. They also retain parsing support for the four-word format used by the first v11 builds and for legacy custom codes.",
+      },
+      { type: "heading", text: "A handshake tied to this transfer" },
+      {
+        type: "paragraph",
+        text: "The largest security change is the PAKE key schedule. v11 gives the receiver and sender ordered identities, then binds the derived traffic key and confirmation tags to the transfer purpose, room, curve, both PAKE messages, protocol version, and a fresh salt. A message copied from another role, room, purpose, or session no longer belongs to the same authenticated transcript.",
+      },
+      {
+        type: "paragraph",
+        text: "Both peers also prove that they derived the expected result before croc treats the channel as ready. An unsupported version, changed transcript, swapped role, invalid point, or wrong code fails closed instead of continuing with a channel that only looks related to the intended exchange.",
+      },
+      { type: "heading", text: "Relay rooms now have hard edges" },
+      {
+        type: "paragraph",
+        text: "v11 limits a relay to 128 single-occupant waiting rooms per port by default. A self-hosted relay can choose another positive value with --max-rooms-open or CROC_MAX_ROOMS_OPEN. The server also caps pending handshakes, gives them a five-minute deadline, and cleans up stale deadlines correctly. That keeps a slow or abandoned connection from occupying an open-ended amount of relay state.",
+      },
+      {
+        type: "paragraph",
+        text: "Explicit loopback binding is respected again. If an operator asks a relay to listen on 127.0.0.1, croc no longer silently rewrites that address to 0.0.0.0. The generated code format also gives room selection more entropy than the old four-byte prefix: current three-word codes use the first complete EFF word to select the relay room and the final two words for PAKE.",
+      },
+      { type: "heading", text: "One stored upload can serve a group" },
+      {
+        type: "paragraph",
+        text: "v11.1.0 turns stored mode into a practical group handoff. The sender chooses a verified-download allowance and a finite lifetime. Each recipient gets the same encrypted browser link or CLI token, but an allowance is spent only after a client authenticates every chunk, verifies the completed files, and commits the receive. Opening a link or abandoning a partial download does not consume one.",
+      },
+      {
+        type: "code",
+        label: "Five verified downloads, available for three days",
+        lines: [
+          "$ croc send --store \\",
+          "    --store-downloads 5 \\",
+          "    --store-expiration 3d \\",
+          "    release-notes.pdf",
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "The storage service can enforce lower maxima for download count and expiration. Its per-transfer locking is now a fixed set of stripes instead of a map that could grow for attacker-chosen IDs. Stored progress also clears old terminal text by display width, including Unicode filenames, and v11.1.1 brings stored-transfer colors in line with the rest of croc.",
+      },
+      { type: "heading", text: "Safer failure paths" },
+      {
+        type: "list",
+        items: [
+          "Decompression has explicit output limits, so a small compressed network message cannot expand without a bound in either the CLI or web path.",
+          "Temporary-file cleanup is kept in memory and accepts only local paths, preventing a received cleanup marker from naming arbitrary files for deletion.",
+          "Idle relay handshakes time out, pending handshakes are bounded, and connection deadlines are applied for the entire read instead of being cleared too early.",
+          "Stored-transfer lock state stays bounded even when requests contain many different transfer IDs.",
+        ],
+      },
+      { type: "heading", text: "The web client starts cleaner" },
+      {
+        type: "paragraph",
+        text: "The browser now shows an explicit privacy choice before optional Umami analytics can load. Rejecting analytics does not change transfers. If enabled, the configuration excludes codes, link keys, query strings, filenames, and relay settings; the choice remains available from the footer.",
+      },
+      {
+        type: "paragraph",
+        text: "In v11.1.1 the send panel can make its three-word EFF code immediately with Web Crypto instead of booting WebAssembly just to choose a phrase. The larger transfer engine waits until it is actually needed and can use streaming WebAssembly instantiation when the server provides the correct content type. The result is a usable code field sooner, especially on a cold mobile load.",
+      },
+      { type: "heading", text: "A calmer terminal" },
+      {
+        type: "paragraph",
+        text: "v11 adds semantic color without making logs noisy: active progress is cyan, completed work is green, codes and warnings are yellow, errors are red, and filenames are bold. Styling is enabled only for a real terminal, works on Windows terminals, turns off for TERM=dumb or NO_COLOR, and stays out of redirected output. Follow-up fixes cover stored-transfer progress, Unicode display width, and the final success render.",
+      },
+      { type: "heading", text: "What changed in each v11 release" },
+      {
+        type: "table",
+        caption: "croc v11 release sequence",
+        headers: ["Release", "Published", "What it brought"],
+        rows: [
+          {
+            cells: ["v11.0.0", "July 31, 2026", "PAKE transcript binding, safer relay limits, stronger room selection, terminal color, and deployment and app-directory updates"],
+            href: "https://github.com/schollz/croc/releases/tag/v11.0.0",
+          },
+          {
+            cells: ["v11.0.1", "July 31, 2026", "Loopback binding, idle connection, deadline, and decompression-limit fixes"],
+            href: "https://github.com/schollz/croc/releases/tag/v11.0.1",
+          },
+          {
+            cells: ["v11.0.2", "August 6, 2026", "Optional-analytics privacy controls, favicon and GUI links, dependency maintenance, and the temporary relay host change"],
+            href: "https://github.com/schollz/croc/releases/tag/v11.0.2",
+          },
+          {
+            cells: ["v11.0.3", "August 9, 2026", "Safe in-memory temporary-file cleanup and CI dependency maintenance"],
+            href: "https://github.com/schollz/croc/releases/tag/v11.0.3",
+          },
+          {
+            cells: ["v11.1.0", "August 11, 2026", "Multi-recipient stored transfers, sender-selected expiration, bounded storage locks, and cleaner --store rendering"],
+            href: "https://github.com/schollz/croc/releases/tag/v11.1.0",
+          },
+          {
+            cells: ["v11.1.1", "August 15, 2026", "Faster web phrase generation, corrected terminal color, the /v11 module upgrade, build documentation, and test fixes"],
+            href: "https://github.com/schollz/croc/releases/tag/v11.1.1",
+          },
+        ],
+      },
+      { type: "heading", text: "Smaller changes that still matter" },
+      {
+        type: "paragraph",
+        text: "The release series also refreshed the app directory with Croc GUI, Swamp, croc-desktop, and F-Droid details; added a favicon; updated the default discovery and temporary relay host; moved the Go module to github.com/schollz/croc/v11; corrected the source-build requirements; and advanced the GitHub Actions dependencies used for Node setup and container login. Tests were repaired alongside the protocol, code-phrase, web, and build changes.",
+      },
+      {
+        type: "aside",
+        eyebrow: "THE RESULT",
+        title: "The command stayed small",
+        text: "The visible upgrade is a faster code, clearer progress, and a stored link that can serve a group. The deeper upgrade is that relay, handshake, decompression, cleanup, and storage state now have sharper boundaries.",
+      },
+    ],
+  },
   {
     slug: "why-croc-works-this-way",
     number: "01",
@@ -998,6 +1148,7 @@ export const blogPosts: BlogPost[] = drafts
     if (!seo) throw new Error(`Missing SEO metadata for blog post ${post.slug}`);
     return {
       ...post,
+      kind: post.kind ?? "note",
       seoTitle: seo.seoTitle ?? post.title,
       modifiedAt: seo.modifiedAt,
       keywords: [...seo.keywords],
