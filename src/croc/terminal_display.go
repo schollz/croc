@@ -24,7 +24,7 @@ func (c *Client) newProgressBar(max int64, description string, throttle time.Dur
 		progressbar.OptionShowBytes(true),
 		progressbar.OptionShowCount(),
 		progressbar.OptionSetWriter(progressBarWriter(output, colorEnabled)),
-		progressbar.OptionSetVisibility(!c.Options.SendingText),
+		progressbar.OptionSetVisibility(!c.Options.SendingText && !c.Options.Events),
 		progressbar.OptionEnableColorCodes(colorEnabled),
 		progressbar.OptionSetTheme(progressBarTheme(colorEnabled)),
 	}

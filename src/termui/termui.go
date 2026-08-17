@@ -6,6 +6,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync/atomic"
 
 	"github.com/mattn/go-colorable"
 	"github.com/mattn/go-isatty"
@@ -22,9 +23,21 @@ const (
 
 var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
+var humanOutputMuted atomic.Bool
+
+// MuteHumanOutput discards all terminal output. It is used by --json mode,
+// where machine-readable events replace the human-oriented UI.
+func MuteHumanOutput(muted bool) {
+	humanOutputMuted.Store(muted)
+}
+
 // Output returns a Windows-aware writer and whether styling should be used.
 func Output(file *os.File) (io.Writer, bool) {
 	if file == nil {
+		return io.Discard, false
+	}
+
+	if humanOutputMuted.Load() {
 		return io.Discard, false
 	}
 

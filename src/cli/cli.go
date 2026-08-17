@@ -17,6 +17,8 @@ import (
 	"github.com/schollz/croc/v11/src/codephrase"
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/croc"
+	"github.com/schollz/croc/v11/src/events"
+	"github.com/schollz/croc/v11/src/events"
 	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/storeclient"
 	"github.com/schollz/croc/v11/src/tcp"
@@ -34,7 +36,11 @@ func Run() (err error) {
 	// use all of the processors
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	return newApp().Run(os.Args)
+	err = newApp().Run(os.Args)
+	if err != nil && events.Enabled() {
+		events.Error(err)
+	}
+	return
 }
 
 func newApp() *cli.App {
@@ -137,6 +143,7 @@ func newApp() *cli.App {
 		&cli.BoolFlag{Name: "rename", Usage: "receive files that already exist under a new name instead of prompting"},
 		&cli.BoolFlag{Name: "testing", Usage: "flag for testing purposes"},
 		&cli.BoolFlag{Name: "quiet", Usage: "disable all output"},
+		&cli.BoolFlag{Name: "json", Usage: "output machine-readable JSON events to stderr"},
 		&cli.BoolFlag{Name: "disable-clipboard", Usage: "disable copy to clipboard"},
 		&cli.BoolFlag{Name: "extended-clipboard", Usage: "copy full command with secret as env variable to clipboard"},
 		&cli.StringFlag{Name: "revoke", Usage: "revoke a stored transfer using its local sender receipt"},
@@ -399,6 +406,7 @@ func send(c *cli.Context) (err error) {
 		Quiet:             c.Bool("quiet"),
 		DisableClipboard:  c.Bool("disable-clipboard"),
 		ExtendedClipboard: c.Bool("extended-clipboard"),
+		Events:            c.Bool("json"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -567,6 +575,11 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 		return
 	}
 
+	if c.Bool("json") {
+		events.Version(Version)
+		events.Code(crocOptions.SharedSecret)
+	}
+
 	// save the config
 	saveConfig(c, crocOptions)
 	err = cr.Send(minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders)
@@ -693,6 +706,7 @@ func receive(c *cli.Context) (err error) {
 		Quiet:             c.Bool("quiet"),
 		DisableClipboard:  c.Bool("disable-clipboard"),
 		ExtendedClipboard: c.Bool("extended-clipboard"),
+		Events:            c.Bool("json"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -821,6 +835,10 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 	cr, err := croc.New(crocOptions)
 	if err != nil {
 		return
+	}
+
+	if c.Bool("json") {
+		events.Version(Version)
 	}
 
 	// save the config

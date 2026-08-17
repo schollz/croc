@@ -15,6 +15,8 @@ import (
 	"github.com/rivo/uniseg"
 	"github.com/schollz/croc/v11/internal/cli"
 	"github.com/schollz/croc/v11/src/croc"
+	"github.com/schollz/croc/v11/src/events"
+	"github.com/schollz/croc/v11/src/events"
 	storeapi "github.com/schollz/croc/v11/src/store"
 	"github.com/schollz/croc/v11/src/storeclient"
 	"github.com/schollz/croc/v11/src/storecrypto"
@@ -247,9 +249,12 @@ func sendStored(c *cli.Context) error {
 		strings.TrimSpace(c.String("store-url")),
 		paths,
 		storeclient.UploadOptions{Downloads: downloads, Expiration: expiration},
-		storedCallbacks(c.Bool("quiet")),
+		storedCallbacks(c.Bool("quiet") && !c.Bool("json")),
 	)
-	if !c.Bool("quiet") {
+	if c.Bool("json") {
+		events.Version(Version)
+	}
+	if !c.Bool("quiet") && !c.Bool("json") {
 		fmt.Fprintln(os.Stderr)
 	}
 	if err != nil {
@@ -270,6 +275,15 @@ func sendStored(c *cli.Context) error {
 		ExpiresAt:   result.ExpiresAt,
 	}); err != nil {
 		return fmt.Errorf("save stored-transfer revoke receipt: %w", err)
+	}
+	if c.Bool("json") {
+		events.Store(
+			browserURL,
+			token,
+			result.ExpiresAt.UTC().Format(time.RFC3339),
+			result.Share.ID,
+		)
+		return nil
 	}
 	downloadLimit := fmt.Sprintf("%d verified downloads", result.Downloads)
 	if result.Downloads == 1 {

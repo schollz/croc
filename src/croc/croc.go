@@ -38,6 +38,8 @@ import (
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/compress"
 	"github.com/schollz/croc/v11/src/crypt"
+	"github.com/schollz/croc/v11/src/events"
+	"github.com/schollz/croc/v11/src/events"
 	"github.com/schollz/croc/v11/src/message"
 	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/pakekey"
@@ -109,6 +111,7 @@ type Options struct {
 	Quiet             bool
 	DisableClipboard  bool
 	ExtendedClipboard bool
+	Events            bool
 }
 
 type SimpleMessage struct {
@@ -173,6 +176,7 @@ type Client struct {
 	senderRouteReady        chan struct{}
 	senderRouteReadyOnce    sync.Once
 	transferStarted         atomic.Bool
+	transferComplete        atomic.Bool
 	// localRelayPort is the control port of the ephemeral local relay started by
 	// setupLocalRelay(). It is captured before any goroutines that might
 	// overwrite c.Options.RelayPorts are launched.
@@ -188,6 +192,14 @@ type Client struct {
 	quit                     chan bool
 	finishedNum              int
 	numberOfTransferredFiles int
+
+	// progress event tracking (--json)
+	progMu          sync.Mutex
+	progFileNum     int
+	progBytes       int64
+	progLastBytes   int64
+	progLastEmit    time.Time
+	progEmitStarted bool
 
 	// ctx.go for graceful shutdown
 	*stop
@@ -253,6 +265,14 @@ func New(ops Options) (c *Client, err error) {
 		if err == nil {
 			os.Stderr = devNull
 		}
+	}
+
+	// enable machine-readable JSON events (--json) when requested
+	if c.Options.Events {
+		termui.MuteHumanOutput(true)
+		events.Enable(os.Stderr)
+	} else {
+		termui.MuteHumanOutput(false)
 	}
 
 	codeComponents, err := codephrase.Parse(c.Options.SharedSecret)
@@ -503,7 +523,10 @@ func (c *Client) activeTransferStarted() bool {
 }
 
 func (c *Client) markTransferStarted() {
-	c.transferStarted.Store(true)
+	if c.transferStarted.Swap(true) {
+		return
+	}
+	c.emitPhase("transferring", "transferring files")
 }
 
 func (c *Client) markSenderRouteReady() {
@@ -1034,16 +1057,18 @@ func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {
 			c.Options.HashAlgorithm = "xxhash"
 		}
 
-		c.FilesToTransfer[i].Hash, err = c.stop.hash(fullPath, c.Options.HashAlgorithm, fileInfo.Size > 1e7)
+		c.FilesToTransfer[i].Hash, err = c.stop.hash(fullPath, c.Options.HashAlgorithm, !c.Options.Events && fileInfo.Size > 1e7)
 		log.Debugf("hashed %s to %x using %s", fullPath, c.FilesToTransfer[i].Hash, c.Options.HashAlgorithm)
 		totalFilesSize += fileInfo.Size
 		if err != nil {
 			return
 		}
 		log.Debugf("file %d info: %+v", i, c.FilesToTransfer[i])
-		fmt.Fprintf(os.Stderr, "\r                                 ")
-		output, _ := termui.Output(os.Stderr)
-		fmt.Fprintf(output, "\rSending %d files (%s)", i, utils.ByteCountDecimal(totalFilesSize))
+		if !c.Options.Events {
+			fmt.Fprintf(os.Stderr, "\r                                 ")
+			output, _ := termui.Output(os.Stderr)
+			fmt.Fprintf(output, "\rSending %d files (%s)", i, utils.ByteCountDecimal(totalFilesSize))
+		}
 	}
 	log.Debugf("longestFilename: %+v", c.longestFilename)
 	fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
@@ -1062,6 +1087,9 @@ func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {
 		}
 	}
 
+	if c.Options.Events {
+		return
+	}
 	fmt.Fprintf(os.Stderr, "\r                                 ")
 	output, colorEnabled := termui.Output(os.Stderr)
 	if displayName != "" {
@@ -1407,6 +1435,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 	c.EmptyFoldersToTransfer = emptyFoldersToTransfer
 	c.TotalNumberFolders = totalNumberFolders
 	c.TotalNumberOfContents = len(filesInfo)
+	c.emitPhase("hashing", "hashing files")
 	err = c.sendCollectFiles(filesInfo)
 	if err != nil {
 		return
@@ -1419,18 +1448,22 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 		flags.WriteString("--pass " + c.Options.RelayPassword + " ")
 	}
 	webURL := webReceiveURL(c.Options.SharedSecret)
-	output, colorEnabled := termui.Output(os.Stderr)
-	fmt.Fprint(output, formatSendInstructions(c.Options.SharedSecret, flags.String(), webURL, colorEnabled))
-	if !c.Options.DisableClipboard {
-		clipboardText := formatClipboardText(c.Options.SharedSecret, flags.String(), c.Options.ExtendedClipboard)
-		copyToClipboard(clipboardText, c.Options.Quiet, c.Options.ExtendedClipboard)
-	}
-	if c.Options.ShowQrCode {
-		showReceiveCommandQrCode(webURL)
-	}
-	if c.Options.Ask {
-		machid, _ := machineid.ID()
-		fmt.Fprintf(os.Stderr, "\rYour machine ID is '%s'\n", machid)
+	if c.Options.Events {
+		c.emitPhase("connecting", "connecting to relay")
+	} else {
+		output, colorEnabled := termui.Output(os.Stderr)
+		fmt.Fprint(output, formatSendInstructions(c.Options.SharedSecret, flags.String(), webURL, colorEnabled))
+		if !c.Options.DisableClipboard {
+			clipboardText := formatClipboardText(c.Options.SharedSecret, flags.String(), c.Options.ExtendedClipboard)
+			copyToClipboard(clipboardText, c.Options.Quiet, c.Options.ExtendedClipboard)
+		}
+		if c.Options.ShowQrCode {
+			showReceiveCommandQrCode(webURL)
+		}
+		if c.Options.Ask {
+			machid, _ := machineid.ID()
+			fmt.Fprintf(os.Stderr, "\rYour machine ID is '%s'\n", machid)
+		}
 	}
 	// c.spinner.Suffix = " waiting for recipient..."
 	// c.spinner.Start()
@@ -1626,8 +1659,12 @@ func (c *Client) discoverReceivePeers() (discoveries []peerdiscovery.Discovered)
 func (c *Client) Receive() (err error) {
 	go c.stop.done()
 	defer c.stop.Cancel()
-	output, _ := termui.Output(os.Stderr)
-	fmt.Fprint(output, "connecting...")
+	if c.Options.Events {
+		c.emitPhase("connecting", "connecting to relay")
+	} else {
+		output, _ := termui.Output(os.Stderr)
+		fmt.Fprint(output, "connecting...")
+	}
 	// recipient will look for peers first
 	// and continue if it doesn't find any within 100 ms
 	usingLocal := false
@@ -1872,8 +1909,10 @@ func (c *Client) Receive() (err error) {
 		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
 	}
 	log.Debug("exchanged header message")
-	output, _ = termui.Output(os.Stderr)
-	fmt.Fprint(output, "\rsecuring channel...")
+	if !c.Options.Events {
+		output, _ := termui.Output(os.Stderr)
+		fmt.Fprint(output, "\rsecuring channel...")
+	}
 	err = c.transferWithReconnect(func(attempt int) error {
 		if attempt == 0 {
 			return nil
@@ -1881,8 +1920,8 @@ func (c *Client) Receive() (err error) {
 		return c.receiverReconnectRelayAttempt(attempt)
 	})
 	if err == nil {
-		if c.numberOfTransferredFiles+len(c.EmptyFoldersToTransfer) == 0 {
-			output, _ = termui.Output(os.Stderr)
+		if c.numberOfTransferredFiles+len(c.EmptyFoldersToTransfer) == 0 && !c.Options.Events {
+			output, _ := termui.Output(os.Stderr)
 			fmt.Fprint(output, "\rNo files transferred.\n")
 		}
 	} else if !isTransferDisconnectError(err) {
@@ -2007,7 +2046,9 @@ func (c *Client) transfer() (err error) {
 		if err = os.Remove(pathToFile); err != nil {
 			log.Warnf("error removing %s: %v", pathToFile, err)
 		}
-		fmt.Fprint(os.Stderr, "\n")
+		if !c.Options.Events {
+			fmt.Fprint(os.Stderr, "\n")
+		}
 	}
 	if err != nil && strings.Contains(err.Error(), "pake not successful") {
 		log.Debugf("pake error: %s", err.Error())
@@ -2181,6 +2222,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 
 	// if no files are to be transferred, then we can end the file transfer process
 	if c.FilesToTransfer == nil {
+		c.emitComplete()
 		c.SuccessfulTransfer = true
 		c.Step3RecipientRequestFile = true
 		c.Step4FileTransferred = true
@@ -2443,6 +2485,7 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 			Type: message.TypeFinished,
 		})
 		done = true
+		c.emitComplete()
 		c.SuccessfulTransfer = true
 		return
 	case message.TypePAKE:
@@ -2652,6 +2695,7 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 		if err != nil {
 			return
 		}
+		c.emitComplete()
 		c.SuccessfulTransfer = true
 		c.FilesHasFinished[c.FilesToTransferCurrentNum] = struct{}{}
 		return
@@ -2803,7 +2847,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		var fileHash []byte
 		if errRecipientFile == nil && recipientFileInfo.Size() == fileInfo.Size {
 			// the file exists, but is same size, so hash it
-			fileHash, errHash = utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name), c.Options.HashAlgorithm, !c.Options.SendingText)
+			fileHash, errHash = utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name), c.Options.HashAlgorithm, !c.Options.SendingText && !c.Options.Events)
 		}
 		if fileInfo.Size == 0 || fileInfo.Symlink != "" {
 			err = c.createEmptyFileAndFinish(fileInfo, i)
@@ -2901,7 +2945,7 @@ func (c *Client) fmtPrintUpdate() {
 	if c.TotalNumberOfContents > 1 {
 		output, colorEnabled := termui.Output(os.Stderr)
 		fmt.Fprintln(output, termui.Success(fmt.Sprintf(" %d/%d", c.finishedNum, c.TotalNumberOfContents), colorEnabled))
-	} else {
+	} else if !c.Options.Events {
 		fmt.Fprintf(os.Stderr, "\n")
 	}
 }
@@ -2984,6 +3028,7 @@ func (c *Client) setBar() {
 		log.Debug(bytesDone)
 		if bytesDone > 0 {
 			c.bar.Add64(bytesDone)
+			c.emitProgress(bytesDone)
 		}
 	}
 }
@@ -3065,6 +3110,7 @@ func (c *Client) receiveData(i int, dataConn *comm.Comm, attempt *transferAttemp
 			return
 		}
 		c.bar.Add(len(data[8:]))
+		c.emitProgress(int64(len(data[8:])))
 		c.TotalSent += int64(len(data[8:]))
 		c.TotalChunksTransferred++
 		// log.Debug(len(c.CurrentFileChunks), c.TotalChunksTransferred, c.TotalSent, c.FilesToTransfer[c.FilesToTransferCurrentNum].Size)
@@ -3173,6 +3219,7 @@ func (c *Client) sendData(i int, dataConn *comm.Comm, fread *os.File, attempt *t
 						return
 					}
 					c.bar.Add(n)
+					c.emitProgress(int64(n))
 					c.TotalSent += int64(n)
 					// time.Sleep(100 * time.Millisecond)
 				}
