@@ -128,30 +128,32 @@ func (c *Comm) Close() {
 }
 
 func (c *Comm) Write(b []byte) (n int, err error) {
-	header := new(bytes.Buffer)
-	err = binary.Write(header, binary.LittleEndian, uint32(len(b)))
+	var header [8]byte
+	copy(header[:4], MAGIC_BYTES)
+	binary.LittleEndian.PutUint32(header[4:], uint32(len(b)))
+	buffers := net.Buffers{header[:], b}
+	written, err := buffers.WriteTo(c.connection)
 	if err != nil {
-		fmt.Println("binary.Write failed:", err)
-	}
-	tmpCopy := append(header.Bytes(), b...)
-	tmpCopy = append(MAGIC_BYTES, tmpCopy...)
-	n, err = c.connection.Write(tmpCopy)
-	if err != nil {
-		err = fmt.Errorf("connection.Write failed: %w", err)
+		err = fmt.Errorf("connection write failed: %w", err)
 		return
 	}
-	if n != len(tmpCopy) {
-		err = fmt.Errorf("wanted to write %d but wrote %d", len(b), n)
+	n = int(written)
+	if written != int64(len(header)+len(b)) {
+		err = fmt.Errorf("wanted to write %d but wrote %d", len(header)+len(b), written)
 		return
 	}
 	return
 }
 
 func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
-	return c.readWithDeadline(time.Now().Add(3 * time.Hour))
+	return c.readWithDeadlineInto(nil, time.Now().Add(3*time.Hour))
 }
 
 func (c *Comm) readWithDeadline(readDeadline time.Time) (buf []byte, numBytes int, bs []byte, err error) {
+	return c.readWithDeadlineInto(nil, readDeadline)
+}
+
+func (c *Comm) readWithDeadlineInto(dst []byte, readDeadline time.Time) (buf []byte, numBytes int, bs []byte, err error) {
 	// Clear stale connection deadlines before applying the deadline for this
 	// read. The previous ordering cleared the read deadline immediately after
 	// setting it, leaving header reads unbounded.
@@ -164,34 +166,18 @@ func (c *Comm) readWithDeadline(readDeadline time.Time) (buf []byte, numBytes in
 		return
 	}
 
-	// read until we get 4 bytes for the magic
-	header := make([]byte, 4)
-	_, err = io.ReadFull(c.connection, header)
+	var header [8]byte
+	_, err = io.ReadFull(c.connection, header[:])
 	if err != nil {
 		log.Debugf("initial read error: %v", err)
 		return
 	}
-	if !bytes.Equal(header, MAGIC_BYTES) {
-		err = fmt.Errorf("initial bytes are not magic: %x", header)
+	if !bytes.Equal(header[:4], MAGIC_BYTES) {
+		err = fmt.Errorf("initial bytes are not magic: %x", header[:4])
 		return
 	}
 
-	// read until we get 4 bytes for the header
-	header = make([]byte, 4)
-	_, err = io.ReadFull(c.connection, header)
-	if err != nil {
-		log.Debugf("initial read error: %v", err)
-		return
-	}
-
-	var numBytesUint32 uint32
-	rbuf := bytes.NewReader(header)
-	err = binary.Read(rbuf, binary.LittleEndian, &numBytesUint32)
-	if err != nil {
-		err = fmt.Errorf("binary.Read failed: %w", err)
-		log.Debug(err.Error())
-		return
-	}
+	numBytesUint32 := binary.LittleEndian.Uint32(header[4:])
 	if numBytesUint32 > uint32(maxReadMessageSize) {
 		err = fmt.Errorf("message too large: %d > %d", numBytesUint32, maxReadMessageSize)
 		log.Debug(err.Error())
@@ -209,7 +195,11 @@ func (c *Comm) readWithDeadline(readDeadline time.Time) (buf []byte, numBytes in
 		err = fmt.Errorf("error setting message body read deadline: %w", err)
 		return
 	}
-	buf = make([]byte, numBytes)
+	if cap(dst) < numBytes {
+		buf = make([]byte, numBytes)
+	} else {
+		buf = dst[:numBytes]
+	}
 	_, err = io.ReadFull(c.connection, buf)
 	if err != nil {
 		log.Debugf("consecutive read error: %v", err)
@@ -227,6 +217,13 @@ func (c *Comm) Send(message []byte) (err error) {
 // Receive a message
 func (c *Comm) Receive() (b []byte, err error) {
 	b, _, _, err = c.Read()
+	return
+}
+
+// ReceiveInto receives a framed message, reusing dst when it has enough
+// capacity. Callers must finish using the returned bytes before the next call.
+func (c *Comm) ReceiveInto(dst []byte) (b []byte, err error) {
+	b, _, _, err = c.readWithDeadlineInto(dst, time.Now().Add(3*time.Hour))
 	return
 }
 

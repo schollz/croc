@@ -199,6 +199,7 @@ describe("stored commit recovery", () => {
           totalSize: 0,
           senderMachineID: "encrypted temporary storage",
           noCompress: true,
+          perFileCompression: false,
         },
       },
       settings: {

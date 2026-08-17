@@ -9,9 +9,9 @@ export interface PakeFinish {
 }
 
 export interface PeerKeys {
-	key: Uint8Array;
-	confirmationA: Uint8Array;
-	confirmationB: Uint8Array;
+  key: Uint8Array;
+  confirmationA: Uint8Array;
+  confirmationB: Uint8Array;
 }
 
 export interface CodeComponents {
@@ -87,18 +87,24 @@ export class CrocWasm {
   }
 
   private fail(reason: unknown) {
-    const error =
-      reason instanceof Error ? reason : new Error(String(reason));
+    const error = reason instanceof Error ? reason : new Error(String(reason));
     this.fatalError = error;
     for (const pending of this.pending.values()) pending.reject(error);
     this.pending.clear();
   }
 
-  private call<T>(method: string, args: unknown[] = [], transfer: Transferable[] = []) {
+  private call<T>(
+    method: string,
+    args: unknown[] = [],
+    transfer: Transferable[] = [],
+  ) {
     if (this.fatalError) return Promise.reject(this.fatalError);
     const id = this.nextID++;
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
+      this.pending.set(id, {
+        resolve: resolve as (value: unknown) => void,
+        reject,
+      });
       this.worker.postMessage({ id, method, args }, transfer);
     });
   }
@@ -169,6 +175,35 @@ export class CrocWasm {
 
   decompress(input: Uint8Array, maxOutputSize: number) {
     return this.call<Uint8Array>("decompress", [input, maxOutputSize]);
+  }
+
+  cipherInit(key: Uint8Array) {
+    return this.call<number>("cipherInit", [key]);
+  }
+
+  cipherRelease(handle: number) {
+    return this.call<void>("cipherRelease", [handle]);
+  }
+
+  encodeChunk(handle: number, input: Uint8Array, compressed: boolean) {
+    return this.call<Uint8Array>(
+      "encodeChunk",
+      [handle, input, compressed],
+      [input.buffer],
+    );
+  }
+
+  decodeChunk(
+    handle: number,
+    input: Uint8Array,
+    compressed: boolean,
+    maxOutputSize: number,
+  ) {
+    return this.call<Uint8Array>(
+      "decodeChunk",
+      [handle, input, compressed, maxOutputSize],
+      [input.buffer],
+    );
   }
 
   hashInit() {

@@ -17,6 +17,70 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
+}
+
+func BenchmarkStoredChunkUploadConcurrency(b *testing.B) {
+	const chunks = 4
+	path := filepath.Join(b.TempDir(), "upload.bin")
+	handle, err := os.Create(path)
+	require.NoError(b, err)
+	require.NoError(b, handle.Truncate(chunks*storecrypto.ChunkSize))
+	require.NoError(b, handle.Close())
+	key, err := storecrypto.GenerateKey()
+	require.NoError(b, err)
+	refs := make([]storecrypto.ChunkRef, chunks)
+	for index := range refs {
+		refs[index] = storecrypto.ChunkRef{
+			ObjectIndex: index, FileIndex: 0, FileChunk: index, PlainSize: storecrypto.ChunkSize,
+		}
+	}
+	client := &Client{HTTP: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		time.Sleep(10 * time.Millisecond)
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	})}}
+	result := UploadResult{Share: storecrypto.Share{Origin: "https://store.test", ID: "benchmark", MasterKey: key}}
+	file := uploadFile{path: path, manifest: storecrypto.ManifestFile{Name: "upload.bin", Size: chunks * storecrypto.ChunkSize, ChunkCount: chunks}}
+
+	b.Run("sequential", func(b *testing.B) {
+		for iteration := 0; iteration < b.N; iteration++ {
+			handle, openErr := os.Open(path)
+			if openErr != nil {
+				b.Fatal(openErr)
+			}
+			chunkCipher, cipherErr := storecrypto.NewChunkCipher(key)
+			if cipherErr != nil {
+				b.Fatal(cipherErr)
+			}
+			plaintext := make([]byte, storecrypto.ChunkSize)
+			ciphertext := make([]byte, 0, storecrypto.ChunkSize+32)
+			for chunk, ref := range refs {
+				if _, readErr := handle.ReadAt(plaintext, int64(chunk)*storecrypto.ChunkSize); readErr != nil {
+					b.Fatal(readErr)
+				}
+				ciphertext, cipherErr = chunkCipher.Seal(ciphertext, result.Share.ID, ref, plaintext)
+				if cipherErr != nil {
+					b.Fatal(cipherErr)
+				}
+				if putErr := client.putWithRetry(context.Background(), "https://store.test/chunk", "", ciphertext); putErr != nil {
+					b.Fatal(putErr)
+				}
+			}
+			handle.Close()
+		}
+	})
+	b.Run("four-workers", func(b *testing.B) {
+		for iteration := 0; iteration < b.N; iteration++ {
+			if _, uploadErr := client.uploadFile(context.Background(), result, file, 0, 1, refs, 0, file.manifest.Size, Callbacks{}); uploadErr != nil {
+				b.Fatal(uploadErr)
+			}
+		}
+	})
+}
+
 func testStack(t *testing.T) (*Client, string) {
 	t.Helper()
 	service, err := store.New(store.Config{

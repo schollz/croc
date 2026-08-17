@@ -56,6 +56,16 @@ func TestManifestAndChunkRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []byte("hello"), plaintext)
 
+	chunkCipher, err := NewChunkCipher(key)
+	require.NoError(t, err)
+	buffer := make([]byte, chunkCipher.NonceSize()+ref.PlainSize+16)
+	copy(buffer[chunkCipher.NonceSize():], "hello")
+	inPlaceCiphertext, err := chunkCipher.SealInPlace(buffer, id, ref)
+	require.NoError(t, err)
+	inPlacePlaintext, err := chunkCipher.OpenInPlace(id, ref, inPlaceCiphertext)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("hello"), inPlacePlaintext)
+
 	encryptedChunk[len(encryptedChunk)-1] ^= 1
 	_, err = OpenChunk(key, id, ref, encryptedChunk)
 	assert.ErrorContains(t, err, "authentication failed")

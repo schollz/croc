@@ -251,6 +251,98 @@ func OpenChunk(master []byte, id string, ref ChunkRef, ciphertext []byte) ([]byt
 	return plaintext, nil
 }
 
+// ChunkCipher reuses the derived data key and AEAD across chunks in one
+// transfer. It also supports caller-owned output buffers for the hot path.
+type ChunkCipher struct {
+	aead cipher.AEAD
+}
+
+// NewChunkCipher prepares the data cipher for a stored transfer.
+func NewChunkCipher(master []byte) (*ChunkCipher, error) {
+	aead, err := aeadFor(master, "data")
+	if err != nil {
+		return nil, err
+	}
+	return &ChunkCipher{aead: aead}, nil
+}
+
+// NonceSize returns the prefix reserved before plaintext for SealInPlace.
+func (c *ChunkCipher) NonceSize() int {
+	return c.aead.NonceSize()
+}
+
+// Seal encrypts a chunk, reusing dst when it has sufficient capacity.
+func (c *ChunkCipher) Seal(dst []byte, id string, ref ChunkRef, plaintext []byte) ([]byte, error) {
+	if err := validateChunkRef(ref, len(plaintext)); err != nil {
+		return nil, err
+	}
+	nonceSize := c.aead.NonceSize()
+	needed := nonceSize + len(plaintext) + c.aead.Overhead()
+	if cap(dst) < needed {
+		dst = make([]byte, needed)
+	} else {
+		dst = dst[:needed]
+	}
+	nonce := dst[:nonceSize]
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, fmt.Errorf("generate stored-transfer nonce: %w", err)
+	}
+	sealed := c.aead.Seal(dst[:nonceSize], nonce, plaintext, chunkAAD(id, ref))
+	return sealed, nil
+}
+
+// SealInPlace encrypts plaintext already stored immediately after the nonce
+// prefix in buffer. The ciphertext overwrites that plaintext.
+func (c *ChunkCipher) SealInPlace(buffer []byte, id string, ref ChunkRef) ([]byte, error) {
+	if err := validateChunkRef(ref, ref.PlainSize); err != nil {
+		return nil, err
+	}
+	nonceSize := c.aead.NonceSize()
+	required := nonceSize + ref.PlainSize + c.aead.Overhead()
+	if len(buffer) < required {
+		return nil, errors.New("stored-transfer chunk buffer is too small")
+	}
+	nonce := buffer[:nonceSize]
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, fmt.Errorf("generate stored-transfer nonce: %w", err)
+	}
+	plaintext := buffer[nonceSize : nonceSize+ref.PlainSize]
+	return c.aead.Seal(buffer[:nonceSize], nonce, plaintext, chunkAAD(id, ref)), nil
+}
+
+// Open authenticates and decrypts a chunk, reusing dst when possible.
+func (c *ChunkCipher) Open(dst []byte, id string, ref ChunkRef, ciphertext []byte) ([]byte, error) {
+	if err := validateChunkRef(ref, ref.PlainSize); err != nil {
+		return nil, err
+	}
+	nonceSize := c.aead.NonceSize()
+	if len(ciphertext) < nonceSize+c.aead.Overhead() {
+		return nil, errors.New("stored-transfer ciphertext is too short")
+	}
+	plaintext, err := c.aead.Open(
+		dst[:0],
+		ciphertext[:nonceSize],
+		ciphertext[nonceSize:],
+		chunkAAD(id, ref),
+	)
+	if err != nil {
+		return nil, errors.New("stored-transfer authentication failed")
+	}
+	if len(plaintext) != ref.PlainSize {
+		return nil, errors.New("stored-transfer chunk has the wrong plaintext length")
+	}
+	return plaintext, nil
+}
+
+// OpenInPlace authenticates and decrypts into ciphertext's payload area.
+func (c *ChunkCipher) OpenInPlace(id string, ref ChunkRef, ciphertext []byte) ([]byte, error) {
+	nonceSize := c.aead.NonceSize()
+	if len(ciphertext) < nonceSize+c.aead.Overhead() {
+		return nil, errors.New("stored-transfer ciphertext is too short")
+	}
+	return c.Open(ciphertext[nonceSize:nonceSize], id, ref, ciphertext)
+}
+
 func validateChunkRef(ref ChunkRef, plaintextLength int) error {
 	if ref.ObjectIndex < 0 || ref.FileIndex < 0 || ref.FileChunk < 0 {
 		return errors.New("stored-transfer chunk index cannot be negative")

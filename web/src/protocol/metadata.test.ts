@@ -49,6 +49,22 @@ describe("incoming croc metadata", () => {
     expect(offer.emptyFolders).toEqual(["empty/folder"]);
   });
 
+  it("only honors per-file compression after capability negotiation", () => {
+    const legacy = validateSenderInfo(
+      sender([{ n: "archive.zip", fr: ".", s: 1, h: "AA==", c: false }]),
+    );
+    expect(legacy.files[0].compressed).toBe(true);
+    expect(legacy.perFileCompression).toBe(false);
+
+    const modernInfo = sender([
+      { n: "archive.zip", fr: ".", s: 1, h: "AA==", c: false },
+    ]);
+    modernInfo.Features = ["per-file-compression-v1"];
+    const modern = validateSenderInfo(modernInfo);
+    expect(modern.files[0].compressed).toBe(false);
+    expect(modern.perFileCompression).toBe(true);
+  });
+
   it.each([
     ["../escape", "file.txt"],
     ["/absolute", "file.txt"],

@@ -2,6 +2,7 @@ package compress
 
 import (
 	"bytes"
+	"compress/flate"
 	"crypto/rand"
 	"fmt"
 	"testing"
@@ -58,6 +59,75 @@ func BenchmarkCompressLevelMinusTwoBinary(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		CompressWithOption(data, -2)
 	}
+}
+
+func BenchmarkTransferChunkCompression(b *testing.B) {
+	data := bytes.Repeat([]byte("croc-transfer-data-"), 2048)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(data)))
+	b.Run("legacy-new-writer-per-chunk", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			CompressWithOption(data, flate.HuffmanOnly)
+		}
+	})
+	b.Run("pooled-writer", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			Compress(data)
+		}
+	})
+	b.Run("pooled-writer-reused-output", func(b *testing.B) {
+		output := make([]byte, 0, len(data))
+		for i := 0; i < b.N; i++ {
+			output = CompressTo(output, data)
+		}
+	})
+}
+
+func BenchmarkTransferChunkDecompression(b *testing.B) {
+	data := bytes.Repeat([]byte("croc-transfer-data-"), 2048)
+	compressed := Compress(data)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(data)))
+	b.Run("fresh-output", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if _, err := Decompress(compressed, int64(len(data))); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("reused-output", func(b *testing.B) {
+		output := make([]byte, 0, len(data))
+		for i := 0; i < b.N; i++ {
+			var err error
+			output, err = DecompressTo(output, compressed, int64(len(data)))
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+var benchmarkOutput []byte
+
+func BenchmarkIncompressibleChunkDecision(b *testing.B) {
+	data := make([]byte, 32*1024+8)
+	if _, err := rand.Read(data); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.SetBytes(int64(len(data)))
+	b.Run("always-compress", func(b *testing.B) {
+		output := make([]byte, 0, len(data))
+		for range b.N {
+			output = CompressTo(output, data)
+		}
+		benchmarkOutput = output
+	})
+	b.Run("adaptive-raw", func(b *testing.B) {
+		for range b.N {
+			benchmarkOutput = data
+		}
+	})
 }
 
 func BenchmarkCompressLevelNineBinary(b *testing.B) {

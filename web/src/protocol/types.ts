@@ -44,6 +44,7 @@ export interface SenderInfoWire {
   HashAlgorithm: string;
   ReconnectVersion?: number;
   NextReconnectRoom?: string;
+  Features?: string[];
 }
 
 export interface RemoteFileRequestWire {
@@ -51,6 +52,7 @@ export interface RemoteFileRequestWire {
   FilesToTransferCurrentNum: number;
   MachineID: string;
   ReconnectVersion: number;
+  Features?: string[];
 }
 
 export interface OfferedFile {
@@ -61,6 +63,7 @@ export interface OfferedFile {
   hash: Uint8Array;
   modified?: string;
   mode?: number;
+  compressed?: boolean;
 }
 
 export interface TransferOffer {
@@ -69,6 +72,7 @@ export interface TransferOffer {
   totalSize: number;
   senderMachineID: string;
   noCompress: boolean;
+  perFileCompression: boolean;
 }
 
 export interface PreparedFile {
@@ -77,6 +81,7 @@ export interface PreparedFile {
   size: number;
   hash: Uint8Array;
   modified: string;
+  compressed?: boolean;
 }
 
 export interface TransferSettings {

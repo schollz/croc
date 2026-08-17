@@ -278,6 +278,13 @@ func TestMissingChunks(t *testing.T) {
 
 	chunks := ChunkRangesToChunks(chunkRanges)
 	assert.Equal(t, []int64{0, 40, 50, 70, 80, 90}, chunks)
+	assert.Equal(t, 6, ChunkRangesCount(chunkRanges, int64(fileSize), int64(chunkSize)))
+	assert.Equal(t, int64(60), ChunkRangesBytes(chunkRanges, int64(fileSize), int64(chunkSize)))
+	assert.True(t, ChunkRangesContain(chunkRanges, 50))
+	assert.False(t, ChunkRangesContain(chunkRanges, 60))
+	assert.Equal(t, 10, ChunkRangesCount(nil, int64(fileSize), int64(chunkSize)))
+	assert.Equal(t, int64(fileSize), ChunkRangesBytes(nil, int64(fileSize), int64(chunkSize)))
+	assert.True(t, ChunkRangesContain(nil, 60))
 
 	os.Remove("missing.test")
 
