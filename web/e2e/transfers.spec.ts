@@ -469,7 +469,7 @@ test("publishes rich metadata and project links", async ({ page }) => {
   ).toHaveCSS("font-size", "12px");
   await expect(
     receivePanel.getByText(
-      "Enter a croc code or encrypted stored link. Review before saving.",
+      "Enter a croc code or encrypted stored link. Review before saving or displaying.",
     ),
   ).toHaveCSS("font-size", "12px");
   await expect(
@@ -532,6 +532,19 @@ test("mobile puts both transfer directions within one tap", async ({ page }) => 
   await expect(sendTab).toHaveAttribute("aria-selected", "true");
   await expect(page.locator(".send-panel")).toBeVisible();
   await expect(page.locator(".receive-panel")).not.toBeVisible();
+  const sendPanel = page.locator(".send-panel");
+  await expect(sendPanel.getByLabel("Text to send")).toHaveCount(0);
+  await expect(sendPanel.getByRole("button", { name: "Send text instead" }))
+    .toBeVisible();
+  await sendPanel.getByRole("button", { name: "Send text instead" }).click();
+  const textComposer = sendPanel.getByLabel("Text to send");
+  await expect(textComposer).toBeVisible();
+  await expect(textComposer).toHaveCSS("font-size", "16px");
+  await expect(sendPanel.getByRole("button", { name: "Send text" })).toBeDisabled();
+  await textComposer.fill("hello from mobile");
+  await expect(sendPanel.getByRole("button", { name: "Send text" })).toBeEnabled();
+  await sendPanel.getByRole("button", { name: "Send files instead" }).click();
+  await expect(sendPanel.locator(".drop-zone")).toBeVisible();
 
   await receiveTab.click();
   await expect(receiveTab).toHaveAttribute("aria-selected", "true");
@@ -868,6 +881,79 @@ test("Web → CLI transfers and verifies multiple files", async ({
     await cli.done;
     await metricsVisible;
     await expectDirectory(destination, fixtures);
+  } finally {
+    cli.stop();
+    await cli.done.catch(() => undefined);
+  }
+});
+
+test("Web → CLI sends exact multiline Unicode text", async ({
+  page,
+}, testInfo) => {
+  const message = "hello from croc web\nhttps://example.com/🐊\nfinal line";
+  const configDirectory = testInfo.outputPath("text-receiver-config");
+  await fs.mkdir(configDirectory, { recursive: true });
+  await configurePage(page);
+  const panel = page.locator(".send-panel");
+  await panel.getByRole("button", { name: "Send text instead" }).click();
+  await panel.getByLabel("Text to send").fill(message);
+  await panel.getByRole("button", { name: "Send text" }).click();
+  const secret = (await panel.getByLabel("Croc code").textContent())!;
+  const cli = runCroc(
+    [...commonCLIArgs(), "--quiet"],
+    secret,
+    configDirectory,
+  );
+  try {
+    await expect(panel).toContainText("Text arrived safely", {
+      timeout: transferTimeout,
+    });
+    await cli.done;
+    expect(cli.output()).toBe(message);
+  } finally {
+    cli.stop();
+    await cli.done.catch(() => undefined);
+  }
+});
+
+test("CLI → Web reviews, verifies, displays, and copies text without a download", async ({
+  page,
+}, testInfo) => {
+  const secret = "1113-cli-text-to-web";
+  const message = "sent from the CLI\nmultiline 🐊 text";
+  const configDirectory = testInfo.outputPath("text-sender-config");
+  await fs.mkdir(configDirectory, { recursive: true });
+  await configurePage(page);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async () => undefined },
+    });
+  });
+  const downloads: Download[] = [];
+  page.on("download", (download) => downloads.push(download));
+  const panel = await connectWebReceiver(page, secret);
+  const cli = runCroc(
+    [...commonCLIArgs(), "send", "--no-local", "--text", message],
+    secret,
+    configDirectory,
+    process.env.CROC_E2E_SENDER_BINARY,
+  );
+  try {
+    await expect(panel.getByText("Incoming text", { exact: true })).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Accept files" })).toHaveCount(0);
+    await expect(panel.getByLabel("Received text")).toHaveCount(0);
+    await panel.getByRole("button", { name: "Display text" }).click();
+    await expect(panel.getByLabel("Received text")).toHaveText(message, {
+      timeout: transferTimeout,
+    });
+    await expect(panel).toContainText("Text received and verified");
+    expect(downloads).toHaveLength(0);
+    await panel.getByRole("button", { name: "Copy text" }).click();
+    await expect(panel.getByRole("button", { name: "Text copied" })).toBeVisible();
+    await expect(panel.locator(".received-text").getByRole("status"))
+      .toContainText("Text copied");
+    await cli.done;
   } finally {
     cli.stop();
     await cli.done.catch(() => undefined);

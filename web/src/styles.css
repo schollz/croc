@@ -40,7 +40,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -50,6 +51,7 @@ a {
 
 button,
 input,
+textarea,
 details,
 .panel {
   border-radius: 0;
@@ -62,6 +64,7 @@ button {
 
 button:focus-visible,
 input:focus-visible,
+textarea:focus-visible,
 summary:focus-visible,
 a:focus-visible {
   outline: 2px solid var(--foreground);
@@ -373,15 +376,31 @@ input {
   font-size: 12px;
 }
 
-input::placeholder {
+textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 132px;
+  border: 1px solid var(--subtle);
+  padding: 11px;
+  color: var(--foreground);
+  background: var(--background);
+  font-size: 12px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+input::placeholder,
+textarea::placeholder {
   color: var(--subtle);
 }
 
-input:focus {
+input:focus,
+textarea:focus {
   border-color: var(--foreground);
 }
 
 input:disabled,
+textarea:disabled,
 button:disabled,
 select:disabled {
   cursor: not-allowed;
@@ -521,6 +540,60 @@ select:disabled {
   color: var(--subtle);
   font-size: 10px;
   line-height: 1.55;
+}
+
+.send-content-link {
+  display: inline-flex;
+  min-height: 36px;
+  gap: 7px;
+  align-items: center;
+  align-self: flex-end;
+  border: 0;
+  padding: 7px 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 10px;
+  text-decoration: underline;
+  text-decoration-color: var(--soft-border);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.send-content-link:hover:not(:disabled) {
+  color: var(--foreground);
+  text-decoration-color: currentcolor;
+}
+
+.send-content-link svg {
+  width: 13px;
+  height: 13px;
+}
+
+.text-composer {
+  display: grid;
+}
+
+.text-composer .field-label {
+  margin-top: 0;
+}
+
+.text-composer-meta {
+  display: flex;
+  min-height: 38px;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--subtle);
+  font-size: 10px;
+}
+
+.text-composer-meta .error {
+  color: var(--danger);
+  font-weight: 750;
+}
+
+.text-composer .field-help {
+  margin-top: 0;
 }
 
 .send-mode-switch {
@@ -831,6 +904,53 @@ select:disabled {
   color: var(--muted);
   font-size: 10px;
   line-height: 1.55;
+}
+
+.received-text {
+  display: grid;
+  gap: 11px;
+  margin: 2px 0 18px;
+  border: 1px solid var(--foreground);
+  padding: 14px;
+  background: var(--panel-tint);
+}
+
+.received-text-heading {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.received-text-heading .secondary-button {
+  width: auto;
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: 10px;
+  text-transform: none;
+}
+
+.received-text-heading .secondary-button.copied {
+  color: var(--background);
+  background: var(--foreground);
+}
+
+.received-text pre {
+  max-height: 260px;
+  overflow: auto;
+  border-top: 1px dashed var(--soft-border);
+  margin: 0;
+  padding: 13px 0 0;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  unicode-bidi: plaintext;
 }
 
 .button-pair {
@@ -3412,6 +3532,20 @@ a.cli-download-primary:hover {
     font-size: 16px;
   }
 
+  textarea {
+    min-height: 160px;
+    font-size: 16px;
+  }
+
+  .send-content-link {
+    min-height: 44px;
+    font-size: 11px;
+  }
+
+  .text-composer-meta {
+    font-size: 11px;
+  }
+
   .send-code {
     grid-template-columns: minmax(0, 1fr) 48px;
   }
@@ -3448,6 +3582,10 @@ a.cli-download-primary:hover {
   .secondary-button {
     min-height: 48px;
     font-size: 12px;
+  }
+
+  .received-text pre {
+    font-size: 14px;
   }
 
   .primary-button {

@@ -5,6 +5,7 @@ import type {
   TransferOffer,
   WireFileInfo,
 } from "./types";
+import { maxTextTransferBytes } from "./types";
 
 function cleanSegments(value: string) {
   const replaced = value.replaceAll("\\", "/");
@@ -68,7 +69,6 @@ function finiteSize(file: WireFileInfo) {
 }
 
 export function validateSenderInfo(info: SenderInfoWire): TransferOffer {
-  if (info.SendingText) throw new Error("Text transfers are not supported yet");
   if (info.HashAlgorithm && info.HashAlgorithm !== "xxhash") {
     throw new Error(`Hash algorithm "${info.HashAlgorithm}" is not supported`);
   }
@@ -111,7 +111,24 @@ export function validateSenderInfo(info: SenderInfoWire): TransferOffer {
     emptyFolders.push(folder);
   }
 
+  if (info.SendingText) {
+    if (
+      files.length !== 1 ||
+      emptyFolders.length !== 0 ||
+      info.TotalNumberFolders !== 0
+    ) {
+      throw new Error("A text transfer must contain exactly one text payload");
+    }
+    if (files[0].size === 0) {
+      throw new Error("A text transfer cannot be empty");
+    }
+    if (files[0].size > maxTextTransferBytes) {
+      throw new Error("The text transfer is larger than 1 MiB");
+    }
+  }
+
   return {
+    kind: info.SendingText ? "text" : "files",
     files,
     emptyFolders,
     totalSize,

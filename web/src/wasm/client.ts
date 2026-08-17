@@ -199,10 +199,17 @@ export class CrocWasm {
     compressed: boolean,
     maxOutputSize: number,
   ) {
+    // Framed WebSocket messages are views into a decoder buffer that may also
+    // contain later frames. Transfer only an owned buffer so decoding one
+    // chunk cannot detach the bytes backing the next chunk.
+    const owned =
+      input.byteOffset === 0 && input.byteLength === input.buffer.byteLength
+        ? input
+        : input.slice();
     return this.call<Uint8Array>(
       "decodeChunk",
-      [handle, input, compressed, maxOutputSize],
-      [input.buffer],
+      [handle, owned, compressed, maxOutputSize],
+      [owned.buffer],
     );
   }
 

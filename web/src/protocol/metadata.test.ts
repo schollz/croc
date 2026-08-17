@@ -65,6 +65,17 @@ describe("incoming croc metadata", () => {
     expect(modern.perFileCompression).toBe(true);
   });
 
+  it("accepts one bounded text payload and marks the offer as text", () => {
+    const text = sender([{ n: "croc-stdin-123", fr: ".", s: 12, h: "AA==" }]);
+    text.SendingText = true;
+
+    expect(validateSenderInfo(text)).toMatchObject({
+      kind: "text",
+      totalSize: 12,
+      files: [{ path: "croc-stdin-123", size: 12 }],
+    });
+  });
+
   it.each([
     ["../escape", "file.txt"],
     ["/absolute", "file.txt"],
@@ -87,14 +98,31 @@ describe("incoming croc metadata", () => {
     ).toThrow(/duplicate/i);
   });
 
-  it("rejects symlinks, text mode, unsupported hashes, and unsafe sizes", () => {
+  it("rejects symlinks, malformed text offers, unsupported hashes, and unsafe sizes", () => {
     expect(() =>
       validateSenderInfo(sender([{ n: "link", sy: "../target", s: 0 }])),
     ).toThrow(/symlink/i);
 
-    const text = sender([]);
-    text.SendingText = true;
-    expect(() => validateSenderInfo(text)).toThrow(/text transfers/i);
+    for (const text of [
+      sender([]),
+      sender([{ n: "croc-stdin-empty", s: 0, h: "AA==" }]),
+      sender([
+        { n: "croc-stdin-one", s: 1, h: "AA==" },
+        { n: "croc-stdin-two", s: 1, h: "AA==" },
+      ]),
+      sender(
+        [{ n: "croc-stdin-folder", s: 1, h: "AA==" }],
+        [{ fr: "folder" }],
+      ),
+      {
+        ...sender([{ n: "croc-stdin-folder-count", s: 1, h: "AA==" }]),
+        TotalNumberFolders: 1,
+      },
+      sender([{ n: "croc-stdin-large", s: 1024 * 1024 + 1, h: "AA==" }]),
+    ]) {
+      text.SendingText = true;
+      expect(() => validateSenderInfo(text)).toThrow(/text/i);
+    }
 
     const md5 = sender([]);
     md5.HashAlgorithm = "md5";

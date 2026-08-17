@@ -67,6 +67,7 @@ export interface OfferedFile {
 }
 
 export interface TransferOffer {
+  kind: "files" | "text";
   files: OfferedFile[];
   emptyFolders: string[];
   totalSize: number;
@@ -74,6 +75,8 @@ export interface TransferOffer {
   noCompress: boolean;
   perFileCompression: boolean;
 }
+
+export const maxTextTransferBytes = 1024 * 1024;
 
 export interface PreparedFile {
   file: File;

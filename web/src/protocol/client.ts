@@ -25,6 +25,7 @@ import type {
   TransferSettings,
   WireFileInfo,
 } from "./types";
+import { maxTextTransferBytes } from "./types";
 import { wasm } from "../wasm/client";
 
 const CONTROL_PORT = "9009";
@@ -323,7 +324,27 @@ export async function prepareFiles(
   return prepared;
 }
 
-function senderInfo(files: PreparedFile[]): SenderInfoWire {
+export async function prepareText(
+  text: string,
+  callbacks: TransferCallbacks = {},
+  signal?: AbortSignal,
+  hashProvider?: FileHashProvider,
+) {
+  const payload = new File([text], "croc-stdin-web", {
+    type: "text/plain;charset=utf-8",
+    lastModified: Date.now(),
+  });
+  if (payload.size === 0) throw new Error("Enter some text to send");
+  if (payload.size > maxTextTransferBytes) {
+    throw new Error("Text must be 1 MiB or smaller");
+  }
+  return prepareFiles([payload], callbacks, signal, hashProvider);
+}
+
+function senderInfo(
+  files: PreparedFile[],
+  sendingText: boolean,
+): SenderInfoWire {
   const wireFiles: WireFileInfo[] = files.map((file) => ({
     n: file.name,
     fr: "./",
@@ -339,7 +360,7 @@ function senderInfo(files: PreparedFile[]): SenderInfoWire {
     TotalNumberFolders: 0,
     MachineID: machineID(),
     Ask: false,
-    SendingText: false,
+    SendingText: sendingText,
     NoCompress: false,
     HashAlgorithm: "xxhash",
     ReconnectVersion: 0,
@@ -406,14 +427,25 @@ async function sendFileData(
 
 export async function sendFiles(options: {
   files: PreparedFile[];
+  sendingText?: boolean;
   secret: string;
   settings: TransferSettings;
   callbacks?: TransferCallbacks;
   signal?: AbortSignal;
 }) {
-  const { files, secret, settings, callbacks = {}, signal } = options;
+  const {
+    files,
+    sendingText = false,
+    secret,
+    settings,
+    callbacks = {},
+    signal,
+  } = options;
   validateSecret(secret);
   if (files.length === 0) throw new Error("Choose at least one file");
+  if (sendingText && files.length !== 1) {
+    throw new Error("A text transfer must contain exactly one text payload");
+  }
   const totalSize = files.reduce((total, file) => total + file.size, 0);
   const { room, passphrase } = await wasm().codeComponents(secret);
   let control: CrocSocket | undefined;
@@ -496,7 +528,7 @@ export async function sendFiles(options: {
       control,
       {
         t: "fileinfo",
-        b: textEncoder.encode(JSON.stringify(senderInfo(files))),
+        b: textEncoder.encode(JSON.stringify(senderInfo(files, sendingText))),
       },
       key,
     );
@@ -522,7 +554,10 @@ export async function sendFiles(options: {
       const fileIndex = request.FilesToTransferCurrentNum;
       const prepared = files[fileIndex];
       if (!prepared) throw new Error("Recipient requested an unknown file");
-      callbacks.onStatus?.(`Sending ${prepared.name}`);
+      const displayName = sendingText ? "Text message" : prepared.name;
+      callbacks.onStatus?.(
+        sendingText ? "Sending text message" : `Sending ${prepared.name}`,
+      );
       const beforeFile = totalTransferred;
       await sendFileData(
         prepared,
@@ -537,7 +572,7 @@ export async function sendFiles(options: {
           callbacks.onProgress?.({
             fileIndex,
             fileCount: files.length,
-            fileName: prepared.name,
+            fileName: displayName,
             fileBytes,
             fileSize: prepared.size,
             totalBytes: totalTransferred,
@@ -555,7 +590,7 @@ export async function sendFiles(options: {
         );
       }
       await sendControl(control, { t: "close-recipient" }, key);
-      callbacks.onFileComplete?.(prepared.name);
+      callbacks.onFileComplete?.(displayName);
     }
   } catch (error) {
     await reportPeerError(control, key, error);
@@ -833,14 +868,15 @@ export async function receiveFiles(options: {
     for (let fileIndex = 0; fileIndex < offer.files.length; fileIndex += 1) {
       checkAbort(signal);
       const file = offer.files[fileIndex];
+      const displayName = offer.kind === "text" ? "Text message" : file.path;
       if (file.size === 0) {
         const sink = await destination.openFile(file);
         try {
           await sink.finalize();
-          callbacks.onStatus?.(`Verifying ${file.path}`);
+          callbacks.onStatus?.(`Verifying ${displayName}`);
           await verifySink(sink, file.hash);
           await sink.commit();
-          callbacks.onFileComplete?.(file.path);
+          callbacks.onFileComplete?.(displayName);
         } catch (error) {
           await sink.abort();
           throw error;
@@ -848,7 +884,7 @@ export async function receiveFiles(options: {
         continue;
       }
 
-      callbacks.onStatus?.(`Receiving ${file.path}`);
+      callbacks.onStatus?.(`Receiving ${displayName}`);
       const sink = await destination.openFile(file);
       const beforeFile = totalTransferred;
       try {
@@ -857,7 +893,7 @@ export async function receiveFiles(options: {
           callbacks.onProgress?.({
             fileIndex,
             fileCount: offer.files.length,
-            fileName: file.path,
+            fileName: displayName,
             fileBytes,
             fileSize: file.size,
             totalBytes: totalTransferred,
@@ -889,11 +925,11 @@ export async function receiveFiles(options: {
         if (close.t !== "close-recipient") {
           throw new Error(`Expected sender to close the file, got ${close.t}`);
         }
-        callbacks.onStatus?.(`Verifying ${file.path}`);
+        callbacks.onStatus?.(`Verifying ${displayName}`);
         await verifySink(sink, file.hash);
         await sink.commit();
         totalTransferred = beforeFile + file.size;
-        callbacks.onFileComplete?.(file.path);
+        callbacks.onFileComplete?.(displayName);
       } catch (error) {
         await sink.abort();
         throw error;
@@ -906,6 +942,7 @@ export async function receiveFiles(options: {
       throw new Error(`Expected transfer completion, got ${finishedMessage.t}`);
     }
     callbacks.onStatus?.("Transfer complete");
+    return offer;
   } catch (error) {
     await reportPeerError(control, key, error);
     throw error;
