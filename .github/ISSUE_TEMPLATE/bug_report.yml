@@ -89,3 +89,12 @@ body:
       description: Add any other context about the problem here, such as screenshots, configuration files, or anything else that might help us understand the issue.
     validations:
       required: false
+
+  - type: checkboxes
+    id: follow-up-acknowledgment
+    attributes:
+      label: Follow-up acknowledgment
+      description: This requirement helps us combat spam. If you may not have enough time to answer follow-up questions within 24 hours, please wait and create the issue when you are available to respond.
+      options:
+        - label: I understand that I must respond to follow-up questions within 24 hours. Otherwise, my issue may be deleted and my account may be blocked.
+          required: true
