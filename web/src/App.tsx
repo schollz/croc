@@ -9,6 +9,7 @@ import {
   Download,
   File as FileIcon,
   Heart,
+  MessageSquareText,
   Moon,
   Settings2,
   Sun,
@@ -29,6 +30,7 @@ import {
 } from "./protocol/hash";
 import {
   prepareFiles,
+  prepareText,
   receiveFiles,
   sendFiles,
 } from "./protocol/client";
@@ -46,6 +48,7 @@ import {
 } from "./protocol/stored";
 import {
   DownloadDestination,
+  TextDestination,
   chooseStoredReceiveDestination,
   chooseReceiveDestination,
   supportsDirectoryDestination,
@@ -57,6 +60,7 @@ import type {
   TransferOffer,
   TransferSettings,
 } from "./protocol/types";
+import { maxTextTransferBytes } from "./protocol/types";
 import {
   formatEta,
   TransferEstimator,
@@ -91,6 +95,7 @@ type Activity = "idle" | "working" | "done" | "error";
 type Theme = "dark" | "light";
 type CopyState = "idle" | "copied" | "error";
 type MobileTransferPanel = "send" | "receive";
+type SendContent = "files" | "text";
 
 function sendHashAlgorithm(mode: SendMode): FileHashAlgorithm {
   return mode === "stored" ? "sha256" : "xxhash";
@@ -649,6 +654,8 @@ export function App() {
   });
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [sendContent, setSendContent] = useState<SendContent>("files");
+  const [sendText, setSendText] = useState("");
   const [sendMode, setSendMode] = useState<SendMode>(
     restoredStoredUpload ? "stored" : "direct",
   );
@@ -662,7 +669,7 @@ export function App() {
   const [sendStatus, setSendStatus] = useState("");
   const [sendProgress, setSendProgress] = useState<FileProgress>();
   const [completedSend, setCompletedSend] = useState<string[]>([]);
-  const [copyState, setCopyState] = useState<CopyState>("idle");
+  const [codeCopyState, setCodeCopyState] = useState<CopyState>("idle");
   const [storedUpload, setStoredUpload] =
     useState<StoredUploadResult | undefined>(restoredStoredUpload);
   const [storedDownloads, setStoredDownloads] = useState(1);
@@ -678,6 +685,10 @@ export function App() {
   const [offer, setOffer] = useState<TransferOffer>();
   const [storedReceiveActive, setStoredReceiveActive] = useState(false);
   const [storedReceiveExpiresAt, setStoredReceiveExpiresAt] = useState("");
+  const [receivingText, setReceivingText] = useState(false);
+  const [receivedText, setReceivedText] = useState<string>();
+  const [receivedTextCopyState, setReceivedTextCopyState] =
+    useState<CopyState>("idle");
   const offerResolver = useRef<
     ((destination: ReceiveDestination | false) => void) | undefined
   >(undefined);
@@ -687,13 +698,16 @@ export function App() {
   const fileInput = useRef<HTMLInputElement>(null);
   const transferGrid = useRef<HTMLElement>(null);
   const receivePanel = useRef<HTMLFormElement>(null);
-  const copyReset = useRef<number>(undefined);
+  const codeCopyReset = useRef<number>(undefined);
+  const receivedTextCopyReset = useRef<number>(undefined);
+  const receiveOfferKind = useRef<TransferOffer["kind"]>("files");
   const tour = useRef<Driver>(undefined);
 
   const totalSelectedSize = useMemo(
     () => selectedFiles.reduce((total, file) => total + file.size, 0),
     [selectedFiles],
   );
+  const sendTextBytes = useMemo(() => new Blob([sendText]).size, [sendText]);
   const directReceiveURL = useMemo(
     () => makeDirectReceiveURL(sendCode),
     [sendCode],
@@ -747,9 +761,10 @@ export function App() {
 
   useEffect(() => {
     return () => {
-      if (copyReset.current !== undefined) {
-        window.clearTimeout(copyReset.current);
-      }
+      if (codeCopyReset.current !== undefined)
+        window.clearTimeout(codeCopyReset.current);
+      if (receivedTextCopyReset.current !== undefined)
+        window.clearTimeout(receivedTextCopyReset.current);
       tour.current?.destroy();
       sendAbort.current?.abort();
       receiveAbort.current?.abort();
@@ -781,6 +796,14 @@ export function App() {
     });
   }
 
+  function resetSendPresentation() {
+    setSendActivity("idle");
+    setSendStatus("");
+    setSendProgress(undefined);
+    setCompletedSend([]);
+    setSendDetailsVisible(false);
+  }
+
   function addFiles(files: File[]) {
     if (sendActivity === "working") return;
     fileHashes.prime(files, sendHashAlgorithm(sendMode));
@@ -789,27 +812,29 @@ export function App() {
       for (const file of files) byName.set(file.name, file);
       return [...byName.values()];
     });
-    setSendActivity("idle");
-    setSendStatus("");
+    resetSendPresentation();
   }
 
   async function copyValue(value: string) {
-    if (copyReset.current !== undefined) {
-      window.clearTimeout(copyReset.current);
-    }
-    let copied = false;
     try {
       await navigator.clipboard.writeText(value);
-      setCopyState("copied");
-      copied = true;
+      return true;
     } catch {
-      setCopyState("error");
+      return false;
     }
-    copyReset.current = window.setTimeout(() => {
-      setCopyState("idle");
-      copyReset.current = undefined;
+  }
+
+  async function copyWithFeedback(
+    value: string,
+    setState: (state: CopyState) => void,
+    reset: { current: number | undefined },
+  ) {
+    if (reset.current !== undefined) window.clearTimeout(reset.current);
+    setState((await copyValue(value)) ? "copied" : "error");
+    reset.current = window.setTimeout(() => {
+      setState("idle");
+      reset.current = undefined;
     }, 2_000);
-    return copied;
   }
 
   function rememberStoredUpload(result: StoredUploadResult) {
@@ -855,14 +880,18 @@ export function App() {
   }
 
   async function sendDirect(signal: AbortSignal) {
-    const prepared = await prepareFiles(
-      selectedFiles,
-      { onStatus: setSendStatus },
-      signal,
-      (file) => fileHashes.hash(file, "xxhash"),
-    );
+    const sendingText = sendContent === "text";
+    const prepared = sendingText
+      ? await prepareText(sendText, { onStatus: setSendStatus }, signal)
+      : await prepareFiles(
+          selectedFiles,
+          { onStatus: setSendStatus },
+          signal,
+          (file) => fileHashes.hash(file, "xxhash"),
+        );
     await sendFiles({
       files: prepared,
+      sendingText,
       secret: sendCode.trim(),
       settings,
       signal,
@@ -882,7 +911,11 @@ export function App() {
     if (currentSendMode === "direct") setSendDetailsVisible(true);
     sendAbort.current = controller;
     setSendActivity("working");
-    setSendStatus("Preparing files…");
+    setSendStatus(
+      currentSendMode === "direct" && sendContent === "text"
+        ? "Preparing text…"
+        : "Preparing files…",
+    );
     setSendProgress(undefined);
     setCompletedSend([]);
     setStoredUpload(undefined);
@@ -899,7 +932,9 @@ export function App() {
       setSendStatus(
         currentSendMode === "stored"
           ? "Encrypted upload ready to share"
-          : "All files arrived safely",
+          : sendContent === "text"
+            ? "Text arrived safely"
+            : "All files arrived safely",
       );
     } catch (error) {
       if (controller.signal.aborted) {
@@ -916,10 +951,15 @@ export function App() {
     return {
       onStatus: setReceiveStatus,
       onProgress: setReceiveProgress,
-      onFileComplete: (name) =>
-        setCompletedReceive((current) => [...current, name]),
+      onFileComplete: (name) => {
+        if (receiveOfferKind.current !== "text") {
+          setCompletedReceive((current) => [...current, name]);
+        }
+      },
       onOffer: (incoming) =>
         new Promise((resolve) => {
+          receiveOfferKind.current = incoming.kind;
+          setReceivingText(incoming.kind === "text");
           offerResolver.current = resolve;
           setOffer(incoming);
         }),
@@ -947,7 +987,7 @@ export function App() {
   }
 
   async function receiveDirect(signal: AbortSignal) {
-    await receiveFiles({
+    return receiveFiles({
       secret: receiveCode.trim(),
       settings,
       signal,
@@ -966,13 +1006,18 @@ export function App() {
     setOffer(undefined);
     setStoredReceiveActive(false);
     setStoredReceiveExpiresAt("");
+    setReceivingText(false);
+    setReceivedText(undefined);
+    setReceivedTextCopyState("idle");
+    receiveOfferKind.current = "files";
     try {
       const stored = isStoredShareValue(receiveCode);
       let remaining: number | undefined;
+      let directOffer: TransferOffer | undefined;
       if (stored) {
         remaining = await receiveStored(controller.signal);
       } else {
-        await receiveDirect(controller.signal);
+        directOffer = await receiveDirect(controller.signal);
       }
       trackTransferEvent(transferEvents.receive);
       setOffer(undefined);
@@ -984,7 +1029,9 @@ export function App() {
             : `All files received and verified; ${remaining} ${
                 remaining === 1 ? "download remains" : "downloads remain"
               }`
-          : "All files received and verified",
+          : directOffer?.kind === "text"
+            ? "Text received and verified"
+            : "All files received and verified",
       );
     } catch (error) {
       setOffer(undefined);
@@ -1026,11 +1073,14 @@ export function App() {
   async function acceptOffer(downloadSeparately = false) {
     if (!offer || !offerResolver.current) return;
     try {
-      const destination = downloadSeparately
-        ? new DownloadDestination()
-        : storedReceiveActive
-          ? await chooseStoredReceiveDestination(offer)
-          : await chooseReceiveDestination(offer);
+      const destination =
+        offer.kind === "text"
+          ? new TextDestination(setReceivedText)
+          : downloadSeparately
+            ? new DownloadDestination()
+            : storedReceiveActive
+              ? await chooseStoredReceiveDestination(offer)
+              : await chooseReceiveDestination(offer);
       const resolve = offerResolver.current;
       offerResolver.current = undefined;
       setOffer(undefined);
@@ -1075,7 +1125,7 @@ export function App() {
           description: `Use Direct for a live croc-code transfer, or Store for an encrypted link that lasts ${formatStoredExpiration(
             storedExpiration.value,
             storedExpiration.unit,
-          )} or until its configured verified-download limit. Choose files or drag them here to begin.`,
+          )} or until its configured verified-download limit. Choose files or drag them here to begin; Direct also has a secondary option for short text.`,
           side: "right",
           align: "start",
         },
@@ -1088,7 +1138,7 @@ export function App() {
         popover: {
           title: "Receive and review",
           description:
-            "Paste the sender’s croc code, encrypted browser link, or CLI token. Before anything is saved, inspect the names, paths, and sizes, then accept or refuse.",
+            "Paste the sender’s croc code, encrypted browser link, or CLI token. Review incoming files or text before choosing whether to save, display, or refuse it.",
           side: receiveOnly ? "top" : "left",
           align: "start",
         },
@@ -1317,78 +1367,137 @@ export function App() {
               onChange={(mode) => {
                 fileHashes.prime(selectedFiles, sendHashAlgorithm(mode));
                 setSendMode(mode);
-                setSendDetailsVisible(false);
+                if (mode === "stored") setSendContent("files");
                 setStoredUpload(undefined);
-                setSendStatus("");
-                setSendActivity("idle");
+                resetSendPresentation();
               }}
             />
           )}
 
-          <button
-            className="drop-zone"
-            type="button"
-            disabled={sendBusy}
-            onClick={() => fileInput.current?.click()}
-            onDragOver={(event) => {
-              event.preventDefault();
-              event.currentTarget.dataset.dragging = "true";
-            }}
-            onDragLeave={(event) => {
-              delete event.currentTarget.dataset.dragging;
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              delete event.currentTarget.dataset.dragging;
-              addFiles([...event.dataTransfer.files]);
-            }}
-          >
-            <span>Choose files</span>
-            <small>
-              <span className="drop-desktop-copy">or drop them here</span>
-              <span className="drop-mobile-copy">Select from this device</span>
-            </small>
-            <input
-              ref={fileInput}
-              type="file"
-              multiple
-              tabIndex={-1}
-              onChange={(event) => {
-                addFiles([...(event.target.files ?? [])]);
-                event.target.value = "";
-              }}
-            />
-          </button>
+          {sendContent === "files" || sendMode === "stored" ? (
+            <>
+              <button
+                className="drop-zone"
+                type="button"
+                disabled={sendBusy}
+                onClick={() => fileInput.current?.click()}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.currentTarget.dataset.dragging = "true";
+                }}
+                onDragLeave={(event) => {
+                  delete event.currentTarget.dataset.dragging;
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  delete event.currentTarget.dataset.dragging;
+                  addFiles([...event.dataTransfer.files]);
+                }}
+              >
+                <span>Choose files</span>
+                <small>
+                  <span className="drop-desktop-copy">or drop them here</span>
+                  <span className="drop-mobile-copy">Select from this device</span>
+                </small>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  multiple
+                  tabIndex={-1}
+                  onChange={(event) => {
+                    addFiles([...(event.target.files ?? [])]);
+                    event.target.value = "";
+                  }}
+                />
+              </button>
 
-          <div className="selection-summary">
-            <span>
-              {selectedFiles.length} file{selectedFiles.length === 1 ? "" : "s"}
-            </span>
-            <span>{formatBytes(totalSelectedSize)}</span>
-          </div>
-          {selectedFiles.length > 0 && (
-            <ul className="file-list selected-list">
-              {selectedFiles.map((file) => (
-                <li key={file.name}>
-                  <FileIcon aria-hidden="true" />
-                  <span className="file-name">{file.name}</span>
-                  <span>{formatBytes(file.size)}</span>
-                  <button
-                    className="list-action"
-                    type="button"
-                    aria-label={`Remove ${file.name}`}
-                    disabled={sendBusy}
-                    onClick={() =>
-                      setSelectedFiles((current) =>
-                        current.filter((candidate) => candidate !== file),
-                      )
-                    }
-                  >
-                    <X />
-                  </button>
-                </li>
-              ))}
-            </ul>
+              <div className="selection-summary">
+                <span>
+                  {selectedFiles.length} file{selectedFiles.length === 1 ? "" : "s"}
+                </span>
+                <span>{formatBytes(totalSelectedSize)}</span>
+              </div>
+              {selectedFiles.length > 0 && (
+                <ul className="file-list selected-list">
+                  {selectedFiles.map((file) => (
+                    <li key={file.name}>
+                      <FileIcon aria-hidden="true" />
+                      <span className="file-name">{file.name}</span>
+                      <span>{formatBytes(file.size)}</span>
+                      <button
+                        className="list-action"
+                        type="button"
+                        aria-label={`Remove ${file.name}`}
+                        disabled={sendBusy}
+                        onClick={() =>
+                          setSelectedFiles((current) =>
+                            current.filter((candidate) => candidate !== file),
+                          )
+                        }
+                      >
+                        <X />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {sendMode === "direct" && (
+                <button
+                  className="send-content-link"
+                  type="button"
+                  disabled={sendBusy}
+                  onClick={() => {
+                    setSendContent("text");
+                    resetSendPresentation();
+                  }}
+                >
+                  <MessageSquareText aria-hidden="true" /> Send text instead
+                </button>
+              )}
+            </>
+          ) : (
+            <div className="text-composer">
+              <label className="field-label" htmlFor="send-text">
+                Text to send
+              </label>
+              <textarea
+                id="send-text"
+                value={sendText}
+                disabled={sendBusy}
+                placeholder="Paste a URL or short message"
+                spellCheck={true}
+                aria-invalid={sendTextBytes > maxTextTransferBytes}
+                aria-describedby="send-text-size send-text-help"
+                onChange={(event) => {
+                  setSendText(event.target.value);
+                  resetSendPresentation();
+                }}
+              />
+              <div className="text-composer-meta">
+                <span
+                  id="send-text-size"
+                  className={sendTextBytes > maxTextTransferBytes ? "error" : ""}
+                  role={sendTextBytes > maxTextTransferBytes ? "alert" : undefined}
+                >
+                  {formatBytes(sendTextBytes)} / 1 MiB
+                  {sendTextBytes > maxTextTransferBytes ? " — too large" : ""}
+                </span>
+                <button
+                  className="send-content-link"
+                  type="button"
+                  disabled={sendBusy}
+                  onClick={() => {
+                    setSendContent("files");
+                    resetSendPresentation();
+                  }}
+                >
+                  <Upload aria-hidden="true" /> Send files instead
+                </button>
+              </div>
+              <p id="send-text-help" className="field-help">
+                Sent directly and encrypted end-to-end. Text is not stored.
+              </p>
+            </div>
           )}
 
           {sendMode === "direct" && sendDetailsVisible && (
@@ -1396,28 +1505,34 @@ export function App() {
               <div className="send-code">
                 <span className="send-code-label">Use this code:</span>
                 <code
-                  className={`send-code-value ${copyState}`}
+                  className={`send-code-value ${codeCopyState}`}
                   aria-label="Croc code"
                 >
                   {sendCode}
                 </code>
                 <button
-                  className={`send-code-copy ${copyState}`}
+                  className={`send-code-copy ${codeCopyState}`}
                   type="button"
-                  aria-label={copyState === "copied" ? "Code copied" : "Copy code"}
+                  aria-label={codeCopyState === "copied" ? "Code copied" : "Copy code"}
                   disabled={!sendCode}
-                  onClick={() => void copyValue(sendCode)}
+                  onClick={() =>
+                    void copyWithFeedback(
+                      sendCode,
+                      setCodeCopyState,
+                      codeCopyReset,
+                    )
+                  }
                 >
-                  {copyState === "copied" ? <Check /> : <Copy />}
+                  {codeCopyState === "copied" ? <Check /> : <Copy />}
                 </button>
                 <span
                   className="visually-hidden"
                   role="status"
                   aria-live="polite"
                 >
-                  {copyState === "copied"
+                  {codeCopyState === "copied"
                     ? "Copied"
-                    : copyState === "error"
+                    : codeCopyState === "error"
                       ? "Copy failed"
                       : ""}
                 </span>
@@ -1483,7 +1598,7 @@ export function App() {
               ) : (
                 <StatusMessage activity={sendActivity} message={sendStatus} />
               )}
-              {completedSend.length > 0 && (
+              {completedSend.length > 0 && sendContent !== "text" && (
                 <p className="completed-count">
                   <Check /> {completedSend.length} verified
                 </p>
@@ -1505,18 +1620,30 @@ export function App() {
                 className="primary-button"
                 type="button"
                 disabled={
-                  selectedFiles.length === 0 ||
-                  (sendMode === "direct" && sendCode.trim().length < 6) ||
-                  (sendMode === "stored" &&
-                    (selectedFiles.length > storeMaxFiles ||
-                      totalSelectedSize > storeMaxTransferBytes))
+                  sendMode === "direct" && sendContent === "text"
+                    ? sendTextBytes === 0 ||
+                      sendTextBytes > maxTextTransferBytes ||
+                      sendCode.trim().length < 6
+                    : selectedFiles.length === 0 ||
+                      (sendMode === "direct" && sendCode.trim().length < 6) ||
+                      (sendMode === "stored" &&
+                        (selectedFiles.length > storeMaxFiles ||
+                          totalSelectedSize > storeMaxTransferBytes))
                 }
                 onClick={() => void startSend()}
               >
-                <Upload /> {sendMode === "stored" ? "Store" : "Send"}
-                {selectedFiles.length > 1
-                  ? ` ${selectedFiles.length} files`
-                  : " file"}
+                {sendMode === "direct" && sendContent === "text" ? (
+                  <>
+                    <MessageSquareText /> Send text
+                  </>
+                ) : (
+                  <>
+                    <Upload /> {sendMode === "stored" ? "Store" : "Send"}
+                    {selectedFiles.length > 1
+                      ? ` ${selectedFiles.length} files`
+                      : " file"}
+                  </>
+                )}
               </button>
             )
           )}
@@ -1540,7 +1667,10 @@ export function App() {
             </span>
             <div>
               <h2>Receive</h2>
-              <p>Enter a croc code or encrypted stored link. Review before saving.</p>
+              <p>
+                Enter a croc code or encrypted stored link. Review before saving
+                or displaying.
+              </p>
             </div>
           </div>
 
@@ -1567,41 +1697,50 @@ export function App() {
           {offer && (
             <div className="offer" aria-live="polite">
               <div className="offer-heading">
-                <span>Incoming transfer</span>
+                <span>{offer.kind === "text" ? "Incoming text" : "Incoming transfer"}</span>
                 <span>{formatBytes(offer.totalSize)}</span>
               </div>
-              <ul className="file-list offer-list">
-                {offer.files.map((file) => (
-                  <li key={file.path}>
-                    <FileIcon aria-hidden="true" />
-                    <span className="file-name">{file.path}</span>
-                    <span>{formatBytes(file.size)}</span>
-                  </li>
-                ))}
-                {offer.emptyFolders.map((folder) => (
-                  <li key={folder}>
-                    <span className="folder-glyph" aria-hidden="true">
-                      /
-                    </span>
-                    <span className="file-name">{folder}</span>
-                    <span>folder</span>
-                  </li>
-                ))}
-              </ul>
-              {storedReceiveActive && storedReceiveExpiresAt && (
+              {offer.kind === "files" ? (
+                <>
+                  <ul className="file-list offer-list">
+                    {offer.files.map((file) => (
+                      <li key={file.path}>
+                        <FileIcon aria-hidden="true" />
+                        <span className="file-name">{file.path}</span>
+                        <span>{formatBytes(file.size)}</span>
+                      </li>
+                    ))}
+                    {offer.emptyFolders.map((folder) => (
+                      <li key={folder}>
+                        <span className="folder-glyph" aria-hidden="true">
+                          /
+                        </span>
+                        <span className="file-name">{folder}</span>
+                        <span>folder</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {storedReceiveActive && storedReceiveExpiresAt && (
+                    <p>
+                      Encrypted storage expires{" "}
+                      {new Date(storedReceiveExpiresAt).toLocaleString()}; this
+                      verified download consumes one allowed download.
+                    </p>
+                  )}
+                  <p>
+                    {supportsDirectoryDestination()
+                      ? "Choose a destination folder. Existing files require confirmation."
+                      : "Your browser will download each file separately."}
+                  </p>
+                </>
+              ) : (
                 <p>
-                  Encrypted storage expires{" "}
-                  {new Date(storedReceiveExpiresAt).toLocaleString()}; this
-                  verified download consumes one allowed download.
+                  Display this encrypted text after it has been received and
+                  verified. Nothing will be downloaded.
                 </p>
               )}
-              <p>
-                {supportsDirectoryDestination()
-                  ? "Choose a destination folder. Existing files require confirmation."
-                  : "Your browser will download each file separately."}
-              </p>
               <div
-                className={`button-pair ${supportsDirectoryDestination() ? "three" : ""}`}
+                className={`button-pair ${offer.kind === "files" && supportsDirectoryDestination() ? "three" : ""}`}
               >
                 <button
                   className="secondary-button"
@@ -1610,7 +1749,7 @@ export function App() {
                 >
                   Refuse
                 </button>
-                {supportsDirectoryDestination() && (
+                {offer.kind === "files" && supportsDirectoryDestination() && (
                   <button
                     className="secondary-button"
                     type="button"
@@ -1624,14 +1763,22 @@ export function App() {
                   type="button"
                   onClick={() => void acceptOffer()}
                 >
-                  <Download />{" "}
-                  {supportsDirectoryDestination() ? "Choose folder" : "Accept files"}
+                  {offer.kind === "text" ? (
+                    <>
+                      <MessageSquareText /> Display text
+                    </>
+                  ) : (
+                    <>
+                      <Download />{" "}
+                      {supportsDirectoryDestination() ? "Choose folder" : "Accept files"}
+                    </>
+                  )}
                 </button>
               </div>
             </div>
           )}
 
-          {receiveBusy && !offer ? (
+          {(receiveBusy || receiveProgress) && !offer ? (
             <ProgressBlock progress={receiveProgress} status={receiveStatus} />
           ) : (
             !offer && (
@@ -1641,7 +1788,41 @@ export function App() {
               />
             )
           )}
-          {completedReceive.length > 0 && (
+          {receivedText !== undefined && !offer && (
+            <section className="received-text" aria-labelledby="received-text-title">
+              <div className="received-text-heading">
+                <span id="received-text-title">Text received</span>
+                <button
+                  className={`secondary-button ${receivedTextCopyState}`}
+                  type="button"
+                  aria-label={
+                    receivedTextCopyState === "copied"
+                      ? "Text copied"
+                      : "Copy text"
+                  }
+                  onClick={() =>
+                    void copyWithFeedback(
+                      receivedText,
+                      setReceivedTextCopyState,
+                      receivedTextCopyReset,
+                    )
+                  }
+                >
+                  {receivedTextCopyState === "copied" ? <Check /> : <Copy />}
+                  {receivedTextCopyState === "copied" ? "Copied" : "Copy text"}
+                </button>
+              </div>
+              <pre aria-label="Received text" tabIndex={0}>{receivedText}</pre>
+              <span className="visually-hidden" role="status" aria-live="polite">
+                {receivedTextCopyState === "copied"
+                  ? "Text copied"
+                  : receivedTextCopyState === "error"
+                    ? "Copy failed"
+                    : ""}
+              </span>
+            </section>
+          )}
+          {completedReceive.length > 0 && !receivingText && (
             <ul className="completed-files">
               {completedReceive.map((name) => (
                 <li key={name}>

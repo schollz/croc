@@ -13,6 +13,7 @@ describe("WASM preloading", () => {
 
     class FakeWorker {
       readonly messages: unknown[] = [];
+      readonly transfers: Transferable[][] = [];
 
       constructor(
         readonly url: string,
@@ -22,8 +23,9 @@ describe("WASM preloading", () => {
       }
 
       addEventListener() {}
-      postMessage(message: unknown) {
+      postMessage(message: unknown, transfer: Transferable[] = []) {
         this.messages.push(message);
+        this.transfers.push(transfer);
       }
       terminate() {}
     }
@@ -57,5 +59,19 @@ describe("WASM preloading", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledWith("/croc.wasm");
     expect(compileStreaming).toHaveBeenCalledOnce();
+
+    const backing = Uint8Array.of(9, 1, 2, 3, 8);
+    void wasm().decodeChunk(7, backing.subarray(1, 4), true, 32 * 1024 + 8);
+    const call = workers[0].messages.at(-1) as {
+      args: [number, Uint8Array, boolean, number];
+    };
+    expect(call.args).toEqual([
+      7,
+      Uint8Array.of(1, 2, 3),
+      true,
+      32 * 1024 + 8,
+    ]);
+    expect(call.args[1].buffer).not.toBe(backing.buffer);
+    expect(workers[0].transfers.at(-1)).toEqual([call.args[1].buffer]);
   });
 });

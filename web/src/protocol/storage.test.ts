@@ -1,5 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import { verifySink } from "./storage";
+const wasmMocks = vi.hoisted(() => ({
+  hashInit: vi.fn(async () => 1),
+  hashUpdate: vi.fn(async () => undefined),
+  hashFinal: vi.fn(async () => Uint8Array.of(1, 2, 3)),
+}));
+
+vi.mock("../wasm/client", () => ({
+  wasm: () => wasmMocks,
+}));
+
+import { TextDestination, verifySink } from "./storage";
 import type { ReceiveSink } from "./types";
 
 function sinkWithHash(hash: Uint8Array): ReceiveSink {
@@ -24,5 +34,43 @@ describe("received file verification", () => {
     ).rejects.toThrow(
       "The sender advertised xxhash 0102, but the received file hashes to aabb",
     );
+  });
+});
+
+describe("received text destination", () => {
+  const offered = {
+    name: "croc-stdin-123",
+    folder: ".",
+    path: "croc-stdin-123",
+    size: 10,
+    hash: Uint8Array.of(1, 2, 3),
+  };
+
+  it("assembles, hashes, and reveals verified UTF-8 text only on commit", async () => {
+    const onText = vi.fn();
+    const sink = await new TextDestination(onText).openFile(offered);
+    await sink.writeAt(6, new TextEncoder().encode("🐊"));
+    await sink.writeAt(0, new TextEncoder().encode("hello\n"));
+    await sink.finalize();
+
+    expect(onText).not.toHaveBeenCalled();
+    await expect(sink.hash()).resolves.toEqual(Uint8Array.of(1, 2, 3));
+    await sink.commit();
+    expect(onText).toHaveBeenCalledWith("hello\n🐊");
+  });
+
+  it("rejects malformed UTF-8 and aborted incomplete text", async () => {
+    const malformed = await new TextDestination(vi.fn()).openFile({
+      ...offered,
+      size: 1,
+    });
+    await malformed.writeAt(0, Uint8Array.of(0xff));
+    await malformed.finalize();
+    await expect(malformed.commit()).rejects.toThrow(/valid UTF-8/i);
+
+    const aborted = await new TextDestination(vi.fn()).openFile(offered);
+    await aborted.writeAt(0, new TextEncoder().encode("hello"));
+    await aborted.abort();
+    await expect(aborted.finalize()).rejects.toThrow(/advertised size/i);
   });
 });

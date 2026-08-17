@@ -1,7 +1,7 @@
 # croc web
 
-The croc web client is a React/Vite app that sends and receives files with ordinary
-`croc` CLI peers. Its production build and WebAssembly runtime are embedded in
+The croc web client is a React/Vite app that sends and receives files, plus
+short direct text messages, with ordinary `croc` CLI peers. Its production build and WebAssembly runtime are embedded in
 the separate `croc-web` binary. `croc-web` serves the website, runtime
 configuration, health check, and opaque WebSocket-to-TCP bridge from one HTTP
 address. File metadata and contents remain encrypted between the browser and
@@ -17,6 +17,11 @@ normal direct-transfer mode remains the default.
 Both send modes can display a QR code for the browser receive URL. Direct-mode
 codes open the receive page with the croc code filled in and connecting, while
 stored-mode codes contain the complete encrypted share link.
+
+Direct mode also offers a secondary text composer compatible with
+`croc send --text`. Text is reviewed before display, verified in memory, and is
+never downloaded or placed in temporary storage. Text payloads are limited to
+1 MiB of UTF-8 content.
 
 The security-sensitive protocol operations are compiled from this repository's
 Go packages into WebAssembly:
@@ -161,6 +166,7 @@ there unless `--bind` is explicitly provided.
 ## Current boundaries
 
 - One peer and one transfer at a time.
+- Text messages are direct-only; stored mode accepts regular files only.
 - Multiple selected files can be sent; sending folders and ZIP creation are not
   implemented.
 - Nested folders and empty folders sent by a CLI can be received when the

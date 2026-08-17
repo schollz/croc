@@ -11,7 +11,7 @@ vi.mock("../wasm/client", () => ({
   wasm: () => wasmMocks,
 }));
 
-import { DataReceiver, prepareFiles } from "./client";
+import { DataReceiver, prepareFiles, prepareText } from "./client";
 import type { CrocSocket } from "./transport";
 import type { OfferedFile, ReceiveSink } from "./types";
 
@@ -126,5 +126,33 @@ describe("outgoing file preparation", () => {
       size: 4,
       hash: digest,
     });
+  });
+
+  it("prepares exact UTF-8 text with the CLI-compatible temporary name", async () => {
+    const digest = Uint8Array.of(9, 8, 7, 6);
+    const hashProvider = vi.fn(async (payload: File) => {
+      expect(await payload.text()).toBe("hello\n🐊");
+      return digest;
+    });
+
+    const [prepared] = await prepareText(
+      "hello\n🐊",
+      {},
+      undefined,
+      hashProvider,
+    );
+
+    expect(prepared).toMatchObject({
+      name: "croc-stdin-web",
+      size: new Blob(["hello\n🐊"]).size,
+      hash: digest,
+    });
+  });
+
+  it("rejects empty and oversized text", async () => {
+    await expect(prepareText("")).rejects.toThrow(/enter some text/i);
+    await expect(prepareText("x".repeat(1024 * 1024 + 1))).rejects.toThrow(
+      /1 MiB/i,
+    );
   });
 });

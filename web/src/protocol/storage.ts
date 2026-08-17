@@ -5,6 +5,7 @@ import type {
   ReceiveSink,
   TransferOffer,
 } from "./types";
+import { maxTextTransferBytes } from "./types";
 import { wasm } from "../wasm/client";
 
 declare global {
@@ -165,6 +166,94 @@ class DownloadSink implements ReceiveSink {
   async abort() {
     this.chunks.clear();
     this.blob = undefined;
+  }
+}
+
+class TextSink implements ReceiveSink {
+  private chunks = new Map<number, Uint8Array<ArrayBuffer>>();
+  private bytes?: Uint8Array;
+  private committed = false;
+
+  constructor(
+    private expectedSize: number,
+    private onText: (text: string) => void,
+  ) {}
+
+  async writeAt(position: number, bytes: Uint8Array) {
+    if (this.bytes) throw new Error("Text destination is already finalized");
+    if (position < 0 || position + bytes.byteLength > this.expectedSize) {
+      throw new Error("Text chunk is outside the advertised payload size");
+    }
+    this.chunks.set(position, bytes.slice());
+  }
+
+  async finalize() {
+    if (this.bytes) return;
+    const ordered = [...this.chunks.entries()].sort(
+      ([left], [right]) => left - right,
+    );
+    let offset = 0;
+    for (const [position, bytes] of ordered) {
+      if (position !== offset) throw new Error("Text payload has a missing chunk");
+      offset += bytes.byteLength;
+    }
+    if (offset !== this.expectedSize) {
+      throw new Error("Text payload does not match its advertised size");
+    }
+    this.bytes = new Uint8Array(this.expectedSize);
+    for (const [position, bytes] of ordered) this.bytes.set(bytes, position);
+    this.chunks.clear();
+  }
+
+  async hash(algorithm: "xxhash" | "sha256" = "xxhash") {
+    if (!this.bytes) throw new Error("Text destination must be finalized before hashing");
+    const engine = wasm();
+    const handle =
+      algorithm === "sha256" ? await engine.sha256Init() : await engine.hashInit();
+    if (algorithm === "sha256") await engine.sha256Update(handle, this.bytes);
+    else await engine.hashUpdate(handle, this.bytes);
+    return algorithm === "sha256"
+      ? engine.sha256Final(handle)
+      : engine.hashFinal(handle);
+  }
+
+  async commit() {
+    if (!this.bytes) throw new Error("Text destination must be finalized before display");
+    if (this.committed) return;
+    let text: string;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(
+        this.bytes,
+      );
+    } catch {
+      throw new Error("The received text is not valid UTF-8");
+    }
+    this.committed = true;
+    this.onText(text);
+  }
+
+  async abort() {
+    this.chunks.clear();
+    this.bytes = undefined;
+  }
+}
+
+export class TextDestination implements ReceiveDestination {
+  private opened = false;
+
+  constructor(private onText: (text: string) => void) {}
+
+  async createEmptyFolder() {
+    throw new Error("Text transfers cannot contain folders");
+  }
+
+  async openFile(file: OfferedFile) {
+    if (this.opened) throw new Error("Text transfers can contain only one payload");
+    if (file.size <= 0 || file.size > maxTextTransferBytes) {
+      throw new Error("Text payload must be between 1 byte and 1 MiB");
+    }
+    this.opened = true;
+    return new TextSink(file.size, this.onText);
   }
 }
 
