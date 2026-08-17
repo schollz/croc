@@ -116,8 +116,11 @@ func TestJSONEventsE2E(t *testing.T) {
 		}
 	}
 
-	if !sawComplete || len(complete.Files) != 2 {
-		t.Errorf("expected complete event with 2 files, got %+v (saw=%v)", complete, sawComplete)
+	if !sawComplete {
+		t.Error("expected complete event")
+	}
+	if len(complete.Files) != 2 {
+		t.Errorf("expected complete event with 2 files, got %+v", complete.Files)
 	}
 
 	// At least one progress event for a non-empty file, fully transferred.
