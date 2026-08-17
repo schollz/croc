@@ -35,42 +35,78 @@ func New(passphrase []byte, usersalt []byte) (key []byte, salt []byte, err error
 
 // Encrypt will encrypt using the pre-generated key
 func Encrypt(plaintext []byte, key []byte) (encrypted []byte, err error) {
+	aesgcm, err := NewAESGCM(key)
+	if err != nil {
+		return nil, err
+	}
+	return EncryptAEAD(plaintext, aesgcm)
+}
+
+// NewAESGCM constructs reusable AES-GCM state for a transfer connection.
+func NewAESGCM(key []byte) (cipher.AEAD, error) {
+	b, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	return cipher.NewGCM(b)
+}
+
+// EncryptAEAD encrypts plaintext with reusable AEAD state. Its wire format is
+// identical to Encrypt: nonce followed by ciphertext and authentication tag.
+func EncryptAEAD(plaintext []byte, aead cipher.AEAD) (encrypted []byte, err error) {
+	return EncryptAEADTo(nil, plaintext, aead)
+}
+
+// EncryptAEADTo encrypts into dst when it has sufficient capacity, allowing
+// transfer loops to reuse their ciphertext buffer across chunks.
+func EncryptAEADTo(dst, plaintext []byte, aead cipher.AEAD) (encrypted []byte, err error) {
 	// generate a random iv each time
 	// http://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 	// Section 8.2
-	ivBytes := make([]byte, 12)
+	required := aead.NonceSize() + len(plaintext) + aead.Overhead()
+	if cap(dst) < required {
+		dst = make([]byte, aead.NonceSize(), required)
+	} else {
+		dst = dst[:aead.NonceSize()]
+	}
+	ivBytes := dst
 	if _, err = rand.Read(ivBytes); err != nil {
-		log.Fatalf("can't initialize crypto: %v", err)
+		return nil, fmt.Errorf("can't initialize crypto: %w", err)
 	}
-	b, err := aes.NewCipher(key)
-	if err != nil {
-		return
-	}
-	aesgcm, err := cipher.NewGCM(b)
-	if err != nil {
-		return
-	}
-	encrypted = aesgcm.Seal(nil, ivBytes, plaintext, nil)
-	encrypted = append(ivBytes, encrypted...)
+	encrypted = aead.Seal(ivBytes, ivBytes, plaintext, nil)
 	return
 }
 
 // Decrypt using the pre-generated key
 func Decrypt(encrypted []byte, key []byte) (plaintext []byte, err error) {
-	if len(encrypted) < 13 {
+	aesgcm, err := NewAESGCM(key)
+	if err != nil {
+		return nil, err
+	}
+	return DecryptAEAD(encrypted, aesgcm)
+}
+
+// DecryptAEAD decrypts data produced by Encrypt or EncryptAEAD using reusable
+// AEAD state.
+func DecryptAEAD(encrypted []byte, aead cipher.AEAD) (plaintext []byte, err error) {
+	if len(encrypted) < aead.NonceSize()+aead.Overhead() {
 		err = fmt.Errorf("incorrect passphrase")
 		return
 	}
-	b, err := aes.NewCipher(key)
-	if err != nil {
-		return
-	}
-	aesgcm, err := cipher.NewGCM(b)
-	if err != nil {
-		return
-	}
-	plaintext, err = aesgcm.Open(nil, encrypted[:12], encrypted[12:], nil)
+	plaintext, err = aead.Open(nil, encrypted[:aead.NonceSize()], encrypted[aead.NonceSize():], nil)
 	return
+}
+
+// DecryptAEADInPlace authenticates and decrypts into the ciphertext portion of
+// encrypted, avoiding a payload-sized allocation in transfer receive loops.
+func DecryptAEADInPlace(encrypted []byte, aead cipher.AEAD) (plaintext []byte, err error) {
+	if len(encrypted) < aead.NonceSize()+aead.Overhead() {
+		return nil, fmt.Errorf("incorrect passphrase")
+	}
+	nonceSize := aead.NonceSize()
+	nonce := encrypted[:nonceSize]
+	ciphertext := encrypted[nonceSize:]
+	return aead.Open(ciphertext[:0], nonce, ciphertext, nil)
 }
 
 // NewArgon2 generates a new key based on a passphrase and salt

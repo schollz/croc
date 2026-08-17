@@ -15,33 +15,39 @@ export function encodeFrame(payload: Uint8Array) {
 }
 
 export class FrameDecoder {
-  private buffer = new Uint8Array();
+  private buffer: Uint8Array<ArrayBufferLike> = new Uint8Array();
 
   push(chunk: Uint8Array) {
     this.buffer =
-      this.buffer.byteLength === 0 ? chunk.slice() : concatBytes(this.buffer, chunk);
+      this.buffer.byteLength === 0 ? chunk : concatBytes(this.buffer, chunk);
     const messages: Uint8Array[] = [];
+    let offset = 0;
 
-    while (this.buffer.byteLength >= 8) {
+    while (this.buffer.byteLength - offset >= 8) {
       for (let index = 0; index < MAGIC.byteLength; index += 1) {
-        if (this.buffer[index] !== MAGIC[index]) {
+        if (this.buffer[offset + index] !== MAGIC[index]) {
           this.buffer = new Uint8Array();
           throw new Error("Relay stream did not start with croc framing");
         }
       }
       const length = new DataView(
         this.buffer.buffer,
-        this.buffer.byteOffset,
-        this.buffer.byteLength,
+        this.buffer.byteOffset + offset,
+        this.buffer.byteLength - offset,
       ).getUint32(4, true);
       if (length > MAX_FRAME_SIZE) {
         this.buffer = new Uint8Array();
         throw new Error(`Relay frame is too large (${length} bytes)`);
       }
-      if (this.buffer.byteLength < length + 8) break;
-      messages.push(this.buffer.slice(8, length + 8));
-      this.buffer = this.buffer.slice(length + 8);
+      if (this.buffer.byteLength - offset < length + 8) break;
+      messages.push(this.buffer.subarray(offset + 8, offset + length + 8));
+      offset += length + 8;
     }
+
+    this.buffer =
+      offset === this.buffer.byteLength
+        ? new Uint8Array()
+        : this.buffer.subarray(offset);
 
     return messages;
   }

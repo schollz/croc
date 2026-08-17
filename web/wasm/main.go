@@ -3,6 +3,7 @@
 package main
 
 import (
+	"crypto/cipher"
 	"crypto/sha256"
 	"fmt"
 	"hash"
@@ -25,6 +26,7 @@ type bridge struct {
 	pakes      map[int]*pake.Pake
 	hashes     map[int]*xxhash.Digest
 	sha256s    map[int]hash.Hash
+	ciphers    map[int]cipher.AEAD
 	funcs      []js.Func
 }
 
@@ -33,6 +35,7 @@ func main() {
 		pakes:   make(map[int]*pake.Pake),
 		hashes:  make(map[int]*xxhash.Digest),
 		sha256s: make(map[int]hash.Hash),
+		ciphers: make(map[int]cipher.AEAD),
 	}
 	api := js.Global().Get("Object").New()
 	b.expose(api, "pakeInit", b.pakeInit)
@@ -45,6 +48,10 @@ func main() {
 	b.expose(api, "decrypt", b.decrypt)
 	b.expose(api, "compress", b.compress)
 	b.expose(api, "decompress", b.decompress)
+	b.expose(api, "cipherInit", b.cipherInit)
+	b.expose(api, "cipherRelease", b.cipherRelease)
+	b.expose(api, "encodeChunk", b.encodeChunk)
+	b.expose(api, "decodeChunk", b.decodeChunk)
 	b.expose(api, "hashInit", b.hashInit)
 	b.expose(api, "hashUpdate", b.hashUpdate)
 	b.expose(api, "hashFinal", b.hashFinal)
@@ -339,6 +346,92 @@ func (b *bridge) decompress(args []js.Value) (any, error) {
 		return nil, err
 	}
 	return bytesToJS(decompressed), nil
+}
+
+func (b *bridge) cipherInit(args []js.Value) (any, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("cipherInit expects a key")
+	}
+	key, err := bytesFromJS(args[0])
+	if err != nil {
+		return nil, err
+	}
+	aead, err := crypt.NewAESGCM(key)
+	if err != nil {
+		return nil, err
+	}
+	b.mu.Lock()
+	handle := b.allocateHandle()
+	b.ciphers[handle] = aead
+	b.mu.Unlock()
+	return handle, nil
+}
+
+func (b *bridge) cipherRelease(args []js.Value) (any, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("cipherRelease expects a handle")
+	}
+	b.mu.Lock()
+	delete(b.ciphers, args[0].Int())
+	b.mu.Unlock()
+	return nil, nil
+}
+
+func (b *bridge) chunkCipher(handle int) (cipher.AEAD, error) {
+	b.mu.Lock()
+	aead := b.ciphers[handle]
+	b.mu.Unlock()
+	if aead == nil {
+		return nil, fmt.Errorf("unknown cipher handle")
+	}
+	return aead, nil
+}
+
+func (b *bridge) encodeChunk(args []js.Value) (any, error) {
+	if len(args) != 3 {
+		return nil, fmt.Errorf("encodeChunk expects handle, bytes, and compression flag")
+	}
+	aead, err := b.chunkCipher(args[0].Int())
+	if err != nil {
+		return nil, err
+	}
+	input, err := bytesFromJS(args[1])
+	if err != nil {
+		return nil, err
+	}
+	if args[2].Bool() {
+		input = croccompress.Compress(input)
+	}
+	encoded, err := crypt.EncryptAEAD(input, aead)
+	if err != nil {
+		return nil, err
+	}
+	return bytesToJS(encoded), nil
+}
+
+func (b *bridge) decodeChunk(args []js.Value) (any, error) {
+	if len(args) != 4 {
+		return nil, fmt.Errorf("decodeChunk expects handle, bytes, compression flag, and byte limit")
+	}
+	aead, err := b.chunkCipher(args[0].Int())
+	if err != nil {
+		return nil, err
+	}
+	input, err := bytesFromJS(args[1])
+	if err != nil {
+		return nil, err
+	}
+	decoded, err := crypt.DecryptAEADInPlace(input, aead)
+	if err != nil {
+		return nil, err
+	}
+	if args[2].Bool() {
+		decoded, err = croccompress.Decompress(decoded, int64(args[3].Int()))
+		if err != nil {
+			return nil, err
+		}
+	}
+	return bytesToJS(decoded), nil
 }
 
 func (b *bridge) hashInit(args []js.Value) (any, error) {

@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"math/big"
 	"net"
 	"net/http"
@@ -384,48 +383,133 @@ func MissingChunks(fname string, fsize int64, chunkSize int) (chunkRanges []int6
 		)
 	}
 
-	emptyBuffer := make([]byte, chunkSize)
-	chunkNum := 0
-	chunks := make([]int64, int64(math.Ceil(float64(fsize)/float64(chunkSize))))
+	buffer := make([]byte, chunkSize)
 	var currentLocation int64
-	for {
-		buffer := make([]byte, chunkSize)
-		bytesread, err := f.Read(buffer)
-		if err != nil {
+	var runStart, runCount int64
+	flushRun := func() {
+		if runCount == 0 {
+			return
+		}
+		if len(chunkRanges) == 0 {
+			chunkRanges = append(chunkRanges, int64(chunkSize))
+		}
+		chunkRanges = append(chunkRanges, runStart, runCount)
+		runCount = 0
+	}
+	for currentLocation < fsize {
+		bytesread, readErr := io.ReadFull(f, buffer)
+		if readErr != nil && readErr != io.ErrUnexpectedEOF && readErr != io.EOF {
+			return nil
+		}
+		if bytesread == 0 {
 			break
 		}
-		if bytes.Equal(buffer[:bytesread], emptyBuffer[:bytesread]) {
-			chunks[chunkNum] = currentLocation
-			chunkNum++
+		if allZero(buffer[:bytesread]) {
+			if runCount == 0 {
+				runStart = currentLocation
+			}
+			runCount++
+		} else {
+			flushRun()
 		}
 		currentLocation += int64(bytesread)
 		if showProgress && bar != nil {
 			bar.Add(bytesread)
 		}
+		if readErr != nil {
+			break
+		}
 	}
+	flushRun()
 	if showProgress && bar != nil {
 		bar.Finish()
 	}
-	if chunkNum == 0 {
-		chunkRanges = []int64{}
-	} else {
-		chunks = chunks[:chunkNum]
-		chunkRanges = []int64{int64(chunkSize), chunks[0]}
-		curCount := 0
-		for i, chunk := range chunks {
-			if i == 0 {
-				continue
-			}
-			curCount++
-			if chunk-chunks[i-1] > int64(chunkSize) {
-				chunkRanges = append(chunkRanges, int64(curCount))
-				chunkRanges = append(chunkRanges, chunk)
-				curCount = 0
-			}
-		}
-		chunkRanges = append(chunkRanges, int64(curCount+1))
-	}
 	return
+}
+
+func allZero(data []byte) bool {
+	for _, b := range data {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// ChunkRangesCount returns the number of chunks represented by ranges. An
+// empty range list means the whole file, matching the transfer protocol.
+func ChunkRangesCount(chunkRanges []int64, fileSize, defaultChunkSize int64) int {
+	if fileSize <= 0 || defaultChunkSize <= 0 {
+		return 0
+	}
+	if len(chunkRanges) == 0 {
+		return int((fileSize + defaultChunkSize - 1) / defaultChunkSize)
+	}
+	var count int64
+	for i := 2; i < len(chunkRanges); i += 2 {
+		if chunkRanges[i] > 0 {
+			count += chunkRanges[i]
+		}
+	}
+	return int(count)
+}
+
+// ChunkRangesBytes returns the exact number of file bytes represented by
+// ranges, including a possibly-short final chunk.
+func ChunkRangesBytes(chunkRanges []int64, fileSize, defaultChunkSize int64) int64 {
+	if fileSize <= 0 {
+		return 0
+	}
+	if len(chunkRanges) == 0 {
+		return fileSize
+	}
+	chunkSize := chunkRanges[0]
+	if chunkSize <= 0 {
+		chunkSize = defaultChunkSize
+	}
+	var total int64
+	for i := 1; i+1 < len(chunkRanges); i += 2 {
+		start, count := chunkRanges[i], chunkRanges[i+1]
+		if start < 0 || start >= fileSize || count <= 0 {
+			continue
+		}
+		end := start + count*chunkSize
+		if end > fileSize {
+			end = fileSize
+		}
+		if end > start {
+			total += end - start
+		}
+	}
+	return total
+}
+
+// ChunkRangesContain reports whether the chunk at position is requested.
+// An empty range list requests every chunk.
+func ChunkRangesContain(chunkRanges []int64, position int64) bool {
+	if len(chunkRanges) == 0 {
+		return true
+	}
+	chunkSize := chunkRanges[0]
+	if chunkSize <= 0 {
+		return false
+	}
+	pairs := (len(chunkRanges) - 1) / 2
+	low, high := 0, pairs
+	for low < high {
+		mid := low + (high-low)/2
+		if chunkRanges[1+mid*2] <= position {
+			low = mid + 1
+		} else {
+			high = mid
+		}
+	}
+	if low == 0 {
+		return false
+	}
+	index := 1 + (low-1)*2
+	start, count := chunkRanges[index], chunkRanges[index+1]
+	return count > 0 && position < start+count*chunkSize
 }
 
 // ChunkRangesToChunks converts chunk ranges to list
@@ -434,7 +518,13 @@ func ChunkRangesToChunks(chunkRanges []int64) (chunks []int64) {
 		return
 	}
 	chunkSize := chunkRanges[0]
-	chunks = []int64{}
+	count := 0
+	for i := 2; i < len(chunkRanges); i += 2 {
+		if chunkRanges[i] > 0 {
+			count += int(chunkRanges[i])
+		}
+	}
+	chunks = make([]int64, 0, count)
 	for i := 1; i < len(chunkRanges); i += 2 {
 		for j := int64(0); j < (chunkRanges[i+1]); j++ {
 			chunks = append(chunks, chunkRanges[i]+j*chunkSize)

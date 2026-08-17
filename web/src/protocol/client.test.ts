@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const wasmMocks = vi.hoisted(() => ({
   decrypt: vi.fn(),
   decompress: vi.fn(),
+  compress: vi.fn(async (input: Uint8Array) => input),
 }));
 
 // Keep receiver tests off the (jsdom-less) Worker path.
@@ -51,7 +52,11 @@ beforeEach(() => {
 
 describe("DataReceiver failure handling", () => {
   it("rejects a receive requested after a socket already failed", async () => {
-    const receiver = new DataReceiver([failingSocket(new Error("relay closed"))], key, true);
+    const receiver = new DataReceiver(
+      [failingSocket(new Error("relay closed"))],
+      key,
+      true,
+    );
     // Let the read loop observe the socket failure before we request a file.
     await Promise.resolve();
     await expect(receiver.receive(file, sink, () => {})).rejects.toThrow(
@@ -96,7 +101,10 @@ describe("DataReceiver failure handling", () => {
 
     await receiver.receive(file, sink, () => {});
 
-    expect(wasmMocks.decompress).toHaveBeenCalledWith(compressed, 32 * 1024 + 8);
+    expect(wasmMocks.decompress).toHaveBeenCalledWith(
+      compressed,
+      32 * 1024 + 8,
+    );
     receiver.stop();
   });
 });
@@ -109,12 +117,7 @@ describe("outgoing file preparation", () => {
     const digest = Uint8Array.of(1, 2, 3, 4);
     const hashProvider = vi.fn(async () => digest);
 
-    const [prepared] = await prepareFiles(
-      [file],
-      {},
-      undefined,
-      hashProvider,
-    );
+    const [prepared] = await prepareFiles([file], {}, undefined, hashProvider);
 
     expect(hashProvider).toHaveBeenCalledWith(file);
     expect(prepared).toMatchObject({

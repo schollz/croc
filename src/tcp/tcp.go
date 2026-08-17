@@ -3,7 +3,9 @@ package tcp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -14,7 +16,6 @@ import (
 
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/crypt"
-	"github.com/schollz/croc/v11/src/models"
 )
 
 type server struct {
@@ -578,61 +579,18 @@ func (s *server) deleteRoom(room string) {
 	delete(s.rooms.rooms, room)
 }
 
-// chanFromConn creates a channel from a Conn object, and sends everything it
-//
-//	Read()s from the socket to the channel.
-func chanFromConn(conn net.Conn) chan []byte {
-	c := make(chan []byte, 1)
-	if err := conn.SetReadDeadline(time.Now().Add(3 * time.Hour)); err != nil {
-		log.Warnf("can't set read deadline: %v", err)
-	}
-
-	go func() {
-		b := make([]byte, models.TCP_BUFFER_SIZE)
-		for {
-			n, err := conn.Read(b)
-			if n > 0 {
-				res := make([]byte, n)
-				// Copy the buffer so it doesn't get changed while read by the recipient.
-				copy(res, b[:n])
-				c <- res
-			}
-			if err != nil {
-				log.Debug(err)
-				c <- nil
-				break
-			}
-		}
-		log.Debug("exiting")
-	}()
-
-	return c
-}
-
 // pipe creates a full-duplex pipe between the two sockets and
 // transfers data from one to the other.
 func pipe(conn1 net.Conn, conn2 net.Conn) {
-	chan1 := chanFromConn(conn1)
-	chan2 := chanFromConn(conn2)
-
-	for {
-		select {
-		case b1 := <-chan1:
-			if b1 == nil {
-				return
-			}
-			if _, err := conn2.Write(b1); err != nil {
-				log.Errorf("write error on channel 1: %v", err)
-			}
-
-		case b2 := <-chan2:
-			if b2 == nil {
-				return
-			}
-			if _, err := conn1.Write(b2); err != nil {
-				log.Errorf("write error on channel 2: %v", err)
-			}
-		}
+	copyDone := make(chan error, 2)
+	copyDirection := func(dst, src net.Conn) {
+		_, err := io.Copy(dst, src)
+		copyDone <- err
+	}
+	go copyDirection(conn2, conn1)
+	go copyDirection(conn1, conn2)
+	if err := <-copyDone; err != nil && !errors.Is(err, net.ErrClosed) {
+		log.Debugf("relay pipe closed: %v", err)
 	}
 }
 

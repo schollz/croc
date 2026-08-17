@@ -15,12 +15,19 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/schollz/croc/v11/src/storecrypto"
 )
 
 const maxJSONResponse = 1 << 20
+
+const (
+	storedTransferWorkers = 4
+	checkpointChunks      = 8
+)
 
 // Client talks to one croc stored-transfer HTTP service.
 type Client struct {
@@ -107,6 +114,9 @@ type downloadSession struct {
 	transferred     int64
 	total           int64
 	callbacks       Callbacks
+	stateMu         sync.Mutex
+	claimMu         sync.Mutex
+	checkpointCount int
 }
 
 // HTTPError represents a non-success response from the storage service.
@@ -567,47 +577,84 @@ func (c *Client) uploadFile(
 		return sent, err
 	}
 	defer handle.Close()
-	var fileSent int64
-	for fileChunk := 0; fileChunk < file.manifest.ChunkCount; fileChunk++ {
-		ref := refs[file.manifest.FirstChunk+fileChunk]
-		plaintext := make([]byte, ref.PlainSize)
-		if _, err = io.ReadFull(handle, plaintext); err != nil {
-			return sent, err
-		}
-		ciphertext, err := storecrypto.SealChunk(
-			result.Share.MasterKey,
-			result.Share.ID,
-			ref,
-			plaintext,
-		)
-		if err != nil {
-			return sent, err
-		}
-		status(callbacks, "Uploading "+file.manifest.Name)
-		if err = c.putWithRetry(
-			ctx,
-			apiURL(
-				result.Share.Origin,
-				fmt.Sprintf("/%s/chunks/%d", result.Share.ID, ref.ObjectIndex),
-			),
-			result.UploadToken,
-			ciphertext,
-		); err != nil {
-			return sent, err
-		}
-		fileSent += int64(ref.PlainSize)
-		sent += int64(ref.PlainSize)
-		progress(callbacks, Progress{
-			FileIndex:  fileIndex,
-			FileCount:  fileCount,
-			FileName:   file.manifest.Name,
-			FileBytes:  fileSent,
-			FileSize:   file.manifest.Size,
-			TotalBytes: sent,
-			TotalSize:  total,
-		})
+	workerCount := min(storedTransferWorkers, file.manifest.ChunkCount)
+	if workerCount == 0 {
+		return sent, nil
 	}
-	return sent, nil
+	workCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	var resultMu sync.Mutex
+	var firstErr error
+	var fileSent int64
+	for range workerCount {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			chunkCipher, cipherErr := storecrypto.NewChunkCipher(result.Share.MasterKey)
+			if cipherErr != nil {
+				resultMu.Lock()
+				if firstErr == nil {
+					firstErr = cipherErr
+					cancel()
+				}
+				resultMu.Unlock()
+				return
+			}
+			chunkBuffer := make([]byte, storecrypto.ChunkSize+32)
+			nonceSize := chunkCipher.NonceSize()
+			for {
+				fileChunk := int(next.Add(1) - 1)
+				if fileChunk >= file.manifest.ChunkCount || workCtx.Err() != nil {
+					return
+				}
+				ref := refs[file.manifest.FirstChunk+fileChunk]
+				plaintext := chunkBuffer[nonceSize : nonceSize+ref.PlainSize]
+				if _, readErr := handle.ReadAt(plaintext, int64(fileChunk)*storecrypto.ChunkSize); readErr != nil {
+					resultMu.Lock()
+					if firstErr == nil {
+						firstErr = readErr
+						cancel()
+					}
+					resultMu.Unlock()
+					return
+				}
+				ciphertext, sealErr := chunkCipher.SealInPlace(chunkBuffer, result.Share.ID, ref)
+				if sealErr == nil {
+					resultMu.Lock()
+					status(callbacks, "Uploading "+file.manifest.Name)
+					resultMu.Unlock()
+					sealErr = c.putWithRetry(
+						workCtx,
+						apiURL(result.Share.Origin, fmt.Sprintf("/%s/chunks/%d", result.Share.ID, ref.ObjectIndex)),
+						result.UploadToken,
+						ciphertext,
+					)
+				}
+				if sealErr != nil {
+					resultMu.Lock()
+					if firstErr == nil {
+						firstErr = sealErr
+						cancel()
+					}
+					resultMu.Unlock()
+					return
+				}
+				resultMu.Lock()
+				fileSent += int64(ref.PlainSize)
+				sent += int64(ref.PlainSize)
+				progress(callbacks, Progress{
+					FileIndex: fileIndex, FileCount: fileCount, FileName: file.manifest.Name,
+					FileBytes: fileSent, FileSize: file.manifest.Size,
+					TotalBytes: sent, TotalSize: total,
+				})
+				resultMu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	return sent, firstErr
 }
 
 func (c *Client) completeUpload(
@@ -903,6 +950,11 @@ func (c *Client) writeFileChunks(
 	handle *os.File,
 ) error {
 	var fileBytes int64
+	type chunkJob struct {
+		chunk int
+		ref   storecrypto.ChunkRef
+	}
+	pending := make([]chunkJob, 0, file.ChunkCount)
 	for chunk := 0; chunk < file.ChunkCount; chunk++ {
 		ref := session.refs[file.FirstChunk+chunk]
 		if session.state.Completed[ref.ObjectIndex] {
@@ -910,43 +962,90 @@ func (c *Client) writeFileChunks(
 			session.transferred += int64(ref.PlainSize)
 			continue
 		}
-		status(session.callbacks, "Downloading "+file.Name)
-		ciphertext, err := c.getChunkWithClaimRetry(ctx, session, ref.ObjectIndex)
-		if err != nil {
-			return err
-		}
-		plaintext, err := storecrypto.OpenChunk(
-			session.share.MasterKey,
-			session.share.ID,
-			ref,
-			ciphertext,
-		)
-		if err != nil {
-			return err
-		}
-		if _, err = handle.WriteAt(
-			plaintext,
-			int64(chunk)*storecrypto.ChunkSize,
-		); err != nil {
-			return err
-		}
-		session.state.Completed[ref.ObjectIndex] = true
-		if err = writeState(session.statePath, session.state); err != nil {
-			return err
-		}
-		fileBytes += int64(len(plaintext))
-		session.transferred += int64(len(plaintext))
-		progress(session.callbacks, Progress{
-			FileIndex:  fileIndex,
-			FileCount:  session.fileCount,
-			FileName:   file.Name,
-			FileBytes:  fileBytes,
-			FileSize:   file.Size,
-			TotalBytes: session.transferred,
-			TotalSize:  session.total,
-		})
+		pending = append(pending, chunkJob{chunk: chunk, ref: ref})
 	}
-	return nil
+	workerCount := min(storedTransferWorkers, len(pending))
+	if workerCount == 0 {
+		return nil
+	}
+	workCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	var firstErr error
+	for range workerCount {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			chunkCipher, cipherErr := storecrypto.NewChunkCipher(session.share.MasterKey)
+			if cipherErr != nil {
+				session.stateMu.Lock()
+				if firstErr == nil {
+					firstErr = cipherErr
+					cancel()
+				}
+				session.stateMu.Unlock()
+				return
+			}
+			for {
+				jobIndex := int(next.Add(1) - 1)
+				if jobIndex >= len(pending) || workCtx.Err() != nil {
+					return
+				}
+				job := pending[jobIndex]
+				session.stateMu.Lock()
+				status(session.callbacks, "Downloading "+file.Name)
+				session.stateMu.Unlock()
+				ciphertext, downloadErr := c.getChunkWithClaimRetry(workCtx, session, job.ref.ObjectIndex)
+				var plaintext []byte
+				if downloadErr == nil {
+					plaintext, downloadErr = chunkCipher.OpenInPlace(session.share.ID, job.ref, ciphertext)
+				}
+				if downloadErr == nil {
+					_, downloadErr = handle.WriteAt(plaintext, int64(job.chunk)*storecrypto.ChunkSize)
+				}
+				session.stateMu.Lock()
+				if downloadErr != nil {
+					if firstErr == nil {
+						firstErr = downloadErr
+						cancel()
+					}
+					session.stateMu.Unlock()
+					return
+				}
+				session.state.Completed[job.ref.ObjectIndex] = true
+				session.checkpointCount++
+				fileBytes += int64(len(plaintext))
+				session.transferred += int64(len(plaintext))
+				if session.checkpointCount >= checkpointChunks {
+					downloadErr = writeState(session.statePath, session.state)
+					session.checkpointCount = 0
+				}
+				progress(session.callbacks, Progress{
+					FileIndex: fileIndex, FileCount: session.fileCount, FileName: file.Name,
+					FileBytes: fileBytes, FileSize: file.Size,
+					TotalBytes: session.transferred, TotalSize: session.total,
+				})
+				if downloadErr != nil && firstErr == nil {
+					firstErr = downloadErr
+					cancel()
+				}
+				session.stateMu.Unlock()
+				if downloadErr != nil {
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if firstErr != nil {
+		return firstErr
+	}
+	session.stateMu.Lock()
+	err := writeState(session.statePath, session.state)
+	session.checkpointCount = 0
+	session.stateMu.Unlock()
+	return err
 }
 
 func installVerifiedFile(
@@ -983,11 +1082,22 @@ func expiredClaim(err error) bool {
 func (c *Client) renewClaim(
 	ctx context.Context,
 	session *downloadSession,
+	staleToken string,
 ) error {
+	session.claimMu.Lock()
+	defer session.claimMu.Unlock()
+	session.stateMu.Lock()
+	if session.state.ClaimToken != staleToken {
+		session.stateMu.Unlock()
+		return nil
+	}
+	session.stateMu.Unlock()
 	token, err := c.claim(ctx, session.share)
 	if err != nil {
 		return err
 	}
+	session.stateMu.Lock()
+	defer session.stateMu.Unlock()
 	session.state.ClaimToken = token
 	return writeState(session.statePath, session.state)
 }
@@ -998,15 +1108,21 @@ func withFreshClaim[T any](
 	session *downloadSession,
 	operation func(string) (T, error),
 ) (T, error) {
-	value, err := operation(session.state.ClaimToken)
+	session.stateMu.Lock()
+	token := session.state.ClaimToken
+	session.stateMu.Unlock()
+	value, err := operation(token)
 	if err == nil || !expiredClaim(err) {
 		return value, err
 	}
-	if err = client.renewClaim(ctx, session); err != nil {
+	if err = client.renewClaim(ctx, session, token); err != nil {
 		var zero T
 		return zero, err
 	}
-	return operation(session.state.ClaimToken)
+	session.stateMu.Lock()
+	token = session.state.ClaimToken
+	session.stateMu.Unlock()
+	return operation(token)
 }
 
 func (c *Client) getChunkWithClaimRetry(

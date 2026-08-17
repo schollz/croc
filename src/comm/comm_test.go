@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -193,5 +194,69 @@ func assertTimeoutError(t *testing.T, err error) {
 	netErr, ok := err.(net.Error)
 	if !ok || !netErr.Timeout() {
 		t.Fatalf("expected a network timeout, got %T: %v", err, err)
+	}
+}
+
+func BenchmarkFrameWrite(b *testing.B) {
+	payload := bytes.Repeat([]byte("croc"), 8*1024)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(payload)))
+	b.Run("legacy-concatenate", func(b *testing.B) {
+		benchmarkFrameWriter(b, len(payload), func(connection net.Conn) error {
+			frame := bytes.NewBuffer(make([]byte, 0, len(payload)+8))
+			frame.Write(MAGIC_BYTES)
+			if err := binary.Write(frame, binary.LittleEndian, uint32(len(payload))); err != nil {
+				return err
+			}
+			frame.Write(payload)
+			_, err := connection.Write(frame.Bytes())
+			return err
+		})
+	})
+	b.Run("vectored-header-payload", func(b *testing.B) {
+		benchmarkFrameWriter(b, len(payload), func(connection net.Conn) error {
+			_, err := (&Comm{connection: connection}).Write(payload)
+			return err
+		})
+	})
+}
+
+func benchmarkFrameWriter(b *testing.B, payloadSize int, write func(net.Conn) error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		b.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		connection, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			done <- acceptErr
+			return
+		}
+		defer connection.Close()
+		frame := make([]byte, payloadSize+8)
+		for range b.N {
+			if _, readErr := io.ReadFull(connection, frame); readErr != nil {
+				done <- readErr
+				return
+			}
+		}
+		done <- nil
+	}()
+	connection, err := net.Dial("tcp", listener.Addr().String())
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	for range b.N {
+		if err = write(connection); err != nil {
+			b.Fatal(err)
+		}
+	}
+	b.StopTimer()
+	connection.Close()
+	listener.Close()
+	if err = <-done; err != nil {
+		b.Fatal(err)
 	}
 }

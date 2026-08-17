@@ -20,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/schollz/croc/v11/src/message"
+	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/tcp"
 	"github.com/schollz/croc/v11/src/utils"
 	log "github.com/schollz/logger"
@@ -36,6 +37,105 @@ func init() {
 	go tcp.Run("debug", "127.0.0.1", "8284", "pass123")
 	go tcp.Run("debug", "127.0.0.1", "8285", "pass123")
 	time.Sleep(1 * time.Second)
+}
+
+var benchmarkChunkOffsetSum int64
+
+func BenchmarkSenderChunkScheduling(b *testing.B) {
+	const fileSize = int64(256 * 1024 * 1024)
+	const connections = int64(16)
+	const chunkSize = int64(models.TCP_BUFFER_SIZE / 2)
+	chunks := fileSize / chunkSize
+
+	b.Run("legacy-every-connection-scans-file", func(b *testing.B) {
+		var sum int64
+		b.ReportMetric(float64(chunks*connections), "positions/op")
+		for n := 0; n < b.N; n++ {
+			for connection := int64(0); connection < connections; connection++ {
+				for chunk := int64(0); chunk < chunks; chunk++ {
+					if chunk%connections == connection {
+						sum += chunk * chunkSize
+					}
+				}
+			}
+		}
+		benchmarkChunkOffsetSum = sum
+	})
+	b.Run("partitioned-stride", func(b *testing.B) {
+		var sum int64
+		b.ReportMetric(float64(chunks), "positions/op")
+		stride := chunkSize * connections
+		for n := 0; n < b.N; n++ {
+			for connection := int64(0); connection < connections; connection++ {
+				for offset := connection * chunkSize; offset < fileSize; offset += stride {
+					sum += offset
+				}
+			}
+		}
+		benchmarkChunkOffsetSum = sum
+	})
+}
+
+func BenchmarkReceiveChunkWrites(b *testing.B) {
+	const connections = 8
+	const chunkSize = models.TCP_BUFFER_SIZE / 2
+	chunk := bytes.Repeat([]byte("w"), chunkSize)
+	file, err := os.CreateTemp(b.TempDir(), "receive-write-*.bin")
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer file.Close()
+	if err := file.Truncate(connections * chunkSize); err != nil {
+		b.Fatal(err)
+	}
+	b.SetBytes(connections * chunkSize)
+
+	runWrites := func(lock *sync.Mutex) {
+		var wg sync.WaitGroup
+		wg.Add(connections)
+		for connection := 0; connection < connections; connection++ {
+			go func(offset int64) {
+				defer wg.Done()
+				if lock != nil {
+					lock.Lock()
+					defer lock.Unlock()
+				}
+				if _, err := file.WriteAt(chunk, offset); err != nil {
+					panic(err)
+				}
+			}(int64(connection * chunkSize))
+		}
+		wg.Wait()
+	}
+
+	b.Run("legacy-lock-around-write", func(b *testing.B) {
+		var lock sync.Mutex
+		for i := 0; i < b.N; i++ {
+			runWrites(&lock)
+		}
+	})
+	b.Run("parallel-write-at", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			runWrites(nil)
+		}
+	})
+}
+
+func TestPerFileCompressionNegotiationFallsBackForLegacyPeers(t *testing.T) {
+	client := &Client{
+		FilesToTransfer:           []FileInfo{{IsCompressed: false}},
+		FilesToTransferCurrentNum: 0,
+	}
+	assert.True(t, client.currentFileUsesCompression(), "legacy peers expect global compression")
+
+	client.peerPerFileCompression = true
+	assert.False(t, client.currentFileUsesCompression(), "negotiated peers honor the per-file flag")
+	client.FilesToTransfer[0].IsCompressed = true
+	assert.True(t, client.currentFileUsesCompression())
+
+	client.Options.NoCompress = true
+	assert.False(t, client.currentFileUsesCompression(), "global disable always wins")
+	assert.True(t, supportsFeature([]string{"other", perFileCompressionFeature}, perFileCompressionFeature))
 }
 
 func TestWebReceiveURL(t *testing.T) {

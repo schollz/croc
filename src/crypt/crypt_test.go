@@ -1,6 +1,7 @@
 package crypt
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
@@ -12,6 +13,44 @@ func BenchmarkEncrypt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		Encrypt([]byte("hello, world"), bob)
 	}
+}
+
+func BenchmarkTransferChunkEncryption(b *testing.B) {
+	key, _, err := New([]byte("password"), nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+	aead, err := NewAESGCM(key)
+	if err != nil {
+		b.Fatal(err)
+	}
+	chunk := bytes.Repeat([]byte("x"), 32*1024)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(chunk)))
+	b.Run("legacy-new-aead-per-chunk", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if _, err := Encrypt(chunk, key); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("reused-aead", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if _, err := EncryptAEAD(chunk, aead); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("reused-aead-and-buffer", func(b *testing.B) {
+		buffer := make([]byte, 0, len(chunk)+aead.NonceSize()+aead.Overhead())
+		for i := 0; i < b.N; i++ {
+			var err error
+			buffer, err = EncryptAEADTo(buffer, chunk, aead)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
 }
 
 func BenchmarkDecrypt(b *testing.B) {
@@ -84,6 +123,31 @@ func TestEncryption(t *testing.T) {
 	// error with small password
 	_, _, err = New([]byte(""), nil)
 	assert.NotNil(t, err)
+}
+
+func TestReusableAEADPreservesWireFormat(t *testing.T) {
+	key, _, err := New([]byte("password"), nil)
+	assert.NoError(t, err)
+	aead, err := NewAESGCM(key)
+	assert.NoError(t, err)
+	msg := []byte("wire-compatible transfer chunk")
+
+	legacyCiphertext, err := Encrypt(msg, key)
+	assert.NoError(t, err)
+	decoded, err := DecryptAEAD(legacyCiphertext, aead)
+	assert.NoError(t, err)
+	assert.Equal(t, msg, decoded)
+
+	reusedCiphertext, err := EncryptAEAD(msg, aead)
+	assert.NoError(t, err)
+	decoded, err = Decrypt(reusedCiphertext, key)
+	assert.NoError(t, err)
+	assert.Equal(t, msg, decoded)
+
+	inPlaceCiphertext := append([]byte(nil), reusedCiphertext...)
+	decoded, err = DecryptAEADInPlace(inPlaceCiphertext, aead)
+	assert.NoError(t, err)
+	assert.Equal(t, msg, decoded)
 }
 
 func TestEncryptionChaCha(t *testing.T) {
