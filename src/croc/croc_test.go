@@ -2173,6 +2173,7 @@ func TestAllCtx(t *testing.T) {
 		Curve:         "siec",
 		Overwrite:     true,
 		GitIgnore:     false,
+		ThrottleUpload: "512K",
 	})
 	if err != nil {
 		t.Fatalf("Create sender failed: %v", err)
@@ -2295,6 +2296,7 @@ func TestSendCtx(t *testing.T) {
 		Curve:         "siec",
 		Overwrite:     true,
 		GitIgnore:     false,
+		ThrottleUpload: "512K",
 	})
 	if err != nil {
 		t.Fatalf("Create sender failed: %v", err)
@@ -2417,6 +2419,7 @@ func TestReceiveCtx(t *testing.T) {
 		Curve:         "siec",
 		Overwrite:     true,
 		GitIgnore:     false,
+		ThrottleUpload: "512K",
 	})
 	if err != nil {
 		t.Fatalf("Create sender failed: %v", err)
