@@ -24,6 +24,7 @@ type server struct {
 	debugLevel string
 	banner     string
 	password   string
+	roomPaired func()
 	rooms      roomMap
 	started    chan struct{}
 
@@ -554,6 +555,9 @@ func (s *server) clientCommunication(c *comm.Comm, handshake handshakeResult) (r
 	if err != nil {
 		s.deleteRoom(room)
 		return
+	}
+	if s.roomPaired != nil {
+		s.roomPaired()
 	}
 	wg.Wait()
 
