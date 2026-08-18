@@ -1050,6 +1050,7 @@ func relay(c *cli.Context) (err error) {
 	var roomPaired func()
 	umamiURL := strings.TrimSpace(os.Getenv("UMAMI_URL"))
 	umamiWebsiteID := strings.TrimSpace(os.Getenv("UMAMI_WEBSITE_ID"))
+	umamiSrc := strings.TrimSpace(os.Getenv("UMAMI_SRC"))
 	siteURL := strings.TrimSpace(os.Getenv("SITE_URL"))
 	if umamiURL != "" && umamiWebsiteID != "" && siteURL != "" {
 		reporter, reporterErr := publicrelay.NewUmamiReporter(umamiURL, umamiWebsiteID, siteURL, Version)
@@ -1058,7 +1059,11 @@ func relay(c *cli.Context) (err error) {
 		} else {
 			defer reporter.Close()
 			roomPaired = func() {
-				reporter.Track("relay-session")
+				event := "relay-session"
+				if umamiSrc != "" {
+					event += "-" + umamiSrc
+				}
+				reporter.Track(event)
 			}
 		}
 	}
