@@ -2,7 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_CROC_GATEWAY_URL?: string;
-  readonly VITE_CROC_RELAY_ADDRESS?: string;
+  readonly VITE_CROC_RELAY_ADDRESSES?: string;
   readonly VITE_CROC_RELAY_PASSWORD?: string;
 }
 
@@ -20,7 +20,7 @@ interface Window {
   };
   __CROC_RUNTIME_CONFIG__?: {
     gatewayURL?: string;
-    relayAddress?: string;
+    relayAddresses?: string[];
     relayPassword?: string;
     store?: {
       enabled?: boolean;

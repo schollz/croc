@@ -15,6 +15,7 @@ import (
 
 	"github.com/schollz/croc/v11/internal/cli"
 	"github.com/schollz/croc/v11/src/models"
+	"github.com/schollz/croc/v11/src/publicrelay"
 	storeapi "github.com/schollz/croc/v11/src/store"
 	buildversion "github.com/schollz/croc/v11/src/version"
 	"github.com/schollz/croc/v11/src/webassets"
@@ -47,7 +48,7 @@ func newApp(ctx context.Context) *cli.App {
 	app.ArgsUsage = "[public-host[:port]]"
 	app.Flags = []cli.Flag{
 		&cli.StringFlag{Name: "bind", Value: "127.0.0.1:9014", Usage: "local HTTP bind address"},
-		&cli.StringFlag{Name: "relay", Value: "croc.schollz.com", Usage: "fixed upstream croc relay host"},
+		&cli.StringFlag{Name: "relays", Aliases: []string{"relay"}, Value: strings.Join(publicrelay.Relays(), ","), Usage: "ordered comma-separated upstream croc relay hosts"},
 		&cli.StringFlag{Name: "ports", Value: "9009,9010,9011,9012,9013,9014,9015,9016,9017", Usage: "allowed upstream relay ports"},
 		&cli.StringFlag{Name: "pass", Value: models.DEFAULT_PASSPHRASE, Usage: "password for the relay", EnvVars: []string{"CROC_PASS"}},
 		&cli.BoolFlag{Name: "debug", Usage: "enable debug logging"},
@@ -142,7 +143,7 @@ func serve(ctx context.Context, c *cli.Context) error {
 	return webrelay.Run(ctx, webrelay.Config{
 		ListenAddress:  bindAddress,
 		PublicAddress:  origin,
-		RelayHost:      c.String("relay"),
+		RelayHosts:     parseRelayHosts(c.String("relays")),
 		RelayPassword:  determinePass(c.String("pass")),
 		AllowedPorts:   parseRelayPorts(c.String("ports")),
 		OriginPatterns: []string{origin},
@@ -171,6 +172,16 @@ func parseRelayPorts(value string) []string {
 		}
 	}
 	return ports
+}
+
+func parseRelayHosts(value string) []string {
+	var hosts []string
+	for _, host := range strings.Split(value, ",") {
+		if host = strings.TrimSpace(host); host != "" {
+			hosts = append(hosts, host)
+		}
+	}
+	return hosts
 }
 
 func parseByteSize(value string) (int64, error) {

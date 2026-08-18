@@ -595,26 +595,75 @@ func pipe(conn1 net.Conn, conn2 net.Conn) {
 }
 
 func PingServer(address string) (err error) {
+	_, err = MeasureServerLatency(address, 300*time.Millisecond)
+	return err
+}
+
+// MeasureServerLatency performs a complete croc ping/pong exchange within one
+// overall deadline and returns its elapsed duration.
+func MeasureServerLatency(address string, timeout time.Duration) (duration time.Duration, err error) {
+	return MeasureServerLatencyContext(context.Background(), address, timeout)
+}
+
+// MeasureServerLatencyContext performs one relay probe and closes its
+// connection promptly when the caller cancels the probe race.
+func MeasureServerLatencyContext(ctx context.Context, address string, timeout time.Duration) (duration time.Duration, err error) {
 	log.Debugf("pinging %s", address)
-	c, err := comm.NewConnection(address, 300*time.Millisecond)
-	if err != nil {
-		log.Debug(err)
-		return
+	started := time.Now()
+	type connectionResult struct {
+		connection *comm.Comm
+		err        error
+	}
+	connected := make(chan connectionResult, 1)
+	go func() {
+		c, connectErr := comm.NewConnection(address, timeout)
+		connected <- connectionResult{connection: c, err: connectErr}
+	}()
+
+	var c *comm.Comm
+	select {
+	case <-ctx.Done():
+		// The dial may finish at the same instant as cancellation. Drain its
+		// result asynchronously so a successfully opened connection is still
+		// closed even when cancellation wins this select.
+		go func() {
+			result := <-connected
+			if result.connection != nil {
+				result.connection.Close()
+			}
+		}()
+		return 0, ctx.Err()
+	case result := <-connected:
+		if result.err != nil {
+			log.Debug(result.err)
+			return 0, result.err
+		}
+		c = result.connection
+	}
+	defer c.Close()
+	stopCancel := context.AfterFunc(ctx, func() { c.Close() })
+	defer stopCancel()
+	deadline := started.Add(timeout)
+	if err = c.Connection().SetDeadline(deadline); err != nil {
+		return 0, err
 	}
 	err = c.Send([]byte("ping"))
 	if err != nil {
 		log.Debug(err)
 		return
 	}
-	b, err := c.Receive()
+	b, err := c.ReceiveWithDeadline(deadline)
 	if err != nil {
+		if ctx.Err() != nil {
+			return 0, ctx.Err()
+		}
 		log.Debug(err)
 		return
 	}
 	if bytes.Equal(b, []byte("pong")) {
-		return nil
+		return time.Since(started), nil
 	}
-	return fmt.Errorf("no pong")
+	return 0, fmt.Errorf("no pong")
 }
 
 // ConnectToTCPServer will initiate a new connection

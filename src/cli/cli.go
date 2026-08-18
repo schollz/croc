@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/croc"
 	"github.com/schollz/croc/v11/src/models"
+	"github.com/schollz/croc/v11/src/publicrelay"
 	"github.com/schollz/croc/v11/src/storeclient"
 	"github.com/schollz/croc/v11/src/tcp"
 	"github.com/schollz/croc/v11/src/utils"
@@ -315,6 +317,51 @@ func resolveSendSharedSecret(sharedSecret, envSecret string) string {
 	return sharedSecret
 }
 
+func usesPublicRelay(c *cli.Context, options croc.Options) bool {
+	return !c.IsSet("relay") &&
+		!c.IsSet("relay6") &&
+		!options.OnlyLocal &&
+		options.IP == "" &&
+		options.RelayAddress == models.DEFAULT_RELAY &&
+		options.RelayAddress6 == models.DEFAULT_RELAY6
+}
+
+func assignPublicRelay(options *croc.Options, relayIndex int) error {
+	relays := publicrelay.Relays()
+	if relayIndex < 0 || relayIndex >= len(relays) {
+		return codephrase.ErrInvalidRelayIndex
+	}
+	options.RelayAddress = relays[relayIndex]
+	options.RelayAddress6 = ""
+	options.PublicRelay = true
+	log.Debugf("public relay index %d selected: %s", relayIndex, options.RelayAddress)
+	return nil
+}
+
+func assignPublicRelayForCode(options *croc.Options) error {
+	relays := publicrelay.Relays()
+	relayIndex, err := codephrase.RelayIndex(options.SharedSecret, len(relays))
+	if err != nil {
+		return err
+	}
+	log.Debugf("code maps to public relay index %d", relayIndex)
+	return assignPublicRelay(options, relayIndex)
+}
+
+func selectBestPublicRelay(probe publicrelay.Probe) (int, error) {
+	relays := publicrelay.Relays()
+	best, duration, err := publicrelay.SelectFirst(
+		context.Background(),
+		relays,
+		publicrelay.ProbeTimeout,
+		probe,
+	)
+	if err == nil {
+		log.Debugf("public relay %d (%s) won probe race in %s", best, relays[best], duration)
+	}
+	return best, err
+}
+
 func shouldExitForUnixSendCode(goos string, codeFlagSet, classicInsecureMode bool, envSecret string) bool {
 	return goos != "windows" && codeFlagSet && !classicInsecureMode && envSecret == ""
 }
@@ -460,6 +507,7 @@ func send(c *cli.Context) (err error) {
 		}
 		applyRememberedSendOptions(c, &crocOptions, rememberedOptions)
 	}
+	publicRelayMode := usesPublicRelay(c, crocOptions)
 
 	var fnames []string
 	stat, _ := os.Stdin.Stat()
@@ -517,10 +565,25 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 	}
 
 	if len(crocOptions.SharedSecret) == 0 {
-		// generate code phrase
-		crocOptions.SharedSecret, err = codephrase.Generate()
+		if publicRelayMode {
+			var relayIndex int
+			relayIndex, err = selectBestPublicRelay(tcp.MeasureServerLatencyContext)
+			if err != nil {
+				return err
+			}
+			crocOptions.SharedSecret, err = codephrase.GenerateForRelay(relayIndex, len(publicrelay.Relays()))
+			if err == nil {
+				err = assignPublicRelay(&crocOptions, relayIndex)
+			}
+		} else {
+			crocOptions.SharedSecret, err = codephrase.Generate()
+		}
 		if err != nil {
 			return fmt.Errorf("could not generate code phrase: %w", err)
+		}
+	} else if publicRelayMode {
+		if err = assignPublicRelayForCode(&crocOptions); err != nil {
+			return fmt.Errorf("could not select public relay: %w", err)
 		}
 	}
 	minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders, err := croc.GetFilesInfoWithExactExclusions(fnames, crocOptions.ZipFolder, crocOptions.GitIgnore, crocOptions.Exclude, crocOptions.ExcludeFile)
@@ -782,6 +845,7 @@ Run croc with no argument and paste the link at the prompt, or use:
 			crocOptions.RelayAddress6 = rememberedAddr
 		}
 	}
+	publicRelayMode := usesPublicRelay(c, crocOptions)
 
 	classicInsecureMode := utils.Exists(getClassicConfigFile(true))
 	if crocOptions.SharedSecret == "" && os.Getenv("CROC_SECRET") != "" {
@@ -816,6 +880,11 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 	}
 	if storeclient.IsStoredValue(crocOptions.SharedSecret) {
 		return receiveStored(c, crocOptions.SharedSecret)
+	}
+	if publicRelayMode {
+		if err = assignPublicRelayForCode(&crocOptions); err != nil {
+			return fmt.Errorf("could not select public relay: %w", err)
+		}
 	}
 	if c.String("out") != "" {
 		if err = os.Chdir(c.String("out")); err != nil {

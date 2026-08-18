@@ -32,6 +32,7 @@ Go packages into WebAssembly:
 - raw DEFLATE compression
 - xxhash verification
 - EFF three-word code generation and compatibility parsing
+- SHA-256 code-to-relay routing shared with the native client
 
 Active sends and receives show total and per-file progress, measured bytes per
 second, and an ETA calculated with `arrival-time`.
@@ -85,20 +86,22 @@ croc settings.
 
 ## Custom relay
 
-The server fixes one upstream host and allowlists every TCP port so `/ws`
-cannot be used as an arbitrary network proxy:
+The server fixes an ordered upstream host list and allowlists every TCP port so
+`/ws` cannot be used as an arbitrary network proxy. A one-host self-hosted
+pool can be configured with:
 
 ```bash
 croc-web --pass YOUR_RELAY_PASSWORD \
   --bind 127.0.0.1:9014 \
-  --relay relay.example.com \
+  --relays relay.example.com \
   --ports 9009,9010,9011,9012,9013,9014,9015,9016,9017 \
   files.example.com
 ```
 
-The server injects the selected relay address and password as browser defaults
-through `/config.js`. Users can still override them from the advanced settings
-panel.
+The server injects the authoritative ordered relay addresses and password as
+browser defaults through `/config.js`. Public clients use
+`1.getcroc.com,2.getcroc.com,3.getcroc.com`; operators can provide another
+comma-separated order with `--relays`.
 
 The unified server exposes:
 
@@ -106,7 +109,8 @@ The unified server exposes:
   installer script at `/` while browsers receive the web client
 - `GET /config.js`
 - `GET /healthz`
-- `GET /ws?port=<allowlisted-port>` upgraded to a binary WebSocket
+- `GET /ws?relay=<zero-based-index>&port=<allowlisted-port>` upgraded to a
+  binary WebSocket; both values must be in the configured allowlists
 - `/api/v1/store/transfers` and its descendants when `--store-dir` is set
 
 ## Production topology

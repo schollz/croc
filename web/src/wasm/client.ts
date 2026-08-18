@@ -229,6 +229,10 @@ export class CrocWasm {
     return this.call<CodeComponents>("codeComponents", [secret]);
   }
 
+  relayIndex(secret: string, relayCount: number) {
+    return this.call<number>("relayIndex", [secret, relayCount]);
+  }
+
   sha256Init() {
     return this.call<number>("sha256Init");
   }

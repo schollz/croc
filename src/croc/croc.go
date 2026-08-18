@@ -82,6 +82,7 @@ type Options struct {
 	Debug             bool
 	RelayAddress      string
 	RelayAddress6     string
+	PublicRelay       bool
 	RelayPorts        []string
 	RelayPassword     string
 	Stdout            bool
@@ -1480,7 +1481,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 		hashResult <- c.filesReadyErr
 	}()
 	flags := &strings.Builder{}
-	if c.Options.RelayAddress != models.DEFAULT_RELAY && !c.Options.OnlyLocal {
+	if !c.Options.PublicRelay && c.Options.RelayAddress != models.DEFAULT_RELAY && !c.Options.OnlyLocal {
 		flags.WriteString("--relay " + c.Options.RelayAddress + " ")
 	}
 	if c.Options.RelayPassword != models.DEFAULT_PASSPHRASE {

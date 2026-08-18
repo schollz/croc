@@ -60,7 +60,7 @@ func startEchoServer(t *testing.T) (host, port string) {
 func TestNormalizeConfigAllowsPublicRelayPortPools(t *testing.T) {
 	config, err := normalizeConfig(Config{})
 	require.NoError(t, err)
-	assert.Equal(t, "croc.schollz.com", config.RelayHost)
+	assert.Equal(t, []string{"1.getcroc.com", "2.getcroc.com", "3.getcroc.com"}, config.RelayHosts)
 	assert.Equal(
 		t,
 		[]string{"9009", "9010", "9011", "9012", "9013", "9014", "9015", "9016", "9017"},
@@ -145,7 +145,7 @@ func TestServesSiteAndRuntimeConfig(t *testing.T) {
 	assert.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
 	assert.JSONEq(
 		t,
-		`{"gatewayURL":"/ws","relayAddress":"relay.example.test:9109","relayPassword":"relay-secret","store":{"enabled":false,"maxTransferBytes":0,"maxFiles":0,"maxDownloads":0,"expiresSeconds":0,"maxExpiresSeconds":0}}`,
+		`{"gatewayURL":"/ws","relayAddresses":["relay.example.test:9109"],"relayPassword":"relay-secret","store":{"enabled":false,"maxTransferBytes":0,"maxFiles":0,"maxDownloads":0,"expiresSeconds":0,"maxExpiresSeconds":0}}`,
 		strings.TrimSuffix(
 			strings.TrimPrefix(recorder.Body.String(), "window.__CROC_RUNTIME_CONFIG__ = "),
 			";\n",
@@ -387,8 +387,78 @@ func TestRejectsPortOutsideAllowlist(t *testing.T) {
 	})
 	require.NoError(t, err)
 	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/ws?port=22", nil))
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/ws?relay=0&port=22", nil))
 	assert.Equal(t, http.StatusForbidden, recorder.Code)
+}
+
+func TestRejectsMissingAndOutOfRangeRelayIndex(t *testing.T) {
+	handler, err := Handler(Config{
+		RelayHosts:   []string{"127.0.0.1", "127.0.0.2"},
+		AllowedPorts: []string{"9009"},
+		StaticFiles:  testSite(),
+	})
+	require.NoError(t, err)
+	for _, target := range []string{"/ws?port=9009", "/ws?relay=2&port=9009", "/ws?relay=nope&port=9009"} {
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, target, nil))
+		assert.Equal(t, http.StatusForbidden, recorder.Code)
+	}
+}
+
+func TestWebSocketRoutesByRelayIndex(t *testing.T) {
+	first, err := net.Listen("tcp4", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = first.Close() })
+	_, port, err := net.SplitHostPort(first.Addr().String())
+	require.NoError(t, err)
+	second, err := net.Listen("tcp6", net.JoinHostPort("::1", port))
+	if err != nil {
+		t.Skipf("IPv6 loopback is unavailable: %v", err)
+	}
+	t.Cleanup(func() { _ = second.Close() })
+
+	serveMarker := func(listener net.Listener, marker string) {
+		go func() {
+			for {
+				connection, acceptErr := listener.Accept()
+				if acceptErr != nil {
+					return
+				}
+				go func() {
+					defer connection.Close()
+					buffer := make([]byte, 64)
+					if _, readErr := connection.Read(buffer); readErr == nil {
+						_, _ = connection.Write([]byte(marker))
+					}
+				}()
+			}
+		}()
+	}
+	serveMarker(first, "first")
+	serveMarker(second, "second")
+
+	handler, err := Handler(Config{
+		RelayHosts:     []string{"127.0.0.1", "::1"},
+		AllowedPorts:   []string{port},
+		OriginPatterns: []string{"example.test"},
+		StaticFiles:    testSite(),
+	})
+	require.NoError(t, err)
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	url := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws?relay=1&port=" + port
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	connection, _, err := websocket.Dial(ctx, url, &websocket.DialOptions{
+		HTTPHeader: http.Header{"Origin": []string{"https://example.test"}},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = connection.CloseNow() })
+	require.NoError(t, connection.Write(ctx, websocket.MessageBinary, []byte("request")))
+	_, response, err := connection.Read(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, "second", string(response))
 }
 
 func TestWebSocketForwardsBinaryStream(t *testing.T) {
@@ -403,7 +473,7 @@ func TestWebSocketForwardsBinaryStream(t *testing.T) {
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 
-	url := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws?port=" + port
+	url := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws?relay=0&port=" + port
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	connection, _, err := websocket.Dial(ctx, url, &websocket.DialOptions{
@@ -432,7 +502,7 @@ func TestRejectsUnexpectedOrigin(t *testing.T) {
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 
-	url := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws?port=" + port
+	url := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws?relay=0&port=" + port
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	connection, response, err := websocket.Dial(ctx, url, &websocket.DialOptions{

@@ -78,6 +78,49 @@ func TestGeneratePropagatesRandomSourceErrors(t *testing.T) {
 	assert.ErrorContains(t, err, "random source failed")
 }
 
+func TestRelayIndexVectors(t *testing.T) {
+	tests := map[string]int{
+		"Word-word-word":           0,
+		"acid-acorn-acre":          1,
+		"poker-hedge-floss":        2,
+		"custom-passphrase":        1,
+		"1234-alpha-bravo-charlie": 2,
+	}
+	for code, want := range tests {
+		got, err := RelayIndex(code, 3)
+		require.NoError(t, err)
+		assert.Equalf(t, want, got, "RelayIndex(%q, 3)", code)
+	}
+}
+
+func TestRelayIndexRejectsInvalidCount(t *testing.T) {
+	_, err := RelayIndex("valid-code", 0)
+	assert.ErrorIs(t, err, ErrInvalidRelayCount)
+}
+
+func TestGenerateForRelayUsesNormalCodes(t *testing.T) {
+	candidates := []string{"acid-acorn-acre", "poker-hedge-floss"}
+	code, err := generateForRelay(2, 3, func() (string, error) {
+		candidate := candidates[0]
+		candidates = candidates[1:]
+		return candidate, nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "poker-hedge-floss", code)
+}
+
+func TestGenerateForRelayValidatesAndPropagatesErrors(t *testing.T) {
+	_, err := generateForRelay(-1, 3, func() (string, error) { return "", nil })
+	assert.ErrorIs(t, err, ErrInvalidRelayIndex)
+	_, err = generateForRelay(3, 3, func() (string, error) { return "", nil })
+	assert.ErrorIs(t, err, ErrInvalidRelayIndex)
+	_, err = generateForRelay(0, 0, func() (string, error) { return "", nil })
+	assert.ErrorIs(t, err, ErrInvalidRelayCount)
+	want := errors.New("random source failed")
+	_, err = generateForRelay(0, 3, func() (string, error) { return "", want })
+	assert.ErrorIs(t, err, want)
+}
+
 func TestParse(t *testing.T) {
 	tests := []struct {
 		name           string
