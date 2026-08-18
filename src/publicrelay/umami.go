@@ -23,6 +23,7 @@ const (
 type UmamiReporter struct {
 	endpoint  string
 	websiteID string
+	hostname  string
 	version   string
 	client    *http.Client
 	events    chan string
@@ -46,7 +47,7 @@ type umamiPayload struct {
 }
 
 // NewUmamiReporter constructs and starts an Umami event reporter.
-func NewUmamiReporter(baseURL, websiteID, version string) (*UmamiReporter, error) {
+func NewUmamiReporter(baseURL, websiteID, siteURL, version string) (*UmamiReporter, error) {
 	baseURL = strings.TrimSpace(baseURL)
 	websiteID = strings.TrimSpace(websiteID)
 	if baseURL == "" {
@@ -54,6 +55,10 @@ func NewUmamiReporter(baseURL, websiteID, version string) (*UmamiReporter, error
 	}
 	if websiteID == "" {
 		return nil, fmt.Errorf("Umami website ID cannot be empty")
+	}
+	hostname, err := siteHostname(siteURL)
+	if err != nil {
+		return nil, err
 	}
 
 	parsedURL, err := url.Parse(baseURL)
@@ -71,6 +76,7 @@ func NewUmamiReporter(baseURL, websiteID, version string) (*UmamiReporter, error
 	reporter := &UmamiReporter{
 		endpoint:  endpoint,
 		websiteID: websiteID,
+		hostname:  hostname,
 		version:   version,
 		client:    &http.Client{Timeout: umamiRequestTimeout},
 		events:    make(chan string, umamiQueueSize),
@@ -80,6 +86,33 @@ func NewUmamiReporter(baseURL, websiteID, version string) (*UmamiReporter, error
 	reporter.wg.Add(1)
 	go reporter.run()
 	return reporter, nil
+}
+
+func siteHostname(siteURL string) (string, error) {
+	siteURL = strings.TrimSpace(siteURL)
+	if siteURL == "" {
+		return "", fmt.Errorf("site URL cannot be empty")
+	}
+
+	value := siteURL
+	if !strings.Contains(value, "://") {
+		if strings.ContainsAny(value, "/?#") {
+			return "", fmt.Errorf("site URL must be a hostname or absolute HTTP or HTTPS URL")
+		}
+		value = "https://" + value
+	}
+	parsedURL, err := url.Parse(value)
+	if err != nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
+		return "", fmt.Errorf("site URL must be a hostname or absolute HTTP or HTTPS URL")
+	}
+	if (parsedURL.Path != "" && parsedURL.Path != "/") || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
+		return "", fmt.Errorf("site URL cannot contain a path, query, or fragment")
+	}
+	hostname := parsedURL.Hostname()
+	if hostname == "" {
+		return "", fmt.Errorf("site URL hostname cannot be empty")
+	}
+	return hostname, nil
 }
 
 // Track queues an event if reporting is active and capacity is available.
@@ -126,7 +159,7 @@ func (r *UmamiReporter) run() {
 func (r *UmamiReporter) send(name string) {
 	payload := umamiRequest{
 		Payload: umamiPayload{
-			Hostname: "relay",
+			Hostname: r.hostname,
 			URL:      "/relay",
 			Website:  r.websiteID,
 			Name:     name,
@@ -148,7 +181,7 @@ func (r *UmamiReporter) send(name string) {
 		return
 	}
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("User-Agent", "croc-relay/"+r.version)
+	request.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) croc-relay/"+r.version)
 
 	response, err := r.client.Do(request)
 	if err != nil {

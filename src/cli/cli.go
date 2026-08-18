@@ -1050,8 +1050,9 @@ func relay(c *cli.Context) (err error) {
 	var roomPaired func()
 	umamiURL := strings.TrimSpace(os.Getenv("UMAMI_URL"))
 	umamiWebsiteID := strings.TrimSpace(os.Getenv("UMAMI_WEBSITE_ID"))
-	if umamiURL != "" && umamiWebsiteID != "" {
-		reporter, reporterErr := publicrelay.NewUmamiReporter(umamiURL, umamiWebsiteID, Version)
+	siteURL := strings.TrimSpace(os.Getenv("SITE_URL"))
+	if umamiURL != "" && umamiWebsiteID != "" && siteURL != "" {
+		reporter, reporterErr := publicrelay.NewUmamiReporter(umamiURL, umamiWebsiteID, siteURL, Version)
 		if reporterErr != nil {
 			log.Warnf("relay analytics disabled: %v", reporterErr)
 		} else {
