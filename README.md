@@ -282,9 +282,12 @@ croc send --code [code-phrase] [file(s)-or-folder]
 For default public transfers, SHA-256 of the exact code modulo the ordered
 three-relay pool determines which deployment both peers use. An automatically
 generated sender probes all three relays and generates a normal EFF code that
-maps to the fastest healthy one. A custom code maps directly without probing
+maps to the first healthy one to respond. A custom code maps directly without probing
 or fallback. `--relay`, `CROC_RELAY`, `--ip`, and local-only transfers bypass
-this public routing rule.
+this public routing rule. The generated sender caches the winning address in
+`best-relay` alongside croc's other configuration files, then reuses it without
+probing. A relay connection failure removes the cache so the following send
+measures the pool again; deleting the file also forces a new measurement.
 
 #### Allow Overwriting Without Prompt
 

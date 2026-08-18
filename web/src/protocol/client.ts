@@ -111,6 +111,17 @@ function machineID() {
   }
 }
 
+export class RelayConnectionError extends Error {
+  constructor(message: string, cause: unknown) {
+    super(message, { cause });
+    this.name = "RelayConnectionError";
+  }
+}
+
+export function isRelayConnectionError(error: unknown) {
+  return error instanceof RelayConnectionError;
+}
+
 async function connectRelay(
   settings: TransferSettings,
   room: string,
@@ -119,13 +130,14 @@ async function connectRelay(
   signal?: AbortSignal,
 ) {
   const engine = wasm();
-  const socket = await CrocSocket.connect(
-    settings.gatewayURL,
-    relayIndex,
-    port,
-    signal,
-  );
+  let socket: CrocSocket | undefined;
   try {
+    socket = await CrocSocket.connect(
+      settings.gatewayURL,
+      relayIndex,
+      port,
+      signal,
+    );
     const pake = await engine.pakeInit(WEAK_RELAY_KEY, 0, "siec");
     await socket.send(pake.bytes);
     const peer = await socket.receive();
@@ -153,8 +165,14 @@ async function connectRelay(
     }
     return { socket, banner, externalIP } satisfies RelayConnection;
   } catch (error) {
-    socket.close();
-    throw error;
+    socket?.close();
+    if (signal?.aborted) throw error;
+    if (error instanceof RelayConnectionError) throw error;
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new RelayConnectionError(
+      `Could not establish the croc relay connection: ${detail}`,
+      error,
+    );
   }
 }
 

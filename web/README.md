@@ -103,6 +103,13 @@ browser defaults through `/config.js`. Public clients use
 `1.getcroc.com,2.getcroc.com,3.getcroc.com`; operators can provide another
 comma-separated order with `--relays`.
 
+For generated direct sends, the browser stores the winning relay address in the
+functional `croc-best-relay` cookie for 30 days. Later sends reuse that exact
+address without probing or extending the cookie lifetime. Invalid pool entries
+are replaced automatically. A relay connection failure clears the cookie, so
+the next send races the configured pool again; clearing site cookies forces the
+same refresh manually.
+
 The unified server exposes:
 
 - `GET /` and embedded static client assets; curl and wget receive the

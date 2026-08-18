@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -526,6 +527,142 @@ func TestSelectBestPublicRelay(t *testing.T) {
 	}
 	if index != 1 {
 		t.Fatalf("best relay index = %d, want 1", index)
+	}
+}
+
+func TestBestPublicRelayCacheUsesAddressAndCurrentPoolOrder(t *testing.T) {
+	t.Setenv("CROC_CONFIG_DIR", t.TempDir())
+	relays := []string{"one:9009", "two:9009", "three:9009"}
+	if err := saveBestPublicRelay("two:9009"); err != nil {
+		t.Fatal(err)
+	}
+	index, err := loadBestPublicRelay(relays)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if index != 1 {
+		t.Fatalf("cached relay index = %d, want 1", index)
+	}
+	index, err = loadBestPublicRelay([]string{"three:9009", "one:9009", "two:9009"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if index != 2 {
+		t.Fatalf("reordered cached relay index = %d, want 2", index)
+	}
+	cacheFile, err := getBestRelayCacheFile(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(cacheFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("cache permissions = %o, want 600", got)
+	}
+}
+
+func TestSelectPublicRelayCacheHitBypassesProbes(t *testing.T) {
+	t.Setenv("CROC_CONFIG_DIR", t.TempDir())
+	relays := publicrelay.Relays()
+	if err := saveBestPublicRelay(relays[2]); err != nil {
+		t.Fatal(err)
+	}
+	probes := 0
+	index, err := selectPublicRelay(func(context.Context, string, time.Duration) (time.Duration, error) {
+		probes++
+		return 0, errors.New("probe should not run")
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if index != 2 || probes != 0 {
+		t.Fatalf("selection = (%d, %d probes), want (2, 0)", index, probes)
+	}
+}
+
+func TestSelectPublicRelayReplacesInvalidCache(t *testing.T) {
+	for _, cached := range []string{"", "unknown:9009", " 2.getcroc.com:9009"} {
+		t.Run(fmt.Sprintf("cached_%q", cached), func(t *testing.T) {
+			configDir := t.TempDir()
+			t.Setenv("CROC_CONFIG_DIR", configDir)
+			if err := os.WriteFile(filepath.Join(configDir, "best-relay"), []byte(cached), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			winner := publicrelay.Relays()[1]
+			index, err := selectPublicRelay(func(ctx context.Context, address string, _ time.Duration) (time.Duration, error) {
+				if address == winner {
+					return time.Millisecond, nil
+				}
+				<-ctx.Done()
+				return 0, ctx.Err()
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if index != 1 {
+				t.Fatalf("selected index = %d, want 1", index)
+			}
+			contents, err := os.ReadFile(filepath.Join(configDir, "best-relay"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(contents) != winner {
+				t.Fatalf("cache = %q, want %q", contents, winner)
+			}
+		})
+	}
+}
+
+func TestSelectPublicRelayIgnoresCacheWriteFailure(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(configPath, []byte("file"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CROC_CONFIG_DIR", configPath)
+	winner := publicrelay.Relays()[0]
+	index, err := selectPublicRelay(func(ctx context.Context, address string, _ time.Duration) (time.Duration, error) {
+		if address == winner {
+			return time.Millisecond, nil
+		}
+		<-ctx.Done()
+		return 0, ctx.Err()
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if index != 0 {
+		t.Fatalf("selected index = %d, want 0", index)
+	}
+}
+
+func TestRelayConnectionErrorClearsOnlyGeneratedPublicCache(t *testing.T) {
+	tests := []struct {
+		name      string
+		generated bool
+		err       error
+		wantCache bool
+	}{
+		{name: "relay failure", generated: true, err: fmt.Errorf("send: %w", croc.ErrRelayConnection)},
+		{name: "peer failure", generated: true, err: errors.New("peer disconnected"), wantCache: true},
+		{name: "custom code", err: croc.ErrRelayConnection, wantCache: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("CROC_CONFIG_DIR", t.TempDir())
+			if err := saveBestPublicRelay(publicrelay.Relays()[0]); err != nil {
+				t.Fatal(err)
+			}
+			clearBestPublicRelayOnSendError(test.generated, test.err)
+			_, err := os.Stat(filepath.Join(os.Getenv("CROC_CONFIG_DIR"), "best-relay"))
+			if test.wantCache && err != nil {
+				t.Fatalf("cache should remain: %v", err)
+			}
+			if !test.wantCache && !os.IsNotExist(err) {
+				t.Fatalf("cache should be removed, stat error = %v", err)
+			}
+		})
 	}
 }
 

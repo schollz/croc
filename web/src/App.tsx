@@ -76,7 +76,11 @@ import {
   type SendMode,
 } from "./stored-ui";
 import { makeDirectReceiveURL, ShareQRCode } from "./share-qr";
-import { generateCodeForRelay, selectBestRelay } from "./public-relay";
+import {
+  clearBestRelayOnConnectionError,
+  generateCodeForRelay,
+  selectRelayForSend,
+} from "./public-relay";
 import {
   assetArchitectureLabel,
   assetsForPlatform,
@@ -879,8 +883,11 @@ export function App() {
   }
 
   async function sendDirect(signal: AbortSignal) {
-    setSendStatus("Finding fastest relay…");
-    const relayIndex = await selectBestRelay(settings, signal);
+    const relayIndex = await selectRelayForSend(settings, {
+      signal,
+      onCacheState: (cached) =>
+        setSendStatus(cached ? "Using saved relay…" : "Finding fastest relay…"),
+    });
     const code = await generateCodeForRelay(
       relayIndex,
       settings.relayAddresses.length,
@@ -895,19 +902,24 @@ export function App() {
           signal,
           (file) => fileHashes.hash(file, "xxhash"),
         );
-    await sendFiles({
-      files: prepared,
-      sendingText,
-      secret: code,
-      settings,
-      signal,
-      callbacks: {
-        onStatus: setSendStatus,
-        onProgress: setSendProgress,
-        onFileComplete: (name) =>
-          setCompletedSend((current) => [...current, name]),
-      },
-    });
+    try {
+      await sendFiles({
+        files: prepared,
+        sendingText,
+        secret: code,
+        settings,
+        signal,
+        callbacks: {
+          onStatus: setSendStatus,
+          onProgress: setSendProgress,
+          onFileComplete: (name) =>
+            setCompletedSend((current) => [...current, name]),
+        },
+      });
+    } catch (error) {
+      clearBestRelayOnConnectionError(error);
+      throw error;
+    }
   }
 
   async function startSend() {
