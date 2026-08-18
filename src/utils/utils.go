@@ -35,6 +35,11 @@ import (
 const NbPinNumbers = 4
 
 const maxProgressFilenameRunes = 20
+const minHashProgressSize int64 = 100 * 1024 * 1024
+
+func shouldShowHashProgress(requested bool, size int64) bool {
+	return requested && size >= minHashProgressSize
+}
 
 func shortenProgressFilename(fname string) string {
 	fnameRunes := []rune(path.Base(fname))
@@ -137,6 +142,7 @@ func HashFile(fname string, algorithm string, showProgress ...bool) (hash256 []b
 		}
 		return []byte(SHA256(target)), nil
 	}
+	doShowProgress = shouldShowHashProgress(doShowProgress, fstats.Size())
 	switch algorithm {
 	case "imohash":
 		return IMOHashFile(fname)

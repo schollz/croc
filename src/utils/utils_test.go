@@ -78,6 +78,26 @@ func TestShortenProgressFilename(t *testing.T) {
 	}
 }
 
+func TestShouldShowHashProgress(t *testing.T) {
+	tests := []struct {
+		name      string
+		requested bool
+		size      int64
+		want      bool
+	}{
+		{name: "not requested", requested: false, size: minHashProgressSize, want: false},
+		{name: "below threshold", requested: true, size: minHashProgressSize - 1, want: false},
+		{name: "at threshold", requested: true, size: minHashProgressSize, want: true},
+		{name: "above threshold", requested: true, size: minHashProgressSize + 1, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, shouldShowHashProgress(tt.requested, tt.size))
+		})
+	}
+}
+
 func BenchmarkMD5(b *testing.B) {
 	bigFile()
 	b.ResetTimer()
