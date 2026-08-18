@@ -247,6 +247,11 @@ type SenderInfo struct {
 
 const perFileCompressionFeature = "per-file-compression-v1"
 
+// ErrRelayConnection marks a failure to establish a relay control or data
+// connection. Callers may use it to invalidate cached relay selections without
+// treating peer or transfer failures as relay availability failures.
+var ErrRelayConnection = errors.New("relay connection failed")
+
 func supportsFeature(features []string, wanted string) bool {
 	for _, feature := range features {
 		if feature == wanted {
@@ -1550,7 +1555,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 				routeErr = fmt.Errorf("could not connect")
 			}
 			if routeErr != nil {
-				routeErr = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, routeErr)
+				routeErr = fmt.Errorf("%w: could not connect to %s: %v", ErrRelayConnection, c.Options.RelayAddress, routeErr)
 				log.Debug(routeErr)
 				errchan <- routeErr
 				return
@@ -2471,7 +2476,7 @@ func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error
 	close(errc)
 	for connectErr := range errc {
 		if connectErr != nil {
-			return fmt.Errorf("could not connect transfer ports: %w", connectErr)
+			return fmt.Errorf("%w: could not connect transfer ports: %v", ErrRelayConnection, connectErr)
 		}
 	}
 	if !c.Options.IsSender {

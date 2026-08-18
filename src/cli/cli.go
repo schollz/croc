@@ -291,6 +291,14 @@ func getClassicConfigFile(requireValidPath bool) string {
 	return path.Join(configFile, "classic_enabled")
 }
 
+func getBestRelayCacheFile(requireValidPath bool) (string, error) {
+	configDir, err := utils.GetConfigDir(requireValidPath)
+	if err != nil {
+		return "", err
+	}
+	return path.Join(configDir, "best-relay"), nil
+}
+
 func getReceiveConfigFile(requireValidPath bool) (string, error) {
 	configFile, err := utils.GetConfigDir(requireValidPath)
 	if err != nil {
@@ -360,6 +368,74 @@ func selectBestPublicRelay(probe publicrelay.Probe) (int, error) {
 		log.Debugf("public relay %d (%s) won probe race in %s", best, relays[best], duration)
 	}
 	return best, err
+}
+
+func loadBestPublicRelay(relays []string) (int, error) {
+	cacheFile, err := getBestRelayCacheFile(false)
+	if err != nil {
+		return 0, err
+	}
+	contents, err := os.ReadFile(cacheFile)
+	if err != nil {
+		return 0, err
+	}
+	address := string(contents)
+	for index, relay := range relays {
+		if address == relay {
+			log.Debugf("using cached public relay %d (%s) from %s", index, address, cacheFile)
+			return index, nil
+		}
+	}
+	return 0, fmt.Errorf("cached public relay %q is not in the configured pool", address)
+}
+
+func saveBestPublicRelay(address string) error {
+	cacheFile, err := getBestRelayCacheFile(true)
+	if err != nil {
+		return err
+	}
+	if err = writePrivateConfigFile(cacheFile, []byte(address)); err != nil {
+		return err
+	}
+	log.Debugf("cached public relay %s in %s", address, cacheFile)
+	return nil
+}
+
+func clearBestPublicRelay() {
+	cacheFile, err := getBestRelayCacheFile(false)
+	if err != nil {
+		log.Debugf("could not locate public relay cache: %v", err)
+		return
+	}
+	if err = os.Remove(cacheFile); err != nil && !os.IsNotExist(err) {
+		log.Warnf("could not clear public relay cache %s: %v", cacheFile, err)
+		return
+	}
+	log.Debugf("cleared public relay cache %s", cacheFile)
+}
+
+func clearBestPublicRelayOnSendError(generatedPublicCode bool, err error) {
+	if generatedPublicCode && errors.Is(err, croc.ErrRelayConnection) {
+		clearBestPublicRelay()
+	}
+}
+
+func selectPublicRelay(probe publicrelay.Probe) (int, error) {
+	relays := publicrelay.Relays()
+	if relayIndex, err := loadBestPublicRelay(relays); err == nil {
+		return relayIndex, nil
+	} else if !os.IsNotExist(err) {
+		log.Debugf("ignoring invalid public relay cache: %v", err)
+	}
+
+	relayIndex, err := selectBestPublicRelay(probe)
+	if err != nil {
+		return 0, err
+	}
+	if err = saveBestPublicRelay(relays[relayIndex]); err != nil {
+		log.Warnf("could not cache public relay selection: %v", err)
+	}
+	return relayIndex, nil
 }
 
 func shouldExitForUnixSendCode(goos string, codeFlagSet, classicInsecureMode bool, envSecret string) bool {
@@ -564,10 +640,11 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 		os.Exit(0)
 	}
 
+	generatedPublicCode := len(crocOptions.SharedSecret) == 0 && publicRelayMode
 	if len(crocOptions.SharedSecret) == 0 {
 		if publicRelayMode {
 			var relayIndex int
-			relayIndex, err = selectBestPublicRelay(tcp.MeasureServerLatencyContext)
+			relayIndex, err = selectPublicRelay(tcp.MeasureServerLatencyContext)
 			if err != nil {
 				return err
 			}
@@ -638,6 +715,7 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 	// save the config
 	saveConfig(c, crocOptions)
 	err = cr.Send(minimalFileInfos, emptyFoldersToTransfer, totalNumberFolders)
+	clearBestPublicRelayOnSendError(generatedPublicCode, err)
 	return
 }
 
