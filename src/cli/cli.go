@@ -1047,6 +1047,21 @@ func relay(c *cli.Context) (err error) {
 		return fmt.Errorf("relay requires at least two ports; specify --ports with two or more ports or set --transfers to 2+")
 	}
 
+	var roomPaired func()
+	umamiURL := strings.TrimSpace(os.Getenv("UMAMI_URL"))
+	umamiWebsiteID := strings.TrimSpace(os.Getenv("UMAMI_WEBSITE_ID"))
+	if umamiURL != "" && umamiWebsiteID != "" {
+		reporter, reporterErr := publicrelay.NewUmamiReporter(umamiURL, umamiWebsiteID, Version)
+		if reporterErr != nil {
+			log.Warnf("relay analytics disabled: %v", reporterErr)
+		} else {
+			defer reporter.Close()
+			roomPaired = func() {
+				reporter.Track("relay-session")
+			}
+		}
+	}
+
 	tcpPorts := strings.Join(ports[1:], ",")
 	for i, port := range ports {
 		if i == 0 {
@@ -1076,5 +1091,6 @@ func relay(c *cli.Context) (err error) {
 		tcp.WithMaxRoomsOpen(maxRoomsOpen),
 		tcp.WithMaxPendingHandshakes(maxPendingHandshakes),
 		tcp.WithHandshakeTimeout(handshakeTimeout),
+		tcp.WithRoomPairedCallback(roomPaired),
 	)
 }
