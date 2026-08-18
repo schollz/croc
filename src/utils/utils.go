@@ -35,7 +35,7 @@ import (
 const NbPinNumbers = 4
 
 const maxProgressFilenameRunes = 20
-const minHashProgressSize int64 = 100 * 1024 * 1024
+const minHashProgressSize int64 = 200 * 1024 * 1024
 
 func shouldShowHashProgress(requested bool, size int64) bool {
 	return requested && size >= minHashProgressSize
