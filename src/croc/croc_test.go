@@ -2539,6 +2539,7 @@ func TestRunCtx(t *testing.T) {
 		Curve:         "siec",
 		Overwrite:     true,
 		GitIgnore:     false,
+		ThrottleUpload: "512K",
 	})
 	if err != nil {
 		t.Fatalf("Create sender failed: %v", err)
