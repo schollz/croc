@@ -157,6 +157,19 @@ func TestParseRelayPorts(t *testing.T) {
 	}
 }
 
+func TestParseRelayHosts(t *testing.T) {
+	assertions := map[string][]string{
+		"1.getcroc.com,2.getcroc.com,3.getcroc.com": {"1.getcroc.com", "2.getcroc.com", "3.getcroc.com"},
+		" relay.example ,, backup.example ":         {"relay.example", "backup.example"},
+		"":                                          nil,
+	}
+	for input, expected := range assertions {
+		if actual := parseRelayHosts(input); !reflect.DeepEqual(actual, expected) {
+			t.Fatalf("parseRelayHosts(%q) = %#v, want %#v", input, actual, expected)
+		}
+	}
+}
+
 func TestResolveServeAddress(t *testing.T) {
 	tests := []struct {
 		name          string

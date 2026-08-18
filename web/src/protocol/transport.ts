@@ -5,13 +5,17 @@ type Reader = {
   reject(reason: Error): void;
 };
 
-function gatewayForPort(gateway: string, port: string) {
+export function gatewayForPort(gateway: string, relayIndex: number, port: string) {
   const base = new URL(gateway || "/ws", window.location.href);
   if (base.protocol === "http:") base.protocol = "ws:";
   if (base.protocol === "https:") base.protocol = "wss:";
   if (base.protocol !== "ws:" && base.protocol !== "wss:") {
     throw new Error("Gateway URL must use ws:// or wss://");
   }
+  if (!Number.isSafeInteger(relayIndex) || relayIndex < 0) {
+    throw new Error("Relay index must be a non-negative integer");
+  }
+  base.searchParams.set("relay", String(relayIndex));
   base.searchParams.set("port", port);
   return base.toString();
 }
@@ -46,13 +50,18 @@ export class CrocSocket {
     signal?.addEventListener("abort", () => this.close(), { once: true });
   }
 
-  static connect(gateway: string, port: string, signal?: AbortSignal) {
+  static connect(
+    gateway: string,
+    relayIndex: number,
+    port: string,
+    signal?: AbortSignal,
+  ) {
     return new Promise<CrocSocket>((resolve, reject) => {
       if (signal?.aborted) {
         reject(new DOMException("Transfer cancelled", "AbortError"));
         return;
       }
-      const socket = new WebSocket(gatewayForPort(gateway, port));
+      const socket = new WebSocket(gatewayForPort(gateway, relayIndex, port));
       const crocSocket = new CrocSocket(socket, signal);
       const onOpen = () => {
         cleanup();

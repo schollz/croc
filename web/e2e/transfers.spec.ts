@@ -138,12 +138,11 @@ function commonCLIArgs() {
 async function configurePage(page: Page) {
   await page.goto(webAddress);
   await page.locator("details.settings > summary").click();
-  await page.getByLabel("CLI relay address").fill(relayAddress);
   await page.getByLabel("WebSocket gateway").fill("/ws");
   await page
     .getByRole("textbox", { name: "Relay password", exact: true })
     .fill(relayPassword);
-  await expect(page.getByLabel("CLI relay address")).toHaveValue(relayAddress);
+  await expect(page.getByLabel("CLI relay addresses")).toHaveValue(relayAddress);
 }
 
 async function prepareWebSender(
@@ -154,6 +153,12 @@ async function prepareWebSender(
   await panel.locator('input[type="file"]').setInputFiles(fixtures.paths);
   await expect(panel.getByText("3 files", { exact: true })).toBeVisible();
   return panel;
+}
+
+async function readGeneratedSecret(panel: Locator) {
+  const code = panel.getByLabel("Croc code");
+  await expect(code).toHaveText(/^[a-z]+(?:-[a-z]+){2,5}$/);
+  return (await code.textContent())!.trim();
 }
 
 async function connectWebReceiver(page: Page, secret: string) {
@@ -867,7 +872,7 @@ test("Web → CLI transfers and verifies multiple files", async ({
   await configurePage(page);
   const sendPanel = await prepareWebSender(page, fixtures);
   await sendPanel.getByRole("button", { name: "Send 3 files" }).click();
-  const secret = (await sendPanel.getByLabel("Croc code").textContent())!;
+  const secret = await readGeneratedSecret(sendPanel);
   const cli = runCroc(
     [...commonCLIArgs(), "--out", destination],
     secret,
@@ -898,7 +903,7 @@ test("Web → CLI sends exact multiline Unicode text", async ({
   await panel.getByRole("button", { name: "Send text instead" }).click();
   await panel.getByLabel("Text to send").fill(message);
   await panel.getByRole("button", { name: "Send text" }).click();
-  const secret = (await panel.getByLabel("Croc code").textContent())!;
+  const secret = await readGeneratedSecret(panel);
   const cli = runCroc(
     [...commonCLIArgs(), "--quiet"],
     secret,
@@ -975,7 +980,7 @@ test("Web → Web transfers and verifies multiple files", async ({
     ]);
     const sendPanel = await prepareWebSender(senderPage, fixtures);
     await sendPanel.getByRole("button", { name: "Send 3 files" }).click();
-    const secret = (await sendPanel.getByLabel("Croc code").textContent())!;
+    const secret = await readGeneratedSecret(sendPanel);
     const receivePanel = await connectWebReceiver(receiverPage, secret);
     const downloads = await acceptAsDownloads(receiverPage, receivePanel);
     await Promise.all([

@@ -776,6 +776,57 @@ func TestServerHonorsIPv4LoopbackBind(t *testing.T) {
 	}
 }
 
+func TestMeasureServerLatencyContextCancellationClosesConnection(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	accepted := make(chan struct{})
+	closed := make(chan struct{})
+	go func() {
+		connection, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer connection.Close()
+		close(accepted)
+		buffer := make([]byte, 64)
+		for {
+			if _, readErr := connection.Read(buffer); readErr != nil {
+				close(closed)
+				return
+			}
+		}
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, probeErr := MeasureServerLatencyContext(ctx, listener.Addr().String(), 5*time.Second)
+		result <- probeErr
+	}()
+	select {
+	case <-accepted:
+	case <-time.After(time.Second):
+		t.Fatal("probe did not connect")
+	}
+	cancel()
+
+	select {
+	case probeErr := <-result:
+		assert.ErrorIs(t, probeErr, context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("canceled probe did not return promptly")
+	}
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("canceled probe did not close its connection")
+	}
+}
+
 func TestDualStackRelayBridgesIPv4AndIPv6(t *testing.T) {
 	probe, err := net.Listen("tcp6", "[::1]:0")
 	if err != nil {

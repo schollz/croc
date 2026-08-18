@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"os"
 	"path/filepath"
@@ -12,6 +14,8 @@ import (
 
 	"github.com/schollz/croc/v11/internal/cli"
 	"github.com/schollz/croc/v11/src/croc"
+	"github.com/schollz/croc/v11/src/models"
+	"github.com/schollz/croc/v11/src/publicrelay"
 	"github.com/schollz/croc/v11/src/tcp"
 )
 
@@ -428,6 +432,101 @@ func TestResolveSendSharedSecret(t *testing.T) {
 			t.Fatalf("expected existing secret, got %q", got)
 		}
 	})
+}
+
+func TestUsesPublicRelayOnlyForUnmodifiedDefaults(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       []string
+		mutate     func(*croc.Options)
+		wantPublic bool
+	}{
+		{name: "defaults", args: []string{"croc", "send"}, wantPublic: true},
+		{name: "explicit relay", args: []string{"croc", "--relay", "relay.example:9009", "send"}},
+		{name: "explicit relay6", args: []string{"croc", "--relay6", "[::1]:9009", "send"}},
+		{name: "local only", args: []string{"croc", "--local", "send"}},
+		{
+			name: "remembered custom relay",
+			args: []string{"croc", "send"},
+			mutate: func(options *croc.Options) {
+				options.RelayAddress = "remembered.example:9009"
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := newApp()
+			for _, command := range app.Commands {
+				if command.Name != "send" {
+					continue
+				}
+				var got bool
+				command.Action = func(ctx *cli.Context) error {
+					options := croc.Options{
+						RelayAddress:  ctx.String("relay"),
+						RelayAddress6: ctx.String("relay6"),
+						OnlyLocal:     ctx.Bool("local"),
+					}
+					if tt.mutate != nil {
+						tt.mutate(&options)
+					}
+					got = usesPublicRelay(ctx, options)
+					return nil
+				}
+				if err := app.Run(tt.args); err != nil {
+					t.Fatal(err)
+				}
+				if got != tt.wantPublic {
+					t.Fatalf("usesPublicRelay = %v, want %v", got, tt.wantPublic)
+				}
+				return
+			}
+			t.Fatal("send command not found")
+		})
+	}
+}
+
+func TestAssignPublicRelayForCode(t *testing.T) {
+	tests := map[string]string{
+		"Word-word-word":    "1.getcroc.com:9009",
+		"acid-acorn-acre":   "2.getcroc.com:9009",
+		"poker-hedge-floss": "3.getcroc.com:9009",
+	}
+	for code, address := range tests {
+		options := croc.Options{SharedSecret: code, RelayAddress6: models.DEFAULT_RELAY6}
+		if err := assignPublicRelayForCode(&options); err != nil {
+			t.Fatalf("assign %q: %v", code, err)
+		}
+		if options.RelayAddress != address || options.RelayAddress6 != "" || !options.PublicRelay {
+			t.Fatalf("assign %q = %#v", code, options)
+		}
+	}
+}
+
+func TestSelectBestPublicRelay(t *testing.T) {
+	probe := func(ctx context.Context, address string, _ time.Duration) (time.Duration, error) {
+		switch address {
+		case publicrelay.Relays()[0]:
+			select {
+			case <-ctx.Done():
+				return 0, ctx.Err()
+			case <-time.After(30 * time.Millisecond):
+				return 30 * time.Millisecond, nil
+			}
+		case publicrelay.Relays()[1]:
+			time.Sleep(10 * time.Millisecond)
+			return 10 * time.Millisecond, nil
+		default:
+			return 0, errors.New("unavailable")
+		}
+	}
+	index, err := selectBestPublicRelay(probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if index != 1 {
+		t.Fatalf("best relay index = %d, want 1", index)
+	}
 }
 
 func TestShouldExitForUnixSendCode(t *testing.T) {

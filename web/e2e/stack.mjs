@@ -138,7 +138,7 @@ await waitForTCP(controlPort);
 start("server", webBinaryPath, [
   "--pass",
   "pass123",
-  "--relay",
+  "--relays",
   "127.0.0.1",
   "--ports",
   relayPorts,

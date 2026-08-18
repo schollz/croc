@@ -33,6 +33,8 @@ const CHUNK_SIZE = 32 * 1024;
 const MAX_DECOMPRESSED_CHUNK_SIZE = CHUNK_SIZE + 8;
 const PER_FILE_COMPRESSION_FEATURE = "per-file-compression-v1";
 const HANDSHAKE = textEncoder.encode("handshake");
+const RELAY_PING = textEncoder.encode("ping");
+const RELAY_PONG = textEncoder.encode("pong");
 const IP_REQUEST = textEncoder.encode("ips?");
 const WEAK_RELAY_KEY = new Uint8Array([1, 2, 3]);
 const PAKE_PROTOCOL_VERSION = 2;
@@ -80,6 +82,12 @@ function controlPort(relayAddress: string) {
   }
 }
 
+function relayAddress(settings: TransferSettings, relayIndex: number) {
+  const address = settings.relayAddresses[relayIndex];
+  if (!address) throw new Error(`Relay index ${relayIndex} is not configured`);
+  return address;
+}
+
 function dataPorts(banner: string) {
   const ports = banner
     .split(",")
@@ -107,10 +115,16 @@ async function connectRelay(
   settings: TransferSettings,
   room: string,
   port: string,
+  relayIndex: number,
   signal?: AbortSignal,
 ) {
   const engine = wasm();
-  const socket = await CrocSocket.connect(settings.gatewayURL, port, signal);
+  const socket = await CrocSocket.connect(
+    settings.gatewayURL,
+    relayIndex,
+    port,
+    signal,
+  );
   try {
     const pake = await engine.pakeInit(WEAK_RELAY_KEY, 0, "siec");
     await socket.send(pake.bytes);
@@ -141,6 +155,39 @@ async function connectRelay(
   } catch (error) {
     socket.close();
     throw error;
+  }
+}
+
+export async function measureRelayLatency(
+  settings: TransferSettings,
+  relayIndex: number,
+  timeoutMs = 1_000,
+  signal?: AbortSignal,
+) {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener("abort", abort, { once: true });
+  const timer = window.setTimeout(abort, timeoutMs);
+  const started = performance.now();
+  let socket: CrocSocket | undefined;
+  try {
+    const address = relayAddress(settings, relayIndex);
+    socket = await CrocSocket.connect(
+      settings.gatewayURL,
+      relayIndex,
+      controlPort(address),
+      controller.signal,
+    );
+    await socket.send(RELAY_PING);
+    const response = await socket.receive();
+    if (!bytesEqual(response, RELAY_PONG)) {
+      throw new Error("Relay did not return pong");
+    }
+    return performance.now() - started;
+  } finally {
+    window.clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
+    socket?.close();
   }
 }
 
@@ -238,11 +285,12 @@ async function openDataConnections(
   settings: TransferSettings,
   room: string,
   ports: string[],
+  relayIndex: number,
   signal?: AbortSignal,
 ) {
   const connected = await Promise.all(
     ports.map((port, index) =>
-      connectRelay(settings, `${room}-${index}`, port, signal),
+      connectRelay(settings, `${room}-${index}`, port, relayIndex, signal),
     ),
   );
   return connected.map(({ socket }) => socket);
@@ -448,6 +496,7 @@ export async function sendFiles(options: {
   }
   const totalSize = files.reduce((total, file) => total + file.size, 0);
   const { room, passphrase } = await wasm().codeComponents(secret);
+  const relayIndex = await wasm().relayIndex(secret, settings.relayAddresses.length);
   let control: CrocSocket | undefined;
   let data: CrocSocket[] = [];
   let key: Uint8Array | undefined;
@@ -457,7 +506,8 @@ export async function sendFiles(options: {
     const relay = await connectRelay(
       settings,
       room,
-      controlPort(settings.relayAddress),
+      controlPort(relayAddress(settings, relayIndex)),
+      relayIndex,
       signal,
     );
     control = relay.socket;
@@ -513,12 +563,7 @@ export async function sendFiles(options: {
     cipherHandle = await wasm().cipherInit(key);
 
     callbacks.onStatus?.("Opening encrypted data channels…");
-    data = await openDataConnections(
-      settings,
-      room,
-      dataPorts(relay.banner),
-      signal,
-    );
+    data = await openDataConnections(settings, room, dataPorts(relay.banner), relayIndex, signal);
 
     const peerIP = await receiveControl(control, key);
     if (peerIP.t !== "externalip")
@@ -758,6 +803,7 @@ export async function receiveFiles(options: {
   const { secret, settings, callbacks, signal } = options;
   validateSecret(secret);
   const { room, passphrase } = await wasm().codeComponents(secret);
+  const relayIndex = await wasm().relayIndex(secret, settings.relayAddresses.length);
   let control: CrocSocket | undefined;
   let data: CrocSocket[] = [];
   let key: Uint8Array | undefined;
@@ -768,7 +814,8 @@ export async function receiveFiles(options: {
     const relay = await connectRelay(
       settings,
       room,
-      controlPort(settings.relayAddress),
+      controlPort(relayAddress(settings, relayIndex)),
+      relayIndex,
       signal,
     );
     control = relay.socket;
@@ -826,12 +873,7 @@ export async function receiveFiles(options: {
     }
     key = peerKeys.key;
     cipherHandle = await wasm().cipherInit(key);
-    data = await openDataConnections(
-      settings,
-      room,
-      dataPorts(relay.banner),
-      signal,
-    );
+    data = await openDataConnections(settings, room, dataPorts(relay.banner), relayIndex, signal);
     await sendControl(
       control,
       {

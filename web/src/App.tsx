@@ -22,7 +22,6 @@ import {
   trackTransferEvent,
   transferEvents,
 } from "./analytics";
-import { generateCode } from "./codephrase";
 import { errorMessage, formatBytes } from "./protocol/bytes";
 import {
   FileHashCache,
@@ -77,6 +76,7 @@ import {
   type SendMode,
 } from "./stored-ui";
 import { makeDirectReceiveURL, ShareQRCode } from "./share-qr";
+import { generateCodeForRelay, selectBestRelay } from "./public-relay";
 import {
   assetArchitectureLabel,
   assetsForPlatform,
@@ -253,10 +253,15 @@ const defaultSettings: TransferSettings = {
     runtimeSettings.gatewayURL ||
     import.meta.env.VITE_CROC_GATEWAY_URL ||
     "/ws",
-  relayAddress:
-    runtimeSettings.relayAddress ||
-    import.meta.env.VITE_CROC_RELAY_ADDRESS ||
-    "croc.schollz.com:9009",
+  relayAddresses:
+    runtimeSettings.relayAddresses?.filter(Boolean) ||
+    import.meta.env.VITE_CROC_RELAY_ADDRESSES?.split(",")
+      .map((address) => address.trim())
+      .filter(Boolean) || [
+      "1.getcroc.com:9009",
+      "2.getcroc.com:9009",
+      "3.getcroc.com:9009",
+    ],
   relayPassword:
     runtimeSettings.relayPassword ||
     import.meta.env.VITE_CROC_RELAY_PASSWORD ||
@@ -635,10 +640,7 @@ export function App() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [settings, setSettings] = useState<TransferSettings>(() => ({
     gatewayURL: storedValue("croc-web-gateway", defaultSettings.gatewayURL),
-    relayAddress: storedValue(
-      "croc-web-relay-address",
-      defaultSettings.relayAddress,
-    ),
+    relayAddresses: defaultSettings.relayAddresses,
     relayPassword: storedValue(
       "croc-web-relay-password",
       defaultSettings.relayPassword,
@@ -661,9 +663,7 @@ export function App() {
   );
   const [mobileTransferPanel, setMobileTransferPanel] =
     useState<MobileTransferPanel>(receiveOnly ? "receive" : "send");
-  const [sendCode] = useState(() =>
-    receiveOnly ? "" : generateCode(),
-  );
+  const [sendCode, setSendCode] = useState("");
   const [sendDetailsVisible, setSendDetailsVisible] = useState(false);
   const [sendActivity, setSendActivity] = useState<Activity>("idle");
   const [sendStatus, setSendStatus] = useState("");
@@ -739,7 +739,6 @@ export function App() {
   useEffect(() => {
     try {
       localStorage.setItem("croc-web-gateway", settings.gatewayURL);
-      localStorage.setItem("croc-web-relay-address", settings.relayAddress);
       localStorage.setItem(
         "croc-web-remember-password",
         String(rememberPassword),
@@ -880,6 +879,13 @@ export function App() {
   }
 
   async function sendDirect(signal: AbortSignal) {
+    setSendStatus("Finding fastest relay…");
+    const relayIndex = await selectBestRelay(settings, signal);
+    const code = await generateCodeForRelay(
+      relayIndex,
+      settings.relayAddresses.length,
+    );
+    setSendCode(code);
     const sendingText = sendContent === "text";
     const prepared = sendingText
       ? await prepareText(sendText, { onStatus: setSendStatus }, signal)
@@ -892,7 +898,7 @@ export function App() {
     await sendFiles({
       files: prepared,
       sendingText,
-      secret: sendCode.trim(),
+      secret: code,
       settings,
       signal,
       callbacks: {
@@ -908,7 +914,10 @@ export function App() {
     sendAbort.current?.abort();
     const controller = new AbortController();
     const currentSendMode = sendMode;
-    if (currentSendMode === "direct") setSendDetailsVisible(true);
+    if (currentSendMode === "direct") {
+      setSendCode("");
+      setSendDetailsVisible(true);
+    }
     sendAbort.current = controller;
     setSendActivity("working");
     setSendStatus(
@@ -1621,11 +1630,8 @@ export function App() {
                 type="button"
                 disabled={
                   sendMode === "direct" && sendContent === "text"
-                    ? sendTextBytes === 0 ||
-                      sendTextBytes > maxTextTransferBytes ||
-                      sendCode.trim().length < 6
+                    ? sendTextBytes === 0 || sendTextBytes > maxTextTransferBytes
                     : selectedFiles.length === 0 ||
-                      (sendMode === "direct" && sendCode.trim().length < 6) ||
                       (sendMode === "stored" &&
                         (selectedFiles.length > storeMaxFiles ||
                           totalSelectedSize > storeMaxTransferBytes))
@@ -1880,17 +1886,11 @@ export function App() {
             />
           </label>
           <label>
-            <span>CLI relay address</span>
+            <span>CLI relay addresses</span>
             <input
-              value={settings.relayAddress}
-              disabled={sendBusy || receiveBusy}
+              value={settings.relayAddresses.join(", ")}
+              readOnly
               spellCheck={false}
-              onChange={(event) =>
-                setSettings((current) => ({
-                  ...current,
-                  relayAddress: event.target.value,
-                }))
-              }
             />
           </label>
           <label>

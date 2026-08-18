@@ -56,7 +56,7 @@
     },
     "web": {
       "port": 8080,
-      "command": "web --debug --bind 0.0.0.0:8080 --relay relay --store-dir /www/croc/storage",
+      "command": "web --debug --bind 0.0.0.0:8080 --store-dir /www/croc/storage",
       "publishedPorts": [
         {
           "publishedAs": 9020,

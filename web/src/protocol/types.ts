@@ -89,7 +89,7 @@ export interface PreparedFile {
 
 export interface TransferSettings {
   gatewayURL: string;
-  relayAddress: string;
+  relayAddresses: string[];
   relayPassword: string;
   storeAPI: string;
 }

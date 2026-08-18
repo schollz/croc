@@ -37,6 +37,13 @@ const (
 // ErrCodeTooShort is returned when a croc code is shorter than six bytes.
 var ErrCodeTooShort = errors.New("code is too short (must be at least 6 characters)")
 
+// ErrInvalidRelayCount is returned when a code cannot be assigned because the
+// public relay pool is empty.
+var ErrInvalidRelayCount = errors.New("relay count must be positive")
+
+// ErrInvalidRelayIndex is returned when a requested relay is outside the pool.
+var ErrInvalidRelayIndex = errors.New("relay index is outside the relay pool")
+
 // Components contains the protocol inputs derived from a user-facing croc
 // code. RoomName is ready to send to a relay.
 type Components struct {
@@ -82,6 +89,47 @@ func makeWordSet(words []string) map[string]struct{} {
 // Generate returns a cryptographically random three-word EFF code.
 func Generate() (string, error) {
 	return generate(rand.Reader)
+}
+
+// GenerateForRelay returns a normal three-word EFF code assigned to relayIndex
+// by RelayIndex. On average it generates relayCount candidates.
+func GenerateForRelay(relayIndex, relayCount int) (string, error) {
+	return generateForRelay(relayIndex, relayCount, Generate)
+}
+
+func generateForRelay(relayIndex, relayCount int, generator func() (string, error)) (string, error) {
+	if relayCount <= 0 {
+		return "", ErrInvalidRelayCount
+	}
+	if relayIndex < 0 || relayIndex >= relayCount {
+		return "", ErrInvalidRelayIndex
+	}
+	for {
+		code, err := generator()
+		if err != nil {
+			return "", err
+		}
+		index, err := RelayIndex(code, relayCount)
+		if err != nil {
+			return "", err
+		}
+		if index == relayIndex {
+			return code, nil
+		}
+	}
+}
+
+// RelayIndex deterministically assigns the exact UTF-8 bytes of code to an
+// entry in an ordered relay pool. The complete SHA-256 digest is interpreted
+// as an unsigned big-endian integer before taking the modulo.
+func RelayIndex(code string, relayCount int) (int, error) {
+	if relayCount <= 0 {
+		return 0, ErrInvalidRelayCount
+	}
+	digest := sha256.Sum256([]byte(code))
+	value := new(big.Int).SetBytes(digest[:])
+	value.Mod(value, big.NewInt(int64(relayCount)))
+	return int(value.Int64()), nil
 }
 
 func generate(reader io.Reader) (string, error) {

@@ -56,6 +56,7 @@ func main() {
 	b.expose(api, "hashUpdate", b.hashUpdate)
 	b.expose(api, "hashFinal", b.hashFinal)
 	b.expose(api, "codeComponents", b.codeComponents)
+	b.expose(api, "relayIndex", b.relayIndex)
 	b.expose(api, "sha256Init", b.sha256Init)
 	b.expose(api, "sha256Update", b.sha256Update)
 	b.expose(api, "sha256Final", b.sha256Final)
@@ -491,6 +492,13 @@ func (b *bridge) codeComponents(args []js.Value) (any, error) {
 	result.Set("passphrase", components.PAKEPassphrase)
 	result.Set("format", string(components.Format))
 	return result, nil
+}
+
+func (b *bridge) relayIndex(args []js.Value) (any, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("relayIndex expects a croc code and relay count")
+	}
+	return codephrase.RelayIndex(args[0].String(), args[1].Int())
 }
 
 func (b *bridge) sha256Init(args []js.Value) (any, error) {

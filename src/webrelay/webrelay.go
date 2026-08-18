@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/schollz/croc/v11/src/publicrelay"
 	"github.com/schollz/croc/v11/src/store"
 	log "github.com/schollz/logger"
 )
@@ -33,7 +34,9 @@ const (
 
 // Config configures the unified croc web server.
 type Config struct {
-	ListenAddress  string
+	ListenAddress string
+	RelayHosts    []string
+	// RelayHost is retained as a single-host configuration shorthand.
 	RelayHost      string
 	AllowedPorts   []string
 	OriginPatterns []string
@@ -49,7 +52,7 @@ type Config struct {
 }
 
 type handler struct {
-	relayHost      string
+	relayHosts     []string
 	allowedPorts   map[string]struct{}
 	originPatterns []string
 	dialTimeout    time.Duration
@@ -58,14 +61,14 @@ type handler struct {
 }
 
 type runtimeConfig struct {
-	GatewayURL    string             `json:"gatewayURL"`
-	RelayAddress  string             `json:"relayAddress"`
-	RelayPassword string             `json:"relayPassword"`
-	Store         store.PublicConfig `json:"store"`
+	GatewayURL     string             `json:"gatewayURL"`
+	RelayAddresses []string           `json:"relayAddresses"`
+	RelayPassword  string             `json:"relayPassword"`
+	Store          store.PublicConfig `json:"store"`
 }
 
 // Handler returns the unified croc web handler. It serves the embedded client,
-// /config.js, /healthz, and /ws?port=<allowlisted relay port>.
+// /config.js, /healthz, and /ws?relay=<index>&port=<allowlisted relay port>.
 func Handler(config Config) (http.Handler, error) {
 	normalized, err := normalizeConfig(config)
 	if err != nil {
@@ -82,13 +85,19 @@ func Handler(config Config) (http.Handler, error) {
 	}
 
 	h := &handler{
-		relayHost:      normalized.RelayHost,
+		relayHosts:     normalized.RelayHosts,
 		allowedPorts:   make(map[string]struct{}, len(normalized.AllowedPorts)),
 		originPatterns: normalized.OriginPatterns,
 		dialTimeout:    normalized.DialTimeout,
 		runtimeConfig: runtimeConfig{
-			GatewayURL:    "/ws",
-			RelayAddress:  net.JoinHostPort(normalized.RelayHost, normalized.AllowedPorts[0]),
+			GatewayURL: "/ws",
+			RelayAddresses: func() []string {
+				addresses := make([]string, len(normalized.RelayHosts))
+				for index, host := range normalized.RelayHosts {
+					addresses[index] = net.JoinHostPort(host, normalized.AllowedPorts[0])
+				}
+				return addresses
+			}(),
 			RelayPassword: normalized.RelayPassword,
 			Store: func() store.PublicConfig {
 				if normalized.StoreService == nil {
@@ -148,7 +157,7 @@ func Run(ctx context.Context, config Config) error {
 			"starting croc web server on %s for %s via %s (%s)",
 			normalized.ListenAddress,
 			normalized.PublicAddress,
-			normalized.RelayHost,
+			strings.Join(normalized.RelayHosts, ","),
 			strings.Join(normalized.AllowedPorts, ","),
 		)
 		errc <- server.ListenAndServe()
@@ -178,22 +187,41 @@ func normalizeConfig(config Config) (Config, error) {
 	if config.PublicAddress == "" {
 		config.PublicAddress = config.ListenAddress
 	}
-	if config.RelayHost == "" {
-		config.RelayHost = "croc.schollz.com"
+	if len(config.RelayHosts) == 0 {
+		if config.RelayHost != "" {
+			config.RelayHosts = []string{config.RelayHost}
+		} else {
+			config.RelayHosts = publicrelay.Relays()
+		}
 	}
 	if config.RelayPassword == "" {
 		config.RelayPassword = "pass123"
 	}
-	if strings.Contains(config.RelayHost, "://") || strings.ContainsAny(config.RelayHost, "/?#") {
-		return Config{}, fmt.Errorf("relay must be a host, not a URL: %q", config.RelayHost)
+	hosts := make([]string, 0, len(config.RelayHosts))
+	seenHosts := make(map[string]struct{}, len(config.RelayHosts))
+	for _, rawHost := range config.RelayHosts {
+		host := strings.TrimSpace(rawHost)
+		if strings.Contains(host, "://") || strings.ContainsAny(host, "/?#") {
+			return Config{}, fmt.Errorf("relay must be a host, not a URL: %q", rawHost)
+		}
+		if splitHost, _, splitErr := net.SplitHostPort(host); splitErr == nil {
+			host = splitHost
+		}
+		host = strings.Trim(host, "[]")
+		if host == "" {
+			return Config{}, errors.New("relay host cannot be empty")
+		}
+		if _, exists := seenHosts[host]; exists {
+			continue
+		}
+		seenHosts[host] = struct{}{}
+		hosts = append(hosts, host)
 	}
-	if host, _, splitErr := net.SplitHostPort(config.RelayHost); splitErr == nil {
-		config.RelayHost = host
+	if len(hosts) == 0 {
+		return Config{}, errors.New("relay host list cannot be empty")
 	}
-	config.RelayHost = strings.Trim(config.RelayHost, "[]")
-	if config.RelayHost == "" {
-		return Config{}, errors.New("relay host cannot be empty")
-	}
+	config.RelayHosts = hosts
+	config.RelayHost = hosts[0]
 
 	if len(config.AllowedPorts) == 0 {
 		config.AllowedPorts = []string{
@@ -275,6 +303,11 @@ func (h *handler) websocket(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	relayIndex, err := strconv.Atoi(strings.TrimSpace(r.URL.Query().Get("relay")))
+	if err != nil || relayIndex < 0 || relayIndex >= len(h.relayHosts) {
+		http.Error(w, "relay index is not allowed", http.StatusForbidden)
+		return
+	}
 	port := strings.TrimSpace(r.URL.Query().Get("port"))
 	if _, allowed := h.allowedPorts[port]; !allowed {
 		http.Error(w, "relay port is not allowed", http.StatusForbidden)
@@ -286,7 +319,7 @@ func (h *handler) websocket(w http.ResponseWriter, r *http.Request) {
 	upstream, err := (&net.Dialer{}).DialContext(
 		dialCtx,
 		"tcp",
-		net.JoinHostPort(h.relayHost, port),
+		net.JoinHostPort(h.relayHosts[relayIndex], port),
 	)
 	if err != nil {
 		http.Error(w, "relay is unavailable", http.StatusBadGateway)
