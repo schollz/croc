@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/schollz/croc/v11/internal/cli"
+	"github.com/schollz/croc/v11/src/croc"
 	"github.com/schollz/croc/v11/src/tcp"
 )
 
@@ -478,6 +479,65 @@ func TestShouldExitForUnixSendCode(t *testing.T) {
 			if got != tt.want {
 				t.Fatalf("expected %v, got %v", tt.want, got)
 			}
+		})
+	}
+}
+
+func TestApplyRememberedSendOptionsDisableClipboard(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       []string
+		remembered bool
+		want       bool
+	}{
+		{
+			name:       "inherits remembered true",
+			args:       []string{"croc", "send"},
+			remembered: true,
+			want:       true,
+		},
+		{
+			name:       "inherits remembered false",
+			args:       []string{"croc", "send"},
+			remembered: false,
+			want:       false,
+		},
+		{
+			name:       "explicit false overrides remembered true",
+			args:       []string{"croc", "--disable-clipboard=false", "send"},
+			remembered: true,
+			want:       false,
+		},
+		{
+			name:       "explicit true overrides remembered false",
+			args:       []string{"croc", "--disable-clipboard", "send"},
+			remembered: false,
+			want:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := newApp()
+			for _, command := range app.Commands {
+				if command.Name != "send" {
+					continue
+				}
+				var got croc.Options
+				command.Action = func(ctx *cli.Context) error {
+					got.DisableClipboard = ctx.Bool("disable-clipboard")
+					applyRememberedSendOptions(ctx, &got, croc.Options{DisableClipboard: tt.remembered})
+					return nil
+				}
+				if err := app.Run(tt.args); err != nil {
+					t.Fatalf("apply remembered send options: %v", err)
+				}
+				if got.DisableClipboard != tt.want {
+					t.Fatalf("DisableClipboard = %v, want %v", got.DisableClipboard, tt.want)
+				}
+				return
+			}
+			t.Fatal("send command not found")
 		})
 	}
 }
