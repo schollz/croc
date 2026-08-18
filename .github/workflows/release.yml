@@ -178,7 +178,16 @@ jobs:
             tar -czvf croc_${{ github.event.release.name }}_${{ matrix.name }}.tar.gz croc${{ matrix.ext }} LICENSE src/codephrase/wordlists/LICENSE.txt
           fi
 
+      - name: Upload unsigned Windows 64-bit artifact for signing
+        if: github.event_name == 'release' && matrix.goos == 'windows' && matrix.goarch == 'amd64'
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-Windows-64bit
+          path: "*.zip"
+          retention-days: 1
+
       - name: Upload build artifact
+        if: github.event_name != 'release' || matrix.goos != 'windows' || matrix.goarch != 'amd64'
         uses: actions/upload-artifact@v7
         with:
           name: build-${{ matrix.name }}
@@ -228,15 +237,86 @@ jobs:
           name: build-croc-web-Linux-amd64
           path: "croc-web_*.tar.gz"
 
+  sign-windows-amd64:
+    name: Sign Windows 64-bit release
+    needs: build
+    if: github.event_name == 'release'
+    runs-on: windows-latest
+    steps:
+      - name: Download unsigned Windows 64-bit artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: unsigned-Windows-64bit
+          path: unsigned
+
+      - name: Prepare binary for signing
+        shell: powershell
+        run: |
+          $archives = @(Get-ChildItem -Path "${{ github.workspace }}\unsigned" -Filter "croc_*_Windows-64bit.zip" -File)
+          if ($archives.Count -ne 1) {
+            throw "Expected exactly one Windows 64-bit ZIP, found $($archives.Count)."
+          }
+
+          Expand-Archive -LiteralPath $archives[0].FullName -DestinationPath "${{ github.workspace }}\signed"
+
+          $executables = @(Get-ChildItem -Path "${{ github.workspace }}\signed" -Filter "*.exe" -File -Recurse)
+          if ($executables.Count -ne 1 -or $executables[0].Name -ne "croc.exe") {
+            throw "Expected exactly one executable named croc.exe, found: $($executables.FullName -join ', ')."
+          }
+
+      - name: Sign Windows 64-bit binary
+        uses: azure/trusted-signing-action@v0.5.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_CODE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+          files: ${{ github.workspace }}/signed/croc.exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Verify signature and recreate archive
+        shell: powershell
+        run: |
+          $binary = "${{ github.workspace }}\signed\croc.exe"
+          $signature = Get-AuthenticodeSignature -FilePath $binary
+          $signature | Format-List Status, StatusMessage, SignerCertificate, TimeStamperCertificate
+
+          if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+            throw "The croc.exe Authenticode signature is not valid: $($signature.StatusMessage)"
+          }
+          if (-not $signature.TimeStamperCertificate) {
+            throw "The croc.exe Authenticode signature does not contain a timestamp certificate."
+          }
+
+          $archives = @(Get-ChildItem -Path "${{ github.workspace }}\unsigned" -Filter "croc_*_Windows-64bit.zip" -File)
+          $destination = Join-Path "${{ github.workspace }}" $archives[0].Name
+          Compress-Archive -Path "${{ github.workspace }}\signed\*" -DestinationPath $destination -CompressionLevel Optimal
+
+      - name: Upload signed Windows 64-bit artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-Windows-64bit
+          path: "croc_*_Windows-64bit.zip"
+
   release:
-    needs: [prepare-source, build, build-web]
+    needs: [prepare-source, build, build-web, sign-windows-amd64]
     runs-on: ubuntu-24.04
     if: github.event_name == 'release'
     steps:
-      - name: Download all artifacts
+      - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
+          pattern: build-*
           merge-multiple: true
+
+      - name: Download source artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: source-tarball
 
       - name: Generate checksums
         run: |
