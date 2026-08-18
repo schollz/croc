@@ -319,6 +319,51 @@ func shouldExitForUnixSendCode(goos string, codeFlagSet, classicInsecureMode boo
 	return goos != "windows" && codeFlagSet && !classicInsecureMode && envSecret == ""
 }
 
+func applyRememberedSendOptions(c *cli.Context, options *croc.Options, remembered croc.Options) {
+	// Update anything that isn't explicitly set.
+	if !c.IsSet("no-local") {
+		options.DisableLocal = remembered.DisableLocal
+	}
+	if !c.IsSet("ports") && len(remembered.RelayPorts) > 0 {
+		options.RelayPorts = remembered.RelayPorts
+	}
+	if !c.IsSet("code") {
+		options.SharedSecret = remembered.SharedSecret
+	}
+	if !c.IsSet("pass") && remembered.RelayPassword != "" {
+		options.RelayPassword = remembered.RelayPassword
+	}
+	if !c.IsSet("overwrite") {
+		options.Overwrite = remembered.Overwrite
+	}
+	if !c.IsSet("rename") {
+		options.Rename = remembered.Rename
+	}
+	if !c.IsSet("curve") && remembered.Curve != "" {
+		options.Curve = remembered.Curve
+	}
+	if !c.IsSet("local") {
+		options.OnlyLocal = remembered.OnlyLocal
+	}
+	if !c.IsSet("hash") {
+		options.HashAlgorithm = remembered.HashAlgorithm
+	}
+	if !c.IsSet("git") {
+		options.GitIgnore = remembered.GitIgnore
+	}
+	if !c.IsSet("disable-clipboard") {
+		options.DisableClipboard = remembered.DisableClipboard
+	}
+	if !c.IsSet("relay") && strings.HasPrefix(remembered.RelayAddress, "non-default:") {
+		rememberedAddr := strings.TrimPrefix(remembered.RelayAddress, "non-default:")
+		options.RelayAddress = strings.TrimSpace(rememberedAddr)
+	}
+	if !c.IsSet("relay6") && strings.HasPrefix(remembered.RelayAddress6, "non-default:") {
+		rememberedAddr := strings.TrimPrefix(remembered.RelayAddress6, "non-default:")
+		options.RelayAddress6 = strings.TrimSpace(rememberedAddr)
+	}
+}
+
 // parseRelayPorts splits a comma-separated --ports value, trimming whitespace
 // around each entry and dropping empties. This keeps "9009, 9010," working the
 // same as "9009,9010" instead of producing invalid port strings like " 9010".
@@ -413,47 +458,7 @@ func send(c *cli.Context) (err error) {
 			log.Error(err)
 			return
 		}
-		// update anything that isn't explicitly set
-		if !c.IsSet("no-local") {
-			crocOptions.DisableLocal = rememberedOptions.DisableLocal
-		}
-		if !c.IsSet("ports") && len(rememberedOptions.RelayPorts) > 0 {
-			crocOptions.RelayPorts = rememberedOptions.RelayPorts
-		}
-		if !c.IsSet("code") {
-			crocOptions.SharedSecret = rememberedOptions.SharedSecret
-		}
-		if !c.IsSet("pass") && rememberedOptions.RelayPassword != "" {
-			crocOptions.RelayPassword = rememberedOptions.RelayPassword
-		}
-		if !c.IsSet("overwrite") {
-			crocOptions.Overwrite = rememberedOptions.Overwrite
-		}
-		if !c.IsSet("rename") {
-			crocOptions.Rename = rememberedOptions.Rename
-		}
-		if !c.IsSet("curve") && rememberedOptions.Curve != "" {
-			crocOptions.Curve = rememberedOptions.Curve
-		}
-		if !c.IsSet("local") {
-			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
-		}
-		if !c.IsSet("hash") {
-			crocOptions.HashAlgorithm = rememberedOptions.HashAlgorithm
-		}
-		if !c.IsSet("git") {
-			crocOptions.GitIgnore = rememberedOptions.GitIgnore
-		}
-		if !c.IsSet("relay") && strings.HasPrefix(rememberedOptions.RelayAddress, "non-default:") {
-			var rememberedAddr = strings.TrimPrefix(rememberedOptions.RelayAddress, "non-default:")
-			rememberedAddr = strings.TrimSpace(rememberedAddr)
-			crocOptions.RelayAddress = rememberedAddr
-		}
-		if !c.IsSet("relay6") && strings.HasPrefix(rememberedOptions.RelayAddress6, "non-default:") {
-			var rememberedAddr = strings.TrimPrefix(rememberedOptions.RelayAddress6, "non-default:")
-			rememberedAddr = strings.TrimSpace(rememberedAddr)
-			crocOptions.RelayAddress6 = rememberedAddr
-		}
+		applyRememberedSendOptions(c, &crocOptions, rememberedOptions)
 	}
 
 	var fnames []string
