@@ -459,7 +459,7 @@ croc-web getcroc.com
 
 This binds to `127.0.0.1:9014` by default for an HTTPS reverse proxy. `/`
 serves the website and `/ws` bridges to the code-selected public relay at
-`1.getcroc.com`, `2.getcroc.com`, or `3.getcroc.com`. For a directly
+`1.getcroc.com`, `2.getcroc.com`, `3.getcroc.com`, or `4.getcroc.com`. For a directly
 accessible local development server, `croc-web localhost:5173` binds and
 serves on `localhost:5173`. Use `--bind`, `--relays`, and `--ports` before the
 website address to customize the local listener or upstream croc relay.

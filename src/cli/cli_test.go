@@ -490,8 +490,9 @@ func TestUsesPublicRelayOnlyForUnmodifiedDefaults(t *testing.T) {
 func TestAssignPublicRelayForCode(t *testing.T) {
 	tests := map[string]string{
 		"Word-word-word":    "1.getcroc.com:9009",
-		"acid-acorn-acre":   "2.getcroc.com:9009",
-		"poker-hedge-floss": "3.getcroc.com:9009",
+		"poker-hedge-floss": "2.getcroc.com:9009",
+		"acid-acorn-acre":   "3.getcroc.com:9009",
+		"custom-passphrase": "4.getcroc.com:9009",
 	}
 	for code, address := range tests {
 		options := croc.Options{SharedSecret: code, RelayAddress6: models.DEFAULT_RELAY6}
