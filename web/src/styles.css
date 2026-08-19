@@ -497,6 +497,40 @@ select:disabled {
   border-color: var(--danger);
 }
 
+.direct-share-link {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.direct-share-link > label {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.direct-share-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.direct-share-row input {
+  min-width: 0;
+  border-right: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.direct-share-row .secondary-button {
+  width: auto;
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.direct-share-row .secondary-button.error {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -3565,6 +3599,10 @@ a.cli-download-primary:hover {
     grid-row: 2;
     width: 48px;
     height: 48px;
+  }
+
+  .direct-share-row .secondary-button {
+    min-height: 48px;
   }
 
   .field-help {

@@ -686,9 +686,18 @@ test("help tour explains browser transfers and end-to-end encryption", async ({
 test("copying a croc code shows confirmation", async ({ page }) => {
   await configurePage(page);
   await page.evaluate(() => {
+    const writes: string[] = [];
+    Object.defineProperty(window, "__crocClipboardWrites", {
+      configurable: true,
+      value: writes,
+    });
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
-      value: { writeText: async () => undefined },
+      value: {
+        writeText: async (value: string) => {
+          writes.push(value);
+        },
+      },
     });
   });
   const panel = page.locator(".send-panel");
@@ -698,10 +707,12 @@ test("copying a croc code shows confirmation", async ({ page }) => {
     buffer: Buffer.from("copy test"),
   });
   await panel.getByRole("button", { name: "Send file" }).click();
+  const code = await readGeneratedSecret(panel);
   const copyButton = panel.getByRole("button", { name: "Copy code" });
   await copyButton.click();
-  await expect(panel.getByRole("status")).toHaveText("Copied");
-  await expect(panel.getByRole("status")).toHaveClass("visually-hidden");
+  const codeStatus = panel.locator(".send-code").getByRole("status");
+  await expect(codeStatus).toHaveText("Copied");
+  await expect(codeStatus).toHaveClass("visually-hidden");
   await expect(panel.getByRole("button", { name: "Code copied" })).toHaveClass(
     /copied/,
   );
@@ -710,6 +721,42 @@ test("copying a croc code shows confirmation", async ({ page }) => {
     "animation-name",
     "copy-confirmed-code",
   );
+
+  const browserLink = panel.getByRole("textbox", {
+    name: "Browser link",
+    exact: true,
+  });
+  const expectedURL = new URL("/", page.url());
+  expectedURL.searchParams.set("code", code);
+  await expect(browserLink).toHaveValue(expectedURL.href);
+
+  const linkCopyButton = panel.locator(".direct-share-row").getByRole("button");
+  await expect(linkCopyButton).toHaveAccessibleName("Copy browser link");
+  await linkCopyButton.click();
+  await expect(linkCopyButton.getByRole("status")).toHaveText("Copied");
+  await expect(linkCopyButton).toHaveAccessibleName("Browser link copied");
+  await expect(panel.getByRole("button", { name: "Code copied" })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        (window as typeof window & { __crocClipboardWrites: string[] })
+          .__crocClipboardWrites,
+    ),
+  ).toEqual([code, expectedURL.href]);
+
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async () => {
+          throw new Error("Clipboard unavailable");
+        },
+      },
+    });
+  });
+  await linkCopyButton.click();
+  await expect(linkCopyButton).toHaveAccessibleName("Browser link copy failed");
+  await expect(linkCopyButton.getByRole("status")).toHaveText("Copy failed");
 });
 
 test("preloads WASM and reveals a mobile-sized code only after Send is pressed", async ({
@@ -776,6 +823,15 @@ test("preloads WASM and reveals a mobile-sized code only after Send is pressed",
   await expect(code).toHaveCSS("font-size", "14px");
   await expect(panel.getByRole("button", { name: "Generate a new code" })).toHaveCount(0);
   await expect(panel.getByRole("button", { name: "Show QR code" })).toBeVisible();
+  const browserLink = panel.getByRole("textbox", {
+    name: "Browser link",
+    exact: true,
+  });
+  const browserLinkCopy = panel.getByRole("button", {
+    name: "Copy browser link",
+  });
+  await expect(browserLink).toBeVisible();
+  await expect(browserLinkCopy).toBeVisible();
   const [labelBox, codeBox, copyBox] = await Promise.all([
     codeLabel.boundingBox(),
     code.boundingBox(),
@@ -790,6 +846,13 @@ test("preloads WASM and reveals a mobile-sized code only after Send is pressed",
   expect(codeBox!.x + codeBox!.width).toBeLessThanOrEqual(copyBox!.x);
   expect(await code.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
     true,
+  );
+  const [browserLinkBox, browserLinkCopyBox] = await Promise.all([
+    browserLink.boundingBox(),
+    browserLinkCopy.boundingBox(),
+  ]);
+  expect(browserLinkBox!.x + browserLinkBox!.width).toBeLessThanOrEqual(
+    browserLinkCopyBox!.x,
   );
 });
 

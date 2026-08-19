@@ -265,6 +265,7 @@ const defaultSettings: TransferSettings = {
       "1.getcroc.com:9009",
       "2.getcroc.com:9009",
       "3.getcroc.com:9009",
+      "4.getcroc.com:9009",
     ],
   relayPassword:
     runtimeSettings.relayPassword ||
@@ -674,6 +675,8 @@ export function App() {
   const [sendProgress, setSendProgress] = useState<FileProgress>();
   const [completedSend, setCompletedSend] = useState<string[]>([]);
   const [codeCopyState, setCodeCopyState] = useState<CopyState>("idle");
+  const [directLinkCopyState, setDirectLinkCopyState] =
+    useState<CopyState>("idle");
   const [storedUpload, setStoredUpload] =
     useState<StoredUploadResult | undefined>(restoredStoredUpload);
   const [storedDownloads, setStoredDownloads] = useState(1);
@@ -703,6 +706,7 @@ export function App() {
   const transferGrid = useRef<HTMLElement>(null);
   const receivePanel = useRef<HTMLFormElement>(null);
   const codeCopyReset = useRef<number>(undefined);
+  const directLinkCopyReset = useRef<number>(undefined);
   const receivedTextCopyReset = useRef<number>(undefined);
   const receiveOfferKind = useRef<TransferOffer["kind"]>("files");
   const tour = useRef<Driver>(undefined);
@@ -766,6 +770,8 @@ export function App() {
     return () => {
       if (codeCopyReset.current !== undefined)
         window.clearTimeout(codeCopyReset.current);
+      if (directLinkCopyReset.current !== undefined)
+        window.clearTimeout(directLinkCopyReset.current);
       if (receivedTextCopyReset.current !== undefined)
         window.clearTimeout(receivedTextCopyReset.current);
       tour.current?.destroy();
@@ -927,6 +933,11 @@ export function App() {
     const controller = new AbortController();
     const currentSendMode = sendMode;
     if (currentSendMode === "direct") {
+      if (directLinkCopyReset.current !== undefined) {
+        window.clearTimeout(directLinkCopyReset.current);
+        directLinkCopyReset.current = undefined;
+      }
+      setDirectLinkCopyState("idle");
       setSendCode("");
       setSendDetailsVisible(true);
     }
@@ -1558,6 +1569,45 @@ export function App() {
                       : ""}
                 </span>
               </div>
+              {sendCode.trim().length >= 6 && (
+                <div className="direct-share-link">
+                  <label htmlFor="direct-browser-link">Browser link</label>
+                  <div className="direct-share-row">
+                    <input
+                      id="direct-browser-link"
+                      readOnly
+                      value={directReceiveURL}
+                    />
+                    <button
+                      className={`secondary-button ${directLinkCopyState}`}
+                      type="button"
+                      aria-label={
+                        directLinkCopyState === "copied"
+                          ? "Browser link copied"
+                          : directLinkCopyState === "error"
+                            ? "Browser link copy failed"
+                            : "Copy browser link"
+                      }
+                      onClick={() =>
+                        void copyWithFeedback(
+                          directReceiveURL,
+                          setDirectLinkCopyState,
+                          directLinkCopyReset,
+                        )
+                      }
+                    >
+                      {directLinkCopyState === "copied" ? <Check /> : <Copy />}
+                      <span role="status" aria-live="polite">
+                        {directLinkCopyState === "copied"
+                          ? "Copied"
+                          : directLinkCopyState === "error"
+                            ? "Copy failed"
+                            : "Copy"}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
               <ShareQRCode
                 value={directReceiveURL}
                 disabled={sendCode.trim().length < 6}
