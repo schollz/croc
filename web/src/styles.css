@@ -209,6 +209,10 @@ h1 {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.receive-panel {
+  scroll-margin-top: 16px;
+}
+
 .mobile-transfer-switch,
 .drop-mobile-copy {
   display: none;

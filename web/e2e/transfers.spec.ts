@@ -585,7 +585,7 @@ test("mobile puts both transfer directions within one tap", async ({ page }) => 
   }
 });
 
-test("receive links open with the Receive panel at the top", async ({
+test("receive links open with the Receive panel top edge visible", async ({
   page,
 }) => {
   await page.goto("/?code=x");
@@ -596,10 +596,10 @@ test("receive links open with the Receive panel at the top", async ({
   await expect
     .poll(() =>
       receivePanel.evaluate((element) =>
-        Math.abs(Math.round(element.getBoundingClientRect().top)),
+        Math.round(element.getBoundingClientRect().top),
       ),
     )
-    .toBe(0);
+    .toBe(16);
   await expect
     .poll(() =>
       page.locator(".site-header").evaluate((element) =>
