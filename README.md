@@ -282,9 +282,12 @@ croc send --code [code-phrase] [file(s)-or-folder]
 For default public transfers, SHA-256 of the exact code modulo the ordered
 three-relay pool determines which deployment both peers use. An automatically
 generated sender probes all three relays and generates a normal EFF code that
-maps to the fastest healthy one. A custom code maps directly without probing
+maps to the first healthy one to respond. A custom code maps directly without probing
 or fallback. `--relay`, `CROC_RELAY`, `--ip`, and local-only transfers bypass
-this public routing rule.
+this public routing rule. The generated sender caches the winning address in
+`best-relay` alongside croc's other configuration files, then reuses it without
+probing. A relay connection failure removes the cache so the following send
+measures the pool again; deleting the file also forces a new measurement.
 
 #### Allow Overwriting Without Prompt
 
@@ -456,7 +459,7 @@ croc-web getcroc.com
 
 This binds to `127.0.0.1:9014` by default for an HTTPS reverse proxy. `/`
 serves the website and `/ws` bridges to the code-selected public relay at
-`1.getcroc.com`, `2.getcroc.com`, or `3.getcroc.com`. For a directly
+`1.getcroc.com`, `2.getcroc.com`, `3.getcroc.com`, or `4.getcroc.com`. For a directly
 accessible local development server, `croc-web localhost:5173` binds and
 serves on `localhost:5173`. Use `--bind`, `--relays`, and `--ports` before the
 website address to customize the local listener or upstream croc relay.

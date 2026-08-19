@@ -16,6 +16,7 @@ func TestRelaysReturnsProtocolOrderAndCopy(t *testing.T) {
 		"1.getcroc.com:9009",
 		"2.getcroc.com:9009",
 		"3.getcroc.com:9009",
+		"4.getcroc.com:9009",
 	}, got)
 	got[0] = "changed"
 	assert.Equal(t, "1.getcroc.com:9009", Relays()[0])

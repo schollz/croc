@@ -65,6 +65,15 @@ func WithHandshakeTimeout(timeout time.Duration) serverOptsFunc {
 	}
 }
 
+// WithRoomPairedCallback sets a callback invoked after a room's second peer
+// has joined and received confirmation. The callback must not block.
+func WithRoomPairedCallback(callback func()) serverOptsFunc {
+	return func(s *server) error {
+		s.roomPaired = callback
+		return nil
+	}
+}
+
 func WithRoomCleanupInterval(interval time.Duration) serverOptsFunc {
 	return func(s *server) error {
 		s.roomCleanupInterval = interval

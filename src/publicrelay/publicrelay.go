@@ -13,6 +13,7 @@ var relays = []string{
 	"1.getcroc.com:9009",
 	"2.getcroc.com:9009",
 	"3.getcroc.com:9009",
+	"4.getcroc.com:9009",
 }
 
 // Relays returns a copy of the protocol-ordered public relay pool.
