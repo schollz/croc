@@ -18,6 +18,7 @@ import (
 	"github.com/schollz/croc/v11/src/codephrase"
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/croc"
+	"github.com/schollz/croc/v11/src/doctor"
 	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/publicrelay"
 	"github.com/schollz/croc/v11/src/storeclient"
@@ -108,6 +109,22 @@ func newApp() *cli.App {
 				&cli.IntFlag{Name: "max-rooms-open", Value: tcp.DEFAULT_MAX_ROOMS_OPEN, Usage: "maximum waiting rooms per relay port", EnvVars: []string{"CROC_MAX_ROOMS_OPEN"}},
 				&cli.IntFlag{Name: "max-pending-handshakes", Value: tcp.DEFAULT_MAX_PENDING_HANDSHAKES, Usage: "maximum incomplete handshakes per relay port", EnvVars: []string{"CROC_MAX_PENDING_HANDSHAKES"}},
 				&cli.DurationFlag{Name: "handshake-timeout", Value: tcp.DEFAULT_HANDSHAKE_TIMEOUT, Usage: "maximum time for an initial relay handshake", EnvVars: []string{"CROC_HANDSHAKE_TIMEOUT"}},
+			},
+		},
+		{
+			Name:        "doctor",
+			Usage:       "run local diagnostics for common transfer problems",
+			Description: "diagnose relay reachability, config/permissions, output folder, proxy, etc.",
+			HelpName:    "croc doctor",
+			Action:      call_doctor,
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, EnvVars: []string{"CROC_RELAY"}},
+				&cli.StringFlag{Name: "pass", Value: models.DEFAULT_PASSPHRASE, EnvVars: []string{"CROC_PASS"}},
+				&cli.StringFlag{Name: "out", Value: "."},
+				&cli.StringFlag{Name: "store-url", EnvVars: []string{"CROC_STORE_URL"}},
+				&cli.StringFlag{Name: "socks5", EnvVars: []string{"SOCKS5_PROXY"}},
+				&cli.StringFlag{Name: "connect", EnvVars: []string{"HTTP_PROXY"}},
+				&cli.BoolFlag{Name: "json"},
 			},
 		},
 		{
@@ -274,30 +291,15 @@ func setDebugLevel(c *cli.Context) {
 }
 
 func getSendConfigFile(requireValidPath bool) string {
-	configFile, err := utils.GetConfigDir(requireValidPath)
-	if err != nil {
-		log.Error(err)
-		return ""
-	}
-	return path.Join(configFile, "send.json")
+	return utils.GetSendConfigFile(requireValidPath)
 }
 
 func getClassicConfigFile(requireValidPath bool) string {
-	configFile, err := utils.GetConfigDir(requireValidPath)
-	if err != nil {
-		log.Error(err)
-		return ""
-	}
-	return path.Join(configFile, "classic_enabled")
+	return utils.GetClassicConfigFile(requireValidPath)
 }
 
 func getReceiveConfigFile(requireValidPath bool) (string, error) {
-	configFile, err := utils.GetConfigDir(requireValidPath)
-	if err != nil {
-		log.Error(err)
-		return "", err
-	}
-	return path.Join(configFile, "receive.json"), nil
+	return utils.GetReceiveConfigFile(requireValidPath)
 }
 
 func determinePass(c *cli.Context) (pass string) {
@@ -999,4 +1001,29 @@ func relay(c *cli.Context) (err error) {
 		tcp.WithMaxPendingHandshakes(maxPendingHandshakes),
 		tcp.WithHandshakeTimeout(handshakeTimeout),
 	)
+}
+
+func call_doctor(c *cli.Context) error {
+	// proxies are package-globals in comm; set them so probes use them
+	comm.Socks5Proxy = c.String("socks5")
+	comm.HttpProxy = c.String("connect")
+
+	report := doctor.Run(doctor.Options{
+		Relay:     c.String("relay"),
+		Pass:      determinePass(c), // reuse existing helper (line 301)
+		OutDir:    c.String("out"),
+		StoreURL:  c.String("store-url"),
+		Socks5:    c.String("socks5"),
+		HTTPProxy: c.String("connect"),
+		Version:   Version,
+	})
+
+	if c.Bool("json") {
+		return json.NewEncoder(os.Stdout).Encode(report)
+	}
+	report.PrintHuman(os.Stdout)
+	if report.HasFailures() {
+		return errors.New("doctor found problems") // non-zero exit for scripts/wrappers
+	}
+	return nil
 }
