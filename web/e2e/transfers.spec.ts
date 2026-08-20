@@ -505,9 +505,11 @@ test("serves the installer to curl and the app to browsers", async ({
   expect(installer.headers()["content-type"]).toBe("text/plain; charset=utf-8");
   expect(installer.headers()["cache-control"]).toBe("no-store");
   expect(installer.headers()["vary"]).toBe("User-Agent");
-  expect(await installer.text()).toMatch(
-    /^#!\/bin\/bash[\s\S]*croc_version="/,
+  const installerText = await installer.text();
+  expect(installerText).toMatch(
+    /^#!\/bin\/bash[\s\S]*api\.github\.com\/repos\/schollz\/croc\/releases\/latest/,
   );
+  expect(installerText).not.toMatch(/croc_version="\d+\.\d+\.\d+"/);
 
   await page.goto("/");
   await expect(
