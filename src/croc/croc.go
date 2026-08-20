@@ -1970,6 +1970,7 @@ func (c *Client) Receive() (err error) {
 				// reset to the local port
 				banner = banner2
 				c.setRelayControlAddress(serverTry)
+				c.ExternalIPConnected = peerIP(serverTry)
 				c.ExternalIP = externalIP
 				c.conn[0].Close()
 				c.conn[0] = nil
@@ -2521,9 +2522,10 @@ func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error
 	}
 	if !c.Options.IsSender {
 		log.Debug("sending external IP")
+		localIPs, _ := utils.GetLocalIPs()
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:    message.TypeExternalIP,
-			Message: peerIP(c.ExternalIP),
+			Message: preferredPublicIP(c.ExternalIP, localIPs),
 			Bytes:   c.pakeResponder,
 		})
 	}
@@ -2534,9 +2536,12 @@ func (c *Client) processExternalIP(m message.Message) (done bool, err error) {
 	log.Debugf("received external IP: %+v", m)
 	if c.Options.IsSender {
 		c.waitForExternalIP()
+		localIPs, _ := utils.GetLocalIPs()
+		advertisedIP := preferredPublicIP(c.ExternalIP, localIPs)
+		log.Debugf("advertising public IP: %s", advertisedIP)
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:    message.TypeExternalIP,
-			Message: peerIP(c.ExternalIP),
+			Message: advertisedIP,
 		})
 		if err != nil {
 			return true, err
