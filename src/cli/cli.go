@@ -1116,6 +1116,10 @@ func call_doctor(c *cli.Context) error {
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
 
+	if c.Bool("json") {
+		log.SetLevel("error")
+	}
+
 	report := doctor.Run(doctor.Options{
 		Relay:            c.String("relay"),
 		Pass:             determinePass(c),
