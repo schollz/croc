@@ -4,12 +4,37 @@ on:
   release:
     types: [created]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to use for the build (for example, v11.2.3)
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
+  version:
+    name: Resolve release version
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Validate release tag
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          if [[ ! "${RELEASE_TAG}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Release tag must match vMAJOR.MINOR.PATCH; got '${RELEASE_TAG}'" >&2
+            exit 1
+          fi
+          echo "tag=${RELEASE_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "version=${RELEASE_TAG#v}" >> "${GITHUB_OUTPUT}"
+
   prepare-source:
+    needs: version
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -18,13 +43,19 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.26.0'
+          go-version: '^1.27.0'
 
       - name: Prepare source tarball
+        env:
+          RELEASE_TAG: ${{ needs.version.outputs.tag }}
         run: |
-          git clone -b ${{ github.event.release.name }} --depth 1 https://github.com/schollz/croc croc-${{ github.event.release.name }}
-          cd croc-${{ github.event.release.name }} && go mod tidy && go mod vendor
-          cd .. && tar -czvf croc_${{ github.event.release.name }}_src.tar.gz croc-${{ github.event.release.name }}
+          git clone --branch "${RELEASE_TAG}" --depth 1 https://github.com/schollz/croc "croc-${RELEASE_TAG}"
+          cd "croc-${RELEASE_TAG}"
+          VERSION="${RELEASE_TAG}" go run ./src/install/updateversion.go
+          go mod tidy
+          go mod vendor
+          cd ..
+          tar -czvf "croc_${RELEASE_TAG}_src.tar.gz" "croc-${RELEASE_TAG}"
 
       - name: Upload source artifact
         uses: actions/upload-artifact@v7
@@ -33,6 +64,7 @@ jobs:
           path: "*.tar.gz"
 
   build:
+    needs: version
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -148,7 +180,12 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.26.0'
+          go-version: '^1.27.0'
+
+      - name: Stamp release version
+        env:
+          VERSION: ${{ needs.version.outputs.tag }}
+        run: go run ./src/install/updateversion.go
 
       - name: Build binary
         env:
@@ -171,11 +208,13 @@ jobs:
           go build -buildvcs=false -trimpath -tags netgo,osusergo -ldflags "$LDFLAGS" -o croc${{ matrix.ext }}
 
       - name: Create archive
+        env:
+          RELEASE_TAG: ${{ needs.version.outputs.tag }}
         run: |
           if [ "${{ matrix.archive }}" = "zip" ]; then
-            zip croc_${{ github.event.release.name }}_${{ matrix.name }}.zip croc${{ matrix.ext }} LICENSE src/codephrase/wordlists/LICENSE.txt
+            zip "croc_${RELEASE_TAG}_${{ matrix.name }}.zip" croc${{ matrix.ext }} LICENSE src/codephrase/wordlists/LICENSE.txt
           else
-            tar -czvf croc_${{ github.event.release.name }}_${{ matrix.name }}.tar.gz croc${{ matrix.ext }} LICENSE src/codephrase/wordlists/LICENSE.txt
+            tar -czvf "croc_${RELEASE_TAG}_${{ matrix.name }}.tar.gz" croc${{ matrix.ext }} LICENSE src/codephrase/wordlists/LICENSE.txt
           fi
 
       - name: Upload unsigned Windows 64-bit artifact for signing
@@ -197,6 +236,7 @@ jobs:
 
   build-web:
     name: Build croc-web for Linux amd64
+    needs: version
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -205,7 +245,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.26.0'
+          go-version: '^1.27.0'
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -213,6 +253,11 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: web/package-lock.json
+
+      - name: Stamp release version
+        env:
+          VERSION: ${{ needs.version.outputs.tag }}
+        run: go run ./src/install/updateversion.go
 
       - name: Build embedded web client
         run: |
@@ -224,11 +269,12 @@ jobs:
           CGO_ENABLED: 0
           GOOS: linux
           GOARCH: amd64
+          RELEASE_TAG: ${{ needs.version.outputs.tag }}
         run: |
           go build -buildvcs=false -trimpath -tags netgo,osusergo \
             -ldflags='-s -w -buildid= -extldflags "-static"' \
             -o croc-web ./cmd/croc-web
-          tar -czvf croc-web_${{ github.event.release.name }}_Linux-amd64.tar.gz \
+          tar -czvf "croc-web_${RELEASE_TAG}_Linux-amd64.tar.gz" \
             croc-web LICENSE src/codephrase/wordlists/LICENSE.txt
 
       - name: Upload croc-web artifact
@@ -303,7 +349,7 @@ jobs:
           path: "croc_*_Windows-64bit.zip"
 
   release:
-    needs: [prepare-source, build, build-web, sign-windows-amd64]
+    needs: [version, prepare-source, build, build-web, sign-windows-amd64]
     runs-on: ubuntu-24.04
     if: github.event_name == 'release'
     steps:
@@ -319,13 +365,15 @@ jobs:
           name: source-tarball
 
       - name: Generate checksums
+        env:
+          RELEASE_TAG: ${{ needs.version.outputs.tag }}
         run: |
           # Generate SHA256 checksums for all archives
-          sha256sum *.zip *.tar.gz > croc_${{ github.event.release.name }}_checksums.txt
+          sha256sum *.zip *.tar.gz > "croc_${RELEASE_TAG}_checksums.txt"
           
           # Display the checksums file for verification
           echo "Generated checksums:"
-          cat croc_${{ github.event.release.name }}_checksums.txt
+          cat "croc_${RELEASE_TAG}_checksums.txt"
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
@@ -334,3 +382,36 @@ jobs:
             *.zip
             *.tar.gz
             *_checksums.txt
+
+  record-version:
+    name: Record released version
+    needs: [version, release]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '^1.27.0'
+
+      - name: Stamp and commit released version
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          VERSION="${RELEASE_TAG}" go run ./src/install/updateversion.go
+          if git diff --quiet -- src/version/version.go; then
+            echo "version.Value already records ${RELEASE_TAG#v}"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/version/version.go
+          git commit -m "chore: bump version to ${RELEASE_TAG#v}"
+          git push origin "HEAD:${DEFAULT_BRANCH}"

@@ -7,7 +7,7 @@ import process from "node:process";
 const execFileAsync = promisify(execFile);
 const webRoot = path.resolve(import.meta.dirname, "..");
 const publicDir = path.join(webRoot, "public");
-const wasmGoToolchain = "go1.26.0";
+const wasmGoToolchain = "go1.27.0";
 const goEnvironment = {
   ...process.env,
   GOTOOLCHAIN: wasmGoToolchain,

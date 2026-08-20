@@ -1,5 +1,18 @@
 # Testing
 
+## Transfer Update Checks
+
+Send- and receive-side release checks are normally cached for 24 hours. Set
+`CROC_DO_CHECK=1` to bypass a fresh cache and make a background release request
+on every transfer invocation:
+
+```bash
+CROC_DO_CHECK=1 croc send file.txt
+```
+
+The override does not make the transfer wait for the request, does not display a
+notice under `--quiet`, and does not turn update-check failures into errors.
+
 ## Local Reconnect Interruptions
 
 Use three terminals to run a local relay, receiver, and sender. From the repository root, build the binary and start a local relay in the first terminal:

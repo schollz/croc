@@ -24,12 +24,15 @@ import (
 	"github.com/coder/websocket"
 	"github.com/schollz/croc/v11/src/publicrelay"
 	"github.com/schollz/croc/v11/src/store"
+	buildversion "github.com/schollz/croc/v11/src/version"
 	log "github.com/schollz/logger"
 )
 
 const (
-	defaultDialTimeout  = 10 * time.Second
-	maxWebSocketMessage = 65 * 1024 * 1024
+	defaultDialTimeout     = 10 * time.Second
+	maxWebSocketMessage    = 65 * 1024 * 1024
+	curlInstallerEvent     = "installer-curl"
+	curlInstallerEventPath = "/"
 )
 
 // Config configures the unified croc web server.
@@ -49,6 +52,8 @@ type Config struct {
 	UmamiWebsiteID string
 	GoogleAdSense  string
 	GoogleAdsTXT   string
+
+	trackCurlInstaller func()
 }
 
 type handler struct {
@@ -79,6 +84,7 @@ func Handler(config Config) (http.Handler, error) {
 		normalized.UmamiURL,
 		normalized.UmamiWebsiteID,
 		normalized.GoogleAdSense,
+		normalized.trackCurlInstaller,
 	)
 	if err != nil {
 		return nil, err
@@ -136,6 +142,28 @@ func Run(ctx context.Context, config Config) error {
 	normalized, err := normalizeConfig(config)
 	if err != nil {
 		return err
+	}
+	settings, settingsErr := parseWebUmamiConfig(
+		normalized.UmamiURL,
+		normalized.UmamiWebsiteID,
+	)
+	if settingsErr != nil {
+		log.Warnf("web analytics disabled: %v", settingsErr)
+	} else if settings != nil {
+		reporter, reporterErr := publicrelay.NewUmamiReporter(
+			settings.baseURL,
+			settings.websiteID,
+			normalized.PublicAddress,
+			buildversion.Value,
+		)
+		if reporterErr != nil {
+			log.Warnf("web server analytics reporting disabled: %v", reporterErr)
+		} else {
+			defer reporter.Close()
+			normalized.trackCurlInstaller = func() {
+				reporter.TrackPath(curlInstallerEvent, curlInstallerEventPath)
+			}
+		}
 	}
 	httpHandler, err := Handler(normalized)
 	if err != nil {
@@ -366,11 +394,12 @@ func (h *handler) websocket(w http.ResponseWriter, r *http.Request) {
 }
 
 type staticHandler struct {
-	files      fs.FS
-	fileServer http.Handler
-	index      []byte
-	htmlPages  map[string][]byte
-	installer  []byte
+	files              fs.FS
+	fileServer         http.Handler
+	index              []byte
+	htmlPages          map[string][]byte
+	installer          []byte
+	trackCurlInstaller func()
 }
 
 func newStaticHandler(
@@ -378,6 +407,7 @@ func newStaticHandler(
 	umamiURL string,
 	umamiWebsiteID string,
 	googleAdSense string,
+	trackCurlInstaller func(),
 ) (http.Handler, error) {
 	if files == nil {
 		return nil, errors.New("static file system cannot be empty")
@@ -411,11 +441,12 @@ func newStaticHandler(
 		return nil, fmt.Errorf("embedded web client is missing default.txt: %w", err)
 	}
 	return &staticHandler{
-		files:      files,
-		fileServer: http.FileServer(http.FS(files)),
-		index:      index,
-		htmlPages:  htmlPages,
-		installer:  installer,
+		files:              files,
+		fileServer:         http.FileServer(http.FS(files)),
+		index:              index,
+		htmlPages:          htmlPages,
+		installer:          installer,
+		trackCurlInstaller: trackCurlInstaller,
 	}, nil
 }
 
@@ -435,19 +466,37 @@ func injectGoogleAdSense(index []byte, publisherID string) []byte {
 	return []byte(strings.Replace(string(index), closingHead, script+closingHead, 1))
 }
 
-func injectUmamiScript(index []byte, baseURL, websiteID string) []byte {
+type webUmamiConfig struct {
+	baseURL   string
+	scriptURL string
+	websiteID string
+}
+
+func parseWebUmamiConfig(baseURL, websiteID string) (*webUmamiConfig, error) {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	websiteID = strings.TrimSpace(websiteID)
 	if baseURL == "" || websiteID == "" {
-		return index
+		return nil, nil
 	}
 
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil || parsedURL.Scheme != "https" || parsedURL.Host == "" {
-		return index
+		return nil, errors.New("Umami URL must be an absolute HTTPS URL")
 	}
 	scriptURL, err := url.JoinPath(baseURL, "script.js")
 	if err != nil {
+		return nil, fmt.Errorf("construct Umami script URL: %w", err)
+	}
+	return &webUmamiConfig{
+		baseURL:   baseURL,
+		scriptURL: scriptURL,
+		websiteID: websiteID,
+	}, nil
+}
+
+func injectUmamiScript(index []byte, baseURL, websiteID string) []byte {
+	settings, err := parseWebUmamiConfig(baseURL, websiteID)
+	if err != nil || settings == nil {
 		return index
 	}
 
@@ -455,8 +504,8 @@ func injectUmamiScript(index []byte, baseURL, websiteID string) []byte {
 	if !strings.Contains(string(index), closingHead) {
 		return index
 	}
-	script := `<script defer src="` + html.EscapeString(scriptURL) +
-		`" data-website-id="` + html.EscapeString(websiteID) + `" data-performance="true"></script>`
+	script := `<script defer src="` + html.EscapeString(settings.scriptURL) +
+		`" data-website-id="` + html.EscapeString(settings.websiteID) + `" data-performance="true"></script>`
 	return []byte(strings.Replace(string(index), closingHead, script+closingHead, 1))
 }
 
@@ -475,7 +524,11 @@ func (h *staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		if r.Method == http.MethodGet {
-			_, _ = w.Write(h.installer)
+			written, writeErr := w.Write(h.installer)
+			if writeErr == nil && written == len(h.installer) &&
+				requestsCurlInstaller(r.UserAgent()) && h.trackCurlInstaller != nil {
+				h.trackCurlInstaller()
+			}
 		}
 		return
 	}
@@ -524,7 +577,15 @@ func (h *staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func requestsInstaller(userAgent string) bool {
+	return requestsCurlInstaller(userAgent) || requestsWgetInstaller(userAgent)
+}
+
+func requestsCurlInstaller(userAgent string) bool {
 	userAgent = strings.ToLower(strings.TrimSpace(userAgent))
-	return strings.HasPrefix(userAgent, "curl/") ||
-		strings.HasPrefix(userAgent, "wget/")
+	return strings.HasPrefix(userAgent, "curl/")
+}
+
+func requestsWgetInstaller(userAgent string) bool {
+	userAgent = strings.ToLower(strings.TrimSpace(userAgent))
+	return strings.HasPrefix(userAgent, "wget/")
 }

@@ -26,11 +26,16 @@ type UmamiReporter struct {
 	hostname  string
 	version   string
 	client    *http.Client
-	events    chan string
+	events    chan umamiEvent
 	ctx       context.Context
 	cancel    context.CancelFunc
 	closeOnce sync.Once
 	wg        sync.WaitGroup
+}
+
+type umamiEvent struct {
+	Name string
+	Path string
 }
 
 type umamiRequest struct {
@@ -79,7 +84,7 @@ func NewUmamiReporter(baseURL, websiteID, siteURL, version string) (*UmamiReport
 		hostname:  hostname,
 		version:   version,
 		client:    &http.Client{Timeout: umamiRequestTimeout},
-		events:    make(chan string, umamiQueueSize),
+		events:    make(chan umamiEvent, umamiQueueSize),
 		ctx:       ctx,
 		cancel:    cancel,
 	}
@@ -117,16 +122,29 @@ func siteHostname(siteURL string) (string, error) {
 
 // Track queues an event if reporting is active and capacity is available.
 func (r *UmamiReporter) Track(name string) {
-	if r == nil || strings.TrimSpace(name) == "" {
+	r.TrackPath(name, "/relay")
+}
+
+// TrackPath queues an event for a root-relative path without a query or fragment.
+func (r *UmamiReporter) TrackPath(name, eventPath string) {
+	if r == nil {
 		return
 	}
+	name = strings.TrimSpace(name)
+	eventPath = strings.TrimSpace(eventPath)
+	parsedPath, err := url.Parse(eventPath)
+	if name == "" || err != nil || !strings.HasPrefix(eventPath, "/") ||
+		parsedPath.Host != "" || parsedPath.RawQuery != "" || parsedPath.Fragment != "" {
+		return
+	}
+	event := umamiEvent{Name: name, Path: eventPath}
 	select {
 	case <-r.ctx.Done():
 		return
 	default:
 	}
 	select {
-	case r.events <- name:
+	case r.events <- event:
 	case <-r.ctx.Done():
 	default:
 		log.Debug("dropping Umami event because the analytics queue is full")
@@ -150,19 +168,19 @@ func (r *UmamiReporter) run() {
 		select {
 		case <-r.ctx.Done():
 			return
-		case name := <-r.events:
-			r.send(name)
+		case event := <-r.events:
+			r.send(event)
 		}
 	}
 }
 
-func (r *UmamiReporter) send(name string) {
+func (r *UmamiReporter) send(event umamiEvent) {
 	payload := umamiRequest{
 		Payload: umamiPayload{
 			Hostname: r.hostname,
-			URL:      "/relay",
+			URL:      event.Path,
 			Website:  r.websiteID,
-			Name:     name,
+			Name:     event.Name,
 			Data: map[string]string{
 				"version": r.version,
 			},
