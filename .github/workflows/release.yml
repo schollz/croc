@@ -18,7 +18,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.26.0'
+          go-version: '^1.27.0'
 
       - name: Prepare source tarball
         run: |
@@ -148,7 +148,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.26.0'
+          go-version: '^1.27.0'
 
       - name: Build binary
         env:
@@ -205,7 +205,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.26.0'
+          go-version: '^1.27.0'
 
       - name: Setup Node
         uses: actions/setup-node@v7
