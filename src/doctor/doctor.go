@@ -13,10 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/magisterquis/connectproxy"
 	"github.com/schollz/croc/v11/src/diskusage"
 	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/tcp"
 	"github.com/schollz/croc/v11/src/utils"
+	buildversion "github.com/schollz/croc/v11/src/version"
 	"golang.org/x/net/proxy"
 )
 
@@ -124,14 +126,13 @@ type Options struct {
 	StoreURL         string `json:"storeUrl"`
 	Socks5           string `json:"socks5"`
 	HTTPProxy        string `json:"httpProxy"`
-	Version          string `json:"version"`
 	OnlyLocal        bool   `json:"onlyLocal"`
 	MulticastAddress string `json:"multiCastAddress"`
 }
 
 func checkVersion(opts Options) Check {
 	return Check{
-		Name:   "croc version " + opts.Version,
+		Name:   "croc version " + buildversion.Value,
 		Status: OK,
 		Detail: runtime.GOOS + "/" + runtime.GOARCH,
 	}
@@ -144,8 +145,8 @@ func checkConfigDirExistenceAndPermissions(_ Options) Check {
 	if err != nil {
 		return Check{
 			Name:   name,
-			Status: Warn,
-			Detail: err.Error(),
+			Status: Fail,
+			Detail: fmt.Sprintf("os.Stat threw error for config dir %s: '%v'", configDir, err.Error()),
 		}
 	}
 
@@ -176,7 +177,7 @@ func checkConfigFile(fileDescription string, filePath string) Check {
 		if fileReadErr != nil {
 			return Check{
 				Name:   "Error when reading " + fileDescription,
-				Status: Warn,
+				Status: Fail,
 				Detail: fileReadErr.Error(),
 			}
 		}
@@ -210,9 +211,9 @@ func checkOutDirWritable(opts Options) Check {
 	info, err := os.Stat(outDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return Check{Name: name, Status: Warn, Detail: outDir + " does not exist"}
+			return Check{Name: name, Status: Fail, Detail: outDir + " does not exist"}
 		}
-		return Check{Name: name, Status: Warn, Detail: fmt.Sprintf("%s: '%v'", outDir, err)}
+		return Check{Name: name, Status: Fail, Detail: fmt.Sprintf("%s: '%v'", outDir, err)}
 	}
 	if !info.IsDir() {
 		return Check{Name: name, Status: Fail, Detail: outDir + " is not a directory"}
@@ -277,7 +278,7 @@ func checkRelay(opts Options) Check {
 	if err != nil {
 		return Check{
 			Name:   name,
-			Status: Warn,
+			Status: Fail,
 			Detail: fmt.Sprintf("port open but handshake failed with error: '%v'", err),
 		}
 	}
@@ -296,9 +297,12 @@ func checkProxyConfig(opts Options) Check {
 		if !strings.Contains(raw, "://") {
 			raw = "socks5://" + raw
 		}
-		socks5Check := checkProxy(raw, name, "SOCKS5_PROXY")
-		if socks5Check.Status != OK {
-			return socks5Check
+		url, err := url.Parse(raw)
+		if err != nil {
+			return Check{Name: name, Status: Fail, Detail: fmt.Sprintf("SOCKS5_PROXY (%v) parsing threw error: '%v'", raw, err)}
+		}
+		if _, err := proxy.FromURL(url, proxy.Direct); err != nil {
+			return Check{Name: name, Status: Fail, Detail: fmt.Sprintf("SOCKS5_PROXY (%v) is set but malformed: '%v'", raw, err)}
 		}
 	}
 
@@ -307,24 +311,16 @@ func checkProxyConfig(opts Options) Check {
 		if !strings.Contains(raw, "://") {
 			raw = "http://" + raw
 		}
-		httpCheck := checkProxy(raw, name, "HTTP_PROXY")
-		if httpCheck.Status != OK {
-			return httpCheck
+		url, err := url.Parse(raw)
+		if err != nil {
+			return Check{Name: name, Status: Fail, Detail: fmt.Sprintf("HTTP_PROXY (%v) parsing threw error: '%v'", raw, err)}
+		}
+		if _, err := connectproxy.New(url, proxy.Direct); err != nil {
+			return Check{Name: name, Status: Fail, Detail: fmt.Sprintf("HTTP_PROXY (%v) is set but malformed: '%v'", raw, err)}
 		}
 	}
 
 	return Check{Name: name, Status: OK, Detail: "proxy settings parsed"}
-}
-
-func checkProxy(raw string, checkName string, proxyType string) Check {
-	url, err := url.Parse(raw)
-	if err != nil {
-		return Check{Name: checkName, Status: Warn, Detail: fmt.Sprintf("(%q) (%q) parsing threw error: '%v'", proxyType, raw, err)}
-	}
-	if _, err := proxy.FromURL(url, proxy.Direct); err != nil {
-		return Check{Name: checkName, Status: Warn, Detail: fmt.Sprintf("%v is set but malformed: %q", proxyType, raw)}
-	}
-	return Check{Name: checkName, Status: OK, Detail: ""}
 }
 
 func checkLocalOnly(opts Options) Check {

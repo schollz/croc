@@ -1123,7 +1123,6 @@ func call_doctor(c *cli.Context) error {
 		StoreURL:         c.String("store-url"),
 		Socks5:           c.String("socks5"),
 		HTTPProxy:        c.String("connect"),
-		Version:          Version,
 		OnlyLocal:        c.Bool("local"),
 		MulticastAddress: c.String("multicast"),
 	})
