@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 const wasmMocks = vi.hoisted(() => ({
   hashInit: vi.fn(async () => 1),
   hashUpdate: vi.fn(async () => undefined),
@@ -10,7 +10,7 @@ vi.mock("../wasm/client", () => ({
 }));
 
 import { TextDestination, verifySink } from "./storage";
-import type { ReceiveSink } from "./types";
+import type { ReceiveSink, TransferOffer } from "./types";
 
 function sinkWithHash(hash: Uint8Array): ReceiveSink {
   return {
@@ -72,5 +72,193 @@ describe("received text destination", () => {
     await aborted.writeAt(0, new TextEncoder().encode("hello"));
     await aborted.abort();
     await expect(aborted.finalize()).rejects.toThrow(/advertised size/i);
+  });
+});
+
+function storedOffer(size = 1024): TransferOffer {
+  return {
+    kind: "files",
+    files: [
+      {
+        name: "example.bin",
+        folder: ".",
+        path: "example.bin",
+        size,
+        hash: Uint8Array.of(1, 2, 3),
+      },
+    ],
+    emptyFolders: [],
+    totalSize: size,
+    senderMachineID: "stored transfer",
+    noCompress: true,
+    perFileCompression: false,
+  };
+}
+
+class FakeServiceWorkerContainer extends EventTarget {
+  controller: ServiceWorker | null;
+  ready = Promise.resolve({} as ServiceWorkerRegistration);
+  register = vi.fn(async () => ({} as ServiceWorkerRegistration));
+
+  constructor(controller: ServiceWorker | null = null) {
+    super();
+    this.controller = controller;
+  }
+}
+
+describe("stored browser download destination", () => {
+  const originalServiceWorker = Object.getOwnPropertyDescriptor(
+    navigator,
+    "serviceWorker",
+  );
+  const originalSecureContext = Object.getOwnPropertyDescriptor(
+    window,
+    "isSecureContext",
+  );
+  const originalBrave = Object.getOwnPropertyDescriptor(navigator, "brave");
+
+  function installContainer(container: FakeServiceWorkerContainer) {
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: container,
+    });
+    Object.defineProperty(window, "isSecureContext", {
+      configurable: true,
+      value: true,
+    });
+    vi.stubGlobal("MessageChannel", class {});
+  }
+
+  async function freshStorage() {
+    vi.resetModules();
+    return import("./storage");
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    if (originalServiceWorker) {
+      Object.defineProperty(navigator, "serviceWorker", originalServiceWorker);
+    } else {
+      Reflect.deleteProperty(navigator, "serviceWorker");
+    }
+    if (originalSecureContext) {
+      Object.defineProperty(window, "isSecureContext", originalSecureContext);
+    } else {
+      Reflect.deleteProperty(window, "isSecureContext");
+    }
+    if (originalBrave) {
+      Object.defineProperty(navigator, "brave", originalBrave);
+    } else {
+      Reflect.deleteProperty(navigator, "brave");
+    }
+  });
+
+  it("uses an existing controller instead of merely an active registration", async () => {
+    const controller = { postMessage: vi.fn() } as unknown as ServiceWorker;
+    const container = new FakeServiceWorkerContainer(controller);
+    installContainer(container);
+    const storage = await freshStorage();
+
+    const destination = await storage.chooseStoredReceiveDestination(storedOffer());
+
+    expect(destination).toBeInstanceOf(storage.StreamingDownloadDestination);
+    expect(container.register).toHaveBeenCalledWith("/croc-download-sw.js", {
+      scope: "/",
+    });
+  });
+
+  it("uses the bounded Blob path in Brave without starting a streaming download", async () => {
+    const controller = { postMessage: vi.fn() } as unknown as ServiceWorker;
+    const container = new FakeServiceWorkerContainer(controller);
+    installContainer(container);
+    Object.defineProperty(navigator, "brave", {
+      configurable: true,
+      value: { isBrave: vi.fn(async () => true) },
+    });
+    const storage = await freshStorage();
+
+    const destination = await storage.chooseStoredReceiveDestination(storedOffer());
+
+    expect(destination).toBeInstanceOf(storage.DownloadDestination);
+    expect(container.register).not.toHaveBeenCalled();
+  });
+
+  it("waits for controllerchange before enabling a streaming download", async () => {
+    const controller = { postMessage: vi.fn() } as unknown as ServiceWorker;
+    const container = new FakeServiceWorkerContainer();
+    const addListener = vi.spyOn(container, "addEventListener");
+    const removeListener = vi.spyOn(container, "removeEventListener");
+    installContainer(container);
+    const storage = await freshStorage();
+    let settled = false;
+
+    const selecting = storage
+      .chooseStoredReceiveDestination(storedOffer())
+      .then((destination) => {
+        settled = true;
+        return destination;
+      });
+    await vi.waitFor(() =>
+      expect(addListener).toHaveBeenCalledWith(
+        "controllerchange",
+        expect.any(Function),
+      ),
+    );
+    expect(settled).toBe(false);
+
+    container.controller = controller;
+    container.dispatchEvent(new Event("controllerchange"));
+
+    await expect(selecting).resolves.toBeInstanceOf(
+      storage.StreamingDownloadDestination,
+    );
+    expect(removeListener).toHaveBeenCalledWith(
+      "controllerchange",
+      expect.any(Function),
+    );
+  });
+
+  it("rechecks control after subscribing so the activation race is not missed", async () => {
+    const controller = { postMessage: vi.fn() } as unknown as ServiceWorker;
+    const container = new FakeServiceWorkerContainer();
+    const addEventListener = container.addEventListener.bind(container);
+    vi.spyOn(container, "addEventListener").mockImplementation(
+      (type, listener, options) => {
+        addEventListener(type, listener, options);
+        container.controller = controller;
+      },
+    );
+    installContainer(container);
+    const storage = await freshStorage();
+
+    await expect(
+      storage.chooseStoredReceiveDestination(storedOffer()),
+    ).resolves.toBeInstanceOf(storage.StreamingDownloadDestination);
+  });
+
+  it("falls back to a Blob download when control times out for a small file", async () => {
+    vi.useFakeTimers();
+    installContainer(new FakeServiceWorkerContainer());
+    const storage = await freshStorage();
+
+    const selecting = storage.chooseStoredReceiveDestination(storedOffer());
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    await expect(selecting).resolves.toBeInstanceOf(storage.DownloadDestination);
+  });
+
+  it("rejects an oversized download when control times out", async () => {
+    vi.useFakeTimers();
+    installContainer(new FakeServiceWorkerContainer());
+    const storage = await freshStorage();
+
+    const selecting = storage.chooseStoredReceiveDestination(
+      storedOffer(256 * 1024 * 1024 + 1),
+    );
+    const rejected = expect(selecting).rejects.toThrow(/croc CLI/i);
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    await rejected;
   });
 });

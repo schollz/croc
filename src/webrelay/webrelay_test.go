@@ -139,6 +139,22 @@ func TestServesSiteAndRuntimeConfig(t *testing.T) {
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/missing.js", nil))
 	assert.Equal(t, http.StatusNotFound, recorder.Code)
 
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		recorder = httptest.NewRecorder()
+		handler.ServeHTTP(
+			recorder,
+			httptest.NewRequest(method, "/__croc_download__/test-id", nil),
+		)
+		assert.Equal(t, http.StatusNotFound, recorder.Code)
+		assert.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
+		assert.Equal(t, "text/plain; charset=utf-8", recorder.Header().Get("Content-Type"))
+		assert.Equal(t, "nosniff", recorder.Header().Get("X-Content-Type-Options"))
+		assert.NotContains(t, recorder.Body.String(), `id="root"`)
+		if method == http.MethodHead {
+			assert.Empty(t, recorder.Body.String())
+		}
+	}
+
 	recorder = httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/config.js", nil))
 	assert.Equal(t, http.StatusOK, recorder.Code)
