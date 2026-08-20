@@ -649,17 +649,23 @@ func MeasureServerLatencyContext(ctx context.Context, address string, timeout ti
 	defer stopCancel()
 	deadline := started.Add(timeout)
 	if err = c.Connection().SetDeadline(deadline); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return 0, ctxErr
+		}
 		return 0, err
 	}
 	err = c.Send([]byte("ping"))
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return 0, ctxErr
+		}
 		log.Debug(err)
 		return
 	}
 	b, err := c.ReceiveWithDeadline(deadline)
 	if err != nil {
-		if ctx.Err() != nil {
-			return 0, ctx.Err()
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return 0, ctxErr
 		}
 		log.Debug(err)
 		return
