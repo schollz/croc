@@ -2,7 +2,6 @@ package croc
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/schollz/croc/v11/src/termui"
@@ -20,26 +19,16 @@ func colorSecret(secret string, enabled bool) string {
 	return termui.Secret(secret, true)
 }
 
-func colorQuotedSecret(secret string, enabled bool) string {
-	quoted := strconv.Quote(secret)
-	if !enabled {
-		return quoted
+func formatSendInstructions(secret, flags, webURL, clipboardNotice string, colorEnabled bool) string {
+	if clipboardNotice != "" {
+		clipboardNotice = " (" + clipboardNotice + ")"
 	}
-	return quoted[:1] + colorSecret(quoted[1:len(quoted)-1], true) + quoted[len(quoted)-1:]
-}
+	return fmt.Sprintf(`On the other computer, run:
+  croc %[2]s%[1]s%[4]s
 
-func formatSendInstructions(secret, flags, webURL string, colorEnabled bool) string {
-	return fmt.Sprintf(`Code is: %[1]s
-
-On the other computer run:
-(For Windows)
-    croc %[2]s%[1]s
-(For Linux/macOS)
-    CROC_SECRET=%[3]s croc %[2]s
-
-Or receive in a browser:
-    %[4]s
-`, colorSecret(secret, colorEnabled), flags, colorQuotedSecret(secret, colorEnabled), webURL)
+Or open:
+  %[3]s
+`, colorSecret(secret, colorEnabled), flags, webURL, clipboardNotice)
 }
 
 func formatClipboardText(secret, flags string, extended bool) string {
