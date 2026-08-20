@@ -3,15 +3,16 @@
 ## Transfer Update Checks
 
 Send- and receive-side release checks are normally cached for 24 hours. Set
-`CROC_DO_CHECK=1` to bypass a fresh cache and make a background release request
-on every transfer invocation:
+`CROC_DO_CHECK=1` to bypass a fresh cache, wait for a release request before the
+transfer starts, and report whether a newer release is available:
 
 ```bash
 CROC_DO_CHECK=1 croc send file.txt
 ```
 
-The override does not make the transfer wait for the request, does not display a
-notice under `--quiet`, and does not turn update-check failures into errors.
+The override waits up to two seconds for the request and reports when the current
+version is already latest or when the check is unavailable. It does not display
+a notice under `--quiet` or turn update-check failures into errors.
 
 ## Local Reconnect Interruptions
 
