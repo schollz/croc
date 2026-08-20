@@ -40,6 +40,11 @@ You can download [the latest release for your system](https://github.com/schollz
 curl https://getcroc.com | bash
 ```
 
+When the CLI sends or receives a transfer, it checks for a newer croc release at
+most once every 24 hours. The check runs in the background and any update notice
+is shown after the transfer finishes. Network and release-service failures are
+ignored; `--quiet` suppresses the notice.
+
 ### On macOS
 
 Using [Homebrew](https://brew.sh/):

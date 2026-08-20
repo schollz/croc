@@ -501,6 +501,9 @@ func parseRelayPorts(portsFlag string) []string {
 }
 
 func send(c *cli.Context) (err error) {
+	finishVersionCheck := startTransferVersionCheck(c)
+	defer finishVersionCheck()
+
 	setDebugLevel(c)
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
@@ -813,6 +816,9 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 }
 
 func receive(c *cli.Context) (err error) {
+	finishVersionCheck := startTransferVersionCheck(c)
+	defer finishVersionCheck()
+
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
 	if storedToken := strings.TrimSpace(os.Getenv("CROC_STORE_TOKEN")); storedToken != "" {
@@ -947,7 +953,7 @@ Or you can go back to the classic croc behavior by enabling classic mode:
   croc --classic
 
 `)
-			os.Exit(0)
+			return nil
 		}
 	}
 	if crocOptions.SharedSecret == "" {
