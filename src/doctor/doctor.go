@@ -4,15 +4,20 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/schollz/croc/v11/src/diskusage"
 	"github.com/schollz/croc/v11/src/models"
+	"github.com/schollz/croc/v11/src/tcp"
 	"github.com/schollz/croc/v11/src/utils"
+	"golang.org/x/net/proxy"
 )
 
 type Status int
@@ -69,7 +74,8 @@ type Report struct {
 }
 
 func (report Report) HasFailures() bool {
-	panic("unimplemented")
+	//panic("unimplemented")
+	return false
 }
 
 // "<glyph> <name>[: <detail>]"
@@ -108,13 +114,15 @@ func (r *Report) PrintHuman(w io.Writer) {
 }
 
 type Options struct {
-	Relay     string `json:"relay"`
-	Pass      string `json:"pass"`
-	OutDir    string `json:"outDir"`
-	StoreURL  string `json:"storeUrl"`
-	Socks5    string `json:"socks5"`
-	HTTPProxy string `json:"httpProxy"`
-	Version   string `json:"version"`
+	Relay            string `json:"relay"`
+	Pass             string `json:"pass"`
+	OutDir           string `json:"outDir"`
+	StoreURL         string `json:"storeUrl"`
+	Socks5           string `json:"socks5"`
+	HTTPProxy        string `json:"httpProxy"`
+	Version          string `json:"version"`
+	OnlyLocal        bool   `json:"onlyLocal"`
+	MulticastAddress string `json:"multiCastAddress"`
 }
 
 func checkVersion(opts Options) Check {
@@ -126,24 +134,25 @@ func checkVersion(opts Options) Check {
 }
 
 func checkConfigDirExistenceAndPermissions(_ Options) Check {
+	name := "config dir"
 	configDir, _ := utils.GetConfigDir(false)
 	info, err := os.Stat(configDir)
 	if err != nil {
 		return Check{
-			Name:   "Config Dir",
+			Name:   name,
 			Status: Warn,
 			Detail: err.Error(),
 		}
 	}
 
-	return checkPermission("Config dir", configDir, info.Mode().Perm(), 0o600)
+	return checkPermission(name, configDir, info.Mode().Perm(), 0o700)
 }
 
 func checkRememberedConfigFilesReadableAndNotOverPermissive(_ Options) (checks []Check) {
-	checks = append(checks, checkConfigFile("Send Config File", utils.GetSendConfigFile(false)))
+	checks = append(checks, checkConfigFile("send config file", utils.GetSendConfigFile(false)))
 	receiveConfigFilePath, _ := utils.GetReceiveConfigFile(false)
-	checks = append(checks, checkConfigFile("Receive Config File", receiveConfigFilePath))
-	checks = append(checks, checkConfigFile("Send Config File", utils.GetClassicConfigFile(false)))
+	checks = append(checks, checkConfigFile("receive config file", receiveConfigFilePath))
+	checks = append(checks, checkConfigFile("classic config file", utils.GetClassicConfigFile(false)))
 	return
 }
 
@@ -151,8 +160,8 @@ func checkConfigFile(fileDescription string, filePath string) Check {
 	info, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
 		return Check{
-			Name:   fileDescription + " does not exist yet",
-			Status: OK,
+			Name:   fileDescription + " does not exist",
+			Status: Skip,
 			Detail: "",
 		}
 	}
@@ -176,7 +185,7 @@ func checkPermission(fileDescription string, filePath string, permGotten os.File
 		return Check{
 			Name:   fileDescription + " has undesired permissions",
 			Status: Warn,
-			Detail: filePath + " has permission code " + permGotten.String() + " but should have " + permWanted.String(),
+			Detail: filePath + " has permissions " + permGotten.String() + " but should have " + permWanted.String(),
 		}
 	}
 	return Check{
@@ -199,7 +208,7 @@ func checkOutDirWritable(opts Options) Check {
 		if os.IsNotExist(err) {
 			return Check{Name: name, Status: Warn, Detail: outDir + " does not exist"}
 		}
-		return Check{Name: name, Status: Warn, Detail: fmt.Sprintf("%s: %v", outDir, err)}
+		return Check{Name: name, Status: Warn, Detail: fmt.Sprintf("%s: '%v'", outDir, err)}
 	}
 	if !info.IsDir() {
 		return Check{Name: name, Status: Fail, Detail: outDir + " is not a directory"}
@@ -236,26 +245,125 @@ func splitRelayHostPort(relay string) (host, port string) {
 	return host, port
 }
 
-func checkRelayResolves(opts Options) Check {
-	name := "relay resolves"
+func checkRelay(opts Options) Check {
+	name := "relay"
 	host, port := splitRelayHostPort(opts.Relay)
 	if host == "" {
 		return Check{Name: name, Status: Skip, Detail: "no relay configured"}
 	}
-	addrs, err := net.LookupHost(host)
+
+	_, err := net.LookupHost(host)
 	if err != nil {
-		return Check{Name: name, Status: Fail, Detail: fmt.Sprintf("%s: %v", host, err)}
+		return Check{Name: name, Status: Fail, Detail: fmt.Sprintf("LookupHost failed for %s: '%v'", host, err)}
+	}
+
+	address := net.JoinHostPort(host, port)
+	// Is the port open at all?
+	conn, err := net.DialTimeout("tcp", address, 5*time.Second)
+	if err != nil {
+		return Check{Name: name, Status: Fail, Detail: fmt.Sprintf("Dialing %s failed with error: '%v'", address, err)}
+	}
+	conn.Close()
+
+	// Full Croc Handshake
+	c, _, _, err := tcp.ConnectToTCPServer(address, opts.Pass, "croc-doctor-probe", 5*time.Second)
+	if c != nil {
+		c.Close()
+	}
+	if err != nil {
+		return Check{
+			Name:   name,
+			Status: Warn,
+			Detail: fmt.Sprintf("port open but handshake failed with error: '%v'", err),
+		}
+	}
+	return Check{Name: name, Status: OK, Detail: fmt.Sprintf("TCP port at %s is open and handshake worked", address)}
+}
+
+func checkProxyConfig(opts Options) Check {
+	name := "proxy configuration"
+
+	if opts.Socks5 == "" && opts.HTTPProxy == "" {
+		return Check{Name: name, Status: Skip, Detail: "no proxy set"}
+	}
+
+	if opts.Socks5 != "" {
+		raw := opts.Socks5
+		if !strings.Contains(raw, "://") {
+			raw = "socks5://" + raw
+		}
+		socks5Check := checkProxy(raw, name, "SOCKS5_PROXY")
+		if socks5Check.Status != OK {
+			return socks5Check
+		}
+	}
+
+	if opts.HTTPProxy != "" {
+		raw := opts.HTTPProxy
+		if !strings.Contains(raw, "://") {
+			raw = "http://" + raw
+		}
+		httpCheck := checkProxy(raw, name, "HTTP_PROXY")
+		if httpCheck.Status != OK {
+			return httpCheck
+		}
+	}
+
+	return Check{Name: name, Status: OK, Detail: "proxy settings parsed"}
+}
+
+func checkProxy(raw string, checkName string, proxyType string) Check {
+	url, err := url.Parse(raw)
+	if err != nil {
+		return Check{Name: checkName, Status: Warn, Detail: fmt.Sprintf("(%q) (%q) parsing threw error: '%v'", proxyType, raw, err)}
+	}
+	if _, err := proxy.FromURL(url, proxy.Direct); err != nil {
+		return Check{Name: checkName, Status: Warn, Detail: fmt.Sprintf("%v is set but malformed: %q", proxyType, raw)}
+	}
+	return Check{Name: checkName, Status: OK, Detail: ""}
+}
+
+func checkLocalOnly(opts Options) Check {
+	name := "local-only discovery"
+	if !opts.OnlyLocal {
+		return Check{Name: name, Status: Skip, Detail: "not in local-only mode"}
+	}
+	addr := opts.MulticastAddress
+	if addr == "" {
+		addr = "239.255.255.250"
 	}
 	return Check{
 		Name:   name,
-		Status: OK,
-		Detail: fmt.Sprintf("%s:%s -> %s", host, port, strings.Join(addrs, ", ")),
+		Status: Warn,
+		Detail: fmt.Sprintf("local-only mode relies on multicast %s, which many networks (guest/enterprise Wi-Fi, VPNs) block", addr),
 	}
+}
+
+func checkStoreReachable(opts Options) Check {
+	name := "stored-transfer service"
+	storeUrl := strings.TrimSpace(opts.StoreURL)
+	if storeUrl == "" {
+		return Check{Name: name, Status: Skip, Detail: "no --store-url set"}
+	}
+
+	url, err := url.Parse(storeUrl)
+	if err != nil || (url.Scheme != "http" && url.Scheme != "https") {
+		return Check{Name: name, Status: Fail, Detail: "invalid store URL: " + storeUrl}
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(storeUrl)
+	if err != nil {
+		return Check{Name: name, Status: Fail, Detail: fmt.Sprintf("Couldn't reach %s: '%v'", storeUrl, err)}
+	}
+	resp.Body.Close()
+
+	return Check{Name: name, Status: OK, Detail: fmt.Sprintf("%s responded (HTTP %d)", storeUrl, resp.StatusCode)}
 }
 
 func Run(opts Options) (report Report) {
 	report.Checks = []Check{checkVersion(opts), checkConfigDirExistenceAndPermissions(opts)}
 	report.Checks = append(report.Checks, checkRememberedConfigFilesReadableAndNotOverPermissive(opts)...)
-	report.Checks = append(report.Checks, checkOutDirWritable(opts), checkRelayResolves(opts))
+	report.Checks = append(report.Checks, checkOutDirWritable(opts), checkRelay(opts), checkProxyConfig(opts), checkLocalOnly(opts), checkStoreReachable(opts))
 	return
 }

@@ -125,6 +125,8 @@ func newApp() *cli.App {
 				&cli.StringFlag{Name: "socks5", EnvVars: []string{"SOCKS5_PROXY"}},
 				&cli.StringFlag{Name: "connect", EnvVars: []string{"HTTP_PROXY"}},
 				&cli.BoolFlag{Name: "json"},
+				&cli.BoolFlag{Name: "local", Usage: "force to use only local connections"},
+				&cli.StringFlag{Name: "multicast", Value: models.DEFAULT_MULTICAST, Usage: "multicast address to use for local discovery"},
 			},
 		},
 		{
@@ -159,7 +161,7 @@ func newApp() *cli.App {
 		&cli.BoolFlag{Name: "disable-clipboard", Usage: "disable copy to clipboard"},
 		&cli.BoolFlag{Name: "extended-clipboard", Usage: "copy full command with secret as env variable to clipboard"},
 		&cli.StringFlag{Name: "revoke", Usage: "revoke a stored transfer using its local sender receipt"},
-		&cli.StringFlag{Name: "multicast", Value: "239.255.255.250", Usage: "multicast address to use for local discovery"},
+		&cli.StringFlag{Name: "multicast", Value: models.DEFAULT_MULTICAST, Usage: "multicast address to use for local discovery"},
 		&cli.StringFlag{Name: "curve", Value: "p256", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
 		&cli.StringFlag{Name: "ip", Value: "", Usage: "set sender ip if known e.g. 10.0.0.1:9009, [::1]:9009"},
 		&cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay", EnvVars: []string{"CROC_RELAY"}},
@@ -1104,18 +1106,20 @@ func relay(c *cli.Context) (err error) {
 }
 
 func call_doctor(c *cli.Context) error {
-	// proxies are package-globals in comm; set them so probes use them
+	// proxies are package-globals in comm; setting them here so checks use them
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
 
 	report := doctor.Run(doctor.Options{
-		Relay:     c.String("relay"),
-		Pass:      determinePass(c), // reuse existing helper (line 301)
-		OutDir:    c.String("out"),
-		StoreURL:  c.String("store-url"),
-		Socks5:    c.String("socks5"),
-		HTTPProxy: c.String("connect"),
-		Version:   Version,
+		Relay:            c.String("relay"),
+		Pass:             determinePass(c),
+		OutDir:           c.String("out"),
+		StoreURL:         c.String("store-url"),
+		Socks5:           c.String("socks5"),
+		HTTPProxy:        c.String("connect"),
+		Version:          Version,
+		OnlyLocal:        c.Bool("local"),
+		MulticastAddress: c.String("multicast"),
 	})
 
 	if c.Bool("json") {
@@ -1123,7 +1127,7 @@ func call_doctor(c *cli.Context) error {
 	}
 	report.PrintHuman(os.Stdout)
 	if report.HasFailures() {
-		return errors.New("doctor found problems") // non-zero exit for scripts/wrappers
+		return errors.New("doctor found problems")
 	}
 	return nil
 }
