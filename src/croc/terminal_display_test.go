@@ -65,8 +65,23 @@ func TestPreferredPeerIP(t *testing.T) {
 	if got := preferredPeerIP("10.0.0.2:9009", "5.78.128.79:43760"); got != "5.78.128.79" {
 		t.Fatalf("public peer IP = %q; want 5.78.128.79", got)
 	}
+	if got := preferredPeerIP("5.78.128.79:9009", "10.0.0.2:43760"); got != "5.78.128.79" {
+		t.Fatalf("public route IP = %q; want 5.78.128.79", got)
+	}
 	if got := preferredPeerIP("10.0.0.2:9009", ""); got != "10.0.0.2" {
 		t.Fatalf("fallback peer IP = %q; want 10.0.0.2", got)
+	}
+}
+
+func TestPreferredPublicIP(t *testing.T) {
+	if got := preferredPublicIP("10.0.0.2:43760", []string{"172.17.0.1", "5.78.128.79"}); got != "5.78.128.79" {
+		t.Fatalf("public interface IP = %q; want 5.78.128.79", got)
+	}
+	if got := preferredPublicIP("71.212.143.50:43760", []string{"192.168.1.2"}); got != "71.212.143.50" {
+		t.Fatalf("public relay IP = %q; want 71.212.143.50", got)
+	}
+	if got := preferredPublicIP("10.0.0.2:43760", []string{"172.17.0.1"}); got != "10.0.0.2" {
+		t.Fatalf("private fallback IP = %q; want 10.0.0.2", got)
 	}
 }
 

@@ -104,10 +104,36 @@ func peerIP(address string) string {
 }
 
 func preferredPeerIP(fallback, relayObserved string) string {
-	if observed := peerIP(relayObserved); observed != "" {
+	fallback = peerIP(fallback)
+	observed := peerIP(relayObserved)
+	if isPublicIP(observed) {
 		return observed
 	}
-	return peerIP(fallback)
+	if isPublicIP(fallback) {
+		return fallback
+	}
+	if observed != "" {
+		return observed
+	}
+	return fallback
+}
+
+func preferredPublicIP(relayObserved string, localAddresses []string) string {
+	observed := peerIP(relayObserved)
+	if isPublicIP(observed) {
+		return observed
+	}
+	for _, address := range localAddresses {
+		if candidate := peerIP(address); isPublicIP(candidate) {
+			return candidate
+		}
+	}
+	return observed
+}
+
+func isPublicIP(address string) bool {
+	ip := net.ParseIP(address)
+	return ip != nil && ip.IsGlobalUnicast() && !ip.IsPrivate()
 }
 
 func formatNoTransferSummary(files []FileInfo, unchanged int, colorEnabled bool) string {
