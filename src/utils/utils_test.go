@@ -276,6 +276,12 @@ func TestByteCountDecimal(t *testing.T) {
 	assert.Equal(t, "12.4 MB", ByteCountDecimal(13002343))
 }
 
+func TestByteCountDecimalUnsigned(t *testing.T) {
+	assert.Equal(t, "10.0 kB", ByteCountDecimalUnsigned(10240))
+	assert.Equal(t, "50 B", ByteCountDecimalUnsigned(50))
+	assert.Equal(t, "12.4 MB", ByteCountDecimalUnsigned(13002343))
+}
+
 func TestMissingChunks(t *testing.T) {
 	fileSize := 100
 	chunkSize := 10
