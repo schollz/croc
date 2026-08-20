@@ -1,14 +1,21 @@
 const pending = new Map();
 const waiters = new Map();
 
-self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("install", (event) => event.waitUntil(self.skipWaiting()));
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
 self.addEventListener("message", (event) => {
   if (event.data?.type !== "prepare" || !event.data.id || !event.ports[0]) return;
+  const size = Number(event.data.size);
+  if (!Number.isSafeInteger(size) || size < 0) {
+    event.ports[0].postMessage({ error: "Download has an invalid size" });
+    event.ports[0].close();
+    return;
+  }
   const entry = {
     id: event.data.id,
     name: String(event.data.name || "download"),
+    size,
     port: event.ports[0],
   };
   entry.timer = setTimeout(() => {
@@ -87,6 +94,7 @@ self.addEventListener("fetch", (event) => {
       return new Response(stream, {
         headers: {
           "Cache-Control": "no-store",
+          "Content-Length": String(entry.size),
           "Content-Type": "application/octet-stream",
           "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
           "X-Content-Type-Options": "nosniff",

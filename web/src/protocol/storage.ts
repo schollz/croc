@@ -9,6 +9,12 @@ import { maxTextTransferBytes } from "./types";
 import { wasm } from "../wasm/client";
 
 declare global {
+  interface Navigator {
+    brave?: {
+      isBrave?: () => Promise<boolean>;
+    };
+  }
+
   interface Window {
     showDirectoryPicker?: (options?: {
       mode?: "read" | "readwrite";
@@ -258,26 +264,62 @@ export class TextDestination implements ReceiveDestination {
 }
 
 let downloadWorker: Promise<ServiceWorker> | undefined;
+const downloadWorkerControlTimeoutMs = 10_000;
+const maxBlobDownloadBytes = 256 * 1024 * 1024;
+
+function waitForDownloadController() {
+  const container = navigator.serviceWorker;
+  if (container.controller) return Promise.resolve(container.controller);
+
+  return new Promise<ServiceWorker>((resolve, reject) => {
+    let timer: number | undefined;
+    const cleanup = () => {
+      container.removeEventListener("controllerchange", onControllerChange);
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+    const onControllerChange = () => {
+      const controller = container.controller;
+      if (!controller) return;
+      cleanup();
+      resolve(controller);
+    };
+
+    container.addEventListener("controllerchange", onControllerChange);
+    // Recheck after subscribing so a controller change between the initial
+    // check and listener registration cannot be missed.
+    onControllerChange();
+    if (container.controller) return;
+
+    timer = window.setTimeout(() => {
+      cleanup();
+      reject(
+        new Error(
+          "The streaming download service did not take control of this page. Reload normally and try again.",
+        ),
+      );
+    }, downloadWorkerControlTimeoutMs);
+  });
+}
 
 async function streamingWorker() {
   downloadWorker ??= (async () => {
     if (!("serviceWorker" in navigator) || typeof MessageChannel === "undefined") {
       throw new Error("Streaming browser downloads are unavailable");
     }
-    const registration = await navigator.serviceWorker.register(
+    await navigator.serviceWorker.register(
       `${import.meta.env.BASE_URL}croc-download-sw.js`,
       { scope: import.meta.env.BASE_URL },
     );
     await navigator.serviceWorker.ready;
-    const worker =
-      navigator.serviceWorker.controller ??
-      registration.active ??
-      registration.waiting ??
-      registration.installing;
-    if (!worker) throw new Error("Streaming download service did not start");
-    return worker;
+    return waitForDownloadController();
   })();
-  return downloadWorker;
+  try {
+    return await downloadWorker;
+  } catch (error) {
+    // A later transfer may succeed after the browser finishes activation.
+    downloadWorker = undefined;
+    throw error;
+  }
 }
 
 class StreamingDownloadSink implements ReceiveSink {
@@ -303,13 +345,13 @@ class StreamingDownloadSink implements ReceiveSink {
     this.port.start();
   }
 
-  static async create(name: string) {
+  static async create(name: string, size: number) {
     const worker = await streamingWorker();
     const id = crypto.randomUUID();
     const channel = new MessageChannel();
     const hashHandle = await wasm().sha256Init();
     const sink = new StreamingDownloadSink(channel.port1, hashHandle);
-    await sink.send({ type: "prepare", id, name }, [channel.port2], worker);
+    await sink.send({ type: "prepare", id, name, size }, [channel.port2], worker);
 
     const anchor = document.createElement("a");
     anchor.href = `${import.meta.env.BASE_URL}__croc_download__/${id}`;
@@ -373,7 +415,7 @@ export class StreamingDownloadDestination implements ReceiveDestination {
   async createEmptyFolder() {}
 
   async openFile(file: OfferedFile) {
-    return StreamingDownloadSink.create(file.name);
+    return StreamingDownloadSink.create(file.name, file.size);
   }
 }
 
@@ -435,6 +477,29 @@ export function supportsStreamingDownloadDestination() {
   );
 }
 
+async function isBraveBrowser() {
+  const isBrave = navigator.brave?.isBrave;
+  if (!isBrave) return navigator.userAgent.includes("Brave");
+  try {
+    return await isBrave.call(navigator.brave);
+  } catch {
+    return false;
+  }
+}
+
+function blobDownloadDestination(offer: TransferOffer) {
+  const largest = offer.files.reduce(
+    (maximum, file) => Math.max(maximum, file.size),
+    0,
+  );
+  if (largest > maxBlobDownloadBytes) {
+    throw new Error(
+      "This browser cannot stream a file this large. Receive it with the croc CLI instead.",
+    );
+  }
+  return new DownloadDestination();
+}
+
 export async function chooseReceiveDestination(offer: TransferOffer) {
   if (!window.showDirectoryPicker) return new DownloadDestination();
   const directory = await window.showDirectoryPicker({ mode: "readwrite" });
@@ -457,19 +522,20 @@ export async function chooseStoredReceiveDestination(offer: TransferOffer) {
   if (window.showDirectoryPicker) {
     return chooseReceiveDestination(offer);
   }
+  // Brave currently rejects downloads backed by a service-worker-generated
+  // streaming response even after the worker successfully intercepts them.
+  // Use the bounded Blob path instead of producing a failed browser download.
+  if (await isBraveBrowser()) return blobDownloadDestination(offer);
   if (supportsStreamingDownloadDestination()) {
-    return new StreamingDownloadDestination();
+    try {
+      await streamingWorker();
+      return new StreamingDownloadDestination();
+    } catch {
+      // Small transfers can still use the in-memory download path. The stored
+      // claim is not created until after this destination has been selected.
+    }
   }
-  const largest = offer.files.reduce(
-    (maximum, file) => Math.max(maximum, file.size),
-    0,
-  );
-  if (largest > 256 * 1024 * 1024) {
-    throw new Error(
-      "This browser cannot stream a file this large. Receive it with the croc CLI instead.",
-    );
-  }
-  return new DownloadDestination();
+  return blobDownloadDestination(offer);
 }
 
 export async function verifySink(sink: ReceiveSink, expected: Uint8Array) {

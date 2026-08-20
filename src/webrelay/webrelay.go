@@ -515,6 +515,21 @@ func (h *staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.URL.Path == "/__croc_download__" ||
+		strings.HasPrefix(r.URL.Path, "/__croc_download__/") {
+		// This namespace is handled entirely by the download service worker. If
+		// a request reaches the server, returning the SPA would save index.html
+		// under the offered filename and conceal the interception failure.
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.WriteHeader(http.StatusNotFound)
+		if r.Method == http.MethodGet {
+			_, _ = io.WriteString(w, "streaming download was not intercepted\n")
+		}
+		return
+	}
+
 	if r.URL.Path == "/" {
 		w.Header().Set("Vary", "User-Agent")
 	}
