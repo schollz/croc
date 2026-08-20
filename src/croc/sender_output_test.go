@@ -12,19 +12,14 @@ func TestFormatSendInstructionsPlain(t *testing.T) {
 		webURL = "https://getcroc.com/?code=acid-pink-fostered-succeeding"
 	)
 
-	want := `Code is: acid-pink-fostered-succeeding
+	want := `On the other computer, run:
+  croc --relay relay.example:9009 acid-pink-fostered-succeeding
 
-On the other computer run:
-(For Windows)
-    croc --relay relay.example:9009 acid-pink-fostered-succeeding
-(For Linux/macOS)
-    CROC_SECRET="acid-pink-fostered-succeeding" croc --relay relay.example:9009 
-
-Or receive in a browser:
-    https://getcroc.com/?code=acid-pink-fostered-succeeding
+Or open:
+  https://getcroc.com/?code=acid-pink-fostered-succeeding
 `
 
-	got := formatSendInstructions(secret, flags, webURL, false)
+	got := formatSendInstructions(secret, flags, webURL, "", false)
 	if got != want {
 		t.Fatalf("plain instructions differ:\nwant: %q\n got: %q", want, got)
 	}
@@ -41,28 +36,44 @@ func TestFormatSendInstructionsColor(t *testing.T) {
 	)
 
 	styledSecret := secretColorPrefix + secret + colorReset
-	want := "Code is: " + styledSecret + `
+	want := `On the other computer, run:
+  croc --relay relay.example:9009 ` + styledSecret + `
 
-On the other computer run:
-(For Windows)
-    croc --relay relay.example:9009 ` + styledSecret + `
-(For Linux/macOS)
-    CROC_SECRET="` + styledSecret + `" croc --relay relay.example:9009 
-
-Or receive in a browser:
-    https://getcroc.com/?code=acid-pink-fostered-succeeding
+Or open:
+  https://getcroc.com/?code=acid-pink-fostered-succeeding
 `
 
-	got := formatSendInstructions(secret, flags, webURL, true)
+	got := formatSendInstructions(secret, flags, webURL, "", true)
 	if got != want {
 		t.Fatalf("colored instructions differ:\nwant: %q\n got: %q", want, got)
 	}
-	if count := strings.Count(got, secretColorPrefix); count != 3 {
-		t.Fatalf("color prefix count = %d; want 3", count)
+	if count := strings.Count(got, secretColorPrefix); count != 1 {
+		t.Fatalf("color prefix count = %d; want 1", count)
 	}
-	urlSection := got[strings.Index(got, "Or receive in a browser:"):]
+	urlSection := got[strings.Index(got, "Or open:"):]
 	if strings.Contains(urlSection, "\x1b") {
 		t.Fatal("browser URL contains an ANSI escape")
+	}
+}
+
+func TestFormatSendInstructionsClipboardNotice(t *testing.T) {
+	const secret = "film-alibi-jet"
+	want := `On the other computer, run:
+  croc film-alibi-jet (code copied to clipboard)
+
+Or open:
+  https://getcroc.com/?code=film-alibi-jet
+`
+
+	got := formatSendInstructions(
+		secret,
+		"",
+		"https://getcroc.com/?code=film-alibi-jet",
+		"code copied to clipboard",
+		false,
+	)
+	if got != want {
+		t.Fatalf("instructions differ:\nwant: %q\n got: %q", want, got)
 	}
 }
 

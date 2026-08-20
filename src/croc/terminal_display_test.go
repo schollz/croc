@@ -45,6 +45,24 @@ func TestQuotedFilename(t *testing.T) {
 	}
 }
 
+func TestFormatNoTransferSummary(t *testing.T) {
+	files := []FileInfo{{FolderRemote: ".", Name: "test"}}
+	if got := formatNoTransferSummary(files, 1, false); got != "\rAlready up to date: 'test'\n" {
+		t.Fatalf("unchanged summary = %q", got)
+	}
+	if got := formatNoTransferSummary(files, 0, false); got != "\rNo files transferred.\n" {
+		t.Fatalf("generic summary = %q", got)
+	}
+
+	colored := formatNoTransferSummary(files, 1, true)
+	if strings.Contains(colored, "\x1b[32m") {
+		t.Fatalf("summary status should be plain: %q", colored)
+	}
+	if !strings.Contains(colored, "'\x1b[1mtest\x1b[0m'") {
+		t.Fatalf("filename is not emphasized: %q", colored)
+	}
+}
+
 func TestReceiveStatusReplacesAndClearsTerminalLine(t *testing.T) {
 	var output strings.Builder
 	width := writeReceiveStatus(&output, 0, receiveStatusOpeningTransferChannels)

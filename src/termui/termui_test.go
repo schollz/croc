@@ -68,11 +68,8 @@ func TestPromptChoices(t *testing.T) {
 	}
 
 	got := PromptChoices(prompt, true)
-	if strings.Count(got, Bold) != 2 {
-		t.Fatalf("bold style count = %d; want 2", strings.Count(got, Bold))
-	}
-	if stripANSI(got) != prompt {
-		t.Fatalf("stripped prompt = %q; want %q", stripANSI(got), prompt)
+	if got != prompt {
+		t.Fatalf("styled prompt = %q; want plain %q", got, prompt)
 	}
 }
 

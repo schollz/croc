@@ -2,8 +2,10 @@ package croc
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -90,6 +92,17 @@ func styleProgressFilename(description string, colorEnabled bool) string {
 
 func quotedFilename(name string, colorEnabled bool) string {
 	return "'" + termui.Filename(name, colorEnabled) + "'"
+}
+
+func formatNoTransferSummary(files []FileInfo, unchanged int, colorEnabled bool) string {
+	if unchanged > 0 && unchanged == len(files) {
+		detail := fmt.Sprintf("all %d files", unchanged)
+		if unchanged == 1 {
+			detail = quotedFilename(path.Join(files[0].FolderRemote, files[0].Name), colorEnabled)
+		}
+		return "\rAlready up to date: " + detail + "\n"
+	}
+	return "\rNo files transferred.\n"
 }
 
 func progressBarTheme(colorEnabled bool) progressbar.Theme {

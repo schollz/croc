@@ -87,15 +87,9 @@ func Error(text string, enabled bool) string {
 	return Color(text, Red, enabled)
 }
 
-// PromptChoices highlights conventional yes/no choices without styling the
-// filenames, paths, or other user-controlled data in the prompt.
+// PromptChoices leaves conventional yes/no choices unstyled.
 func PromptChoices(prompt string, enabled bool) string {
-	if !enabled {
-		return prompt
-	}
-	for _, choice := range []string{"(Y/n)", "(y/N)"} {
-		prompt = strings.ReplaceAll(prompt, choice, Emphasis(choice, true))
-	}
+	_ = enabled
 	return prompt
 }
 

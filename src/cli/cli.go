@@ -22,6 +22,7 @@ import (
 	"github.com/schollz/croc/v11/src/publicrelay"
 	"github.com/schollz/croc/v11/src/storeclient"
 	"github.com/schollz/croc/v11/src/tcp"
+	"github.com/schollz/croc/v11/src/termui"
 	"github.com/schollz/croc/v11/src/utils"
 	buildversion "github.com/schollz/croc/v11/src/version"
 	log "github.com/schollz/logger"
@@ -179,7 +180,8 @@ func newApp() *cli.App {
 		if c.Bool("classic") {
 			if classicInsecureMode {
 				// classic mode not enabled
-				fmt.Print(`Classic mode is currently ENABLED.
+				output, colorEnabled := termui.Output(os.Stdout)
+				fmt.Fprint(output, termui.PromptChoices(`Classic mode is currently ENABLED.
 
 Disabling this mode will prevent the shared secret from being visible
 on the host's process list when passed via the command line. On a
@@ -187,7 +189,7 @@ multi-user system, this will help ensure that other local users cannot
 access the shared secret and receive the files instead of the intended
 recipient.
 
-Do you wish to continue to DISABLE the classic mode? (y/N) `)
+Do you wish to continue to DISABLE the classic mode? (y/N) `, colorEnabled))
 				choice, _ := utils.GetInput("")
 				choice = strings.ToLower(choice)
 				if choice == "y" || choice == "yes" {
@@ -205,14 +207,15 @@ Do you wish to continue to DISABLE the classic mode? (y/N) `)
 			} else {
 				// enable classic mode
 				// touch the file
-				fmt.Print(`Classic mode is currently DISABLED.
+				output, colorEnabled := termui.Output(os.Stdout)
+				fmt.Fprint(output, termui.PromptChoices(`Classic mode is currently DISABLED.
 
 Please note that enabling this mode will make the shared secret visible
 on the host's process list when passed via the command line. On a
 multi-user system, this could allow other local users to access the
 shared secret and receive the files instead of the intended recipient.
 
-Do you wish to continue to enable the classic mode? (y/N) `)
+Do you wish to continue to enable the classic mode? (y/N) `, colorEnabled))
 				choice, _ := utils.GetInput("")
 				choice = strings.ToLower(choice)
 				if choice == "y" || choice == "yes" {
@@ -935,24 +938,11 @@ Run croc with no argument and paste the link at the prompt, or use:
 	if crocOptions.SharedSecret == "" && os.Getenv("CROC_SECRET") != "" {
 		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
 	} else if !(runtime.GOOS == "windows") && crocOptions.SharedSecret != "" && !classicInsecureMode {
+		commandLineSecret := crocOptions.SharedSecret
 		crocOptions.SharedSecret = os.Getenv("CROC_SECRET")
 		if crocOptions.SharedSecret == "" {
-			fmt.Printf(`On UNIX systems, to receive with croc you either need
-to set a code phrase using your environmental variables:
-
-  CROC_SECRET=**** croc
-
-Or you can specify the code phrase when you run croc without
-declaring the secret on the command line:
-
-  croc
-  Enter receive code: ****
-
-Or you can go back to the classic croc behavior by enabling classic mode:
-
-  croc --classic
-
-`)
+			output, colorEnabled := termui.Output(os.Stdout)
+			fmt.Fprint(output, formatUnixReceiveCodeMessage(commandLineSecret, colorEnabled))
 			return nil
 		}
 	}

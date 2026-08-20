@@ -194,6 +194,7 @@ type Client struct {
 	quit                     chan bool
 	finishedNum              int
 	numberOfTransferredFiles int
+	numberOfUnchangedFiles   int
 
 	// ctx.go for graceful shutdown
 	*stop
@@ -1496,12 +1497,18 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 		flags.WriteString("--pass " + c.Options.RelayPassword + " ")
 	}
 	webURL := webReceiveURL(c.Options.SharedSecret)
-	output, colorEnabled := termui.Output(os.Stderr)
-	fmt.Fprint(output, formatSendInstructions(c.Options.SharedSecret, flags.String(), webURL, colorEnabled))
+	clipboardNotice := ""
 	if !c.Options.DisableClipboard {
 		clipboardText := formatClipboardText(c.Options.SharedSecret, flags.String(), c.Options.ExtendedClipboard)
-		copyToClipboard(clipboardText, c.Options.Quiet, c.Options.ExtendedClipboard)
+		if copyToClipboard(clipboardText, true, c.Options.ExtendedClipboard) {
+			clipboardNotice = "code copied to clipboard"
+			if c.Options.ExtendedClipboard {
+				clipboardNotice = "command copied to clipboard"
+			}
+		}
 	}
+	output, colorEnabled := termui.Output(os.Stderr)
+	fmt.Fprint(output, formatSendInstructions(c.Options.SharedSecret, flags.String(), webURL, clipboardNotice, colorEnabled))
 	if c.Options.ShowQrCode {
 		showReceiveCommandQrCode(webURL)
 	}
@@ -1967,8 +1974,8 @@ func (c *Client) Receive() (err error) {
 	})
 	if err == nil {
 		if c.numberOfTransferredFiles+len(c.EmptyFoldersToTransfer) == 0 {
-			output, _ := termui.Output(os.Stderr)
-			fmt.Fprint(output, "\rNo files transferred.\n")
+			output, colorEnabled := termui.Output(os.Stderr)
+			fmt.Fprint(output, formatNoTransferSummary(c.FilesToTransfer, c.numberOfUnchangedFiles, colorEnabled))
 		}
 	} else if !isTransferDisconnectError(err) {
 		c.SendError()
@@ -2204,7 +2211,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 		if displayName != "" {
 			fname = quotedFilename(displayName, colorEnabled)
 		}
-		choicePrompt := termui.Emphasis("(Y/n)", colorEnabled)
+		choicePrompt := termui.PromptChoices("(Y/n)", colorEnabled)
 		if c.Options.Ask || senderInfo.Ask {
 			machID, _ := machineid.ID()
 			fmt.Fprintf(output, "\rYour machine id is '%s'.\n%s %s (%s) from '%s'? %s ", machID, action, fname, utils.ByteCountDecimal(totalSize), senderInfo.MachineID, choicePrompt)
@@ -2252,7 +2259,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 				fmt.Fprintf(output, "\n%s already has some content in it. \nDo you want to %s it with an empty folder? %s ",
 					termui.Filename(c.EmptyFoldersToTransfer[i].FolderRemote, colorEnabled),
 					termui.Warning("overwrite", colorEnabled),
-					termui.Warning("(y/N)", colorEnabled),
+					termui.PromptChoices("(y/N)", colorEnabled),
 				)
 				choice, _ := utils.GetInput("")
 				choice = strings.ToLower(choice)
@@ -2590,7 +2597,7 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 			output, colorEnabled := termui.Output(os.Stderr)
 			fmt.Fprintf(output, "Send to machine '%s'? %s ",
 				remoteFile.MachineID,
-				termui.Emphasis("(Y/n)", colorEnabled),
+				termui.PromptChoices("(Y/n)", colorEnabled),
 			)
 			choice, errInput := utils.GetInput("")
 			choice = strings.ToLower(choice)
@@ -2967,10 +2974,9 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 				}
 				output, colorEnabled := termui.Output(os.Stderr)
 				styledAction := termui.Warning(action, colorEnabled)
-				styledChoice := termui.Warning("(y/N)", colorEnabled)
+				styledChoice := termui.PromptChoices("(y/N)", colorEnabled)
 				if action == "Resume" {
 					styledAction = action
-					styledChoice = termui.Emphasis("(y/N)", colorEnabled)
 				}
 				fmt.Fprintf(output, "\n%s %s%s? %s%s(use --overwrite to omit) ",
 					styledAction,
@@ -2988,6 +2994,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			}
 		} else {
 			log.Debugf("hashes are equal %x == %x", fileHash, fileInfo.Hash)
+			c.numberOfUnchangedFiles++
 
 			if !fileInfo.ModTime.IsZero() {
 				if err := os.Chtimes(path.Join(fileInfo.FolderRemote, fileInfo.Name), fileInfo.ModTime, fileInfo.ModTime); err != nil {
@@ -3326,7 +3333,7 @@ func isExecutableInPath(executableName string) bool {
 }
 
 // copyToClipboard tries to send the code to the operating system clipboard
-func copyToClipboard(str string, quiet bool, extendedClipboard bool) {
+func copyToClipboard(str string, quiet bool, extendedClipboard bool) bool {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	// Windows should always have clip.exe in PATH by default
@@ -3353,17 +3360,17 @@ func copyToClipboard(str string, quiet bool, extendedClipboard bool) {
 			cmd = exec.Command("termux-clipboard-set")
 		}
 	default:
-		return
+		return false
 	}
 	// Nothing has been found
 	if cmd == nil {
-		return
+		return false
 	}
 	// Sending stdin into the available clipboard program
 	cmd.Stdin = bytes.NewReader([]byte(str))
 	if err := cmd.Run(); err != nil {
 		log.Debugf("error copying to clipboard: %v", err)
-		return
+		return false
 	}
 	if !quiet {
 		output, colorEnabled := termui.Output(os.Stderr)
@@ -3373,6 +3380,7 @@ func copyToClipboard(str string, quiet bool, extendedClipboard bool) {
 			fmt.Fprintln(output, termui.Success("Code copied to clipboard!", colorEnabled))
 		}
 	}
+	return true
 }
 
 // CopyToClipboard copies a croc share value using the platform clipboard helper.
