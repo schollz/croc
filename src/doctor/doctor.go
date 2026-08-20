@@ -74,7 +74,11 @@ type Report struct {
 }
 
 func (report Report) HasFailures() bool {
-	//panic("unimplemented")
+	for _, check := range report.Checks {
+		if check.Status == Fail {
+			return true
+		}
+	}
 	return false
 }
 
