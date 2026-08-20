@@ -581,7 +581,13 @@ export async function sendFiles(options: {
     cipherHandle = await wasm().cipherInit(key);
 
     callbacks.onStatus?.("Opening encrypted data channels…");
-    data = await openDataConnections(settings, room, dataPorts(relay.banner), relayIndex, signal);
+    data = await openDataConnections(
+      settings,
+      room,
+      dataPorts(relay.banner),
+      relayIndex,
+      signal,
+    );
 
     const peerIP = await receiveControl(control, key);
     if (peerIP.t !== "externalip")
@@ -837,9 +843,10 @@ export async function receiveFiles(options: {
       signal,
     );
     control = relay.socket;
+    callbacks.onStatus?.("Waiting for sender…");
     await control.send(HANDSHAKE);
 
-    callbacks.onStatus?.("Securing channel…");
+    callbacks.onStatus?.("Authenticating code…");
     const curve = "p256";
     const pake = await wasm().pakeInitWithIdentities(
       textEncoder.encode(passphrase),
@@ -891,6 +898,7 @@ export async function receiveFiles(options: {
     }
     key = peerKeys.key;
     cipherHandle = await wasm().cipherInit(key);
+    callbacks.onStatus?.("Opening transfer channels…");
     data = await openDataConnections(settings, room, dataPorts(relay.banner), relayIndex, signal);
     await sendControl(
       control,
@@ -905,6 +913,7 @@ export async function receiveFiles(options: {
     if (peerIP.t !== "externalip")
       throw new Error("Sender did not secure the channel");
 
+    callbacks.onStatus?.("Waiting for file list…");
     const fileInfo = await receiveControl(control, key);
     if (fileInfo.t === "error")
       throw new Error(fileInfo.m || "Sender cancelled");
