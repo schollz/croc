@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io/fs"
+	"regexp"
 	"testing"
 )
 
@@ -70,9 +71,14 @@ func TestEmbeddedClientContainsEntryPointAndWasm(t *testing.T) {
 	for _, fragment := range [][]byte{
 		[]byte("#!/bin/bash"),
 		[]byte("curl https://getcroc.com | bash"),
+		[]byte("https://api.github.com/repos/schollz/croc/releases/latest"),
+		[]byte("determine_latest_version"),
 	} {
 		if !bytes.Contains(installer, fragment) {
 			t.Fatalf("embedded installer does not contain %q", fragment)
 		}
+	}
+	if regexp.MustCompile(`croc_version="[0-9]+\.[0-9]+\.[0-9]+"`).Match(installer) {
+		t.Fatal("embedded installer contains a hardcoded croc version")
 	}
 }

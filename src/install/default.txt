@@ -263,6 +263,55 @@ download_file() {
 }
 
 #---  FUNCTION  ----------------------------------------------------------------
+#          NAME:  determine_latest_version
+#   DESCRIPTION:  Queries GitHub for the latest stable croc release. Attempts
+#                 to use curl, then wget. The response is parsed without jq.
+#    PARAMETERS:  none
+#       RETURNS:  0 = Version detected. Prints the version without its v prefix.
+#                 1 = GitHub API request failed
+#                 2 = GitHub API response did not contain a valid release tag
+#                 20 = Could not find curl and wget
+#-------------------------------------------------------------------------------
+determine_latest_version() {
+  local api_url
+  local response
+  local tag
+
+  api_url="https://api.github.com/repos/schollz/croc/releases/latest"
+
+  if command -v curl >/dev/null 2>&1; then
+    response="$(curl -fsSL \
+      -H "Accept: application/vnd.github+json" \
+      -H "User-Agent: croc-installer" \
+      "${api_url}")" || return 1
+  elif command -v wget >/dev/null 2>&1; then
+    response="$(wget --quiet \
+      --header="Accept: application/vnd.github+json" \
+      --header="User-Agent: croc-installer" \
+      -O - "${api_url}")" || return 1
+  else
+    return 20
+  fi
+
+  if [[ "${response}" != *'"tag_name"'* ]]; then
+    return 2
+  fi
+  tag="${response#*\"tag_name\"}"
+  if [[ "${tag}" != *:* || "${tag#*:}" != *\"* ]]; then
+    return 2
+  fi
+  tag="${tag#*:}"
+  tag="${tag#*\"}"
+  tag="${tag%%\"*}"
+  if [[ ! "${tag}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+    return 2
+  fi
+
+  printf '%s\n' "${tag#v}"
+  return 0
+}
+
+#---  FUNCTION  ----------------------------------------------------------------
 #          NAME:  checksum_check
 #   DESCRIPTION:  Attempt to verify checksum of downloaded file to ensure
 #                 integrity.  Tries multiple tools before failing.
@@ -554,7 +603,6 @@ main() {
   local autocomplete_install_rcode
 
   croc_bin_name="croc"
-  croc_version="11.2.2"
   croc_dl_ext="tar.gz"
   croc_base_url="https://github.com/schollz/croc/releases/download"
   prefix="${1}"
@@ -565,6 +613,19 @@ main() {
 
   print_banner
   print_message "== Install prefix set to ${prefix}" "info"
+
+  croc_version="$(determine_latest_version)"
+  case "${?}" in
+    "0" ) print_message "== Latest croc release is v${croc_version}" "info";;
+    "1" ) print_message "== Failed to query the latest croc release from the GitHub API. Check network access or GitHub API rate limits." "error"
+          exit 1;;
+    "2" ) print_message "== GitHub API response did not contain a valid vMAJOR.MINOR.PATCH croc release tag." "error"
+          exit 1;;
+    "20" ) print_message "== Failed to locate curl or wget" "error"
+           exit 1;;
+       * ) print_message "== Failed to determine the latest croc release" "error"
+           exit 1;;
+  esac
   
   tmpdir="$(make_tempdir "${croc_bin_name}")"
   tmpdir_rcode="${?}"

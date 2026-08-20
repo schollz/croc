@@ -1,77 +1,71 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
-	"os/exec"
+	"regexp"
 	"strings"
 )
 
+var (
+	semverPattern       = regexp.MustCompile(`^(?:v)?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
+	versionValuePattern = regexp.MustCompile(`(?m)^const Value = "[^"]*"$`)
+)
+
 func main() {
-	err := run()
-	if err != nil {
-		fmt.Println(err)
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }
 
-func run() (err error) {
-	versionNew := "v" + os.Getenv("VERSION")
-	versionHash, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
+func run() error {
+	version, err := normalizeVersion(os.Getenv("VERSION"))
 	if err != nil {
-		return
+		return err
 	}
-	versionHashNew := strings.TrimSpace(string(versionHash))
-	fmt.Println(versionNew)
-	fmt.Println(versionHashNew)
-
-	err = replaceInFile("src/version/version.go", `Value = "`, `"`, versionNew+"-"+versionHashNew)
-	if err == nil {
-		fmt.Printf("updated version.go to version %s\n", versionNew)
+	if err := stampVersion("src/version/version.go", version); err != nil {
+		return err
 	}
-	err = replaceInFile("README.md", `version-`, `-b`, strings.Split(versionNew, "-")[0])
-	if err == nil {
-		fmt.Printf("updated README to version %s\n", strings.Split(versionNew, "-")[0])
-	}
-
-	err = replaceInFile("src/install/default.txt", `croc_version="`, `"`, strings.Split(versionNew, "-")[0][1:])
-	if err == nil {
-		fmt.Printf("updated default.txt to version %s\n", strings.Split(versionNew, "-")[0][1:])
-	}
-
-	return
+	fmt.Printf("updated version.Value to %s\n", version)
+	return nil
 }
 
-func replaceInFile(fname, start, end, replacement string) (err error) {
-	b, err := os.ReadFile(fname)
-	if err != nil {
-		return
+func normalizeVersion(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	match := semverPattern.FindStringSubmatch(raw)
+	if match == nil {
+		return "", fmt.Errorf("VERSION must be a semantic version such as v11.2.3: %q", raw)
 	}
-	oldVersion := getStringInBetween(string(b), start, end)
-	if oldVersion == "" {
-		err = fmt.Errorf("nothing")
-		return
-	}
-	newF := strings.Replace(
-		string(b),
-		fmt.Sprintf("%s%s%s", start, oldVersion, end),
-		fmt.Sprintf("%s%s%s", start, replacement, end),
-		1,
-	)
-	err = os.WriteFile(fname, []byte(newF), 0o644)
-	return
+	return strings.TrimPrefix(raw, "v"), nil
 }
 
-// getStringInBetween Returns empty string if no start string found
-func getStringInBetween(str, start, end string) (result string) {
-	s := strings.Index(str, start)
-	if s == -1 {
-		return
+func stampVersion(filename, version string) error {
+	if version == "" {
+		return errors.New("version must not be empty")
 	}
-	s += len(start)
-	e := strings.Index(str[s:], end)
-	if e == -1 {
-		return
+
+	contents, err := os.ReadFile(filename)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", filename, err)
 	}
-	e += s
-	return str[s:e]
+	if matches := versionValuePattern.FindAll(contents, -1); len(matches) != 1 {
+		return fmt.Errorf("expected exactly one version.Value declaration in %s, found %d", filename, len(matches))
+	}
+
+	replacement := []byte(fmt.Sprintf(`const Value = %q`, version))
+	updated := versionValuePattern.ReplaceAll(contents, replacement)
+	if string(updated) == string(contents) {
+		return nil
+	}
+
+	info, err := os.Stat(filename)
+	if err != nil {
+		return fmt.Errorf("stat %s: %w", filename, err)
+	}
+	if err := os.WriteFile(filename, updated, info.Mode().Perm()); err != nil {
+		return fmt.Errorf("write %s: %w", filename, err)
+	}
+	return nil
 }
