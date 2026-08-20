@@ -141,7 +141,11 @@ Successful browser transfers emit the custom events `send-direct`,
 tracking is disabled and transfers behave identically. When configured, the
 server injects Umami's deferred script directly into every page's `<head>`.
 Umami records its normal pageviews, and custom transfer events remove query
-strings and fragments from the reported URL.
+strings and fragments from the reported URL. The server also emits the
+`installer-curl` event after successfully serving the installer script for a
+curl `GET /`; wget downloads and HEAD requests are not counted. This
+server-side event reports only the site hostname, `/` path, event name, and
+croc version.
 
 Proxy the complete origin—including WebSocket upgrades—to
 `127.0.0.1:9014`, preserving the original `Host` header. The server returns the

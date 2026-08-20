@@ -198,6 +198,41 @@ func TestUmamiScriptRequiresBothEnvironmentValues(t *testing.T) {
 	}
 }
 
+func TestParseWebUmamiConfig(t *testing.T) {
+	for _, testCase := range []struct {
+		name      string
+		url       string
+		websiteID string
+		wantNil   bool
+		wantError bool
+	}{
+		{name: "unset", wantNil: true},
+		{name: "URL only", url: "https://umami.schollz.com", wantNil: true},
+		{name: "website ID only", websiteID: "website-uuid", wantNil: true},
+		{name: "HTTP URL", url: "http://umami.schollz.com", websiteID: "website-uuid", wantError: true},
+		{name: "invalid URL", url: "://invalid", websiteID: "website-uuid", wantError: true},
+		{name: "configured", url: " https://umami.schollz.com/ ", websiteID: " website-uuid "},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			settings, err := parseWebUmamiConfig(testCase.url, testCase.websiteID)
+			if testCase.wantError {
+				assert.Error(t, err)
+				assert.Nil(t, settings)
+				return
+			}
+			require.NoError(t, err)
+			if testCase.wantNil {
+				assert.Nil(t, settings)
+				return
+			}
+			require.NotNil(t, settings)
+			assert.Equal(t, "https://umami.schollz.com", settings.baseURL)
+			assert.Equal(t, "https://umami.schollz.com/script.js", settings.scriptURL)
+			assert.Equal(t, "website-uuid", settings.websiteID)
+		})
+	}
+}
+
 func TestGoogleAdSenseConfig(t *testing.T) {
 	for _, testCase := range []struct {
 		name        string
@@ -353,6 +388,57 @@ func TestRootNegotiatesInstallerForCommandLineClients(t *testing.T) {
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.Empty(t, recorder.Body.String())
 	assert.Equal(t, int64(len(testInstaller)), recorder.Result().ContentLength)
+}
+
+type failingResponseWriter struct {
+	header http.Header
+}
+
+func (w *failingResponseWriter) Header() http.Header {
+	return w.header
+}
+
+func (w *failingResponseWriter) Write([]byte) (int, error) {
+	return 0, io.ErrClosedPipe
+}
+
+func (*failingResponseWriter) WriteHeader(int) {}
+
+func TestTracksOnlySuccessfulCurlInstallerGETs(t *testing.T) {
+	tracked := 0
+	handler, err := Handler(Config{
+		RelayHost:          "127.0.0.1",
+		AllowedPorts:       []string{"9009"},
+		StaticFiles:        testSite(),
+		trackCurlInstaller: func() { tracked++ },
+	})
+	require.NoError(t, err)
+
+	for _, testCase := range []struct {
+		name       string
+		method     string
+		path       string
+		userAgent  string
+		wantEvents int
+	}{
+		{name: "curl GET", method: http.MethodGet, path: "/", userAgent: "curl/8.10.1", wantEvents: 1},
+		{name: "curl HEAD", method: http.MethodHead, path: "/", userAgent: "curl/8.10.1", wantEvents: 1},
+		{name: "wget GET", method: http.MethodGet, path: "/", userAgent: "Wget/1.24.5", wantEvents: 1},
+		{name: "browser GET", method: http.MethodGet, path: "/", userAgent: "Mozilla/5.0", wantEvents: 1},
+		{name: "non-root curl GET", method: http.MethodGet, path: "/send/files", userAgent: "curl/8.10.1", wantEvents: 1},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			request := httptest.NewRequest(testCase.method, testCase.path, nil)
+			request.Header.Set("User-Agent", testCase.userAgent)
+			handler.ServeHTTP(httptest.NewRecorder(), request)
+			assert.Equal(t, testCase.wantEvents, tracked)
+		})
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set("User-Agent", "curl/8.10.1")
+	handler.ServeHTTP(&failingResponseWriter{header: make(http.Header)}, request)
+	assert.Equal(t, 1, tracked)
 }
 
 func TestRootContinuesServingSiteToBrowsers(t *testing.T) {
