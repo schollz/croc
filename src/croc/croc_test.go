@@ -206,6 +206,8 @@ func TestDiscoverReceivePeersTimesOut(t *testing.T) {
 
 	assert.Empty(t, discoveries)
 	assert.Less(t, time.Since(start), 500*time.Millisecond)
+	assert.Equal(t, len(receiveStatusLookingForSender), c.receiveStatusWidth)
+	c.clearReceiveStatus()
 }
 
 func TestHostileSymlinkThenSameNameFileOverwritesSymlinkTarget(t *testing.T) {
@@ -690,6 +692,23 @@ func TestCrocNonASCIIFileName(t *testing.T) {
 	output, err := os.ReadFile(stderr.Name())
 	if err != nil {
 		t.Fatalf("read stderr capture: %v", err)
+	}
+	statusOffset := 0
+	for _, status := range []string{
+		receiveStatusConnecting,
+		receiveStatusWaitingForSender,
+		receiveStatusAuthenticatingCode,
+		receiveStatusOpeningTransferChannels,
+		receiveStatusWaitingForFileList,
+	} {
+		relative := bytes.Index(output[statusOffset:], []byte(status))
+		if relative < 0 {
+			t.Fatalf("receive output does not contain status %q after byte %d: %q", status, statusOffset, output)
+		}
+		statusOffset += relative + len(status)
+	}
+	if bytes.Contains(output, []byte(receiveStatusLookingForSender)) {
+		t.Fatalf("receive output contains local-discovery status while discovery is disabled: %q", output)
 	}
 	for offset := 0; offset < len(output); {
 		_, size := utf8.DecodeRune(output[offset:])

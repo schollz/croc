@@ -93,6 +93,12 @@ type versionCheckHandle struct {
 	result <-chan versionCheckResult
 }
 
+func (h versionCheckHandle) wait() versionCheckResult {
+	result := <-h.result
+	h.cancel()
+	return result
+}
+
 func (h versionCheckHandle) finish() (versionCheckResult, bool) {
 	select {
 	case result := <-h.result:
@@ -234,21 +240,52 @@ func startTransferVersionCheck(c *internalcli.Context) func() {
 	if err != nil {
 		return func() {}
 	}
-	handle := checker.start(c.Context, forceTransferVersionCheck())
+	return startTransferVersionCheckWithChecker(c, checker, forceTransferVersionCheck())
+}
+
+func startTransferVersionCheckWithChecker(c *internalcli.Context, checker transferVersionChecker, force bool) func() {
+	handle := checker.start(c.Context, force)
+	if force {
+		writeTransferVersionNotice(c, checker, handle.wait(), true)
+		return func() {}
+	}
 	return func() {
 		result, ready := handle.finish()
-		if !ready || c.Bool("quiet") || !newerRelease(result.latestVersion, checker.currentVersion) {
+		if !ready {
 			return
 		}
-		writer := io.Writer(os.Stderr)
-		if c.App != nil && c.App.ErrWriter != nil {
-			writer = c.App.ErrWriter
-		}
+		writeTransferVersionNotice(c, checker, result, false)
+	}
+}
+
+func writeTransferVersionNotice(c *internalcli.Context, checker transferVersionChecker, result versionCheckResult, always bool) {
+	if c.Bool("quiet") {
+		return
+	}
+	writer := io.Writer(os.Stderr)
+	if c.App != nil && c.App.ErrWriter != nil {
+		writer = c.App.ErrWriter
+	}
+	if newerRelease(result.latestVersion, checker.currentVersion) {
 		_, _ = fmt.Fprintf(
 			writer,
 			"A newer croc version is available: v%s (current: v%s).\nRun: curl https://getcroc.com | bash\n",
 			result.latestVersion,
 			checker.currentVersion,
 		)
+		return
 	}
+	if !always {
+		return
+	}
+	if result.latestVersion == "" {
+		_, _ = fmt.Fprintf(writer, "Could not check for a newer croc version (current: v%s).\n", checker.currentVersion)
+		return
+	}
+	_, _ = fmt.Fprintf(
+		writer,
+		"No newer croc version is available (current: v%s, latest: v%s).\n",
+		checker.currentVersion,
+		result.latestVersion,
+	)
 }

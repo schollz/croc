@@ -182,9 +182,10 @@ type Client struct {
 	// overwrite c.Options.RelayPorts are launched.
 	localRelayPort string
 
-	bar             *progressbar.ProgressBar
-	longestFilename int
-	firstSend       bool
+	bar                *progressbar.ProgressBar
+	longestFilename    int
+	firstSend          bool
+	receiveStatusWidth int
 
 	mutex                    *sync.Mutex
 	receiveMutex             *sync.Mutex
@@ -1461,12 +1462,14 @@ func (c *Client) senderReconnectRelayAttempt(attempt int) error {
 }
 
 func (c *Client) receiverReconnectRelayAttempt(attempt int) error {
+	c.setReceiveStatus(receiveStatusConnecting)
 	if err := c.reconnectRelayAttempt(func(conn *comm.Comm) error {
 		return conn.Send(handshakeRequest)
 	}); err != nil {
 		return err
 	}
 	log.Debug("exchanged reconnect header message")
+	c.setReceiveStatus(receiveStatusWaitingForSender)
 	return nil
 }
 
@@ -1640,6 +1643,7 @@ var (
 )
 
 func (c *Client) discoverReceivePeers() (discoveries []peerdiscovery.Discovered) {
+	c.setReceiveStatus(receiveStatusLookingForSender)
 	resultChan := make(chan peerDiscoveryResult, 2)
 	stopDiscovery := make(chan struct{})
 	var closeOnce sync.Once
@@ -1708,8 +1712,7 @@ func (c *Client) discoverReceivePeers() (discoveries []peerdiscovery.Discovered)
 func (c *Client) Receive() (err error) {
 	go c.stop.done()
 	defer c.stop.Cancel()
-	output, _ := termui.Output(os.Stderr)
-	fmt.Fprint(output, "connecting...")
+	defer c.clearReceiveStatus()
 	// recipient will look for peers first
 	// and continue if it doesn't find any within 100 ms
 	usingLocal := false
@@ -1767,6 +1770,7 @@ func (c *Client) Receive() (err error) {
 		log.Debugf("discoveries: %+v", discoveries)
 		log.Debug("establishing connection")
 	}
+	c.setReceiveStatus(receiveStatusConnecting)
 	var banner string
 	durations := []time.Duration{200 * time.Millisecond, 5 * time.Second}
 	err = fmt.Errorf("found no addresses to connect")
@@ -1954,8 +1958,7 @@ func (c *Client) Receive() (err error) {
 		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
 	}
 	log.Debug("exchanged header message")
-	output, _ = termui.Output(os.Stderr)
-	fmt.Fprint(output, "\rsecuring channel...")
+	c.setReceiveStatus(receiveStatusWaitingForSender)
 	err = c.transferWithReconnect(func(attempt int) error {
 		if attempt == 0 {
 			return nil
@@ -1964,7 +1967,7 @@ func (c *Client) Receive() (err error) {
 	})
 	if err == nil {
 		if c.numberOfTransferredFiles+len(c.EmptyFoldersToTransfer) == 0 {
-			output, _ = termui.Output(os.Stderr)
+			output, _ := termui.Output(os.Stderr)
 			fmt.Fprint(output, "\rNo files transferred.\n")
 		}
 	} else if !isTransferDisconnectError(err) {
@@ -2126,6 +2129,7 @@ func (c *Client) createEmptyFolder(i int) (err error) {
 }
 
 func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error) {
+	c.clearReceiveStatus()
 	var senderInfo SenderInfo
 	err = json.Unmarshal(m.Bytes, &senderInfo)
 	if err != nil {
@@ -2292,6 +2296,9 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 		}
 	}()
 	log.Debug("received pake payload")
+	if !c.Options.IsSender {
+		c.setReceiveStatus(receiveStatusAuthenticatingCode)
+	}
 	if m.Version != pakekey.ProtocolVersion {
 		return incompatiblePakeVersionError{got: m.Version}
 	}
@@ -2429,6 +2436,9 @@ func (c *Client) processMessagePakeConfirm(m message.Message, attempt *transferA
 
 func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error) {
 	log.Debug("PAKE key confirmation succeeded")
+	if !c.Options.IsSender {
+		c.setReceiveStatus(receiveStatusOpeningTransferChannels)
+	}
 
 	// connects to the other ports of the server for transfer
 	var wg sync.WaitGroup
@@ -2507,6 +2517,9 @@ func (c *Client) processExternalIP(m message.Message) (done bool, err error) {
 	}
 	log.Debugf("connected as %s -> %s", c.ExternalIP, c.ExternalIPConnected)
 	c.Step1ChannelSecured = true
+	if !c.Options.IsSender {
+		c.setReceiveStatus(receiveStatusWaitingForFileList)
+	}
 	return
 }
 

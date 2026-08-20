@@ -373,6 +373,74 @@ func TestTransferVersionNoticeIsDeferredAndHonorsQuiet(t *testing.T) {
 	}
 }
 
+func TestForcedTransferVersionCheckReportsBeforeTransfer(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		statusCode int
+		body       string
+		quiet      bool
+		want       string
+	}{
+		{
+			name:       "current",
+			statusCode: http.StatusOK,
+			body:       `{"tag_name":"v11.2.3"}`,
+			want:       "No newer croc version is available (current: v11.2.3, latest: v11.2.3).\n",
+		},
+		{
+			name:       "newer",
+			statusCode: http.StatusOK,
+			body:       `{"tag_name":"v11.2.4"}`,
+			want:       "A newer croc version is available: v11.2.4 (current: v11.2.3).\nRun: curl https://getcroc.com | bash\n",
+		},
+		{
+			name:       "unavailable",
+			statusCode: http.StatusServiceUnavailable,
+			body:       `{}`,
+			want:       "Could not check for a newer croc version (current: v11.2.3).\n",
+		},
+		{
+			name:       "quiet",
+			statusCode: http.StatusOK,
+			body:       `{"tag_name":"v11.2.3"}`,
+			quiet:      true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var requests atomic.Int32
+			checker, closeServer := newTestVersionChecker(
+				t,
+				filepath.Join(t.TempDir(), versionCheckCacheName),
+				time.Now(),
+				&requests,
+				test.statusCode,
+				test.body,
+			)
+			defer closeServer()
+			checker.currentVersion = "11.2.3"
+
+			set := flag.NewFlagSet("test", flag.ContinueOnError)
+			set.Bool("quiet", test.quiet, "")
+			app := internalcli.NewApp()
+			var output bytes.Buffer
+			app.ErrWriter = &output
+			ctx := internalcli.NewContext(app, set, nil)
+
+			finish := startTransferVersionCheckWithChecker(ctx, checker, true)
+			if got := output.String(); got != test.want {
+				t.Fatalf("notice before transfer = %q, want %q", got, test.want)
+			}
+			if got := requests.Load(); got != 1 {
+				t.Fatalf("requests = %d, want 1", got)
+			}
+			finish()
+			if got := output.String(); got != test.want {
+				t.Fatalf("notice after finish = %q, want no duplicate", got)
+			}
+		})
+	}
+}
+
 func TestFailedSendAndReceiveRunDeferredVersionNotice(t *testing.T) {
 	current, ok := parseReleaseVersion(Version)
 	if !ok {

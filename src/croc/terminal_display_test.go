@@ -45,6 +45,24 @@ func TestQuotedFilename(t *testing.T) {
 	}
 }
 
+func TestReceiveStatusReplacesAndClearsTerminalLine(t *testing.T) {
+	var output strings.Builder
+	width := writeReceiveStatus(&output, 0, receiveStatusOpeningTransferChannels)
+	width = writeReceiveStatus(&output, width, receiveStatusWaitingForFileList)
+	clearReceiveStatus(&output, width)
+
+	padding := strings.Repeat(
+		" ",
+		len(receiveStatusOpeningTransferChannels)-len(receiveStatusWaitingForFileList),
+	)
+	want := receiveStatusOpeningTransferChannels +
+		"\r" + receiveStatusWaitingForFileList + padding +
+		"\r" + strings.Repeat(" ", len(receiveStatusWaitingForFileList)) + "\r"
+	if got := output.String(); got != want {
+		t.Fatalf("receive status output = %q; want %q", got, want)
+	}
+}
+
 func TestColoredProgressBarThemeRendersANSIWithoutMarkup(t *testing.T) {
 	var output strings.Builder
 	bar := progressbar.NewOptions64(2,

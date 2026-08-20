@@ -11,6 +11,47 @@ import (
 	"github.com/schollz/progressbar/v3"
 )
 
+const (
+	receiveStatusLookingForSender        = "looking for sender..."
+	receiveStatusConnecting              = "connecting..."
+	receiveStatusWaitingForSender        = "waiting for sender..."
+	receiveStatusAuthenticatingCode      = "authenticating code..."
+	receiveStatusOpeningTransferChannels = "opening transfer channels..."
+	receiveStatusWaitingForFileList      = "waiting for file list..."
+)
+
+func writeReceiveStatus(output io.Writer, previousWidth int, status string) int {
+	if previousWidth > 0 {
+		_, _ = io.WriteString(output, "\r")
+	}
+	_, _ = io.WriteString(output, status)
+	if padding := previousWidth - len(status); padding > 0 {
+		_, _ = io.WriteString(output, strings.Repeat(" ", padding))
+	}
+	return len(status)
+}
+
+func clearReceiveStatus(output io.Writer, width int) {
+	if width == 0 {
+		return
+	}
+	_, _ = io.WriteString(output, "\r"+strings.Repeat(" ", width)+"\r")
+}
+
+func (c *Client) setReceiveStatus(status string) {
+	output, _ := termui.Output(os.Stderr)
+	c.receiveStatusWidth = writeReceiveStatus(output, c.receiveStatusWidth, status)
+}
+
+func (c *Client) clearReceiveStatus() {
+	if c.receiveStatusWidth == 0 {
+		return
+	}
+	output, _ := termui.Output(os.Stderr)
+	clearReceiveStatus(output, c.receiveStatusWidth)
+	c.receiveStatusWidth = 0
+}
+
 func (c *Client) newProgressBar(max int64, description string, throttle time.Duration) *progressbar.ProgressBar {
 	output, colorEnabled := termui.Output(os.Stderr)
 	description = styleProgressFilename(description, colorEnabled)
