@@ -45,6 +45,31 @@ func TestQuotedFilename(t *testing.T) {
 	}
 }
 
+func TestPeerIP(t *testing.T) {
+	tests := map[string]string{
+		"71.212.143.50:43760":    "71.212.143.50",
+		"127.0.0.1:51324":        "127.0.0.1",
+		"[2001:db8::1]:43760":    "2001:db8::1",
+		"2001:db8::1":            "2001:db8::1",
+		"relay.example.com:9009": "relay.example.com",
+		" 71.212.143.50:43760 ":  "71.212.143.50",
+	}
+	for input, want := range tests {
+		if got := peerIP(input); got != want {
+			t.Errorf("peerIP(%q) = %q; want %q", input, got, want)
+		}
+	}
+}
+
+func TestPreferredPeerIP(t *testing.T) {
+	if got := preferredPeerIP("10.0.0.2:9009", "5.78.128.79:43760"); got != "5.78.128.79" {
+		t.Fatalf("public peer IP = %q; want 5.78.128.79", got)
+	}
+	if got := preferredPeerIP("10.0.0.2:9009", ""); got != "10.0.0.2" {
+		t.Fatalf("fallback peer IP = %q; want 10.0.0.2", got)
+	}
+}
+
 func TestFormatNoTransferSummary(t *testing.T) {
 	files := []FileInfo{{FolderRemote: ".", Name: "test"}}
 	if got := formatNoTransferSummary(files, 1, false); got != "\rAlready up to date: 'test'\n" {

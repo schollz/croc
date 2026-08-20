@@ -176,6 +176,8 @@ type Client struct {
 	filesReady              chan struct{}
 	filesReadyErr           error
 	senderRouteReadyOnce    sync.Once
+	externalIPReady         chan struct{}
+	externalIPReadyOnce     sync.Once
 	transferStarted         atomic.Bool
 	// localRelayPort is the control port of the ephemeral local relay started by
 	// setupLocalRelay(). It is captured before any goroutines that might
@@ -340,6 +342,7 @@ func New(ops Options) (c *Client, err error) {
 	c.mutex = &sync.Mutex{}
 	c.receiveMutex = &sync.Mutex{}
 	c.senderRouteReady = make(chan struct{})
+	c.externalIPReady = make(chan struct{})
 	c.stop = newStop(context.Background())
 	return
 }
@@ -536,6 +539,21 @@ func (c *Client) markSenderRouteReady() {
 	c.senderRouteReadyOnce.Do(func() {
 		close(c.senderRouteReady)
 	})
+}
+
+func (c *Client) markExternalIPReady() {
+	if c.externalIPReady == nil {
+		return
+	}
+	c.externalIPReadyOnce.Do(func() {
+		close(c.externalIPReady)
+	})
+}
+
+func (c *Client) waitForExternalIP() {
+	if c.externalIPReady != nil {
+		<-c.externalIPReady
+	}
 }
 
 func (c *Client) canRetryTransfer(err error, attempt int) bool {
@@ -1220,7 +1238,7 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 	}
 	localControlAddress := "127.0.0.1:" + c.localRelayPort
 	var banner string
-	conn, banner, ipaddr, err := tcp.ConnectToTCPServer(localControlAddress, c.Options.RelayPassword, c.Options.RoomName)
+	conn, banner, _, err := tcp.ConnectToTCPServer(localControlAddress, c.Options.RelayPassword, c.Options.RoomName)
 	log.Debugf("banner: %s", banner)
 	if err != nil {
 		err = fmt.Errorf("could not connect to 127.0.0.1:%s: %w", c.localRelayPort, err)
@@ -1251,7 +1269,6 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 		log.Debug("no multiplexing")
 		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
 	}
-	c.ExternalIP = ipaddr
 	c.markSenderRouteReady()
 	errchan <- c.transferWithReconnect(func(attempt int) error {
 		if attempt == 0 {
@@ -1535,6 +1552,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 
 	if !c.Options.OnlyLocal {
 		go func() {
+			defer c.markExternalIPReady()
 			var ipaddr, banner string
 			var conn *comm.Comm
 			var selectedAddress string
@@ -1572,6 +1590,10 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 			}
 			log.Debugf("banner: %s", banner)
 			log.Debugf("connection established: %+v", conn)
+			// Preserve the public relay's observation before a direct route can
+			// switch the sender to its own loopback relay.
+			c.ExternalIP = ipaddr
+			c.markExternalIPReady()
 			if routeErr = c.senderWaitForHandshake(conn); routeErr != nil {
 				errchan <- routeErr
 				return
@@ -1584,7 +1606,6 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 				log.Debug("no multiplexing")
 				c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
 			}
-			c.ExternalIP = ipaddr
 			log.Debug("exchanged header message")
 			c.markSenderRouteReady()
 			errchan <- c.transferWithReconnect(func(attempt int) error {
@@ -1594,6 +1615,8 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 				return c.senderReconnectRelayAttempt(attempt)
 			})
 		}()
+	} else {
+		c.markExternalIPReady()
 	}
 
 	select {
@@ -2242,7 +2265,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 		fmt.Fprintf(output, "\rReceiving %s (%s) \n", fname, utils.ByteCountDecimal(totalSize))
 	}
 	output, _ := termui.Output(os.Stderr)
-	fmt.Fprintf(output, "\nReceiving (<-%s)\n", c.ExternalIPConnected)
+	fmt.Fprintf(output, "\nReceiving (<-%s)\n", peerIP(c.ExternalIPConnected))
 
 	for i := 0; i < len(c.EmptyFoldersToTransfer); i += 1 {
 		_, errExists := os.Stat(c.EmptyFoldersToTransfer[i].FolderRemote)
@@ -2500,7 +2523,7 @@ func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error
 		log.Debug("sending external IP")
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:    message.TypeExternalIP,
-			Message: c.ExternalIP,
+			Message: peerIP(c.ExternalIP),
 			Bytes:   c.pakeResponder,
 		})
 	}
@@ -2510,18 +2533,16 @@ func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error
 func (c *Client) processExternalIP(m message.Message) (done bool, err error) {
 	log.Debugf("received external IP: %+v", m)
 	if c.Options.IsSender {
+		c.waitForExternalIP()
 		err = message.Send(c.conn[0], c.Key, message.Message{
 			Type:    message.TypeExternalIP,
-			Message: c.ExternalIP,
+			Message: peerIP(c.ExternalIP),
 		})
 		if err != nil {
 			return true, err
 		}
 	}
-	if c.ExternalIPConnected == "" {
-		// it can be preset by the local relay
-		c.ExternalIPConnected = m.Message
-	}
+	c.ExternalIPConnected = preferredPeerIP(c.ExternalIPConnected, m.Message)
 	log.Debugf("connected as %s -> %s", c.ExternalIP, c.ExternalIPConnected)
 	c.Step1ChannelSecured = true
 	if !c.Options.IsSender {
@@ -3051,7 +3072,7 @@ func (c *Client) updateState(attempt *transferAttemptState) (err error) {
 
 		if !c.firstSend {
 			output, _ := termui.Output(os.Stderr)
-			fmt.Fprintf(output, "\nSending (->%s)\n", c.ExternalIPConnected)
+			fmt.Fprintf(output, "\nSending (->%s)\n", peerIP(c.ExternalIPConnected))
 			c.firstSend = true
 			// if there are empty files, show them as already have been transferred now
 			for i := range c.FilesToTransfer {

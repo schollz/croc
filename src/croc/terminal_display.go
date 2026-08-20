@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path"
 	"strings"
@@ -92,6 +93,21 @@ func styleProgressFilename(description string, colorEnabled bool) string {
 
 func quotedFilename(name string, colorEnabled bool) string {
 	return "'" + termui.Filename(name, colorEnabled) + "'"
+}
+
+func peerIP(address string) string {
+	address = strings.TrimSpace(address)
+	if host, _, err := net.SplitHostPort(address); err == nil {
+		return strings.Trim(host, "[]")
+	}
+	return strings.Trim(address, "[]")
+}
+
+func preferredPeerIP(fallback, relayObserved string) string {
+	if observed := peerIP(relayObserved); observed != "" {
+		return observed
+	}
+	return peerIP(fallback)
 }
 
 func formatNoTransferSummary(files []FileInfo, unchanged int, colorEnabled bool) string {
