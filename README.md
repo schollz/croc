@@ -128,14 +128,6 @@ Install with `dnf`:
 dnf install croc
 ```
 
-### On Gentoo
-
-Install with `portage`:
-
-```bash
-emerge net-misc/croc
-```
-
 ### On Termux
 
 Install with `pkg`:
