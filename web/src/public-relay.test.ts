@@ -6,6 +6,8 @@ import {
   clearBestRelayOnConnectionError,
   generateCodeForRelay,
   loadBestRelay,
+  RelayPreloader,
+  relayProbeTimeoutMs,
   rememberBestRelay,
   selectBestRelay,
   selectRelayForSend,
@@ -37,6 +39,8 @@ describe("public relay selection", () => {
     });
     await expect(selectBestRelay(settings, undefined, probe)).resolves.toBe(1);
     expect(probe).toHaveBeenCalledTimes(3);
+    expect(probe.mock.calls.every((call) => call[2] === 5_000)).toBe(true);
+    expect(relayProbeTimeoutMs).toBe(5_000);
     expect(canceled.sort()).toEqual([0, 2]);
   });
 
@@ -55,6 +59,58 @@ describe("public relay selection", () => {
     await expect(selectBestRelay(settings, undefined, probe)).rejects.toThrow(
       "No public relay available",
     );
+  });
+});
+
+describe("relay preloading", () => {
+  it("shares an in-flight background probe with Send", async () => {
+    let finishProbe: (duration: number) => void = () => {};
+    const probe = vi.fn(async (_settings: TransferSettings, relayIndex: number) => {
+      if (relayIndex !== 1) throw new Error("unavailable");
+      return new Promise<number>((resolve) => {
+        finishProbe = resolve;
+      });
+    });
+    const cookieStore = { cookie: "" };
+    const preloader = new RelayPreloader();
+    const preload = preloader.preload(settings, { cookieStore, probe });
+    const cacheStates: boolean[] = [];
+    const selection = preloader.select(settings, {
+      cookieStore,
+      probe,
+      onCacheState: (cached) => cacheStates.push(cached),
+    });
+
+    expect(probe).toHaveBeenCalledTimes(3);
+    expect(cacheStates).toEqual([false]);
+    finishProbe(12);
+    await expect(preload).resolves.toBe(1);
+    await expect(selection).resolves.toBe(1);
+    expect(cookieStore.cookie).toContain("croc-best-relay=two%3A9009");
+
+    await expect(
+      preloader.select(settings, { cookieStore, probe }),
+    ).resolves.toBe(1);
+    expect(probe).toHaveBeenCalledTimes(3);
+  });
+
+  it("retries after a failed background probe", async () => {
+    const cookieStore = { cookie: "" };
+    const probe = vi
+      .fn<() => Promise<number>>()
+      .mockRejectedValueOnce(new Error("cold gateway"))
+      .mockRejectedValueOnce(new Error("cold gateway"))
+      .mockRejectedValueOnce(new Error("cold gateway"))
+      .mockResolvedValue(4);
+    const preloader = new RelayPreloader();
+
+    await expect(
+      preloader.preload(settings, { cookieStore, probe }),
+    ).rejects.toThrow("No public relay available");
+    await expect(
+      preloader.select(settings, { cookieStore, probe }),
+    ).resolves.toBe(0);
+    expect(probe).toHaveBeenCalledTimes(6);
   });
 });
 

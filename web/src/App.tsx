@@ -79,7 +79,7 @@ import { makeDirectReceiveURL, ShareQRCode } from "./share-qr";
 import {
   clearBestRelayOnConnectionError,
   generateCodeForRelay,
-  selectRelayForSend,
+  RelayPreloader,
 } from "./public-relay";
 import {
   assetArchitectureLabel,
@@ -668,6 +668,7 @@ function HomeReviews() {
 
 export function App() {
   const [fileHashes] = useState(() => new FileHashCache());
+  const [relayPreloader] = useState(() => new RelayPreloader());
   const restoredStoredUpload = useMemo(restoreStoredUpload, []);
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [settings, setSettings] = useState<TransferSettings>(() => ({
@@ -791,6 +792,18 @@ export function App() {
       // The app still works when storage is blocked.
     }
   }, [settings, rememberPassword]);
+
+  useEffect(() => {
+    if (receiveOnly) return;
+    const controller = new AbortController();
+    void relayPreloader
+      .preload(settings, { signal: controller.signal })
+      .catch(() => {});
+    return () => {
+      controller.abort();
+      relayPreloader.clear();
+    };
+  }, [relayPreloader, settings.gatewayURL, settings.relayAddresses]);
 
   useEffect(() => {
     fileHashes.retain(selectedFiles);
@@ -946,7 +959,7 @@ export function App() {
   }
 
   async function sendDirect(signal: AbortSignal) {
-    const relayIndex = await selectRelayForSend(settings, {
+    const relayIndex = await relayPreloader.select(settings, {
       signal,
       onCacheState: (cached) =>
         setSendStatus(cached ? "Using saved relay…" : "Finding fastest relay…"),
@@ -980,7 +993,7 @@ export function App() {
         },
       });
     } catch (error) {
-      clearBestRelayOnConnectionError(error);
+      if (clearBestRelayOnConnectionError(error)) relayPreloader.clear();
       throw error;
     }
   }

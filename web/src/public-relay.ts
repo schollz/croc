@@ -6,7 +6,7 @@ import {
 import type { TransferSettings } from "./protocol/types";
 import { wasm } from "./wasm/client";
 
-export const relayProbeTimeoutMs = 1_000;
+export const relayProbeTimeoutMs = 5_000;
 export const bestRelayCookieName = "croc-best-relay";
 export const bestRelayCookieMaxAge = 30 * 24 * 60 * 60;
 
@@ -81,6 +81,29 @@ export type RelaySelectionOptions = {
   onCacheState?: (cached: boolean) => void;
 };
 
+function selectionKey(settings: TransferSettings) {
+  return JSON.stringify([settings.gatewayURL, settings.relayAddresses]);
+}
+
+function waitForSelection<T>(promise: Promise<T>, signal?: AbortSignal) {
+  if (!signal) return promise;
+  if (signal.aborted) {
+    return Promise.reject(
+      signal.reason ?? new DOMException("Transfer cancelled", "AbortError"),
+    );
+  }
+  return new Promise<T>((resolve, reject) => {
+    const abort = () =>
+      reject(
+        signal.reason ?? new DOMException("Transfer cancelled", "AbortError"),
+      );
+    signal.addEventListener("abort", abort, { once: true });
+    void promise.then(resolve, reject).finally(() => {
+      signal.removeEventListener("abort", abort);
+    });
+  });
+}
+
 export async function selectBestRelay(
   settings: TransferSettings,
   signal?: AbortSignal,
@@ -137,6 +160,58 @@ export async function selectRelayForSend(
   );
   rememberBestRelay(settings.relayAddresses[relayIndex], cookieStore);
   return relayIndex;
+}
+
+type PreloadedRelay = {
+  key: string;
+  cookieStore: CookieStore;
+  promise: Promise<number>;
+};
+
+export class RelayPreloader {
+  private selection?: PreloadedRelay;
+
+  preload(
+    settings: TransferSettings,
+    options: Omit<RelaySelectionOptions, "onCacheState"> = {},
+  ) {
+    const key = selectionKey(settings);
+    const cookieStore = options.cookieStore ?? document;
+    if (
+      this.selection?.key === key &&
+      this.selection.cookieStore === cookieStore
+    ) {
+      return this.selection.promise;
+    }
+
+    const promise = selectRelayForSend(settings, { ...options, cookieStore });
+    const selection = { key, cookieStore, promise };
+    this.selection = selection;
+    void promise.catch(() => {
+      if (this.selection === selection) this.selection = undefined;
+    });
+    return promise;
+  }
+
+  select(settings: TransferSettings, options: RelaySelectionOptions = {}) {
+    const key = selectionKey(settings);
+    const cookieStore = options.cookieStore ?? document;
+    if (
+      this.selection?.key !== key ||
+      this.selection.cookieStore !== cookieStore
+    ) {
+      return selectRelayForSend(settings, options);
+    }
+
+    options.onCacheState?.(
+      loadBestRelay(settings.relayAddresses, cookieStore) !== undefined,
+    );
+    return waitForSelection(this.selection.promise, options.signal);
+  }
+
+  clear() {
+    this.selection = undefined;
+  }
 }
 
 export async function generateCodeForRelay(
