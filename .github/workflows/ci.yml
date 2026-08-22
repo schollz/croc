@@ -6,6 +6,79 @@ on:
   workflow_dispatch:
 
 jobs:
+  security-regressions:
+    name: Security regressions (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '^1.27.0'
+
+      - name: Test portable path, redaction, and PAKE primitives
+        run: go test ./src/receivefs ./src/redact ./src/pakekey
+
+      - name: Test archive and marked-file regressions
+        run: go test ./src/utils -run 'Test(UnzipDirectory|RemoveMarkedFiles|ValidFileName)'
+
+      - name: Test stored receive regressions
+        run: go test ./src/storecrypto ./src/storeclient -run 'Test(ValidateManifest|Stored|Receive)'
+
+      - name: Test relay admission regressions
+        run: go test ./src/tcp -run 'Test(AdmissionLimiter|RoomDenials|RelayAdmissionLimits|CanonicalSource|WithAdmissionLimits)'
+
+      - name: Test malicious peer and historical protocol regressions
+        run: go test ./src/croc -run 'Test(HostilePortable|MarkedArchive|UnmarkedArchive|LocalIPExchange|FailedPakeConfirmation|ClientErrorsRedact)'
+
+  security-race-tests:
+    name: Security race tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '^1.27.0'
+
+      - name: Race-test root-scoped and stored writes
+        run: go test -race ./src/receivefs ./src/redact ./src/storecrypto ./src/storeclient
+
+      - name: Race-test archive and marked-file regressions
+        run: go test -race ./src/utils -run 'Test(UnzipDirectory|RemoveMarkedFiles)'
+
+      - name: Race-test relay admission
+        run: go test -race ./src/tcp -run 'Test(AdmissionLimiter|RoomDenials|RelayAdmissionLimits|CanonicalSource|WithAdmissionLimits)'
+
+  security-fuzz-smoke:
+    name: Security fuzz smoke tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '^1.27.0'
+
+      - name: Fuzz portable path normalization
+        run: go test ./src/receivefs -run '^$' -fuzz '^FuzzNormalize$' -fuzztime 10s
+
+      - name: Fuzz manifest collision validation
+        run: go test ./src/receivefs -run '^$' -fuzz '^FuzzValidateEntries$' -fuzztime 10s
+
+      - name: Fuzz ZIP parsing and preflight
+        run: go test ./src/utils -run '^$' -fuzz '^FuzzZipPreflight$' -fuzztime 10s
+
   unit-tests:
     name: Go unit tests
     runs-on: ubuntu-24.04

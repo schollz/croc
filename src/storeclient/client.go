@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/schollz/croc/v11/src/receivefs"
 	"github.com/schollz/croc/v11/src/storecrypto"
 )
 
@@ -106,7 +108,7 @@ type downloadState struct {
 
 type downloadSession struct {
 	share           storecrypto.Share
-	outputDirectory string
+	root            *receivefs.Root
 	statePath       string
 	state           downloadState
 	refs            []storecrypto.ChunkRef
@@ -693,13 +695,17 @@ func hashFile(ctx context.Context, path string) ([]byte, error) {
 		return nil, err
 	}
 	defer file.Close()
+	return hashReader(ctx, file)
+}
+
+func hashReader(ctx context.Context, reader io.Reader) ([]byte, error) {
 	hash := sha256.New()
 	buffer := make([]byte, 256<<10)
 	for {
-		if err = ctx.Err(); err != nil {
+		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		count, readErr := file.Read(buffer)
+		count, readErr := reader.Read(buffer)
 		if count > 0 {
 			_, _ = hash.Write(buffer[:count])
 		}
@@ -807,6 +813,7 @@ func (c *Client) Receive(
 	if err != nil {
 		return err
 	}
+	defer session.root.Close()
 	for fileIndex, file := range manifest.Files {
 		if session.state.Renamed[file.Name] {
 			session.transferred += file.Size
@@ -817,7 +824,7 @@ func (c *Client) Receive(
 		}
 	}
 	session.state.Verified = true
-	if err = writeState(session.statePath, session.state); err != nil {
+	if err = writeStateRoot(session.root, session.statePath, session.state); err != nil {
 		return err
 	}
 	status(callbacks, "Committing verified download…")
@@ -832,7 +839,7 @@ func (c *Client) Receive(
 	} else {
 		status(callbacks, fmt.Sprintf("Verified download committed; %d downloads remain", remaining))
 	}
-	return os.Remove(session.statePath)
+	return session.root.Remove(session.statePath)
 }
 
 func (c *Client) startDownload(
@@ -852,7 +859,17 @@ func (c *Client) startDownload(
 	if err = os.MkdirAll(absoluteOutput, 0o755); err != nil {
 		return nil, err
 	}
-	statePath := filepath.Join(absoluteOutput, ".croc-store-"+share.ID+".json")
+	root, err := receivefs.OpenRoot(absoluteOutput)
+	if err != nil {
+		return nil, err
+	}
+	keepRoot := false
+	defer func() {
+		if !keepRoot {
+			root.Close()
+		}
+	}()
+	statePath := ".croc-store-" + share.ID + ".json"
 	manifestBytes, err := json.Marshal(manifest)
 	if err != nil {
 		return nil, err
@@ -864,7 +881,7 @@ func (c *Client) startDownload(
 		Completed:    make(map[int]bool),
 		Renamed:      make(map[string]bool),
 	}
-	if existing, readErr := readDownloadState(statePath); readErr == nil &&
+	if existing, readErr := readDownloadStateRoot(root, statePath); readErr == nil &&
 		existing.ID == state.ID &&
 		existing.ManifestHash == state.ManifestHash {
 		state = existing
@@ -875,19 +892,20 @@ func (c *Client) startDownload(
 			return nil, claimErr
 		}
 		state.ClaimToken = token
-		if err = writeState(statePath, state); err != nil {
+		if err = writeStateRoot(root, statePath, state); err != nil {
 			return nil, err
 		}
 	}
+	keepRoot = true
 	return &downloadSession{
-		share:           share,
-		outputDirectory: absoluteOutput,
-		statePath:       statePath,
-		state:           state,
-		refs:            storecrypto.ChunkRefs(manifest),
-		fileCount:       len(manifest.Files),
-		total:           manifestSize(manifest),
-		callbacks:       callbacks,
+		share:     share,
+		root:      root,
+		statePath: statePath,
+		state:     state,
+		refs:      storecrypto.ChunkRefs(manifest),
+		fileCount: len(manifest.Files),
+		total:     manifestSize(manifest),
+		callbacks: callbacks,
 	}, nil
 }
 
@@ -905,11 +923,11 @@ func (c *Client) receiveFile(
 	file storecrypto.ManifestFile,
 	fileIndex int,
 ) error {
-	partPath := filepath.Join(
-		session.outputDirectory,
+	partPath := path.Join(
+		".",
 		"."+file.Name+".croc-"+session.share.ID+".part",
 	)
-	handle, err := os.OpenFile(partPath, os.O_CREATE|os.O_RDWR, 0o600)
+	handle, err := session.root.OpenFile(partPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return err
 	}
@@ -933,13 +951,13 @@ func (c *Client) receiveFile(
 		ctx,
 		file,
 		partPath,
-		session.outputDirectory,
+		session.root,
 		session.callbacks,
 	); err != nil {
 		return err
 	}
 	session.state.Renamed[file.Name] = true
-	return writeState(session.statePath, session.state)
+	return writeStateRoot(session.root, session.statePath, session.state)
 }
 
 func (c *Client) writeFileChunks(
@@ -1018,7 +1036,7 @@ func (c *Client) writeFileChunks(
 				fileBytes += int64(len(plaintext))
 				session.transferred += int64(len(plaintext))
 				if session.checkpointCount >= checkpointChunks {
-					downloadErr = writeState(session.statePath, session.state)
+					downloadErr = writeStateRoot(session.root, session.statePath, session.state)
 					session.checkpointCount = 0
 				}
 				progress(session.callbacks, Progress{
@@ -1042,7 +1060,7 @@ func (c *Client) writeFileChunks(
 		return firstErr
 	}
 	session.stateMu.Lock()
-	err := writeState(session.statePath, session.state)
+	err := writeStateRoot(session.root, session.statePath, session.state)
 	session.checkpointCount = 0
 	session.stateMu.Unlock()
 	return err
@@ -1052,24 +1070,44 @@ func installVerifiedFile(
 	ctx context.Context,
 	file storecrypto.ManifestFile,
 	partPath string,
-	outputDirectory string,
+	root *receivefs.Root,
 	callbacks Callbacks,
 ) error {
 	status(callbacks, "Verifying "+file.Name)
-	hash, err := hashFile(ctx, partPath)
+	handle, err := root.Open(partPath)
 	if err != nil {
 		return err
+	}
+	hash, err := hashReader(ctx, handle)
+	closeErr := handle.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
 	}
 	if storecrypto.EncodeBase64URL(hash) != file.SHA256 {
 		return fmt.Errorf("stored-transfer hash verification failed for %s", file.Name)
 	}
-	if err = os.Chmod(partPath, 0o600); err != nil {
+	part, err := root.OpenFile(partPath, os.O_RDWR, 0o600)
+	if err != nil {
 		return err
 	}
-	if err = os.Chtimes(partPath, time.Now(), file.Modified); err != nil {
+	if err = part.Chmod(0o600); err != nil {
+		part.Close()
 		return err
 	}
-	return os.Rename(partPath, filepath.Join(outputDirectory, file.Name))
+	if err = part.Sync(); err != nil {
+		part.Close()
+		return err
+	}
+	if err = part.Close(); err != nil {
+		return err
+	}
+	if err = root.Chtimes(partPath, time.Now(), file.Modified); err != nil {
+		return err
+	}
+	return root.Rename(partPath, file.Name)
 }
 
 func expiredClaim(err error) bool {
@@ -1099,7 +1137,7 @@ func (c *Client) renewClaim(
 	session.stateMu.Lock()
 	defer session.stateMu.Unlock()
 	session.state.ClaimToken = token
-	return writeState(session.statePath, session.state)
+	return writeStateRoot(session.root, session.statePath, session.state)
 }
 
 func withFreshClaim[T any](
@@ -1145,9 +1183,30 @@ func (c *Client) commitWithClaimRetry(
 }
 
 func readDownloadState(path string) (downloadState, error) {
-	bytes, err := os.ReadFile(path)
+	directory := filepath.Dir(path)
+	root, err := receivefs.OpenRoot(directory)
 	if err != nil {
 		return downloadState{}, err
+	}
+	defer root.Close()
+	return readDownloadStateRoot(root, filepath.Base(path))
+}
+
+func readDownloadStateRoot(root *receivefs.Root, path string) (downloadState, error) {
+	file, err := root.Open(path)
+	if err != nil {
+		return downloadState{}, err
+	}
+	bytes, err := io.ReadAll(io.LimitReader(file, maxJSONResponse+1))
+	closeErr := file.Close()
+	if err != nil {
+		return downloadState{}, err
+	}
+	if closeErr != nil {
+		return downloadState{}, closeErr
+	}
+	if len(bytes) > maxJSONResponse {
+		return downloadState{}, errors.New("stored-transfer state is too large")
 	}
 	var state downloadState
 	err = json.Unmarshal(bytes, &state)
@@ -1161,29 +1220,24 @@ func readDownloadState(path string) (downloadState, error) {
 }
 
 func writeState(path string, state downloadState) error {
+	directory := filepath.Dir(path)
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		return err
+	}
+	root, err := receivefs.OpenRoot(directory)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return writeStateRoot(root, filepath.Base(path), state)
+}
+
+func writeStateRoot(root *receivefs.Root, path string, state downloadState) error {
 	bytes, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(path), ".croc-store-state-*")
-	if err != nil {
-		return err
-	}
-	name := temp.Name()
-	defer os.Remove(name)
-	_ = temp.Chmod(0o600)
-	if _, err = temp.Write(bytes); err != nil {
-		temp.Close()
-		return err
-	}
-	if err = temp.Sync(); err != nil {
-		temp.Close()
-		return err
-	}
-	if err = temp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(name, path)
+	return root.WriteFileAtomic(path, bytes, 0o600)
 }
 
 func (c *Client) claim(ctx context.Context, share storecrypto.Share) (string, error) {

@@ -41,6 +41,8 @@ import (
 	"github.com/schollz/croc/v11/src/message"
 	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/pakekey"
+	"github.com/schollz/croc/v11/src/receivefs"
+	"github.com/schollz/croc/v11/src/redact"
 	"github.com/schollz/croc/v11/src/tcp"
 	"github.com/schollz/croc/v11/src/termui"
 	"github.com/schollz/croc/v11/src/utils"
@@ -52,6 +54,20 @@ var (
 
 	alternateSenderRouteTimeout = 10 * time.Second
 )
+
+func encryptLocalProbePayload(key, plaintext []byte) ([]byte, error) {
+	if len(key) == 0 {
+		return nil, errors.New("local probe channel is not authenticated")
+	}
+	return crypt.Encrypt(plaintext, key)
+}
+
+func decryptLocalProbePayload(key, ciphertext []byte) ([]byte, error) {
+	if len(key) == 0 {
+		return nil, errors.New("local probe channel is not authenticated")
+	}
+	return crypt.Decrypt(ciphertext, key)
+}
 
 const (
 	ReconnectVersion                   = 1
@@ -191,6 +207,8 @@ type Client struct {
 
 	mutex                    *sync.Mutex
 	receiveMutex             *sync.Mutex
+	receiveRootMu            sync.Mutex
+	receiveRoot              *receivefs.Root
 	fread                    *os.File
 	numfinished              int
 	quit                     chan bool
@@ -267,6 +285,7 @@ func supportsFeature(features []string, wanted string) bool {
 
 // New establishes a new connection for transferring files between two instances.
 func New(ops Options) (c *Client, err error) {
+	defer func() { err = redact.Error(err, ops.SharedSecret) }()
 	c = new(Client)
 	c.FilesHasFinished = make(map[int]struct{})
 
@@ -345,6 +364,17 @@ func New(ops Options) (c *Client, err error) {
 	c.externalIPReady = make(chan struct{})
 	c.stop = newStop(context.Background())
 	return
+}
+
+func (c *Client) redactError(err error) error {
+	return redact.Error(
+		err,
+		c.Options.SharedSecret,
+		c.pakePassphrase,
+		c.baseRoomName,
+		c.Options.RoomName,
+		c.nextReconnectRoom,
+	)
 }
 
 type transferDisconnectError struct {
@@ -660,7 +690,7 @@ func (c *Client) transferWithReconnect(connectAttempt func(attempt int) error) e
 		if lastErr == nil {
 			return nil
 		}
-		log.Debugf("transfer attempt %d failed: %v", attempt, lastErr)
+		log.Debugf("transfer attempt %d failed: %v", attempt, c.redactError(lastErr))
 		if attempt >= maxReconnectAttempts && isTransferDisconnectError(lastErr) {
 			return fmt.Errorf("transfer disconnected after %d reconnect attempts: %w", maxReconnectAttempts, lastErr)
 		}
@@ -700,24 +730,13 @@ func isEmptyFolder(folderPath string) (bool, error) {
 	return false, nil
 }
 
-func isLocalReceivePath(name string) bool {
-	name = path.Clean(strings.ReplaceAll(name, "\\", "/"))
-	return name == "." || (filepath.IsLocal(filepath.FromSlash(name)) && !path.IsAbs(name))
-}
-
 func normalizeReceiveFolder(folder string) (string, error) {
-	cleanFolder := path.Clean(strings.ReplaceAll(folder, "\\", "/"))
-	if cleanFolder == "" {
-		cleanFolder = "."
-	}
-	if !isLocalReceivePath(cleanFolder) {
-		return "", fmt.Errorf("filename must be a local path: '%s'", folder)
+	cleanFolder, err := receivefs.Normalize(folder, true)
+	if err != nil {
+		return "", fmt.Errorf("filename must be a local path: %w", err)
 	}
 	if strings.Contains(cleanFolder, ".ssh") {
-		return "", fmt.Errorf("invalid path detected: '%s'", folder)
-	}
-	if err := utils.ValidFileName(cleanFolder); err != nil {
-		return "", err
+		return "", fmt.Errorf("invalid path detected: %q", folder)
 	}
 	return cleanFolder, nil
 }
@@ -727,31 +746,27 @@ func normalizeReceiveFilePath(folder, name string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	cleanName := path.Clean(strings.ReplaceAll(name, "\\", "/"))
-	if cleanName == "." || cleanName == "" || cleanName != path.Base(cleanName) || !isLocalReceivePath(cleanName) {
-		return "", "", fmt.Errorf("filename must be a local path: '%s'", name)
-	}
-	if err := utils.ValidFileName(cleanName); err != nil {
-		return "", "", err
+	cleanName, err := receivefs.Normalize(name, false)
+	if err != nil || cleanName != path.Base(cleanName) {
+		if err == nil {
+			err = receivefs.ErrUnsafePath
+		}
+		return "", "", fmt.Errorf("filename must be a local path: %w", err)
 	}
 	destination := path.Clean(path.Join(cleanFolder, cleanName))
-	if !isLocalReceivePath(destination) {
-		return "", "", fmt.Errorf("filename must be a local path: '%s'", path.Join(folder, name))
-	}
-	if err := utils.ValidFileName(destination); err != nil {
-		return "", "", err
+	if _, err = receivefs.Normalize(destination, false); err != nil {
+		return "", "", fmt.Errorf("filename must be a local path: %w", err)
 	}
 	return cleanFolder, destination, nil
 }
 
 func validateReceiveSymlinkTarget(folder, target string) error {
-	cleanTarget := path.Clean(strings.ReplaceAll(target, "\\", "/"))
-	if cleanTarget == "." || cleanTarget == "" || path.IsAbs(cleanTarget) || filepath.IsAbs(filepath.FromSlash(cleanTarget)) {
-		return fmt.Errorf("symlink target must be a local path: '%s'", target)
+	cleanTarget, err := receivefs.Normalize(target, false)
+	if err != nil {
+		return fmt.Errorf("symlink target must be a local path: %w", err)
 	}
-	resolvedTarget := path.Clean(path.Join(folder, cleanTarget))
-	if !isLocalReceivePath(resolvedTarget) {
-		return fmt.Errorf("symlink target escapes receive directory: '%s'", target)
+	if _, err = receivefs.Normalize(path.Join(folder, cleanTarget), false); err != nil {
+		return fmt.Errorf("symlink target escapes receive directory: %w", err)
 	}
 	return nil
 }
@@ -759,22 +774,21 @@ func validateReceiveSymlinkTarget(folder, target string) error {
 func validateReceiveMetadata(files []FileInfo, emptyFolders []FileInfo) ([]FileInfo, []FileInfo, error) {
 	normalizedFiles := make([]FileInfo, len(files))
 	normalizedEmptyFolders := make([]FileInfo, len(emptyFolders))
-	destinations := make(map[string]struct{}, len(files)+len(emptyFolders))
+	entries := make([]receivefs.Entry, 0, len(files)+len(emptyFolders))
 
 	for i, fi := range files {
 		cleanFolder, destination, err := normalizeReceiveFilePath(fi.FolderRemote, fi.Name)
 		if err != nil {
 			return nil, nil, err
 		}
-		if _, ok := destinations[destination]; ok {
-			return nil, nil, fmt.Errorf("duplicate destination path: '%s'", destination)
-		}
-		destinations[destination] = struct{}{}
+		kind := receivefs.KindFile
 		if fi.Symlink != "" {
 			if err := validateReceiveSymlinkTarget(cleanFolder, fi.Symlink); err != nil {
 				return nil, nil, err
 			}
+			kind = receivefs.KindSymlink
 		}
+		entries = append(entries, receivefs.Entry{Path: destination, Kind: kind})
 		normalizedFiles[i] = fi
 		normalizedFiles[i].FolderRemote = cleanFolder
 		normalizedFiles[i].Name = path.Base(strings.ReplaceAll(fi.Name, "\\", "/"))
@@ -785,19 +799,38 @@ func validateReceiveMetadata(files []FileInfo, emptyFolders []FileInfo) ([]FileI
 		if err != nil {
 			return nil, nil, err
 		}
-		if _, ok := destinations[cleanFolder]; ok {
-			return nil, nil, fmt.Errorf("duplicate destination path: '%s'", cleanFolder)
-		}
-		destinations[cleanFolder] = struct{}{}
+		entries = append(entries, receivefs.Entry{Path: cleanFolder, Kind: receivefs.KindDirectory})
 		normalizedEmptyFolders[i] = fi
 		normalizedEmptyFolders[i].FolderRemote = cleanFolder
+	}
+	if _, err := receivefs.ValidateEntries(entries); err != nil {
+		return nil, nil, fmt.Errorf("duplicate destination path: %w", err)
 	}
 
 	return normalizedFiles, normalizedEmptyFolders, nil
 }
 
-func rejectSymlinkDestination(pathToFile string) error {
-	return utils.RejectSymlinkPath(".", pathToFile)
+func (c *Client) receiveFilesystem() (*receivefs.Root, error) {
+	c.receiveRootMu.Lock()
+	defer c.receiveRootMu.Unlock()
+	if c.receiveRoot != nil {
+		return c.receiveRoot, nil
+	}
+	root, err := receivefs.OpenRoot(".")
+	if err != nil {
+		return nil, err
+	}
+	c.receiveRoot = root
+	return root, nil
+}
+
+func (c *Client) closeReceiveFilesystem() {
+	c.receiveRootMu.Lock()
+	defer c.receiveRootMu.Unlock()
+	if c.receiveRoot != nil {
+		_ = c.receiveRoot.Close()
+		c.receiveRoot = nil
+	}
 }
 
 // helper function to walk each subfolder and parses against an ignore file.
@@ -1258,7 +1291,7 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 		} else if bytes.Equal(data, []byte{1}) {
 			log.Trace("got ping")
 		} else {
-			log.Debugf("instead of handshake got: %s", data)
+			log.Debugf("received unexpected handshake payload (%d bytes)", len(data))
 		}
 	}
 	c.setRelayControlAddress(localControlAddress)
@@ -1292,23 +1325,25 @@ func (c *Client) senderWaitForHandshake(conn *comm.Comm) error {
 			return errConn
 		}
 		json.Unmarshal(data, &dataMessage)
-		log.Tracef("data: %+v '%s'", data, data)
-		log.Tracef("dataMessage: %+v", dataMessage)
+		log.Tracef("received local-probe frame (%d bytes)", len(data))
 		if kB != nil {
 			var decryptErr error
 			var dataDecrypt []byte
-			dataDecrypt, decryptErr = crypt.Decrypt(data, kB)
+			dataDecrypt, decryptErr = decryptLocalProbePayload(kB, data)
 			if decryptErr != nil {
-				log.Tracef("error decrypting: %v: '%s'", decryptErr, data)
+				log.Tracef("error decrypting local-probe frame: %v", decryptErr)
 				if strings.Contains(decryptErr.Error(), "message authentication failed") {
 					return decryptErr
 				}
 			} else {
 				data = dataDecrypt
-				log.Tracef("decrypted: %s", data)
+				log.Tracef("decrypted local-probe frame (%d bytes)", len(data))
 			}
 		}
 		if bytes.Equal(data, ipRequest) {
+			if len(kB) == 0 {
+				return errors.New("local IP request arrived before PAKE authentication")
+			}
 			log.Tracef("got ipRequest")
 			var ips []string
 			if !c.Options.DisableLocal {
@@ -1319,12 +1354,12 @@ func (c *Client) senderWaitForHandshake(conn *comm.Comm) error {
 				}
 				ips = append([]string{c.localRelayPort}, ips...)
 			}
-			log.Tracef("sending ips: %+v", ips)
+			log.Tracef("sending %d encrypted local endpoint candidates", len(ips))
 			bips, err := json.Marshal(ips)
 			if err != nil {
 				log.Tracef("error marshalling ips: %v", err)
 			}
-			bips, err = crypt.Encrypt(bips, kB)
+			bips, err = encryptLocalProbePayload(kB, bips)
 			if err != nil {
 				log.Tracef("error encrypting ips: %v", err)
 			}
@@ -1392,7 +1427,7 @@ func (c *Client) senderWaitForHandshake(conn *comm.Comm) error {
 			log.Trace("got ping")
 			continue
 		} else {
-			log.Tracef("[%+v] got weird bytes: %+v", conn, data)
+			log.Tracef("[%+v] got unexpected local-probe frame (%d bytes)", conn, len(data))
 			return fmt.Errorf("gracefully refusing using the public relay")
 		}
 	}
@@ -1493,6 +1528,7 @@ func (c *Client) receiverReconnectRelayAttempt(attempt int) error {
 
 // Send will send the specified file
 func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, totalNumberFolders int) (err error) {
+	defer func() { err = c.redactError(err) }()
 	go c.stop.done()
 	defer c.stop.Cancel()
 	c.EmptyFoldersToTransfer = emptyFoldersToTransfer
@@ -1630,7 +1666,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 	if err == nil {
 		return // no error
 	} else {
-		log.Debugf("error from errchan: %v", err)
+		log.Debugf("error from errchan: %v", c.redactError(err))
 		if strings.Contains(err.Error(), "could not secure channel") {
 			return err
 		}
@@ -1639,7 +1675,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 		if isFatalSenderRouteError(err) {
 			return err
 		}
-		log.Debugf("waiting for alternate sender route after: %v", err)
+		log.Debugf("waiting for alternate sender route after: %v", c.redactError(err))
 		err = c.waitForAlternateSenderRoute(errchan, err)
 	}
 	return err
@@ -1740,9 +1776,14 @@ func (c *Client) discoverReceivePeers() (discoveries []peerdiscovery.Discovered)
 
 // Receive will receive a file
 func (c *Client) Receive() (err error) {
+	defer func() { err = c.redactError(err) }()
 	go c.stop.done()
 	defer c.stop.Cancel()
 	defer c.clearReceiveStatus()
+	if _, err = c.receiveFilesystem(); err != nil {
+		return err
+	}
+	defer c.closeReceiveFilesystem()
 	// recipient will look for peers first
 	// and continue if it doesn't find any within 100 ms
 	usingLocal := false
@@ -1773,7 +1814,7 @@ func (c *Client) Receive() (err error) {
 		if err == nil && len(discoveries) > 0 {
 			log.Debugf("all discoveries: %+v", discoveries)
 			for i := 0; i < len(discoveries); i++ {
-				log.Debugf("discovery %d has payload: %+v", i, discoveries[i])
+				log.Debugf("checking discovery result %d", i)
 				if !bytes.HasPrefix(discoveries[i].Payload, []byte("croc")) {
 					log.Debug("skipping discovery")
 					continue
@@ -1871,7 +1912,7 @@ func (c *Client) Receive() (err error) {
 			}
 			err = json.Unmarshal(data, &dataMessage)
 			if err != nil || dataMessage.Kind != "pake2" {
-				log.Debugf("data: %s", data)
+				log.Debugf("received invalid local PAKE response (%d bytes)", len(data))
 				return fmt.Errorf("dataMessage %s pake failed", ipRequest)
 			}
 			if dataMessage.Version != pakekey.ProtocolVersion {
@@ -1906,7 +1947,7 @@ func (c *Client) Receive() (err error) {
 			kA := keys.EncryptionKey
 
 			// secure ipRequest
-			data, err = crypt.Encrypt([]byte(ipRequest), kA)
+			data, err = encryptLocalProbePayload(kA, ipRequest)
 			if err != nil {
 				return
 			}
@@ -1918,11 +1959,11 @@ func (c *Client) Receive() (err error) {
 			if err != nil {
 				return
 			}
-			data, err = crypt.Decrypt(data, kA)
+			data, err = decryptLocalProbePayload(kA, data)
 			if err != nil {
 				return
 			}
-			log.Debugf("ips data: %s", data)
+			log.Debugf("received encrypted local endpoint list (%d bytes)", len(data))
 			if err = json.Unmarshal(data, &ips); err != nil {
 				log.Debugf("ips unmarshal error: %v", err)
 			}
@@ -1961,7 +2002,7 @@ func (c *Client) Receive() (err error) {
 				serverTry := net.JoinHostPort(ip, port)
 				conn, banner2, externalIP, errConn := tcp.ConnectToTCPServer(serverTry, c.Options.RelayPassword, c.Options.RoomName, 500*time.Millisecond)
 				if errConn != nil {
-					log.Debug(errConn)
+					log.Debug(c.redactError(errConn))
 					log.Debug("could not connect to " + serverTry)
 					continue
 				}
@@ -2044,7 +2085,7 @@ func (c *Client) transfer() (err error) {
 		var done bool
 		data, err = c.conn[0].Receive()
 		if err != nil {
-			log.Debugf("got error receiving: %v", err)
+			log.Debugf("got error receiving: %v", c.redactError(err))
 			if !c.Step1ChannelSecured {
 				err = fmt.Errorf("could not secure channel")
 			} else if c.activeTransferStarted() {
@@ -2063,8 +2104,8 @@ func (c *Client) transfer() (err error) {
 		}
 		done, err = c.processMessage(data, attempt)
 		if err != nil {
-			log.Debugf("data: %s", data)
-			log.Debugf("got error processing: %v", err)
+			log.Debugf("failed to process transfer frame (%d bytes)", len(data))
+			log.Debugf("got error processing: %v", c.redactError(err))
 			break
 		}
 		if done {
@@ -2073,12 +2114,12 @@ func (c *Client) transfer() (err error) {
 	}
 	if err := c.ctxErr(); err != nil && c.SuccessfulTransfer {
 		c.SuccessfulTransfer = false
-		log.Tracef("SuccessfulTransfer: %v", err)
+		log.Tracef("SuccessfulTransfer: %v", c.redactError(err))
 	}
 	// purge errors that come from successful transfer
 	if c.SuccessfulTransfer {
 		if err != nil {
-			log.Debugf("purging error: %s", err)
+			log.Debugf("purging error: %s", c.redactError(err))
 		}
 		err = nil
 	}
@@ -2092,20 +2133,10 @@ func (c *Client) transfer() (err error) {
 	}
 
 	if c.SuccessfulTransfer && !c.Options.IsSender {
-		for _, file := range c.FilesToTransfer {
-			if file.TempFile {
-				if unzipErr := utils.UnzipDirectory(".", file.Name); unzipErr != nil {
-					c.SuccessfulTransfer = false
-					err = fmt.Errorf("failed to unzip received archive %s: %w", file.Name, unzipErr)
-					log.Error(err)
-					break
-				}
-				if removeErr := os.Remove(file.Name); removeErr != nil {
-					log.Warnf("error removing %s: %v", file.Name, removeErr)
-				} else {
-					log.Debugf("Removing %s\n", file.Name)
-				}
-			}
+		if extractErr := c.extractReceivedArchives(); extractErr != nil {
+			c.SuccessfulTransfer = false
+			err = extractErr
+			log.Error(err)
 		}
 	}
 
@@ -2120,7 +2151,11 @@ func (c *Client) transfer() (err error) {
 			c.CurrentFile.Close()
 			c.CurrentFileIsClosed = true
 		}
-		if err = os.Remove(pathToFile); err != nil {
+		root, rootErr := c.receiveFilesystem()
+		if rootErr != nil {
+			return rootErr
+		}
+		if err = root.Remove(pathToFile); err != nil {
 			log.Warnf("error removing %s: %v", pathToFile, err)
 		}
 		fmt.Fprint(os.Stderr, "\n")
@@ -2139,16 +2174,54 @@ func (c *Client) transfer() (err error) {
 	return
 }
 
+// extractReceivedArchives treats TempFile only as an archive-candidate hint.
+// The exact received file is opened through the receive root, and a complete
+// ZIP manifest and size validation must succeed before any member is committed.
+// The received archive remains recoverable if validation or extraction fails.
+func (c *Client) extractReceivedArchives() error {
+	root, err := c.receiveFilesystem()
+	if err != nil {
+		return err
+	}
+	for _, file := range c.FilesToTransfer {
+		if !file.TempFile {
+			continue
+		}
+		_, archivePath, pathErr := normalizeReceiveFilePath(file.FolderRemote, file.Name)
+		if pathErr != nil {
+			return errors.New("received archive failed validation or extraction")
+		}
+		archive, openErr := root.Open(archivePath)
+		if openErr != nil {
+			return errors.New("received archive failed validation or extraction")
+		}
+		archiveInfo, statErr := archive.Stat()
+		if statErr == nil {
+			statErr = utils.UnzipDirectoryFromFileAtRootWithLimit(root, archive, archiveInfo.Size())
+		}
+		closeErr := archive.Close()
+		if statErr != nil || closeErr != nil {
+			return errors.New("received archive failed validation or extraction")
+		}
+		if removeErr := root.Remove(archivePath); removeErr != nil {
+			return fmt.Errorf("remove validated received archive: %w", removeErr)
+		}
+		log.Debug("removed validated received archive")
+	}
+	return nil
+}
+
 func (c *Client) createEmptyFolder(i int) (err error) {
 	folderRemote, err := normalizeReceiveFolder(c.EmptyFoldersToTransfer[i].FolderRemote)
 	if err != nil {
 		return
 	}
 	c.EmptyFoldersToTransfer[i].FolderRemote = folderRemote
-	if err = utils.RejectSymlinkPath(".", folderRemote); err != nil {
-		return
+	root, err := c.receiveFilesystem()
+	if err != nil {
+		return err
 	}
-	err = os.MkdirAll(c.EmptyFoldersToTransfer[i].FolderRemote, os.ModePerm)
+	err = root.MkdirAll(c.EmptyFoldersToTransfer[i].FolderRemote, os.ModePerm)
 	if err != nil {
 		return
 	}
@@ -2269,7 +2342,11 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	fmt.Fprintf(output, "\nReceiving (<-%s)\n", peerIP(c.ExternalIPConnected))
 
 	for i := 0; i < len(c.EmptyFoldersToTransfer); i += 1 {
-		_, errExists := os.Stat(c.EmptyFoldersToTransfer[i].FolderRemote)
+		root, rootErr := c.receiveFilesystem()
+		if rootErr != nil {
+			return false, rootErr
+		}
+		_, errExists := root.Stat(c.EmptyFoldersToTransfer[i].FolderRemote)
 		if os.IsNotExist(errExists) {
 			err = c.createEmptyFolder(i)
 			if err != nil {
@@ -2533,7 +2610,7 @@ func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error
 }
 
 func (c *Client) processExternalIP(m message.Message) (done bool, err error) {
-	log.Debugf("received external IP: %+v", m)
+	log.Debug("received encrypted external endpoint metadata")
 	if c.Options.IsSender {
 		c.waitForExternalIP()
 		localIPs, _ := utils.GetLocalIPs()
@@ -2548,7 +2625,7 @@ func (c *Client) processExternalIP(m message.Message) (done bool, err error) {
 		}
 	}
 	c.ExternalIPConnected = preferredPeerIP(c.ExternalIPConnected, m.Message)
-	log.Debugf("connected as %s -> %s", c.ExternalIP, c.ExternalIPConnected)
+	log.Debug("peer endpoint metadata exchange completed")
 	c.Step1ChannelSecured = true
 	if !c.Options.IsSender {
 		c.setReceiveStatus(receiveStatusWaitingForFileList)
@@ -2650,12 +2727,12 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		c.Step3RecipientRequestFile = false
 	}
 	if err != nil {
-		log.Debugf("got error from processing message: %v", err)
+		log.Debugf("got error from processing message: %v", c.redactError(err))
 		return
 	}
 	err = c.updateState(attempt)
 	if err != nil {
-		log.Debugf("got error from updating state: %v", err)
+		log.Debugf("got error from updating state: %v", c.redactError(err))
 		return
 	}
 	return
@@ -2729,21 +2806,20 @@ func (c *Client) recipientInitializeFile() (err error) {
 	c.FilesToTransfer[c.FilesToTransferCurrentNum].Name = path.Base(pathToFile)
 	folderForFile, _ := filepath.Split(pathToFile)
 	folderForFileBase := filepath.Base(folderForFile)
-	if err = utils.RejectSymlinkPath(".", folderForFile); err != nil {
-		return
+	root, err := c.receiveFilesystem()
+	if err != nil {
+		return err
 	}
 	if folderForFileBase != "." && folderForFileBase != "" {
-		if err := os.MkdirAll(folderForFile, os.ModePerm); err != nil {
+		if err := root.MkdirAll(folderForFile, os.ModePerm); err != nil {
 			log.Errorf("can't create %s: %v", folderForFile, err)
+			return err
 		}
 	}
 	var errOpen error
-	if err = rejectSymlinkDestination(pathToFile); err != nil {
-		return
-	}
-	c.CurrentFile, errOpen = os.OpenFile(
+	c.CurrentFile, errOpen = root.OpenFile(
 		pathToFile,
-		os.O_WRONLY, 0o666)
+		os.O_RDWR, 0o666)
 	var truncate bool // default false
 	c.CurrentFileChunkRanges = []int64{}
 	if errOpen == nil {
@@ -2759,16 +2835,13 @@ func (c *Client) recipientInitializeFile() (err error) {
 			)
 		}
 	} else {
-		if err = rejectSymlinkDestination(pathToFile); err != nil {
-			return
-		}
-		c.CurrentFile, errOpen = os.Create(pathToFile)
+		c.CurrentFile, errOpen = root.OpenFile(pathToFile, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o666)
 		if errOpen != nil {
 			errOpen = fmt.Errorf("could not create %s: %w", pathToFile, errOpen)
 			log.Error(errOpen)
 			return errOpen
 		}
-		errChmod := os.Chmod(pathToFile, c.FilesToTransfer[c.FilesToTransferCurrentNum].Mode.Perm())
+		errChmod := c.CurrentFile.Chmod(c.FilesToTransfer[c.FilesToTransferCurrentNum].Mode.Perm())
 		if errChmod != nil {
 			log.Error(errChmod)
 		}
@@ -2885,15 +2958,13 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	}
 	fileInfo.FolderRemote = folderRemote
 	fileInfo.Name = path.Base(pathToFile)
-	if err = utils.RejectSymlinkPath(".", filepath.Dir(pathToFile)); err != nil {
-		return
+	root, err := c.receiveFilesystem()
+	if err != nil {
+		return err
 	}
-	if !utils.Exists(fileInfo.FolderRemote) {
-		err = os.MkdirAll(fileInfo.FolderRemote, os.ModePerm)
-		if err != nil {
-			log.Error(err)
-			return
-		}
+	if err = root.MkdirAll(fileInfo.FolderRemote, os.ModePerm); err != nil {
+		log.Error(err)
+		return err
 	}
 	if fileInfo.Symlink != "" {
 		if err = validateReceiveSymlinkTarget(fileInfo.FolderRemote, fileInfo.Symlink); err != nil {
@@ -2901,18 +2972,17 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 		}
 		log.Debug("creating symlink")
 		// remove symlink if it exists
-		if _, errExists := os.Lstat(pathToFile); errExists == nil {
-			os.Remove(pathToFile)
+		if _, errExists := root.Lstat(pathToFile); errExists == nil {
+			if err = root.Remove(pathToFile); err != nil {
+				return err
+			}
 		}
-		err = os.Symlink(fileInfo.Symlink, pathToFile)
+		err = root.Symlink(fileInfo.Symlink, pathToFile)
 		if err != nil {
 			return
 		}
 	} else {
-		if err = rejectSymlinkDestination(pathToFile); err != nil {
-			return
-		}
-		emptyFile, errCreate := os.Create(pathToFile)
+		emptyFile, errCreate := root.OpenFile(pathToFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o666)
 		if errCreate != nil {
 			log.Error(errCreate)
 			err = errCreate
@@ -2940,6 +3010,10 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 	// find the next file to transfer and send that number
 	// if the files are the same size, then look for missing chunks
 	finished := true
+	root, err := c.receiveFilesystem()
+	if err != nil {
+		return err
+	}
 	for i, fileInfo := range c.FilesToTransfer {
 		if _, ok := c.FilesHasFinished[i]; ok {
 			continue
@@ -2948,7 +3022,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			continue
 		}
 		log.Debugf("checking %+v", fileInfo)
-		recipientFileInfo, errRecipientFile := os.Lstat(path.Join(fileInfo.FolderRemote, fileInfo.Name))
+		recipientFileInfo, errRecipientFile := root.Lstat(path.Join(fileInfo.FolderRemote, fileInfo.Name))
 		var errHash error
 		var fileHash []byte
 		if errRecipientFile == nil && recipientFileInfo.Size() == fileInfo.Size {
@@ -3023,7 +3097,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			c.numberOfUnchangedFiles++
 
 			if !fileInfo.ModTime.IsZero() {
-				if err := os.Chtimes(path.Join(fileInfo.FolderRemote, fileInfo.Name), fileInfo.ModTime, fileInfo.ModTime); err != nil {
+				if err := root.Chtimes(path.Join(fileInfo.FolderRemote, fileInfo.Name), fileInfo.ModTime, fileInfo.ModTime); err != nil {
 					log.Warnf("chtimes %v: %v", fileInfo.ModTime, err)
 				} else {
 					log.Debugf("chtimes %v", fileInfo.ModTime)
@@ -3258,7 +3332,26 @@ func (c *Client) receiveData(i int, dataConn *comm.Comm, attempt *transferAttemp
 					c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
 					c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
 				)
-				b, _ := os.ReadFile(pathToFile)
+				root, rootErr := c.receiveFilesystem()
+				if rootErr != nil {
+					attempt.report(rootErr)
+					return
+				}
+				file, openErr := root.Open(pathToFile)
+				if openErr != nil {
+					attempt.report(openErr)
+					return
+				}
+				b, readErr := io.ReadAll(file)
+				closeErr := file.Close()
+				if readErr != nil {
+					attempt.report(readErr)
+					return
+				}
+				if closeErr != nil {
+					attempt.report(closeErr)
+					return
+				}
 				fmt.Print(string(b))
 			}
 			log.Debug("sending close-sender")

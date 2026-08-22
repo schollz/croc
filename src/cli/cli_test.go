@@ -130,6 +130,62 @@ func TestRelayRejectsNonPositiveHandshakeGuards(t *testing.T) {
 	}
 }
 
+func TestRelayAdmissionLimitConfiguration(t *testing.T) {
+	for _, key := range []string{"CROC_SOURCE_JOIN_LIMIT", "CROC_ROOM_JOIN_LIMIT", "CROC_JOIN_LIMIT_WINDOW"} {
+		unsetEnv(t, key)
+	}
+	t.Run("defaults", func(t *testing.T) {
+		got := runRelayWithCapturedConfig(t, []string{"croc", "relay"})
+		if got.sourceJoinLimit != tcp.DEFAULT_SOURCE_JOIN_LIMIT ||
+			got.roomJoinLimit != tcp.DEFAULT_ROOM_JOIN_LIMIT ||
+			got.joinLimitWindow != tcp.DEFAULT_JOIN_LIMIT_WINDOW {
+			t.Fatalf("unexpected default admission configuration: %+v", got)
+		}
+	})
+	t.Run("flags", func(t *testing.T) {
+		got := runRelayWithCapturedConfig(t, []string{
+			"croc", "relay",
+			"--source-join-limit", "12",
+			"--room-join-limit", "5",
+			"--join-limit-window", "45s",
+		})
+		if got.sourceJoinLimit != 12 || got.roomJoinLimit != 5 || got.joinLimitWindow != 45*time.Second {
+			t.Fatalf("unexpected flag admission configuration: %+v", got)
+		}
+	})
+	t.Run("environment", func(t *testing.T) {
+		t.Setenv("CROC_SOURCE_JOIN_LIMIT", "13")
+		t.Setenv("CROC_ROOM_JOIN_LIMIT", "4")
+		t.Setenv("CROC_JOIN_LIMIT_WINDOW", "30s")
+		got := runRelayWithCapturedConfig(t, []string{"croc", "relay"})
+		if got.sourceJoinLimit != 13 || got.roomJoinLimit != 4 || got.joinLimitWindow != 30*time.Second {
+			t.Fatalf("unexpected environment admission configuration: %+v", got)
+		}
+	})
+}
+
+func TestRelayRejectsNonPositiveAdmissionLimits(t *testing.T) {
+	tests := []struct {
+		arg  string
+		want string
+	}{
+		{arg: "--source-join-limit=0", want: "--source-join-limit must be positive"},
+		{arg: "--room-join-limit=-1", want: "--room-join-limit must be positive"},
+		{arg: "--join-limit-window=0s", want: "--join-limit-window must be positive"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.arg, func(t *testing.T) {
+			for _, key := range []string{"CROC_SOURCE_JOIN_LIMIT", "CROC_ROOM_JOIN_LIMIT", "CROC_JOIN_LIMIT_WINDOW"} {
+				unsetEnv(t, key)
+			}
+			err := newApp().Run([]string{"croc", "relay", tt.arg})
+			if err == nil || err.Error() != tt.want {
+				t.Fatalf("error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
 func runRelayWithCapturedMaxRooms(t *testing.T, args []string) int {
 	t.Helper()
 	return runRelayWithCapturedConfig(t, args).maxRoomsOpen
@@ -139,6 +195,9 @@ type capturedRelayConfig struct {
 	maxRoomsOpen         int
 	maxPendingHandshakes int
 	handshakeTimeout     time.Duration
+	sourceJoinLimit      int
+	roomJoinLimit        int
+	joinLimitWindow      time.Duration
 }
 
 func runRelayWithCapturedConfig(t *testing.T, args []string) capturedRelayConfig {
@@ -153,6 +212,9 @@ func runRelayWithCapturedConfig(t *testing.T, args []string) capturedRelayConfig
 			got.maxRoomsOpen = ctx.Int("max-rooms-open")
 			got.maxPendingHandshakes = ctx.Int("max-pending-handshakes")
 			got.handshakeTimeout = ctx.Duration("handshake-timeout")
+			got.sourceJoinLimit = ctx.Int("source-join-limit")
+			got.roomJoinLimit = ctx.Int("room-join-limit")
+			got.joinLimitWindow = ctx.Duration("join-limit-window")
 			return nil
 		}
 		if err := app.Run(args); err != nil {

@@ -19,6 +19,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/schollz/croc/v11/src/receivefs"
 )
 
 const (
@@ -369,18 +371,20 @@ func ValidateManifest(manifest Manifest, maxBytes int64) error {
 		return errors.New("stored-transfer byte limit must be positive")
 	}
 
-	names := make(map[string]struct{}, len(manifest.Files))
-	var total int64
-	nextChunk := 0
+	entries := make([]receivefs.Entry, 0, len(manifest.Files))
 	for index, file := range manifest.Files {
-		if file.Name == "" || file.Name != path.Base(file.Name) ||
-			strings.ContainsAny(file.Name, "/\\\x00") || file.Name == "." || file.Name == ".." {
+		clean, pathErr := receivefs.Normalize(file.Name, false)
+		if pathErr != nil || clean != path.Base(clean) {
 			return fmt.Errorf("stored-transfer file %d has an unsafe name", index)
 		}
-		if _, exists := names[file.Name]; exists {
-			return fmt.Errorf("duplicate stored-transfer filename %q", file.Name)
-		}
-		names[file.Name] = struct{}{}
+		entries = append(entries, receivefs.Entry{Path: clean, Kind: receivefs.KindFile})
+	}
+	if _, err := receivefs.ValidateEntries(entries); err != nil {
+		return fmt.Errorf("stored-transfer manifest has unsafe or duplicate names: %w", err)
+	}
+	var total int64
+	nextChunk := 0
+	for _, file := range manifest.Files {
 		if file.Size < 0 || file.Size > maxBytes-total {
 			return errors.New("stored transfer exceeds the configured byte limit")
 		}

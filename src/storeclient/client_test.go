@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/schollz/croc/v11/src/receivefs"
 	"github.com/schollz/croc/v11/src/store"
 	"github.com/schollz/croc/v11/src/storecrypto"
 	"github.com/stretchr/testify/assert"
@@ -357,6 +358,49 @@ func TestReceiveRenewsAnExpiredPersistedClaim(t *testing.T) {
 		Callbacks{},
 	))
 	assert.Equal(t, []byte("resume me"), mustReadFile(t, filepath.Join(output, "resume.txt")))
+}
+
+func TestStoredStateAtomicWriteReplacesSymlinkWithoutFollowingIt(t *testing.T) {
+	output := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside-state.json")
+	require.NoError(t, os.WriteFile(outside, []byte("keep"), 0o600))
+	statePath := filepath.Join(output, ".croc-store-state.json")
+	if err := os.Symlink(outside, statePath); err != nil {
+		t.Skipf("symlinks are unavailable: %v", err)
+	}
+	root, err := receivefs.OpenRoot(output)
+	require.NoError(t, err)
+	defer root.Close()
+	state := downloadState{Version: storecrypto.Version, Completed: map[int]bool{}, Renamed: map[string]bool{}}
+	require.NoError(t, writeStateRoot(root, filepath.Base(statePath), state))
+	assert.Equal(t, []byte("keep"), mustReadFile(t, outside))
+	info, err := os.Lstat(statePath)
+	require.NoError(t, err)
+	assert.Zero(t, info.Mode()&os.ModeSymlink)
+}
+
+func TestStoredFinalRenameReplacesSymlinkWithoutFollowingIt(t *testing.T) {
+	output := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.txt")
+	require.NoError(t, os.WriteFile(outside, []byte("keep"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(output, "payload.part"), []byte("payload"), 0o600))
+	if err := os.Symlink(outside, filepath.Join(output, "payload.txt")); err != nil {
+		t.Skipf("symlinks are unavailable: %v", err)
+	}
+	root, err := receivefs.OpenRoot(output)
+	require.NoError(t, err)
+	defer root.Close()
+	require.NoError(t, installVerifiedFile(
+		context.Background(),
+		storecrypto.ManifestFile{
+			Name: "payload.txt", SHA256: storecrypto.EncodedSHA256([]byte("payload")), Modified: time.Now(),
+		},
+		"payload.part",
+		root,
+		Callbacks{},
+	))
+	assert.Equal(t, []byte("keep"), mustReadFile(t, outside))
+	assert.Equal(t, []byte("payload"), mustReadFile(t, filepath.Join(output, "payload.txt")))
 }
 
 func mustReadFile(t *testing.T, path string) []byte {

@@ -21,6 +21,7 @@ import (
 
 	"github.com/schollz/croc/v11/src/message"
 	"github.com/schollz/croc/v11/src/models"
+	"github.com/schollz/croc/v11/src/pakekey"
 	"github.com/schollz/croc/v11/src/tcp"
 	"github.com/schollz/croc/v11/src/utils"
 	log "github.com/schollz/logger"
@@ -146,6 +147,27 @@ func TestWebReceiveURL(t *testing.T) {
 	)
 }
 
+func TestClientErrorsRedactSharedCodeAndDerivedSecrets(t *testing.T) {
+	sentinel := errors.New("sentinel")
+	client := &Client{
+		Options:        Options{SharedSecret: "film-alibi-jet", RoomName: "derived-room"},
+		pakePassphrase: "alibi-jet",
+		baseRoomName:   "base-room",
+	}
+	err := client.redactError(fmt.Errorf(
+		"code film-alibi-jet passphrase alibi-jet rooms derived-room base-room: %w",
+		sentinel,
+	))
+	for _, secret := range []string{"film-alibi-jet", "alibi-jet", "derived-room", "base-room"} {
+		if strings.Contains(err.Error(), secret) {
+			t.Fatalf("secret %q remained in error: %q", secret, err)
+		}
+	}
+	if !errors.Is(err, sentinel) {
+		t.Fatal("redaction lost error identity")
+	}
+}
+
 func TestRejectsUnsupportedPeerPakeVersion(t *testing.T) {
 	client := &Client{}
 	for _, test := range []struct {
@@ -174,6 +196,48 @@ func TestRejectsUnsupportedPeerPakeVersion(t *testing.T) {
 				t.Fatalf("version error is not actionable: %v", versionErr)
 			}
 		})
+	}
+}
+
+func TestLocalIPExchangeRequiresAuthenticatedEncryption(t *testing.T) {
+	key := bytes.Repeat([]byte{0x42}, 32)
+	ciphertext, err := encryptLocalProbePayload(key, ipRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(ciphertext, ipRequest) || bytes.Equal(ciphertext, ipRequest) {
+		t.Fatalf("local IP request was visible in ciphertext: %x", ciphertext)
+	}
+	plaintext, err := decryptLocalProbePayload(key, ciphertext)
+	if err != nil || !bytes.Equal(plaintext, ipRequest) {
+		t.Fatalf("local IP request round trip = %q, %v", plaintext, err)
+	}
+	if _, err = encryptLocalProbePayload(nil, ipRequest); err == nil {
+		t.Fatal("local IP request was allowed before PAKE authentication")
+	}
+	if _, err = decryptLocalProbePayload(nil, ciphertext); err == nil {
+		t.Fatal("local IP response was allowed before PAKE authentication")
+	}
+}
+
+func TestFailedPakeConfirmationDoesNotActivateSecureChannel(t *testing.T) {
+	client := &Client{
+		pakeConfirmationPending: true,
+		pakeKeys: pakekey.Keys{
+			EncryptionKey: make([]byte, 32),
+			ConfirmationB: bytes.Repeat([]byte{0x22}, 32),
+		},
+	}
+	err := client.processMessagePakeConfirm(message.Message{
+		Type:    message.TypePAKEConfirm,
+		Version: pakekey.ProtocolVersion,
+		Bytes:   bytes.Repeat([]byte{0x23}, 32),
+	}, nil)
+	if err == nil || !strings.Contains(err.Error(), "confirmation failed") {
+		t.Fatalf("confirmation error = %v", err)
+	}
+	if client.Key != nil || client.dataAEAD != nil || !client.pakeConfirmationPending {
+		t.Fatal("failed confirmation activated or cleared the pending secure channel")
 	}
 }
 
@@ -404,6 +468,129 @@ func TestHostileDuplicateDestinationRejected(t *testing.T) {
 	assert.True(t, done)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate destination path")
+}
+
+func TestHostilePortableDestinationNamesRejected(t *testing.T) {
+	tests := []struct {
+		name  string
+		files []FileInfo
+	}{
+		{name: "absolute", files: []FileInfo{{Name: "file.txt", FolderRemote: "/absolute"}}},
+		{name: "drive absolute", files: []FileInfo{{Name: "file.txt", FolderRemote: `C:\absolute`}}},
+		{name: "control", files: []FileInfo{{Name: "escape\x1b.txt", FolderRemote: "."}}},
+		{name: "device", files: []FileInfo{{Name: "CON.txt", FolderRemote: "."}}},
+		{name: "alternate data stream", files: []FileInfo{{Name: "file.txt:stream", FolderRemote: "."}}},
+		{name: "case fold collision", files: []FileInfo{
+			{Name: "README", FolderRemote: "."},
+			{Name: "readme", FolderRemote: "."},
+		}},
+		{name: "normalization collision", files: []FileInfo{
+			{Name: "é.txt", FolderRemote: "."},
+			{Name: "e\u0301.txt", FolderRemote: "."},
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, _, err := validateReceiveMetadata(tt.files, nil); err == nil {
+				t.Fatal("hostile metadata was accepted")
+			}
+		})
+	}
+}
+
+func TestMarkedArchiveRequiresCompleteValidationBeforeExtraction(t *testing.T) {
+	receiveDirectory := t.TempDir()
+	t.Chdir(receiveDirectory)
+	archivePath := filepath.Join(receiveDirectory, "candidate.zip")
+	writeTestZip(t, archivePath, map[string]string{
+		"safe.txt":       "safe",
+		"../escaped.txt": "escape",
+	})
+	client := &Client{FilesToTransfer: []FileInfo{{
+		Name: "candidate.zip", FolderRemote: ".", TempFile: true,
+	}}}
+	defer client.closeReceiveFilesystem()
+
+	err := client.extractReceivedArchives()
+	if err == nil || err.Error() != "received archive failed validation or extraction" {
+		t.Fatalf("extraction error = %v", err)
+	}
+	if _, statErr := os.Stat(archivePath); statErr != nil {
+		t.Fatalf("rejected archive was not retained: %v", statErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(receiveDirectory, "safe.txt")); !os.IsNotExist(statErr) {
+		t.Fatalf("archive was partially extracted: %v", statErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(filepath.Dir(receiveDirectory), "escaped.txt")); !os.IsNotExist(statErr) {
+		t.Fatalf("archive escaped the receive root: %v", statErr)
+	}
+}
+
+func TestMarkedValidatedArchiveExtractsThenCleansUp(t *testing.T) {
+	receiveDirectory := t.TempDir()
+	t.Chdir(receiveDirectory)
+	archivePath := filepath.Join(receiveDirectory, "candidate.zip")
+	writeTestZip(t, archivePath, map[string]string{"folder/payload.txt": "payload"})
+	client := &Client{FilesToTransfer: []FileInfo{{
+		Name: "candidate.zip", FolderRemote: ".", TempFile: true,
+	}}}
+	defer client.closeReceiveFilesystem()
+
+	if err := client.extractReceivedArchives(); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(filepath.Join(receiveDirectory, "folder", "payload.txt"))
+	if err != nil || string(contents) != "payload" {
+		t.Fatalf("extracted contents = %q, %v", contents, err)
+	}
+	if _, err = os.Stat(archivePath); !os.IsNotExist(err) {
+		t.Fatalf("validated archive was not removed: %v", err)
+	}
+}
+
+func TestUnmarkedArchiveRemainsAnOrdinaryFile(t *testing.T) {
+	receiveDirectory := t.TempDir()
+	t.Chdir(receiveDirectory)
+	archivePath := filepath.Join(receiveDirectory, "ordinary.zip")
+	writeTestZip(t, archivePath, map[string]string{"payload.txt": "payload"})
+	client := &Client{FilesToTransfer: []FileInfo{{
+		Name: "ordinary.zip", FolderRemote: ".", TempFile: false,
+	}}}
+	defer client.closeReceiveFilesystem()
+
+	if err := client.extractReceivedArchives(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(archivePath); err != nil {
+		t.Fatalf("ordinary archive was removed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(receiveDirectory, "payload.txt")); !os.IsNotExist(err) {
+		t.Fatalf("ordinary archive was extracted: %v", err)
+	}
+}
+
+func writeTestZip(t *testing.T, name string, entries map[string]string) {
+	t.Helper()
+	file, err := os.Create(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writer := zip.NewWriter(file)
+	for entryName, contents := range entries {
+		entry, createErr := writer.CreateHeader(&zip.FileHeader{Name: entryName, Method: zip.Store})
+		if createErr != nil {
+			t.Fatal(createErr)
+		}
+		if _, writeErr := entry.Write([]byte(contents)); writeErr != nil {
+			t.Fatal(writeErr)
+		}
+	}
+	if err = writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err = file.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestHostileExistingSymlinkDestinationRejected(t *testing.T) {
@@ -2181,17 +2368,17 @@ func TestAllCtx(t *testing.T) {
 	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
 
 	sender, err := NewCtx(ctx, Options{
-		IsSender:      true,
-		SharedSecret:  uniqueSecret,
-		Debug:         true,
-		RelayAddress:  "127.0.0.1:8290",
-		RelayPassword: "pass123",
-		Stdout:        false,
-		NoPrompt:      true,
-		DisableLocal:  true,
-		Curve:         "siec",
-		Overwrite:     true,
-		GitIgnore:     false,
+		IsSender:       true,
+		SharedSecret:   uniqueSecret,
+		Debug:          true,
+		RelayAddress:   "127.0.0.1:8290",
+		RelayPassword:  "pass123",
+		Stdout:         false,
+		NoPrompt:       true,
+		DisableLocal:   true,
+		Curve:          "siec",
+		Overwrite:      true,
+		GitIgnore:      false,
 		ThrottleUpload: "512K",
 	})
 	if err != nil {
@@ -2304,17 +2491,17 @@ func TestSendCtx(t *testing.T) {
 	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
 
 	sender, err := NewCtx(ctx2, Options{
-		IsSender:      true,
-		SharedSecret:  uniqueSecret,
-		Debug:         true,
-		RelayAddress:  "127.0.0.1:8292",
-		RelayPassword: "pass123",
-		Stdout:        false,
-		NoPrompt:      true,
-		DisableLocal:  true,
-		Curve:         "siec",
-		Overwrite:     true,
-		GitIgnore:     false,
+		IsSender:       true,
+		SharedSecret:   uniqueSecret,
+		Debug:          true,
+		RelayAddress:   "127.0.0.1:8292",
+		RelayPassword:  "pass123",
+		Stdout:         false,
+		NoPrompt:       true,
+		DisableLocal:   true,
+		Curve:          "siec",
+		Overwrite:      true,
+		GitIgnore:      false,
 		ThrottleUpload: "512K",
 	})
 	if err != nil {
@@ -2427,17 +2614,17 @@ func TestReceiveCtx(t *testing.T) {
 	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
 
 	sender, err := NewCtx(ctx, Options{
-		IsSender:      true,
-		SharedSecret:  uniqueSecret,
-		Debug:         true,
-		RelayAddress:  "127.0.0.1:8294",
-		RelayPassword: "pass123",
-		Stdout:        false,
-		NoPrompt:      true,
-		DisableLocal:  true,
-		Curve:         "siec",
-		Overwrite:     true,
-		GitIgnore:     false,
+		IsSender:       true,
+		SharedSecret:   uniqueSecret,
+		Debug:          true,
+		RelayAddress:   "127.0.0.1:8294",
+		RelayPassword:  "pass123",
+		Stdout:         false,
+		NoPrompt:       true,
+		DisableLocal:   true,
+		Curve:          "siec",
+		Overwrite:      true,
+		GitIgnore:      false,
 		ThrottleUpload: "512K",
 	})
 	if err != nil {
@@ -2550,17 +2737,17 @@ func TestRunCtx(t *testing.T) {
 	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
 
 	sender, err := NewCtx(ctx, Options{
-		IsSender:      true,
-		SharedSecret:  uniqueSecret,
-		Debug:         true,
-		RelayAddress:  "127.0.0.1:8296",
-		RelayPassword: "pass123",
-		Stdout:        false,
-		NoPrompt:      true,
-		DisableLocal:  true,
-		Curve:         "siec",
-		Overwrite:     true,
-		GitIgnore:     false,
+		IsSender:       true,
+		SharedSecret:   uniqueSecret,
+		Debug:          true,
+		RelayAddress:   "127.0.0.1:8296",
+		RelayPassword:  "pass123",
+		Stdout:         false,
+		NoPrompt:       true,
+		DisableLocal:   true,
+		Curve:          "siec",
+		Overwrite:      true,
+		GitIgnore:      false,
 		ThrottleUpload: "512K",
 	})
 	if err != nil {

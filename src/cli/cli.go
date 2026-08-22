@@ -109,6 +109,9 @@ func newApp() *cli.App {
 				&cli.IntFlag{Name: "max-rooms-open", Value: tcp.DEFAULT_MAX_ROOMS_OPEN, Usage: "maximum waiting rooms per relay port", EnvVars: []string{"CROC_MAX_ROOMS_OPEN"}},
 				&cli.IntFlag{Name: "max-pending-handshakes", Value: tcp.DEFAULT_MAX_PENDING_HANDSHAKES, Usage: "maximum incomplete handshakes per relay port", EnvVars: []string{"CROC_MAX_PENDING_HANDSHAKES"}},
 				&cli.DurationFlag{Name: "handshake-timeout", Value: tcp.DEFAULT_HANDSHAKE_TIMEOUT, Usage: "maximum time for an initial relay handshake", EnvVars: []string{"CROC_HANDSHAKE_TIMEOUT"}},
+				&cli.IntFlag{Name: "source-join-limit", Value: tcp.DEFAULT_SOURCE_JOIN_LIMIT, Usage: "maximum room joins per source IP in the admission window", EnvVars: []string{"CROC_SOURCE_JOIN_LIMIT"}},
+				&cli.IntFlag{Name: "room-join-limit", Value: tcp.DEFAULT_ROOM_JOIN_LIMIT, Usage: "maximum joins per room in the admission window", EnvVars: []string{"CROC_ROOM_JOIN_LIMIT"}},
+				&cli.DurationFlag{Name: "join-limit-window", Value: tcp.DEFAULT_JOIN_LIMIT_WINDOW, Usage: "sliding window for relay admission limits", EnvVars: []string{"CROC_JOIN_LIMIT_WINDOW"}},
 			},
 		},
 		{
@@ -1016,6 +1019,18 @@ func relay(c *cli.Context) (err error) {
 	if handshakeTimeout <= 0 {
 		return fmt.Errorf("--handshake-timeout must be positive")
 	}
+	sourceJoinLimit := c.Int("source-join-limit")
+	if sourceJoinLimit <= 0 {
+		return fmt.Errorf("--source-join-limit must be positive")
+	}
+	roomJoinLimit := c.Int("room-join-limit")
+	if roomJoinLimit <= 0 {
+		return fmt.Errorf("--room-join-limit must be positive")
+	}
+	joinLimitWindow := c.Duration("join-limit-window")
+	if joinLimitWindow <= 0 {
+		return fmt.Errorf("--join-limit-window must be positive")
+	}
 	debugString := "info"
 	if c.Bool("debug") {
 		debugString = "debug"
@@ -1078,6 +1093,7 @@ func relay(c *cli.Context) (err error) {
 				tcp.WithMaxRoomsOpen(maxRoomsOpen),
 				tcp.WithMaxPendingHandshakes(maxPendingHandshakes),
 				tcp.WithHandshakeTimeout(handshakeTimeout),
+				tcp.WithAdmissionLimits(sourceJoinLimit, roomJoinLimit, joinLimitWindow),
 			)
 			if err != nil {
 				panic(err)
@@ -1093,6 +1109,7 @@ func relay(c *cli.Context) (err error) {
 		tcp.WithMaxRoomsOpen(maxRoomsOpen),
 		tcp.WithMaxPendingHandshakes(maxPendingHandshakes),
 		tcp.WithHandshakeTimeout(handshakeTimeout),
+		tcp.WithAdmissionLimits(sourceJoinLimit, roomJoinLimit, joinLimitWindow),
 		tcp.WithRoomPairedCallback(roomPaired),
 	)
 }
