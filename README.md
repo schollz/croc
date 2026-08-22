@@ -62,7 +62,8 @@ sudo port install croc
 
 ### On Windows
 
-You can install the latest release with [Scoop](https://scoop.sh/), [Chocolatey](https://chocolatey.org/), or [Winget](https://learn.microsoft.com/windows/package-manager/):
+You can install the latest release with [Scoop](https://scoop.sh/) or
+[Chocolatey](https://chocolatey.org/):
 
 ```bash
 scoop install croc
@@ -70,10 +71,6 @@ scoop install croc
 
 ```bash
 choco install croc
-```
-
-```bash
-winget install schollz.croc
 ```
 
 ### Using nix-env

@@ -13,8 +13,8 @@ Homebrew build the tagged source and require it to contain the release version.
    creates a draft GitHub release containing those artifacts and their checksums.
 4. Review the generated notes and asset list, then publish the draft release.
 
-Publishing the draft triggers the Docker and Winget workflows. A failed workflow
-may be rerun with the same tag while the release is absent or still a draft; the
+Publishing the draft triggers the Docker workflow. A failed workflow may be
+rerun with the same tag while the release is absent or still a draft; the
 workflow rejects a mismatched tag or a release that has already been published.
 
 Before publishing, verify that the workflow's native binary checks report both
@@ -65,16 +65,14 @@ test "$(gh release view "${RELEASE_TAG}" --json assets --jq '.assets | length')"
 ```
 
 Review the generated notes and asset names before publishing. Publishing is the
-point that triggers the Docker and Winget workflows:
+point that triggers the Docker workflow:
 
 ```bash
 gh release edit "${RELEASE_TAG}" --draft=false --latest
 gh run list --workflow deploy.yml --limit 3 \
   --json databaseId,displayTitle,status,conclusion,url
-gh run list --workflow winget.yml --limit 3 \
-  --json databaseId,displayTitle,status,conclusion,url
 ```
 
-Use `gh run watch RUN_ID --exit-status` for each downstream run that needs to be
-followed. Never use `gh release create` or `git tag` for this release flow; the
-Prepare Release workflow owns the version commit, tag, artifacts, and draft.
+Use `gh run watch RUN_ID --exit-status` to follow the downstream run. Never use
+`gh release create` or `git tag` for this release flow. The Prepare Release
+workflow owns the version commit, tag, artifacts, and draft.
