@@ -76,6 +76,33 @@ func GetConfigDir(requireValidPath bool) (homedir string, err error) {
 	return
 }
 
+func GetSendConfigFile(requireValidPath bool) string {
+	configFile, err := GetConfigDir(requireValidPath)
+	if err != nil {
+		log.Error(err)
+		return ""
+	}
+	return path.Join(configFile, "send.json")
+}
+
+func GetClassicConfigFile(requireValidPath bool) string {
+	configFile, err := GetConfigDir(requireValidPath)
+	if err != nil {
+		log.Error(err)
+		return ""
+	}
+	return path.Join(configFile, "classic_enabled")
+}
+
+func GetReceiveConfigFile(requireValidPath bool) (string, error) {
+	configFile, err := GetConfigDir(requireValidPath)
+	if err != nil {
+		log.Error(err)
+		return "", err
+	}
+	return path.Join(configFile, "receive.json"), nil
+}
+
 // Exists reports whether the named file or directory exists.
 func Exists(name string) bool {
 	if _, err := os.Stat(name); err != nil {
@@ -353,6 +380,19 @@ func ByteCountDecimal(b int64) string {
 		return fmt.Sprintf("%d B", b)
 	}
 	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "kMGTPE"[exp])
+}
+
+func ByteCountDecimalUnsigned(b uint64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := uint64(unit), 0
 	for n := b / unit; n >= unit; n /= unit {
 		div *= unit
 		exp++

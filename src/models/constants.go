@@ -22,6 +22,7 @@ var (
 	DEFAULT_PORT       = "9009"
 	DEFAULT_PASSPHRASE = "pass123"
 	INTERNAL_DNS       = false
+	DEFAULT_MULTICAST  = "239.255.255.250"
 )
 
 // publicDNS are servers to be queried if a local lookup fails

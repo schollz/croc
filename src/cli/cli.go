@@ -18,6 +18,7 @@ import (
 	"github.com/schollz/croc/v11/src/codephrase"
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/croc"
+	"github.com/schollz/croc/v11/src/doctor"
 	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/publicrelay"
 	"github.com/schollz/croc/v11/src/storeclient"
@@ -115,6 +116,24 @@ func newApp() *cli.App {
 			},
 		},
 		{
+			Name:        "doctor",
+			Usage:       "run local diagnostics for common transfer problems",
+			Description: "diagnose relay reachability, config/permissions, output folder, proxy, etc.",
+			HelpName:    "croc doctor",
+			Action:      call_doctor,
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, EnvVars: []string{"CROC_RELAY"}},
+				&cli.StringFlag{Name: "pass", Value: models.DEFAULT_PASSPHRASE, EnvVars: []string{"CROC_PASS"}},
+				&cli.StringFlag{Name: "out", Value: "."},
+				&cli.StringFlag{Name: "store-url", EnvVars: []string{"CROC_STORE_URL"}},
+				&cli.StringFlag{Name: "socks5", EnvVars: []string{"SOCKS5_PROXY"}},
+				&cli.StringFlag{Name: "connect", EnvVars: []string{"HTTP_PROXY"}},
+				&cli.BoolFlag{Name: "json"},
+				&cli.BoolFlag{Name: "local", Usage: "force to use only local connections"},
+				&cli.StringFlag{Name: "multicast", Value: models.DEFAULT_MULTICAST, Usage: "multicast address to use for local discovery"},
+			},
+		},
+		{
 			Name:   "generate-fish-completion",
 			Usage:  "generate fish completion and output to stdout",
 			Hidden: true,
@@ -146,7 +165,7 @@ func newApp() *cli.App {
 		&cli.BoolFlag{Name: "disable-clipboard", Usage: "disable copy to clipboard"},
 		&cli.BoolFlag{Name: "extended-clipboard", Usage: "copy full command with secret as env variable to clipboard"},
 		&cli.StringFlag{Name: "revoke", Usage: "revoke a stored transfer using its local sender receipt"},
-		&cli.StringFlag{Name: "multicast", Value: "239.255.255.250", Usage: "multicast address to use for local discovery"},
+		&cli.StringFlag{Name: "multicast", Value: models.DEFAULT_MULTICAST, Usage: "multicast address to use for local discovery"},
 		&cli.StringFlag{Name: "curve", Value: "p256", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
 		&cli.StringFlag{Name: "ip", Value: "", Usage: "set sender ip if known e.g. 10.0.0.1:9009, [::1]:9009"},
 		&cli.StringFlag{Name: "relay", Value: models.DEFAULT_RELAY, Usage: "address of the relay", EnvVars: []string{"CROC_RELAY"}},
@@ -280,21 +299,11 @@ func setDebugLevel(c *cli.Context) {
 }
 
 func getSendConfigFile(requireValidPath bool) string {
-	configFile, err := utils.GetConfigDir(requireValidPath)
-	if err != nil {
-		log.Error(err)
-		return ""
-	}
-	return path.Join(configFile, "send.json")
+	return utils.GetSendConfigFile(requireValidPath)
 }
 
 func getClassicConfigFile(requireValidPath bool) string {
-	configFile, err := utils.GetConfigDir(requireValidPath)
-	if err != nil {
-		log.Error(err)
-		return ""
-	}
-	return path.Join(configFile, "classic_enabled")
+	return utils.GetClassicConfigFile(requireValidPath)
 }
 
 func getBestRelayCacheFile(requireValidPath bool) (string, error) {
@@ -306,12 +315,7 @@ func getBestRelayCacheFile(requireValidPath bool) (string, error) {
 }
 
 func getReceiveConfigFile(requireValidPath bool) (string, error) {
-	configFile, err := utils.GetConfigDir(requireValidPath)
-	if err != nil {
-		log.Error(err)
-		return "", err
-	}
-	return path.Join(configFile, "receive.json"), nil
+	return utils.GetReceiveConfigFile(requireValidPath)
 }
 
 func determinePass(c *cli.Context) (pass string) {
@@ -1112,4 +1116,34 @@ func relay(c *cli.Context) (err error) {
 		tcp.WithAdmissionLimits(sourceJoinLimit, roomJoinLimit, joinLimitWindow),
 		tcp.WithRoomPairedCallback(roomPaired),
 	)
+}
+
+func call_doctor(c *cli.Context) error {
+	// proxies are package-globals in comm; setting them here so checks use them
+	comm.Socks5Proxy = c.String("socks5")
+	comm.HttpProxy = c.String("connect")
+
+	if c.Bool("json") {
+		log.SetLevel("error")
+	}
+
+	report := doctor.Run(doctor.Options{
+		Relay:            c.String("relay"),
+		Pass:             determinePass(c),
+		OutDir:           c.String("out"),
+		StoreURL:         c.String("store-url"),
+		Socks5:           c.String("socks5"),
+		HTTPProxy:        c.String("connect"),
+		OnlyLocal:        c.Bool("local"),
+		MulticastAddress: c.String("multicast"),
+	})
+
+	if c.Bool("json") {
+		return json.NewEncoder(os.Stdout).Encode(report)
+	}
+	report.PrintHuman(os.Stdout)
+	if report.HasFailures() {
+		return errors.New("doctor found problems")
+	}
+	return nil
 }
