@@ -1,30 +1,45 @@
-name: Release
+name: Prepare Release
+run-name: Prepare ${{ inputs.tag }}
 
 on:
-  release:
-    types: [created]
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag to use for the build (for example, v11.2.3)
+        description: Release tag to prepare (for example, v11.2.5)
         required: true
         type: string
 
 permissions:
   contents: write
 
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
 jobs:
-  version:
-    name: Resolve release version
+  prepare:
+    name: Commit and tag release version
     runs-on: ubuntu-24.04
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.prepare.outputs.sha }}
     steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '^1.27.0'
+
       - name: Validate release tag
         id: version
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
           if [[ ! "${RELEASE_TAG}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             echo "Release tag must match vMAJOR.MINOR.PATCH; got '${RELEASE_TAG}'" >&2
@@ -33,13 +48,76 @@ jobs:
           echo "tag=${RELEASE_TAG}" >> "${GITHUB_OUTPUT}"
           echo "version=${RELEASE_TAG#v}" >> "${GITHUB_OUTPUT}"
 
+      - name: Prepare versioned tag
+        id: prepare
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+
+          if git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}" >/dev/null; then
+            if release_is_draft="$(gh release view "${RELEASE_TAG}" --json isDraft --jq .isDraft 2>/dev/null)"; then
+              if [[ "${release_is_draft}" != "true" ]]; then
+                echo "Release ${RELEASE_TAG} is already published and cannot be rebuilt" >&2
+                exit 1
+              fi
+            fi
+
+            release_sha="$(git rev-list -n 1 "${RELEASE_TAG}")"
+            if ! git merge-base --is-ancestor "${release_sha}" "origin/${DEFAULT_BRANCH}"; then
+              echo "Existing tag ${RELEASE_TAG} is not on ${DEFAULT_BRANCH}" >&2
+              exit 1
+            fi
+            expected_declaration="const Value = \"${RELEASE_VERSION}\""
+            declarations="$(git show "${RELEASE_TAG}:src/version/version.go" | grep '^const Value = ' || true)"
+            if [[ "${declarations}" != "${expected_declaration}" ]]; then
+              echo "Existing tag ${RELEASE_TAG} does not contain version ${RELEASE_VERSION}" >&2
+              exit 1
+            fi
+
+            echo "Reusing unpublished tag ${RELEASE_TAG} at ${release_sha}"
+            echo "sha=${release_sha}" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Release ${RELEASE_TAG} exists without a matching local tag" >&2
+            exit 1
+          fi
+
+          VERSION="${RELEASE_TAG}" go run ./src/install/updateversion.go
+          go test ./src/install
+
+          expected_declaration="const Value = \"${RELEASE_VERSION}\""
+          declarations="$(grep '^const Value = ' src/version/version.go || true)"
+          if [[ "${declarations}" != "${expected_declaration}" ]]; then
+            echo "Version stamp did not produce ${expected_declaration}" >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- src/version/version.go; then
+            git add src/version/version.go
+            git commit -m "chore: bump version to ${RELEASE_VERSION}"
+          fi
+
+          release_sha="$(git rev-parse HEAD)"
+          git tag -a "${RELEASE_TAG}" "${release_sha}" -m "${RELEASE_TAG}"
+          git push --atomic origin \
+            "HEAD:refs/heads/${DEFAULT_BRANCH}" \
+            "refs/tags/${RELEASE_TAG}"
+
+          echo "sha=${release_sha}" >> "${GITHUB_OUTPUT}"
+
   prepare-source:
-    needs: version
+    needs: prepare
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
@@ -47,11 +125,16 @@ jobs:
 
       - name: Prepare source tarball
         env:
-          RELEASE_TAG: ${{ needs.version.outputs.tag }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           git clone --branch "${RELEASE_TAG}" --depth 1 https://github.com/schollz/croc "croc-${RELEASE_TAG}"
           cd "croc-${RELEASE_TAG}"
-          VERSION="${RELEASE_TAG}" go run ./src/install/updateversion.go
+          actual_sha="$(git rev-parse HEAD)"
+          if [[ "${actual_sha}" != "${RELEASE_SHA}" ]]; then
+            echo "Tag moved from ${RELEASE_SHA} to ${actual_sha}" >&2
+            exit 1
+          fi
           go mod tidy
           go mod vendor
           cd ..
@@ -64,7 +147,7 @@ jobs:
           path: "*.tar.gz"
 
   build:
-    needs: version
+    needs: prepare
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -176,16 +259,30 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Verify tagged source version
+        env:
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          actual_sha="$(git rev-parse HEAD)"
+          if [[ "${actual_sha}" != "${RELEASE_SHA}" ]]; then
+            echo "Tag moved from ${RELEASE_SHA} to ${actual_sha}" >&2
+            exit 1
+          fi
+          expected="const Value = \"${RELEASE_VERSION}\""
+          actual="$(grep '^const Value = ' src/version/version.go || true)"
+          if [[ "${actual}" != "${expected}" ]]; then
+            echo "Tagged source has '${actual}', expected '${expected}'" >&2
+            exit 1
+          fi
 
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
           go-version: '^1.27.0'
-
-      - name: Stamp release version
-        env:
-          VERSION: ${{ needs.version.outputs.tag }}
-        run: go run ./src/install/updateversion.go
 
       - name: Build binary
         env:
@@ -207,9 +304,21 @@ jobs:
           echo "Building for ${{ matrix.goos }}/${{ matrix.goarch }} with LDFLAGS: $LDFLAGS"
           go build -buildvcs=false -trimpath -tags netgo,osusergo -ldflags "$LDFLAGS" -o croc${{ matrix.ext }}
 
+      - name: Verify native binary version
+        if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          actual="$(./croc --version)"
+          expected="croc version ${RELEASE_VERSION}"
+          if [[ "${actual}" != "${expected}" ]]; then
+            echo "Built binary reports '${actual}', expected '${expected}'" >&2
+            exit 1
+          fi
+
       - name: Create archive
         env:
-          RELEASE_TAG: ${{ needs.version.outputs.tag }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           if [ "${{ matrix.archive }}" = "zip" ]; then
             zip "croc_${RELEASE_TAG}_${{ matrix.name }}.zip" croc${{ matrix.ext }} LICENSE src/codephrase/wordlists/LICENSE.txt
@@ -218,7 +327,7 @@ jobs:
           fi
 
       - name: Upload unsigned Windows 64-bit artifact for signing
-        if: github.event_name == 'release' && matrix.goos == 'windows' && matrix.goarch == 'amd64'
+        if: matrix.goos == 'windows' && matrix.goarch == 'amd64'
         uses: actions/upload-artifact@v7
         with:
           name: unsigned-Windows-64bit
@@ -226,7 +335,7 @@ jobs:
           retention-days: 1
 
       - name: Upload build artifact
-        if: github.event_name != 'release' || matrix.goos != 'windows' || matrix.goarch != 'amd64'
+        if: matrix.goos != 'windows' || matrix.goarch != 'amd64'
         uses: actions/upload-artifact@v7
         with:
           name: build-${{ matrix.name }}
@@ -236,11 +345,23 @@ jobs:
 
   build-web:
     name: Build croc-web for Linux amd64
-    needs: version
+    needs: prepare
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Verify tagged commit
+        env:
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          actual_sha="$(git rev-parse HEAD)"
+          if [[ "${actual_sha}" != "${RELEASE_SHA}" ]]; then
+            echo "Tag moved from ${RELEASE_SHA} to ${actual_sha}" >&2
+            exit 1
+          fi
 
       - name: Setup Go
         uses: actions/setup-go@v7
@@ -254,11 +375,6 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      - name: Stamp release version
-        env:
-          VERSION: ${{ needs.version.outputs.tag }}
-        run: go run ./src/install/updateversion.go
-
       - name: Build embedded web client
         run: |
           npm ci --prefix web
@@ -269,13 +385,24 @@ jobs:
           CGO_ENABLED: 0
           GOOS: linux
           GOARCH: amd64
-          RELEASE_TAG: ${{ needs.version.outputs.tag }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           go build -buildvcs=false -trimpath -tags netgo,osusergo \
             -ldflags='-s -w -buildid= -extldflags "-static"' \
             -o croc-web ./cmd/croc-web
           tar -czvf "croc-web_${RELEASE_TAG}_Linux-amd64.tar.gz" \
             croc-web LICENSE src/codephrase/wordlists/LICENSE.txt
+
+      - name: Verify web binary version
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          actual="$(./croc-web --version)"
+          expected="croc-web version ${RELEASE_VERSION}"
+          if [[ "${actual}" != "${expected}" ]]; then
+            echo "Built web binary reports '${actual}', expected '${expected}'" >&2
+            exit 1
+          fi
 
       - name: Upload croc-web artifact
         uses: actions/upload-artifact@v7
@@ -286,7 +413,6 @@ jobs:
   sign-windows-amd64:
     name: Sign Windows 64-bit release
     needs: build
-    if: github.event_name == 'release'
     runs-on: windows-latest
     steps:
       - name: Download unsigned Windows 64-bit artifact
@@ -349,10 +475,25 @@ jobs:
           path: "croc_*_Windows-64bit.zip"
 
   release:
-    needs: [version, prepare-source, build, build-web, sign-windows-amd64]
+    name: Create draft release
+    needs: [prepare, prepare-source, build, build-web, sign-windows-amd64]
     runs-on: ubuntu-24.04
-    if: github.event_name == 'release'
     steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Verify tagged commit
+        env:
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          actual_sha="$(git rev-parse HEAD)"
+          if [[ "${actual_sha}" != "${RELEASE_SHA}" ]]; then
+            echo "Tag moved from ${RELEASE_SHA} to ${actual_sha}" >&2
+            exit 1
+          fi
+
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -366,7 +507,7 @@ jobs:
 
       - name: Generate checksums
         env:
-          RELEASE_TAG: ${{ needs.version.outputs.tag }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           # Generate SHA256 checksums for all archives
           sha256sum *.zip *.tar.gz > "croc_${RELEASE_TAG}_checksums.txt"
@@ -375,43 +516,32 @@ jobs:
           echo "Generated checksums:"
           cat "croc_${RELEASE_TAG}_checksums.txt"
 
-      - name: Upload release assets
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            *.zip
-            *.tar.gz
-            *_checksums.txt
-
-  record-version:
-    name: Record released version
-    needs: [version, release]
-    if: github.event_name == 'release'
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout default branch
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          fetch-depth: 0
-
-      - name: Setup Go
-        uses: actions/setup-go@v7
-        with:
-          go-version: '^1.27.0'
-
-      - name: Stamp and commit released version
+      - name: Create or update draft release
         env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          RELEASE_TAG: ${{ needs.version.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
-          VERSION="${RELEASE_TAG}" go run ./src/install/updateversion.go
-          if git diff --quiet -- src/version/version.go; then
-            echo "version.Value already records ${RELEASE_TAG#v}"
-            exit 0
+          set -euo pipefail
+          shopt -s nullglob
+          assets=( *.zip *.tar.gz *_checksums.txt )
+          if (( ${#assets[@]} == 0 )); then
+            echo "No release assets were downloaded" >&2
+            exit 1
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/version/version.go
-          git commit -m "chore: bump version to ${RELEASE_TAG#v}"
-          git push origin "HEAD:${DEFAULT_BRANCH}"
+
+          if release_is_draft="$(gh release view "${RELEASE_TAG}" --json isDraft --jq .isDraft 2>/dev/null)"; then
+            if [[ "${release_is_draft}" != "true" ]]; then
+              echo "Release ${RELEASE_TAG} was published while its artifacts were building" >&2
+              exit 1
+            fi
+            gh release upload "${RELEASE_TAG}" "${assets[@]}" --clobber
+          else
+            gh release create "${RELEASE_TAG}" "${assets[@]}" \
+              --draft \
+              --generate-notes \
+              --title "${RELEASE_TAG}" \
+              --verify-tag
+          fi
+
+          release_url="$(gh release view "${RELEASE_TAG}" --json url --jq .url)"
+          echo "Draft release: ${release_url}" >> "${GITHUB_STEP_SUMMARY}"

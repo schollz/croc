@@ -2,7 +2,7 @@ name: Publish to Winget
 
 on:
   release:
-    types: [released]
+    types: [published]
   workflow_dispatch:
 
 jobs:
@@ -16,4 +16,3 @@ jobs:
           identifier: schollz.croc
           installers-regex: '.*Windows.*\.zip$'
           token: ${{ secrets.WINGET_TOKEN }}
-
