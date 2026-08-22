@@ -20,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/schollz/croc/v11/src/codephrase"
+	"github.com/schollz/croc/v11/src/receivefs"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -708,6 +709,68 @@ func TestUnzipDirectoryRejectsPathTraversal(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr), "pre-validation should prevent partial extraction")
 }
 
+func TestUnzipDirectoryRejectsPortablePathHazards(t *testing.T) {
+	tests := []struct {
+		name    string
+		entries []zipTestEntry
+	}{
+		{name: "absolute", entries: []zipTestEntry{{name: "/absolute.txt", content: "x"}}},
+		{name: "drive absolute", entries: []zipTestEntry{{name: `C:\absolute.txt`, content: "x"}}},
+		{name: "control", entries: []zipTestEntry{{name: "escape\x1b.txt", content: "x"}}},
+		{name: "device", entries: []zipTestEntry{{name: "NUL.txt", content: "x"}}},
+		{name: "alternate data stream", entries: []zipTestEntry{{name: "file.txt:stream", content: "x"}}},
+		{name: "case fold collision", entries: []zipTestEntry{
+			{name: "README", content: "a"}, {name: "readme", content: "b"},
+		}},
+		{name: "normalization collision", entries: []zipTestEntry{
+			{name: "é.txt", content: "a"}, {name: "e\u0301.txt", content: "b"},
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			archive := filepath.Join(root, "input.zip")
+			destination := filepath.Join(root, "output")
+			if err := createZipWithEntries(archive, tt.entries); err != nil {
+				t.Fatal(err)
+			}
+			if err := UnzipDirectory(destination, archive); err == nil {
+				t.Fatal("unsafe archive was accepted")
+			}
+			if entries, err := os.ReadDir(destination); err == nil && len(entries) != 0 {
+				t.Fatalf("unsafe archive changed destination: %v", entries)
+			}
+		})
+	}
+}
+
+func FuzzZipPreflight(f *testing.F) {
+	var seed bytes.Buffer
+	writer := zip.NewWriter(&seed)
+	entry, err := writer.CreateHeader(&zip.FileHeader{Name: "safe.txt", Method: zip.Store})
+	if err != nil {
+		f.Fatal(err)
+	}
+	if _, err = entry.Write([]byte("safe")); err != nil {
+		f.Fatal(err)
+	}
+	if err = writer.Close(); err != nil {
+		f.Fatal(err)
+	}
+	f.Add(seed.Bytes())
+	f.Add([]byte("not a zip"))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		if len(data) > 1<<20 {
+			t.Skip()
+		}
+		archive, openErr := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+		if openErr != nil {
+			return
+		}
+		_, _ = validateZipEntries(archive.File, 4<<20)
+	})
+}
+
 func TestUnzipDirectoryRejectsSymlinkParentEscape(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlink creation requires elevated privileges on some Windows setups")
@@ -737,6 +800,54 @@ func TestUnzipDirectoryRejectsSymlinkParentEscape(t *testing.T) {
 
 	_, statErr := os.Stat(filepath.Join(outsideDir, "escaped.txt"))
 	assert.True(t, os.IsNotExist(statErr), "zip extraction must not write through a symlink parent")
+}
+
+func TestUnzipThroughOpenedRootResistsDestinationReplacement(t *testing.T) {
+	parent := t.TempDir()
+	receiveDirectory := filepath.Join(parent, "receive")
+	movedDirectory := filepath.Join(parent, "moved-receive")
+	outsideDirectory := filepath.Join(parent, "outside")
+	if err := os.Mkdir(receiveDirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(outsideDirectory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	archivePath := filepath.Join(receiveDirectory, "candidate.zip")
+	if err := createZipWithEntries(archivePath, []zipTestEntry{{name: "payload.txt", content: "payload"}}); err != nil {
+		t.Fatal(err)
+	}
+	root, err := receivefs.OpenRoot(receiveDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	archive, err := root.Open("candidate.zip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer archive.Close()
+	info, err := archive.Stat()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = os.Rename(receiveDirectory, movedDirectory); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Symlink(outsideDirectory, receiveDirectory); err != nil {
+		t.Skipf("symlinks are unavailable: %v", err)
+	}
+	if err = UnzipDirectoryFromFileAtRootWithLimit(root, archive, info.Size()); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(filepath.Join(movedDirectory, "payload.txt"))
+	if err != nil || string(contents) != "payload" {
+		t.Fatalf("root-anchored extraction = %q, %v", contents, err)
+	}
+	if _, err = os.Stat(filepath.Join(outsideDirectory, "payload.txt")); !os.IsNotExist(err) {
+		t.Fatalf("replacement destination received archive output: %v", err)
+	}
 }
 
 func TestResolveUnzipPathRejectsNonLocalEntries(t *testing.T) {

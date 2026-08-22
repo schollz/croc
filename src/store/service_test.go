@@ -545,7 +545,7 @@ func TestUnknownTransferIDsUseBoundedLockState(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, response.Code)
 	}
 
-	assert.Len(t, service.transferLocks, transferLockStripes)
+	assert.Equal(t, transferLockStripes, len(service.transferLocks))
 }
 
 func TestStoreRootHasAnExclusiveProcessLock(t *testing.T) {

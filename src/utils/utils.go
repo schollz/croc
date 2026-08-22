@@ -27,6 +27,7 @@ import (
 	"github.com/kalafut/imohash"
 	"github.com/minio/highwayhash"
 	"github.com/schollz/croc/v11/src/codephrase"
+	"github.com/schollz/croc/v11/src/receivefs"
 	"github.com/schollz/croc/v11/src/termui"
 	log "github.com/schollz/logger"
 	"github.com/schollz/progressbar/v3"
@@ -911,11 +912,16 @@ var ErrUnzipSizeLimit = errors.New("zip extraction size limit exceeded")
 // limited to the archive's on-disk size. Croc-created zip archives use deflate
 // without compression, so their extracted contents fit within this limit.
 func UnzipDirectory(destination string, source string) error {
-	archiveInfo, err := os.Stat(source)
+	archiveFile, err := os.Open(source)
+	if err != nil {
+		return fmt.Errorf("failed to open zip file: %w", err)
+	}
+	defer archiveFile.Close()
+	archiveInfo, err := archiveFile.Stat()
 	if err != nil {
 		return fmt.Errorf("failed to inspect zip file: %w", err)
 	}
-	return UnzipDirectoryWithLimit(destination, source, archiveInfo.Size())
+	return unzipDirectoryFromReaderWithLimit(destination, nil, archiveFile, archiveInfo.Size(), archiveInfo.Size())
 }
 
 // UnzipDirectoryWithLimit extracts source into destination while allowing at
@@ -924,50 +930,81 @@ func UnzipDirectoryWithLimit(destination string, source string, maxExtractedByte
 	if maxExtractedBytes <= 0 {
 		return fmt.Errorf("maximum extracted size must be positive: %d", maxExtractedBytes)
 	}
-
-	archive, err := zip.OpenReader(source)
+	archiveFile, err := os.Open(source)
 	if err != nil {
 		log.Error(err)
 		return fmt.Errorf("failed to open zip file: %w", err)
 	}
-	defer archive.Close()
+	defer archiveFile.Close()
+	archiveInfo, err := archiveFile.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to inspect zip file: %w", err)
+	}
+	return unzipDirectoryFromReaderWithLimit(destination, nil, archiveFile, archiveInfo.Size(), maxExtractedBytes)
+}
 
-	// Pre-validate all paths to avoid partial extraction on malicious archives.
-	filePaths := make([]string, len(archive.File))
-	remainingDeclaredBytes := uint64(maxExtractedBytes)
-	for i, f := range archive.File {
-		filePath, pathErr := resolveUnzipPath(destination, f.Name)
-		if pathErr != nil {
-			log.Errorf("Invalid file path %s: %v\n", f.Name, pathErr)
-			return fmt.Errorf("invalid file path in zip entry %q: %w", f.Name, pathErr)
-		}
-		if pathErr = RejectSymlinkPath(destination, filePath); pathErr != nil {
-			log.Errorf("Invalid file path %s: %v\n", f.Name, pathErr)
-			return fmt.Errorf("invalid file path in zip entry %q: %w", f.Name, pathErr)
-		}
-		filePaths[i] = filePath
+// UnzipDirectoryFromFileAtRootWithLimit extracts through the caller's already
+// opened receive root, so a renamed or replaced working-directory path cannot
+// switch the extraction destination after the transfer began.
+func UnzipDirectoryFromFileAtRootWithLimit(root *receivefs.Root, source *os.File, maxExtractedBytes int64) error {
+	if root == nil {
+		return errors.New("zip receive root is required")
+	}
+	if maxExtractedBytes <= 0 {
+		return fmt.Errorf("maximum extracted size must be positive: %d", maxExtractedBytes)
+	}
+	archiveInfo, err := source.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to inspect zip file: %w", err)
+	}
+	return unzipDirectoryFromReaderWithLimit("", root, source, archiveInfo.Size(), maxExtractedBytes)
+}
 
-		if !f.FileInfo().IsDir() {
-			if f.UncompressedSize64 > remainingDeclaredBytes {
-				return fmt.Errorf(
-					"zip entry %q declares %d extracted bytes with %d bytes remaining: %w",
-					f.Name,
-					f.UncompressedSize64,
-					remainingDeclaredBytes,
-					ErrUnzipSizeLimit,
-				)
-			}
-			remainingDeclaredBytes -= f.UncompressedSize64
-		}
+func unzipDirectoryFromReaderWithLimit(
+	destination string,
+	receiveRoot *receivefs.Root,
+	source io.ReaderAt,
+	sourceSize int64,
+	maxExtractedBytes int64,
+) error {
+	archive, err := zip.NewReader(source, sourceSize)
+	if err != nil {
+		return fmt.Errorf("failed to open zip file: %w", err)
 	}
 
-	// Store modification times for all files and directories
+	normalized, err := validateZipEntries(archive.File, maxExtractedBytes)
+	if err != nil {
+		return err
+	}
+
+	root := receiveRoot
+	if root == nil {
+		if err = os.MkdirAll(destination, 0o755); err != nil {
+			return fmt.Errorf("create zip destination: %w", err)
+		}
+		root, err = receivefs.OpenRoot(destination)
+		if err != nil {
+			return err
+		}
+		defer root.Close()
+	}
+	for _, entry := range normalized {
+		if err = root.RejectSymlinkPath(entry.Path); err != nil {
+			return fmt.Errorf("symlink destination path component in zip entry %q: %w", entry.Path, err)
+		}
+	}
+	staging, err := root.CreateTempDir(".", ".croc-extract-")
+	if err != nil {
+		return fmt.Errorf("create zip staging directory: %w", err)
+	}
+	defer root.RemoveAll(staging)
+
 	modTimes := make(map[string]time.Time)
 	remainingExtractedBytes := maxExtractedBytes
+	selected := make([]bool, len(archive.File))
 
-	// First pass: extract all files and directories, store modification times
 	for i, f := range archive.File {
-		filePath := filePaths[i]
+		filePath := normalized[i].Path
 		fmt.Fprintf(os.Stderr, "\r\033[2K")
 		fmt.Fprintf(os.Stderr, "\rUnzipping file %s", filePath)
 
@@ -980,26 +1017,12 @@ func UnzipDirectoryWithLimit(destination string, source string, maxExtractedByte
 			modTimes[filePath] = modifiedTime
 		}
 
-		if f.FileInfo().IsDir() {
-			if err := RejectSymlinkPath(destination, filePath); err != nil {
-				return fmt.Errorf("refusing to extract zip entry %q: %w", f.Name, err)
-			}
-			if err := os.MkdirAll(filePath, os.ModePerm); err != nil {
-				log.Error(err)
-			}
+		if normalized[i].Kind == receivefs.KindDirectory {
+			selected[i] = true
 			continue
 		}
 
-		if err := os.MkdirAll(filepath.Dir(filePath), os.ModePerm); err != nil {
-			log.Error(err)
-			continue
-		}
-		if err := RejectSymlinkPath(destination, filePath); err != nil {
-			return fmt.Errorf("refusing to extract zip entry %q: %w", f.Name, err)
-		}
-
-		// check if file exists
-		if _, err := os.Stat(filePath); err == nil {
+		if _, statErr := root.Stat(filePath); statErr == nil {
 			prompt := fmt.Sprintf("\nOverwrite '%s'? (y/N) ", filePath)
 			choice, _ := GetInput(prompt)
 			choice = strings.ToLower(choice)
@@ -1007,60 +1030,119 @@ func UnzipDirectoryWithLimit(destination string, source string, maxExtractedByte
 				fmt.Fprintf(os.Stderr, "Skipping '%s'\n", filePath)
 				continue
 			}
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return fmt.Errorf("inspect zip destination %q: %w", filePath, statErr)
 		}
+		selected[i] = true
 
 		fileInArchive, err := f.Open()
 		if err != nil {
-			log.Error(err)
-			continue
+			return fmt.Errorf("open zip entry %q: %w", f.Name, err)
 		}
-
-		dstFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-		if err != nil {
-			log.Error(err)
+		stagedPath := path.Join(staging, filePath)
+		if err = root.MkdirAll(path.Dir(stagedPath), 0o700); err != nil {
 			fileInArchive.Close()
-			continue
+			return fmt.Errorf("create staging directory for zip entry %q: %w", f.Name, err)
+		}
+		mode := f.Mode().Perm()
+		if mode == 0 {
+			mode = 0o600
+		}
+		dstFile, err := root.OpenFile(stagedPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+		if err != nil {
+			fileInArchive.Close()
+			return fmt.Errorf("create staging file for zip entry %q: %w", f.Name, err)
 		}
 
 		_, copyErr := copyWithExtractedSizeLimit(dstFile, fileInArchive, &remainingExtractedBytes)
 		archiveCloseErr := fileInArchive.Close()
+		if copyErr == nil {
+			copyErr = dstFile.Sync()
+		}
 		destinationCloseErr := dstFile.Close()
 		if copyErr != nil {
-			if removeErr := os.Remove(filePath); removeErr != nil && !os.IsNotExist(removeErr) {
-				log.Warnf("failed to remove partial zip output %s: %v", filePath, removeErr)
-			}
 			return fmt.Errorf("failed to extract zip entry %q: %w", f.Name, copyErr)
 		}
 		if archiveCloseErr != nil {
-			if removeErr := os.Remove(filePath); removeErr != nil && !os.IsNotExist(removeErr) {
-				log.Warnf("failed to remove zip output %s after close error: %v", filePath, removeErr)
-			}
 			return fmt.Errorf("failed to close zip entry %q: %w", f.Name, archiveCloseErr)
 		}
 		if destinationCloseErr != nil {
-			if removeErr := os.Remove(filePath); removeErr != nil && !os.IsNotExist(removeErr) {
-				log.Warnf("failed to remove zip output %s after close error: %v", filePath, removeErr)
-			}
 			return fmt.Errorf("failed to close extracted file for zip entry %q: %w", f.Name, destinationCloseErr)
+		}
+		if modTime, ok := modTimes[filePath]; ok {
+			if err = root.Chtimes(stagedPath, modTime, modTime); err != nil {
+				return fmt.Errorf("set staged modification time for zip entry %q: %w", f.Name, err)
+			}
 		}
 	}
 
-	// Second pass: restore modification times for ALL files and directories
-	for path, modTime := range modTimes {
-		if err := os.Chtimes(path, modTime, modTime); err != nil {
-			log.Errorf("Failed to set modification time for %s: %v", path, err)
-		} else {
-			fi, err := os.Lstat(path)
-			if err != nil ||
-				!modTime.UTC().Equal(fi.ModTime().UTC()) {
-				log.Errorf("Failed to set modification time for %s: %v", path, err)
-				fmt.Fprintf(os.Stderr, "Failed to set modification time %s %v: %v\n", path, modTime, err)
+	// Commit directories before files, always through the opened root.
+	for i, entry := range normalized {
+		if selected[i] && entry.Kind == receivefs.KindDirectory {
+			if err = root.MkdirAll(entry.Path, 0o755); err != nil {
+				return fmt.Errorf("commit zip directory %q: %w", entry.Path, err)
+			}
+		}
+	}
+	for i, entry := range normalized {
+		if !selected[i] || entry.Kind != receivefs.KindFile {
+			continue
+		}
+		if err = root.MkdirAll(path.Dir(entry.Path), 0o755); err != nil {
+			return fmt.Errorf("commit parent for zip entry %q: %w", entry.Path, err)
+		}
+		if err = root.Rename(path.Join(staging, entry.Path), entry.Path); err != nil {
+			return fmt.Errorf("commit zip entry %q: %w", entry.Path, err)
+		}
+	}
+	for i, entry := range normalized {
+		if !selected[i] || entry.Kind != receivefs.KindDirectory {
+			continue
+		}
+		if modTime, ok := modTimes[entry.Path]; ok {
+			if err = root.Chtimes(entry.Path, modTime, modTime); err != nil {
+				return fmt.Errorf("set modification time for zip directory %q: %w", entry.Path, err)
 			}
 		}
 	}
 
 	fmt.Fprintf(os.Stderr, "\n")
 	return nil
+}
+
+func validateZipEntries(files []*zip.File, maxExtractedBytes int64) ([]receivefs.Entry, error) {
+	if maxExtractedBytes <= 0 {
+		return nil, fmt.Errorf("maximum extracted size must be positive: %d", maxExtractedBytes)
+	}
+	entries := make([]receivefs.Entry, len(files))
+	remainingDeclaredBytes := uint64(maxExtractedBytes)
+	for i, f := range files {
+		kind := receivefs.KindFile
+		if f.FileInfo().IsDir() {
+			kind = receivefs.KindDirectory
+		} else if !f.Mode().IsRegular() {
+			return nil, fmt.Errorf("unsupported zip entry type for %q", f.Name)
+		}
+		entries[i] = receivefs.Entry{Path: f.Name, Kind: kind}
+
+		if kind == receivefs.KindFile {
+			if f.UncompressedSize64 > remainingDeclaredBytes {
+				return nil, fmt.Errorf(
+					"zip entry %q declares %d extracted bytes with %d bytes remaining: %w",
+					f.Name,
+					f.UncompressedSize64,
+					remainingDeclaredBytes,
+					ErrUnzipSizeLimit,
+				)
+			}
+			remainingDeclaredBytes -= f.UncompressedSize64
+		}
+	}
+	normalized, err := receivefs.ValidateEntries(entries)
+	if err != nil {
+		return nil, fmt.Errorf("invalid file path in zip entry: %w", err)
+	}
+	return normalized, nil
 }
 
 func copyWithExtractedSizeLimit(destination io.Writer, source io.Reader, remainingBytes *int64) (int64, error) {

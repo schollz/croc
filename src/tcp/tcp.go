@@ -16,6 +16,7 @@ import (
 
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/crypt"
+	"github.com/schollz/croc/v11/src/redact"
 )
 
 type server struct {
@@ -34,6 +35,10 @@ type server struct {
 	maxRoomsOpen         int
 	roomCleanupInterval  time.Duration
 	roomTTL              time.Duration
+	sourceJoinLimit      int
+	roomJoinLimit        int
+	joinLimitWindow      time.Duration
+	admissionLimits      *admissionLimiter
 
 	// stopRoomCleanup chan struct{}
 	// replaced by stop ctx.go
@@ -76,6 +81,9 @@ func newDefaultServer() *server {
 	s.maxRoomsOpen = DEFAULT_MAX_ROOMS_OPEN
 	s.roomCleanupInterval = DEFAULT_ROOM_CLEANUP_INTERVAL
 	s.roomTTL = DEFAULT_ROOM_TTL
+	s.sourceJoinLimit = DEFAULT_SOURCE_JOIN_LIMIT
+	s.roomJoinLimit = DEFAULT_ROOM_JOIN_LIMIT
+	s.joinLimitWindow = DEFAULT_JOIN_LIMIT_WINDOW
 	s.debugLevel = DEFAULT_LOG_LEVEL
 	s.started = make(chan struct{})
 	// s.stopRoomCleanup = make(chan struct{}) replaced by stop
@@ -151,25 +159,15 @@ func Run(debugLevel, host, port, password string, banner ...string) (err error) 
 	return RunWithOptionsAsync(host, port, password, WithBanner(banner...), WithLogLevel(debugLevel))
 }
 
-// Mask our password in logs
-func maskedPassword(password string) (s string) {
-	if len(password) > 2 {
-		s = fmt.Sprintf("%c***%c", password[0], password[len(password)-1])
-	} else {
-		s = password
-	}
-	return
-}
-
 func (s *server) start() (err error) {
 	log.SetLevel(s.debugLevel)
-
-	log.Debugf("starting with password '%s'", maskedPassword(s.password))
+	log.Debug("starting relay with configured authentication")
 
 	s.rooms.Lock()
 	s.rooms.rooms = make(map[string]roomInfo)
 	s.rooms.Unlock()
 	s.handshakeSlots = make(chan struct{}, s.maxPendingHandshakes)
+	s.admissionLimits = newAdmissionLimiter(s.sourceJoinLimit, s.roomJoinLimit, s.joinLimitWindow)
 
 	s.stop.wg.Add(1)
 	go func() {
@@ -271,8 +269,6 @@ func (s *server) run() (err error) {
 			handshake, errCommunication := s.clientHandshake(c, handshakeDeadline)
 			releaseHandshake()
 			room := handshake.room
-			log.Debugf("room: %+v", room)
-			log.Debugf("err: %+v", errCommunication)
 			if errCommunication != nil {
 				if netErr, ok := errCommunication.(net.Error); ok && netErr.Timeout() {
 					log.Debugf("relay-%s: handshake timed out", connection.RemoteAddr().String())
@@ -302,7 +298,7 @@ func (s *server) run() (err error) {
 			defer ticker.Stop()
 			for {
 				// check connection
-				log.Tracef("checking connection of room %s for %+v", room, c)
+				log.Tracef("checking waiting relay connection for %+v", c)
 				deleteIt := false
 				s.rooms.Lock()
 				roomData, ok := s.rooms.rooms[room]
@@ -311,7 +307,6 @@ func (s *server) run() (err error) {
 					s.rooms.Unlock()
 					return
 				}
-				log.Tracef("room: %+v", roomData)
 				if roomData.first != nil && roomData.second != nil {
 					log.Debug("rooms ready")
 					s.rooms.Unlock()
@@ -377,7 +372,7 @@ func (s *server) deleteOldRooms() {
 		}
 		for _, room := range roomsToDelete {
 			s.deleteRoom(room)
-			log.Debugf("room cleaned up: %s", room)
+			log.Debug("waiting room cleaned up")
 		}
 	}
 }
@@ -389,6 +384,10 @@ func (s *server) deleteOldRooms() {
 // }
 
 var weakKey = []byte{1, 2, 3}
+
+// ErrAdmissionLimited is returned when a relay refuses a room join under its
+// configured per-source or per-room admission policy.
+var ErrAdmissionLimited = errors.New("relay admission rate limited")
 
 func (s *server) clientHandshake(c *comm.Comm, deadline time.Time) (result handshakeResult, err error) {
 	send := func(message []byte) error {
@@ -407,7 +406,7 @@ func (s *server) clientHandshake(c *comm.Comm, deadline time.Time) (result hands
 	if err != nil {
 		return
 	}
-	log.Debugf("Abytes: %s", Abytes)
+	log.Debug("received relay PAKE initiator payload")
 	if bytes.Equal(Abytes, []byte("ping")) {
 		result.room = pingRoom
 		log.Debug("sending back pong")
@@ -426,8 +425,6 @@ func (s *server) clientHandshake(c *comm.Comm, deadline time.Time) (result hands
 	if err != nil {
 		return
 	}
-	log.Debugf("strongkey: %x", strongKey)
-
 	// receive salt
 	salt, err := c.ReceiveWithDeadline(deadline)
 	if err != nil {
@@ -493,10 +490,23 @@ func (s *server) clientCommunication(c *comm.Comm, handshake handshakeResult) (r
 	room = handshake.room
 	strongKeyForEncryption := handshake.strongKeyForEncryption
 	var bSend []byte
+	if s.admissionLimits == nil {
+		s.admissionLimits = newAdmissionLimiter(s.sourceJoinLimit, s.roomJoinLimit, s.joinLimitWindow)
+	}
+	if !s.admissionLimits.allow(canonicalSource(c.Connection().RemoteAddr()), room) {
+		bSend, err = crypt.Encrypt([]byte("rate limited"), strongKeyForEncryption)
+		if err == nil {
+			err = c.Send(bSend)
+		}
+		if err != nil {
+			return room, err
+		}
+		return room, ErrAdmissionLimited
+	}
 
 	admission := s.admitToRoom(room, c)
 	if admission.evicted {
-		log.Debugf("evicting oldest waiting room at capacity: %s", admission.evictedRoom)
+		log.Debug("evicting oldest waiting room at capacity")
 		if admission.evictedConnection != nil {
 			admission.evictedConnection.Close()
 		}
@@ -516,7 +526,7 @@ func (s *server) clientCommunication(c *comm.Comm, handshake handshakeResult) (r
 			s.deleteRoom(room)
 			return
 		}
-		log.Debugf("room %s has 1", room)
+		log.Debug("room has first peer")
 		return
 	}
 	if admission.full {
@@ -531,7 +541,7 @@ func (s *server) clientCommunication(c *comm.Comm, handshake handshakeResult) (r
 		}
 		return
 	}
-	log.Debugf("room %s has 2", room)
+	log.Debug("room has second peer")
 	otherConnection := admission.otherConnection
 
 	// second connection is the sender, time to staple connections
@@ -573,7 +583,7 @@ func (s *server) deleteRoom(room string) {
 	if !ok {
 		return
 	}
-	log.Debugf("deleting room: %s", room)
+	log.Debug("deleting room")
 	if roomData.first != nil {
 		roomData.first.Close()
 	}
@@ -679,6 +689,7 @@ func MeasureServerLatencyContext(ctx context.Context, address string, timeout ti
 // ConnectToTCPServer will initiate a new connection
 // to the specified address, room with optional time limit
 func ConnectToTCPServer(address, password, room string, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, err error) {
+	defer func() { err = redact.Error(err, password, room) }()
 	if len(timelimit) > 0 {
 		c, err = comm.NewConnection(address, timelimit[0])
 	} else {
@@ -715,8 +726,6 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		log.Debug(err)
 		return
 	}
-	log.Debugf("strong key: %x", strongKey)
-
 	strongKeyForEncryption, salt, err := crypt.New(strongKey, nil)
 	if err != nil {
 		log.Debug(err)
@@ -729,7 +738,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		return
 	}
 
-	log.Debugf("sending password '%s'", maskedPassword(password))
+	log.Debug("sending encrypted relay authentication")
 	bSend, err := crypt.Encrypt([]byte(password), strongKeyForEncryption)
 	if err != nil {
 		log.Debug(err)
@@ -752,13 +761,17 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		return
 	}
 	if !strings.Contains(string(data), "|||") {
-		err = fmt.Errorf("bad response: %s", string(data))
+		if bytes.Equal(data, []byte("bad password")) {
+			err = fmt.Errorf("bad password")
+		} else {
+			err = fmt.Errorf("invalid relay response")
+		}
 		log.Debug(err)
 		return
 	}
 	banner = strings.Split(string(data), "|||")[0]
 	ipaddr = strings.Split(string(data), "|||")[1]
-	log.Debugf("sending room; %s", room)
+	log.Debug("sending encrypted room identifier")
 	bSend, err = crypt.Encrypt([]byte(room), strongKeyForEncryption)
 	if err != nil {
 		log.Debug(err)
@@ -781,7 +794,11 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		return
 	}
 	if !bytes.Equal(data, []byte("ok")) {
-		err = fmt.Errorf("got bad response: %s", data)
+		if bytes.Equal(data, []byte("rate limited")) {
+			err = ErrAdmissionLimited
+		} else {
+			err = fmt.Errorf("relay admission rejected")
+		}
 		log.Debug(err)
 		return
 	}

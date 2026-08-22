@@ -601,6 +601,8 @@ func TestWrongPassword(t *testing.T) {
 	_, _, _, err := ConnectToTCPServer("127.0.0.1:8385", "wrongpass", "testRoom")
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "bad password")
+	assert.NotContains(t, err.Error(), "wrongpass")
+	assert.NotContains(t, err.Error(), "testRoom")
 }
 
 // A relay password with trailing whitespace should still accept a trimmed client password.

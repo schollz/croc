@@ -106,11 +106,23 @@ func TestShareURLAndTokenRoundTrip(t *testing.T) {
 }
 
 func TestValidateManifestRejectsUnsafeMetadata(t *testing.T) {
-	manifest := testManifest()
-	manifest.Files[0].Name = "../secret"
-	assert.ErrorContains(t, ValidateManifest(manifest, 1024), "unsafe name")
+	for _, name := range []string{
+		"../secret", "/absolute", `C:\absolute`, "control\x1b.txt",
+		"NUL", "COM1.log", "file.txt:stream", "trailing.",
+	} {
+		manifest := testManifest()
+		manifest.Files[0].Name = name
+		assert.Error(t, ValidateManifest(manifest, 1024), name)
+	}
 
-	manifest = testManifest()
+	for _, names := range [][2]string{{"README", "readme"}, {"é.txt", "e\u0301.txt"}} {
+		manifest := testManifest()
+		manifest.Files[0].Name = names[0]
+		manifest.Files[1].Name = names[1]
+		assert.ErrorContains(t, ValidateManifest(manifest, 1024), "duplicate names")
+	}
+
+	manifest := testManifest()
 	manifest.Files[0].FirstChunk = 4
 	assert.ErrorContains(t, ValidateManifest(manifest, 1024), "invalid chunk map")
 }
