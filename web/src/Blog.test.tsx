@@ -289,6 +289,17 @@ describe("Blog", () => {
     );
   });
 
+  it("does not render the draft open-flaws analysis", () => {
+    render(<Blog slug="unfixed-file-transfer-flaws" />);
+
+    expect(
+      screen.getByRole("heading", { name: "This note wandered off." }),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("Four file-transfer bugs I don't want in croc"),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders a useful not-found page for an unknown slug", () => {
     render(<Blog slug="missing-note" />);
 

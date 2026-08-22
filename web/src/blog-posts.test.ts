@@ -5,6 +5,7 @@ import {
   blogWordCount,
   getBlogPost,
   readingMinutes,
+  unpublishedBlogDrafts,
 } from "./blog-posts";
 
 describe("blog posts", () => {
@@ -58,6 +59,22 @@ describe("blog posts", () => {
       });
       expect(seo && "kind" in seo ? seo.kind : "note").toBe(post.kind);
     }
+  });
+
+  it("keeps draft posts out of the published collection", () => {
+    expect(getBlogPost("unfixed-file-transfer-flaws")).toBeUndefined();
+    expect(blogPosts.map((post) => post.slug)).not.toContain(
+      "unfixed-file-transfer-flaws",
+    );
+    expect(blogSEO.posts.map((post) => post.slug)).not.toContain(
+      "unfixed-file-transfer-flaws",
+    );
+    expect(unpublishedBlogDrafts).toEqual([
+      expect.objectContaining({
+        slug: "unfixed-file-transfer-flaws",
+        draft: true,
+      }),
+    ]);
   });
 
   it("does not resolve an unknown article", () => {

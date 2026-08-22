@@ -64,7 +64,7 @@ export type BlogPost = {
 type DraftBlogPost = Omit<
   BlogPost,
   "seoTitle" | "modifiedAt" | "keywords" | "image" | "socialImage" | "imageAlt" | "wordCount" | "readingMinutes" | "relatedSlugs" | "kind"
-> & { kind?: BlogKind };
+> & { kind?: BlogKind; draft?: boolean };
 
 const wordsPerMinute = 210;
 
@@ -1135,6 +1135,186 @@ const drafts: DraftBlogPost[] = [
       {
         type: "paragraph",
         text: "That does not make croc the correct answer to every row. I would not replace Syncthing for a continuously mirrored folder, make two iPhone users skip AirDrop, or promise OnionShare's anonymity without Tor. But when I know almost nothing about the computer on the other side, including its operating system, whether its owner likes terminals, or whether the Wi-Fi is about to disappear, croc has become a pretty good default answer to the surprisingly durable question: how do I send this file?",
+      },
+    ],
+  },
+];
+
+export const unpublishedBlogDrafts: DraftBlogPost[] = [
+  {
+    slug: "unfixed-file-transfer-flaws",
+    draft: true,
+    number: "10",
+    title: "Four file-transfer bugs I don't want in croc",
+    description:
+      "NitroShare, wormhole-william, PairDrop, and Warpinator each leave a file-transfer problem open. Here is what croc does differently.",
+    category: "Security",
+    publishedAt: "2026-08-22",
+    publishedLabel: "August 22, 2026",
+    author: "schollz",
+    visual: "overview",
+    takeaway:
+      "A secure transfer needs more than encryption: received paths must stay inside one folder, the relay must not define peer identity, and a retry must not delete unrelated files.",
+    blocks: [
+      {
+        type: "paragraph",
+        text: "There are a lot of ways to transfer a file. Most of them make the job look simple: choose something, choose someone, and wait for a progress bar. Underneath that simple interface, the receiving computer still has to decide where to put the file, who is sending it, and what to do if the transfer stops halfway through.",
+      },
+      {
+        type: "paragraph",
+        text: "I have been reading through security advisories and bug trackers for other file-transfer tools, partly to see what croc can learn from them. I wanted to find problems that are still open in those tools but which croc now has a specific fix and test for. Most of the bugs I found had already been fixed upstream. Four were still useful comparisons.",
+      },
+      {
+        type: "aside",
+        eyebrow: "WHAT I MEAN BY OPEN",
+        title: "Checked on August 22, 2026",
+        text: "One is a confirmed CVE in the latest release of an old product line, one is a flaw I reproduced in released source, one is a design limitation documented by the project itself, and one is an open user report. These are not four equivalent security vulnerabilities, and any of them may be fixed after this is published.",
+      },
+      { type: "heading", text: "The short list" },
+      {
+        type: "table",
+        caption: "The four open problems and how certain they are",
+        headers: ["Tool", "The problem", "What we know"],
+        rows: [
+          {
+            cells: [
+              "NitroShare — CVE-2026-66050",
+              "A filename can escape the receive folder and write somewhere else.",
+              "Confirmed CVE. Version 0.3.4 is affected and is still the latest legacy desktop release.",
+            ],
+            href: "https://nvd.nist.gov/vuln/detail/CVE-2026-66050",
+          },
+          {
+            cells: [
+              "wormhole-william — v1.0.8",
+              "A directory ZIP can overwrite a sibling path that shares the receive directory's string prefix.",
+              "Reproduced against the latest release and current source. There is no CVE or fixed release yet.",
+            ],
+            href: "https://github.com/psanford/wormhole-william/blob/1d80e82bbbece062fcf2af2b3c754f2faf5e8896/cmd/recv.go#L202-L225",
+          },
+          {
+            cells: [
+              "PairDrop — issue #180",
+              "The signaling server must be trusted while the two peers connect.",
+              "PairDrop documents this limitation and the maintainer's security issue is still open.",
+            ],
+            href: "https://github.com/schlagmichdoch/PairDrop/issues/180",
+          },
+          {
+            cells: [
+              "Warpinator — issue #240",
+              "A retried transfer is reported to delete files already on the receiver.",
+              "Open user report. It is not a confirmed vulnerability or maintainer finding.",
+            ],
+            href: "https://github.com/linuxmint/warpinator/issues/240",
+          },
+        ],
+      },
+      { type: "heading", text: "1. NitroShare can write outside the receive folder" },
+      {
+        type: "paragraph",
+        text: "The clearest bug is CVE-2026-66050 in NitroShare Desktop. NitroShare takes a filename supplied by the sender and joins it to the selected receive folder. It does not make sure the resulting path is still inside that folder. A nearby attacker can put parent-directory parts into the name and write anywhere the NitroShare process is allowed to write. On Windows, that can include the user's Startup folder, where the new file will run at the next login.",
+      },
+      {
+        type: "paragraph",
+        text: "Normally this would be the part where I say to update. Unfortunately, version 0.3.4 was released in 2017 and is still the newest release of the old desktop program. The NitroShare repository says that development will not continue on the C++ version while a replacement protocol is being written. I could not find a fixed release to update to.",
+      },
+      {
+        type: "paragraph",
+        text: "In croc, I now validate every incoming path before the transfer starts. Parent paths, absolute paths, Windows drive names, control characters, alternate data streams, device names, and ambiguous case or Unicode names are rejected. Normal files and ZIP entries are written through an already-open receive folder. That last part matters: checking a string once is not enough if another process can replace a directory with a symlink between the check and the write.",
+      },
+      { type: "heading", text: "2. wormhole-william can turn an overwrite into code execution" },
+      {
+        type: "paragraph",
+        text: "I found a similar but subtler path bug in wormhole-william v1.0.8. Its directory extractor does try to keep ZIP members inside the new receive directory. It makes the destination absolute and checks whether the path starts with the receive directory name. The check forgets to require a path separator. If the new directory is named .s, for example, a sibling named .ssh starts with the same string. A parent-directory ZIP member can resolve into .ssh and still pass the check.",
+      },
+      {
+        type: "paragraph",
+        text: "After that check passes, wormhole-william creates any missing parent directories and opens the destination with truncation enabled. A malicious sender who knows the wormhole code can therefore overwrite a file writable by the receiver when its path shares that prefix. Useful targets include authorized_keys, shell startup files, and files in a sibling project. Those overwrites can lead to code execution when SSH or the shell next uses the changed file.",
+      },
+      {
+        type: "paragraph",
+        text: "This does not break PAKE and it does not give the rendezvous server any new power. The victim must enter the shared code and accept the directory whose name is shown. More precisely, this is an arbitrary file overwrite by an authenticated sender with a practical path to code execution, not code that runs merely because the transfer arrived. I reproduced it against commit 1d80e82 and the latest release, v1.0.8. The same incomplete prefix check is also in the example directory receiver. wormhole-william is an independent Go implementation of the Magic Wormhole protocol; current Magic Wormhole releases fixed their older receive-path bugs.",
+      },
+      { type: "heading", text: "3. PairDrop still has to trust its server" },
+      {
+        type: "paragraph",
+        text: "PairDrop is refreshingly direct about its limitation. The file travels over encrypted WebRTC, but its FAQ says that you still have to trust the PairDrop server. The maintainer opened issue #180 to encrypt signaling and add persistent device verification so the server cannot quietly put a different peer in the middle. That issue is still open.",
+      },
+      {
+        type: "paragraph",
+        text: "Croc also needs a server to introduce the two computers, but it does not use that server as the identity of either computer. The sender and receiver use the shared code in a password-authenticated key exchange. The new key is tied to the sender, receiver, room, purpose, protocol version, and the exact messages they exchanged. Both sides then prove that they made the same key before a file channel opens. The relay can delay the connection or break it, but without the shared code it cannot convincingly become the other computer.",
+      },
+      { type: "heading", text: "4. A Warpinator retry may delete old files" },
+      {
+        type: "paragraph",
+        text: "The strangest problem is Warpinator issue #240. The reporter sent a group of files, interrupted the transfer, removed some files from the sender, and tried again. After accepting an overwrite warning, files that were no longer on the sender reportedly disappeared from the receiver too. A copy had quietly started behaving like a synchronization with deletion.",
+      },
+      {
+        type: "paragraph",
+        text: "The word reportedly is important. The issue was filed against Warpinator 2.0.2 and its Android client, but it has no maintainer reply and is not a confirmed security vulnerability. Still, the behavior is destructive enough that I do not want croc cleanup to depend on anything a sender can name.",
+      },
+      {
+        type: "paragraph",
+        text: "Croc keeps the names of its temporary archives in memory, using paths created locally. A received file cannot turn itself into a cleanup instruction. Even croc's temporary-file marker is only treated as an archive hint until the whole file list and the archive have been checked. Tests make sure that a transferred file which looks like an old cleanup list is ignored, and that only a file marked by the local process is removed.",
+      },
+      { type: "heading", text: "How I check croc" },
+      {
+        type: "table",
+        caption: "The croc tests that correspond to these four problems",
+        headers: ["Problem", "What croc does", "What the tests try"],
+        rows: [
+          {
+            cells: [
+              "Paths leaving the folder (NitroShare and wormhole-william)",
+              "Validates the full file list, then writes through an opened receive folder.",
+              "Traversal, Windows names, collisions, fuzzed names, and symlink races.",
+            ],
+            href: "https://github.com/schollz/croc/blob/main/src/receivefs/path_test.go",
+            highlight: true,
+          },
+          {
+            cells: [
+              "A relay impersonating a peer",
+              "Uses PAKE followed by a separate confirmation from each side.",
+              "Mixed-up rooms and changed handshake messages must fail.",
+            ],
+            href: "https://github.com/schollz/croc/blob/main/src/pakekey/pakekey_test.go",
+            highlight: true,
+          },
+          {
+            cells: [
+              "A transfer deleting other files",
+              "Keeps temporary cleanup names in the local process, not in received data.",
+              "Transferred marker files are ignored and only locally marked files are removed.",
+            ],
+            href: "https://github.com/schollz/croc/blob/main/src/utils/utils_test.go",
+            highlight: true,
+          },
+        ],
+      },
+      { type: "heading", text: "Things I almost included" },
+      {
+        type: "paragraph",
+        text: "I almost put many more tools in this post. Some Linux distributions still ship old versions of programs with known bugs, but I left those out when the project itself had already released a fix. I also left out the Magic Wormhole path bugs because current releases fix them.",
+      },
+      {
+        type: "paragraph",
+        text: "LocalSend was the closest call. Two older advisories still list no patched version, but the current 1.18.2 source pins the discovered HTTPS certificate fingerprint and escapes filenames in its Share via Link page. A stale advisory is not enough for me to call the current program vulnerable when its source shows the relevant fixes. I would need a new reproduction first.",
+      },
+      { type: "heading", text: "Encryption does not solve all of this" },
+      {
+        type: "list",
+        items: [
+          "A filename can describe a file, but it should not choose any destination it wants.",
+          "A relay can connect two computers, but it should not decide who those computers are.",
+          "A retry can replace a file I accepted, but it should not silently delete other files.",
+          "A safety check still has to be true when the program finally writes, extracts, renames, or removes something.",
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "This is the part of file-transfer security that is easy to miss. Encryption protects the bytes while they move. It does not decide where those bytes will be written, who is really on the other side, or what can be deleted after an interruption. I want croc to make each of those decisions separately, with as little trust as possible and a test for the next time I change the code.",
       },
     ],
   },

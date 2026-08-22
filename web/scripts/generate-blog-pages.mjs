@@ -6,6 +6,7 @@ const distRoot = path.join(webRoot, "dist");
 const metadata = JSON.parse(
   await readFile(path.join(webRoot, "src", "blog-seo.json"), "utf8"),
 );
+metadata.posts = metadata.posts.filter((post) => !post.draft);
 const sourceOrder = new Map(
   metadata.posts.map((post, index) => [post.slug, index]),
 );

@@ -1,10 +1,14 @@
 import { expect, test } from "@playwright/test";
 import blogSEO from "../src/blog-seo.json" with { type: "json" };
 
+const publishedPosts = blogSEO.posts.filter(
+  (post) => !("draft" in post && post.draft),
+);
+
 test("every article exposes complete crawler metadata before JavaScript", async ({
   request,
 }) => {
-  for (const post of blogSEO.posts) {
+  for (const post of publishedPosts) {
     const response = await request.get(`/blog/${post.slug}`);
     expect(response.ok()).toBe(true);
     const html = await response.text();
@@ -38,7 +42,7 @@ test("every article exposes complete crawler metadata before JavaScript", async 
     expect(html).not.toContain('href="/croc.wasm"');
   }
 
-  const comparison = blogSEO.posts.find(
+  const comparison = publishedPosts.find(
     (post) => post.slug === "compare-file-transfer-tools",
   );
   expect(comparison).toBeDefined();
@@ -64,11 +68,19 @@ test("every article exposes complete crawler metadata before JavaScript", async 
   expect(feed.indexOf("/blog/compare-file-transfer-tools")).toBeLessThan(
     feed.indexOf("/blog/share-stored-file-with-group"),
   );
+  expect(feed).not.toContain("/blog/unfixed-file-transfer-flaws");
 
   const sitemapResponse = await request.get("/sitemap.xml");
   expect(sitemapResponse.ok()).toBe(true);
-  expect(await sitemapResponse.text()).toContain(
+  const sitemap = await sitemapResponse.text();
+  expect(sitemap).toContain(
     "<loc>https://getcroc.com/blog/compare-file-transfer-tools</loc>",
+  );
+  expect(sitemap).not.toContain("/blog/unfixed-file-transfer-flaws");
+
+  const draftResponse = await request.get("/blog/unfixed-file-transfer-flaws");
+  expect(await draftResponse.text()).not.toContain(
+    "Four Unfixed File-Transfer Bugs and How croc Avoids Them",
   );
 
   const image = await request.get("/blog/images/pake-step-by-step.jpg");
@@ -163,6 +175,14 @@ test("direct article routes publish metadata and complete article content", asyn
   await expect(
     page.getByRole("link", { name: /Next note/ }),
   ).toBeVisible();
+
+  await page.goto("/blog/unfixed-file-transfer-flaws");
+  await expect(
+    page.getByRole("heading", { name: "This note wandered off." }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Four file-transfer bugs I don't want in croc"),
+  ).toHaveCount(0);
 });
 
 test("the comparison tables scroll without widening the mobile article", async ({
