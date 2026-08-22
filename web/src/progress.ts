@@ -1,8 +1,9 @@
-import { Estimation, type TimeFetcher } from "arrival-time";
+import { defaultClock, Estimation, type TimeFetcher } from "arrival-time";
 
 export type TransferEstimate = {
   bytesPerSecond: number;
   etaMilliseconds: number;
+  elapsedMilliseconds: number;
 };
 
 export class TransferEstimator {
@@ -10,7 +11,11 @@ export class TransferEstimator {
   private initialBytes = 0;
   private lastBytes = 0;
   private totalBytes = 0;
+  private transferStartTime?: number;
+  private sampledAtTime?: number;
   private latest?: TransferEstimate;
+
+  private now = () => this.sampledAtTime ?? this.timeFetcher?.() ?? defaultClock();
 
   constructor(private timeFetcher?: TimeFetcher) {}
 
@@ -19,13 +24,23 @@ export class TransferEstimator {
     this.initialBytes = 0;
     this.lastBytes = 0;
     this.totalBytes = 0;
+    this.transferStartTime = undefined;
+    this.sampledAtTime = undefined;
     this.latest = undefined;
   }
 
-  update(transferredBytes: number, totalBytes: number) {
+  update(
+    transferredBytes: number,
+    totalBytes: number,
+    transferStartTime?: number,
+    sampledAtTime?: number,
+  ) {
     if (
       !Number.isFinite(transferredBytes) ||
       !Number.isFinite(totalBytes) ||
+      (transferStartTime !== undefined &&
+        !Number.isFinite(transferStartTime)) ||
+      (sampledAtTime !== undefined && !Number.isFinite(sampledAtTime)) ||
       transferredBytes < 0 ||
       totalBytes <= 0 ||
       transferredBytes > totalBytes
@@ -33,22 +48,27 @@ export class TransferEstimator {
       this.reset();
       return undefined;
     }
+    this.sampledAtTime = sampledAtTime;
 
     if (
       !this.estimation ||
       totalBytes !== this.totalBytes ||
-      transferredBytes < this.lastBytes
+      transferredBytes < this.lastBytes ||
+      (transferStartTime !== undefined &&
+        transferStartTime !== this.transferStartTime)
     ) {
-      this.initialBytes = transferredBytes;
-      this.lastBytes = transferredBytes;
+      this.initialBytes = transferStartTime === undefined ? transferredBytes : 0;
+      this.lastBytes = this.initialBytes;
       this.totalBytes = totalBytes;
+      this.transferStartTime = transferStartTime;
       this.latest = undefined;
       this.estimation = new Estimation({
         progress: 0,
-        total: totalBytes - transferredBytes,
-        timeFetcher: this.timeFetcher,
+        total: totalBytes - this.initialBytes,
+        startTime: transferStartTime,
+        timeFetcher: this.now,
       });
-      return undefined;
+      if (transferredBytes === this.initialBytes) return undefined;
     }
 
     if (transferredBytes === this.lastBytes) return this.latest;
@@ -62,7 +82,9 @@ export class TransferEstimator {
       !Number.isFinite(measurement.speed) ||
       measurement.speed < 0 ||
       !Number.isFinite(measurement.estimate) ||
-      measurement.estimate < 0
+      measurement.estimate < 0 ||
+      !Number.isFinite(measurement.timeDelta) ||
+      measurement.timeDelta < 0
     ) {
       return this.latest;
     }
@@ -71,6 +93,7 @@ export class TransferEstimator {
       bytesPerSecond: measurement.speed,
       etaMilliseconds:
         transferredBytes === totalBytes ? 0 : measurement.estimate,
+      elapsedMilliseconds: measurement.timeDelta,
     };
     return this.latest;
   }

@@ -485,6 +485,19 @@ async function uploadStoredChunks(
   signal?: AbortSignal,
 ) {
   let totalBytes = 0;
+  const firstFileIndex = plan.files.findIndex((file) => file.size > 0);
+  if (firstFileIndex >= 0) {
+    const firstFile = plan.files[firstFileIndex];
+    callbacks.onProgress?.({
+      fileIndex: firstFileIndex,
+      fileCount: plan.files.length,
+      fileName: firstFile.name,
+      fileBytes: 0,
+      fileSize: firstFile.size,
+      totalBytes: 0,
+      totalSize: plan.totalSize,
+    });
+  }
   for (let fileIndex = 0; fileIndex < plan.files.length; fileIndex += 1) {
     const file = plan.files[fileIndex];
     let fileBytes = 0;
@@ -913,6 +926,19 @@ export async function receiveStoredTransfer(options: {
     claimToken: await claimStored(inspection, settings, signal),
     totalBytes: 0,
   };
+  const firstFileIndex = inspection.manifest.f.findIndex((file) => file.s > 0);
+  if (firstFileIndex >= 0) {
+    const firstFile = inspection.manifest.f[firstFileIndex];
+    callbacks.onProgress?.({
+      fileIndex: firstFileIndex,
+      fileCount: inspection.manifest.f.length,
+      fileName: firstFile.n,
+      fileBytes: 0,
+      fileSize: firstFile.s,
+      totalBytes: 0,
+      totalSize: inspection.offer.totalSize,
+    });
+  }
   for (
     let fileIndex = 0;
     fileIndex < inspection.manifest.f.length;

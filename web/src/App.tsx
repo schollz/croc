@@ -350,12 +350,18 @@ function initialTheme(): Theme {
     : "dark";
 }
 
-function ProgressBlock({
+export function ProgressBlock({
   progress,
   status,
+  completed,
+  startedAtMilliseconds,
+  sampledAtMilliseconds,
 }: {
   progress?: FileProgress;
   status: string;
+  completed: boolean;
+  startedAtMilliseconds?: number;
+  sampledAtMilliseconds?: number;
 }) {
   const estimator = useRef<TransferEstimator | null>(null);
   const [estimate, setEstimate] = useState<TransferEstimate>();
@@ -370,9 +376,16 @@ function ProgressBlock({
     const next = estimator.current?.update(
       progress.totalBytes,
       progress.totalSize,
+      startedAtMilliseconds,
+      sampledAtMilliseconds,
     );
     if (next) setEstimate(next);
-  }, [progress?.totalBytes, progress?.totalSize]);
+  }, [
+    progress?.totalBytes,
+    progress?.totalSize,
+    startedAtMilliseconds,
+    sampledAtMilliseconds,
+  ]);
 
   const percent =
     progress && progress.totalSize > 0
@@ -408,20 +421,34 @@ function ProgressBlock({
           </div>
           <div
             className="progress-metrics"
-            aria-label="Transfer speed and estimated time remaining"
+            aria-label={
+              completed
+                ? "Average transfer rate and elapsed time"
+                : "Transfer rate and estimated time remaining"
+            }
           >
             <div>
               <span>Rate</span>
               <strong>
                 {estimate
                   ? `${formatBytes(Math.round(estimate.bytesPerSecond))}/s`
-                  : "measuring…"}
+                  : completed
+                    ? "—"
+                    : "measuring…"}
               </strong>
             </div>
             <div>
-              <span>ETA</span>
+              <span>{completed ? "Elapsed" : "ETA"}</span>
               <strong>
-                {estimate ? formatEta(estimate.etaMilliseconds) : "calculating…"}
+                {estimate
+                  ? formatEta(
+                      completed
+                        ? estimate.elapsedMilliseconds
+                        : estimate.etaMilliseconds,
+                    )
+                  : completed
+                    ? "—"
+                    : "calculating…"}
               </strong>
             </div>
           </div>
@@ -702,6 +729,10 @@ export function App() {
 
   const sendAbort = useRef<AbortController>(undefined);
   const receiveAbort = useRef<AbortController>(undefined);
+  const sendProgressStartedAt = useRef<number>(undefined);
+  const receiveProgressStartedAt = useRef<number>(undefined);
+  const sendProgressSampledAt = useRef<number>(undefined);
+  const receiveProgressSampledAt = useRef<number>(undefined);
   const fileInput = useRef<HTMLInputElement>(null);
   const transferGrid = useRef<HTMLElement>(null);
   const receivePanel = useRef<HTMLFormElement>(null);
@@ -863,6 +894,32 @@ export function App() {
     }
   }
 
+  function updateSendProgress(progress: FileProgress) {
+    const sampledAt = performance.now();
+    if (
+      progress.totalSize > 0 &&
+      progress.totalBytes === 0 &&
+      sendProgressStartedAt.current === undefined
+    ) {
+      sendProgressStartedAt.current = sampledAt;
+    }
+    sendProgressSampledAt.current = sampledAt;
+    setSendProgress(progress);
+  }
+
+  function updateReceiveProgress(progress: FileProgress) {
+    const sampledAt = performance.now();
+    if (
+      progress.totalSize > 0 &&
+      progress.totalBytes === 0 &&
+      receiveProgressStartedAt.current === undefined
+    ) {
+      receiveProgressStartedAt.current = sampledAt;
+    }
+    receiveProgressSampledAt.current = sampledAt;
+    setReceiveProgress(progress);
+  }
+
   async function sendStored(signal: AbortSignal) {
     const prepared = await prepareStoredFiles(
       selectedFiles,
@@ -882,7 +939,7 @@ export function App() {
       signal,
       callbacks: {
         onStatus: setSendStatus,
-        onProgress: setSendProgress,
+        onProgress: updateSendProgress,
       },
     });
     rememberStoredUpload(result);
@@ -917,7 +974,7 @@ export function App() {
         signal,
         callbacks: {
           onStatus: setSendStatus,
-          onProgress: setSendProgress,
+          onProgress: updateSendProgress,
           onFileComplete: (name) =>
             setCompletedSend((current) => [...current, name]),
         },
@@ -949,6 +1006,8 @@ export function App() {
         : "Preparing files…",
     );
     setSendProgress(undefined);
+    sendProgressStartedAt.current = undefined;
+    sendProgressSampledAt.current = undefined;
     setCompletedSend([]);
     setStoredUpload(undefined);
     try {
@@ -982,7 +1041,7 @@ export function App() {
   function receiveCallbacks(): ReceiveCallbacks {
     return {
       onStatus: setReceiveStatus,
-      onProgress: setReceiveProgress,
+      onProgress: updateReceiveProgress,
       onFileComplete: (name) => {
         if (receiveOfferKind.current !== "text") {
           setCompletedReceive((current) => [...current, name]);
@@ -1034,6 +1093,8 @@ export function App() {
     setReceiveActivity("working");
     setReceiveStatus("Connecting…");
     setReceiveProgress(undefined);
+    receiveProgressStartedAt.current = undefined;
+    receiveProgressSampledAt.current = undefined;
     setCompletedReceive([]);
     setOffer(undefined);
     setStoredReceiveActive(false);
@@ -1665,7 +1726,13 @@ export function App() {
           {!storedShareReady && (
             <>
               {sendBusy || sendProgress ? (
-                <ProgressBlock progress={sendProgress} status={sendStatus} />
+                <ProgressBlock
+                  progress={sendProgress}
+                  status={sendStatus}
+                  completed={sendActivity === "done"}
+                  startedAtMilliseconds={sendProgressStartedAt.current}
+                  sampledAtMilliseconds={sendProgressSampledAt.current}
+                />
               ) : (
                 <StatusMessage activity={sendActivity} message={sendStatus} />
               )}
@@ -1847,7 +1914,13 @@ export function App() {
           )}
 
           {(receiveBusy || receiveProgress) && !offer ? (
-            <ProgressBlock progress={receiveProgress} status={receiveStatus} />
+            <ProgressBlock
+              progress={receiveProgress}
+              status={receiveStatus}
+              completed={receiveActivity === "done"}
+              startedAtMilliseconds={receiveProgressStartedAt.current}
+              sampledAtMilliseconds={receiveProgressSampledAt.current}
+            />
           ) : (
             !offer && (
               <StatusMessage

@@ -603,6 +603,7 @@ export async function sendFiles(options: {
     );
 
     let totalTransferred = 0;
+    let progressStarted = false;
     for (;;) {
       checkAbort(signal);
       const message = await receiveControl(control, key);
@@ -628,6 +629,18 @@ export async function sendFiles(options: {
         sendingText ? "Sending text message" : `Sending ${prepared.name}`,
       );
       const beforeFile = totalTransferred;
+      if (!progressStarted && prepared.size > 0) {
+        progressStarted = true;
+        callbacks.onProgress?.({
+          fileIndex,
+          fileCount: files.length,
+          fileName: displayName,
+          fileBytes: 0,
+          fileSize: prepared.size,
+          totalBytes: 0,
+          totalSize,
+        });
+      }
       await sendFileData(
         prepared,
         request.CurrentFileChunkRanges,
@@ -933,6 +946,7 @@ export async function receiveFiles(options: {
       await destination.createEmptyFolder(folder);
     }
     let totalTransferred = 0;
+    let progressStarted = false;
     receiver = new DataReceiver(data, key, offer.noCompress, cipherHandle);
     for (let fileIndex = 0; fileIndex < offer.files.length; fileIndex += 1) {
       checkAbort(signal);
@@ -957,6 +971,18 @@ export async function receiveFiles(options: {
       const sink = await destination.openFile(file);
       const beforeFile = totalTransferred;
       try {
+        if (!progressStarted) {
+          progressStarted = true;
+          callbacks.onProgress?.({
+            fileIndex,
+            fileCount: offer.files.length,
+            fileName: displayName,
+            fileBytes: 0,
+            fileSize: file.size,
+            totalBytes: 0,
+            totalSize: offer.totalSize,
+          });
+        }
         const receivePromise = receiver.receive(file, sink, (fileBytes) => {
           totalTransferred = beforeFile + fileBytes;
           callbacks.onProgress?.({

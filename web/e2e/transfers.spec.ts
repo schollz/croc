@@ -214,7 +214,14 @@ async function expectDirectory(
 
 async function expectTransferMetrics(panel: Locator) {
   const metrics = panel.locator(".progress-metrics");
-  await expect(metrics).toContainText(/Rate.*\/s.*ETA/);
+  await expect(metrics).toContainText(/Rate.*\/s.*(?:ETA|Elapsed)/);
+}
+
+async function expectCompletedTransferMetrics(panel: Locator) {
+  const metrics = panel.locator(".progress-metrics");
+  await expect(metrics).toContainText(/Rate.*\/s.*Elapsed.*\d+[smh]/);
+  await expect(metrics).not.toContainText("ETA");
+  await expect(metrics).not.toContainText(/measuring|calculating/i);
 }
 
 test.describe.configure({ mode: "serial" });
@@ -887,6 +894,7 @@ test("CLI → Web transfers and verifies multiple files", async ({
     await expect(receivePanel).toContainText("All files received and verified", {
       timeout: transferTimeout,
     });
+    await expectCompletedTransferMetrics(receivePanel);
     await cli.done;
     await metricsVisible;
     await expectDownloads(downloads, fixtures);
@@ -948,6 +956,7 @@ test("Web → CLI transfers and verifies multiple files", async ({
     await expect(sendPanel).toContainText("All files arrived safely", {
       timeout: transferTimeout,
     });
+    await expectCompletedTransferMetrics(sendPanel);
     await cli.done;
     await metricsVisible;
     await expectDirectory(destination, fixtures);
@@ -1160,6 +1169,7 @@ test("CLI stored upload → Web download verifies and consumes files", async ({
       "All files received and verified; stored ciphertext removed",
       { timeout: transferTimeout },
     );
+    await expectCompletedTransferMetrics(panel);
     await expectDownloads(downloads, fixtures);
 
     await page.goto("about:blank");

@@ -4,6 +4,7 @@ const wasmMocks = vi.hoisted(() => ({
   storeGenerateKey: vi.fn(async () => new Uint8Array(32)),
   storeRedeemCapability: vi.fn(async () => new Uint8Array(32)),
   storeSealManifest: vi.fn(async () => new Uint8Array(29)),
+  storeSealChunk: vi.fn(async () => new Uint8Array(32)),
 }));
 
 vi.mock("../wasm/client", () => ({ wasm: () => wasmMocks }));
@@ -92,6 +93,77 @@ describe("stored-transfer download limits", () => {
     await expect(
       uploadStoredFiles({ files: [], settings, downloads: 4 }),
     ).rejects.toThrow(/at most 3 downloads/i);
+  });
+});
+
+describe("stored-transfer progress", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("reports the payload phase from zero through the declared total", async () => {
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (init?.method === "POST" && init.body) {
+          return new Response(
+            JSON.stringify({
+              id: "AwMDAwMDAwMDAwMDAwMDAw",
+              uploadToken:
+                "BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ",
+              uploadExpiresAt: "2026-08-11T13:00:00Z",
+              chunkSize: 4 * 1024 * 1024,
+            }),
+            {
+              status: 201,
+              headers: {
+                "Content-Type": "application/json",
+                "X-Croc-Downloads": "1",
+              },
+            },
+          );
+        }
+        if (init?.method === "PUT") {
+          return new Response(null, { status: 204 });
+        }
+        expect(String(input)).toMatch(/\/complete$/);
+        return new Response(
+          JSON.stringify({ expiresAt: "2026-08-14T12:00:00Z" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const progress: Array<{ totalBytes: number; totalSize: number }> = [];
+    const file = new File(["croc"], "croc.txt", { lastModified: 0 });
+
+    await uploadStoredFiles({
+      files: [
+        {
+          file,
+          name: file.name,
+          size: file.size,
+          hash: new Uint8Array(),
+          sha256: new Uint8Array(32),
+          modified: new Date(file.lastModified).toISOString(),
+          firstChunk: 0,
+          chunkCount: 1,
+        },
+      ],
+      settings: {
+        storeAPI: "/api/v1/store",
+        maxTransferBytes: 1024,
+        maxFiles: 10,
+        maxDownloads: 3,
+        maxExpiresSeconds: 0,
+      },
+      callbacks: {
+        onProgress: ({ totalBytes, totalSize }) =>
+          progress.push({ totalBytes, totalSize }),
+      },
+    });
+
+    expect(progress).toEqual([
+      { totalBytes: 0, totalSize: 4 },
+      { totalBytes: 4, totalSize: 4 },
+    ]);
   });
 });
 
