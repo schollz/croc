@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,7 +28,7 @@ func TestVendoredWordList(t *testing.T) {
 	require.Len(t, effWords, 1296)
 	assert.Equal(t, "acid", effWords[0])
 	assert.Equal(t, "zoom", effWords[len(effWords)-1])
-	digest := sha256.Sum256([]byte(effWordList))
+	digest := sha256.Sum256([]byte(strings.ReplaceAll(effWordList, "\r\n", "\n")))
 	assert.Equal(t, "36ecca49e4fa20ca84b176c32f2e9c82f98f446585190e75f9879a95c08247bf", hex.EncodeToString(digest[:]))
 	seen := make(map[string]struct{}, len(effWords))
 	for _, word := range effWords {
@@ -36,6 +37,11 @@ func TestVendoredWordList(t *testing.T) {
 		assert.Falsef(t, duplicate, "duplicate word %q", word)
 		seen[word] = struct{}{}
 	}
+}
+
+func TestLoadWordsAcceptsWindowsLineEndings(t *testing.T) {
+	assert.Equal(t, []string{"acid", "acorn"}, mustLoadWords("test", "acid\r\nacorn\r\n", 2))
+	assert.Panics(t, func() { mustLoadWords("test", "acid\racorn\r", 1) })
 }
 
 func TestGenerate(t *testing.T) {

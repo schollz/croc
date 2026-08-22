@@ -61,6 +61,9 @@ var (
 )
 
 func mustLoadWords(name, contents string, expected int) []string {
+	// Git may check out the embedded text with CRLF on Windows. Normalize only
+	// complete CRLF sequences so other control characters remain invalid.
+	contents = strings.ReplaceAll(contents, "\r\n", "\n")
 	words := strings.Split(strings.TrimSuffix(contents, "\n"), "\n")
 	if len(words) != expected {
 		panic(fmt.Sprintf("%s word list has %d entries; want %d", name, len(words), expected))
