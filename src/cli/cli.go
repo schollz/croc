@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
@@ -142,6 +143,7 @@ func newApp() *cli.App {
 		&cli.BoolFlag{Name: "overwrite", Usage: "do not prompt to overwrite or resume"},
 		&cli.BoolFlag{Name: "rename", Usage: "receive files that already exist under a new name instead of prompting"},
 		&cli.BoolFlag{Name: "testing", Usage: "flag for testing purposes"},
+		&cli.BoolFlag{Name: "experimental-direct-udp", Usage: "experimentally transfer live data over direct UDP/QUIC when both peers opt in", EnvVars: []string{"CROC_EXPERIMENTAL_DIRECT_UDP"}},
 		&cli.BoolFlag{Name: "quiet", Usage: "disable all output"},
 		&cli.BoolFlag{Name: "disable-clipboard", Usage: "disable copy to clipboard"},
 		&cli.BoolFlag{Name: "extended-clipboard", Usage: "copy full command with secret as env variable to clipboard"},
@@ -156,6 +158,7 @@ func newApp() *cli.App {
 		&cli.StringFlag{Name: "socks5", Value: "", Usage: "add a socks5 proxy", EnvVars: []string{"SOCKS5_PROXY"}},
 		&cli.StringFlag{Name: "connect", Value: "", Usage: "add a http proxy", EnvVars: []string{"HTTP_PROXY"}},
 		&cli.StringFlag{Name: "throttleUpload", Value: "", Usage: "throttle the upload speed e.g. 500k"},
+		&cli.StringFlag{Name: "experimental-stun-server", Value: croc.DefaultExperimentalSTUNServer, Usage: "STUN host:port for experimental direct UDP, or 'off' for host candidates only", EnvVars: []string{"CROC_EXPERIMENTAL_STUN_SERVER"}},
 	}
 	app.EnableBashCompletion = true
 	app.HideHelp = false
@@ -506,6 +509,21 @@ func parseRelayPorts(portsFlag string) []string {
 	return ports
 }
 
+func validateExperimentalSTUNServer(value string) error {
+	if strings.EqualFold(strings.TrimSpace(value), "off") {
+		return nil
+	}
+	host, portText, err := net.SplitHostPort(strings.TrimSpace(value))
+	if err != nil || strings.TrimSpace(host) == "" {
+		return errors.New("--experimental-stun-server must be host:port or 'off'")
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil || port < 1 || port > 65535 {
+		return errors.New("--experimental-stun-server must use a port between 1 and 65535")
+	}
+	return nil
+}
+
 func send(c *cli.Context) (err error) {
 	finishVersionCheck := startTransferVersionCheck(c)
 	defer finishVersionCheck()
@@ -513,7 +531,18 @@ func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
+	if c.Bool("experimental-direct-udp") && (comm.Socks5Proxy != "" || comm.HttpProxy != "") {
+		return errors.New("--experimental-direct-udp cannot be combined with a SOCKS5 or HTTP proxy")
+	}
+	if c.Bool("experimental-direct-udp") {
+		if err = validateExperimentalSTUNServer(c.String("experimental-stun-server")); err != nil {
+			return err
+		}
+	}
 	if c.Bool("store") {
+		if c.Bool("experimental-direct-udp") {
+			return errors.New("--experimental-direct-udp requires a live peer and cannot be used with --store")
+		}
 		return sendStored(c)
 	}
 
@@ -546,36 +575,38 @@ func send(c *cli.Context) (err error) {
 	}
 
 	crocOptions := croc.Options{
-		SharedSecret:      c.String("code"),
-		IsSender:          true,
-		Debug:             c.Bool("debug"),
-		NoPrompt:          c.Bool("yes"),
-		RelayAddress:      c.String("relay"),
-		RelayAddress6:     c.String("relay6"),
-		Stdout:            c.Bool("stdout"),
-		DisableLocal:      c.Bool("no-local"),
-		OnlyLocal:         c.Bool("local"),
-		IgnoreStdin:       c.Bool("ignore-stdin"),
-		RelayPorts:        ports,
-		Ask:               c.Bool("ask"),
-		NoMultiplexing:    c.Bool("no-multi"),
-		RelayPassword:     determinePass(c),
-		SendingText:       c.String("text") != "",
-		NoCompress:        c.Bool("no-compress"),
-		Overwrite:         c.Bool("overwrite"),
-		Rename:            c.Bool("rename"),
-		Curve:             c.String("curve"),
-		HashAlgorithm:     c.String("hash"),
-		ThrottleUpload:    c.String("throttleUpload"),
-		ZipFolder:         c.Bool("zip"),
-		GitIgnore:         c.Bool("git"),
-		ShowQrCode:        c.Bool("qrcode"),
-		MulticastAddress:  c.String("multicast"),
-		Exclude:           excludeStrings,
-		ExcludeFile:       excludeFiles,
-		Quiet:             c.Bool("quiet"),
-		DisableClipboard:  c.Bool("disable-clipboard"),
-		ExtendedClipboard: c.Bool("extended-clipboard"),
+		SharedSecret:           c.String("code"),
+		IsSender:               true,
+		Debug:                  c.Bool("debug"),
+		NoPrompt:               c.Bool("yes"),
+		RelayAddress:           c.String("relay"),
+		RelayAddress6:          c.String("relay6"),
+		Stdout:                 c.Bool("stdout"),
+		DisableLocal:           c.Bool("no-local"),
+		OnlyLocal:              c.Bool("local"),
+		IgnoreStdin:            c.Bool("ignore-stdin"),
+		RelayPorts:             ports,
+		Ask:                    c.Bool("ask"),
+		NoMultiplexing:         c.Bool("no-multi"),
+		RelayPassword:          determinePass(c),
+		SendingText:            c.String("text") != "",
+		NoCompress:             c.Bool("no-compress"),
+		Overwrite:              c.Bool("overwrite"),
+		Rename:                 c.Bool("rename"),
+		Curve:                  c.String("curve"),
+		HashAlgorithm:          c.String("hash"),
+		ThrottleUpload:         c.String("throttleUpload"),
+		ZipFolder:              c.Bool("zip"),
+		GitIgnore:              c.Bool("git"),
+		ShowQrCode:             c.Bool("qrcode"),
+		MulticastAddress:       c.String("multicast"),
+		Exclude:                excludeStrings,
+		ExcludeFile:            excludeFiles,
+		Quiet:                  c.Bool("quiet"),
+		DisableClipboard:       c.Bool("disable-clipboard"),
+		ExtendedClipboard:      c.Bool("extended-clipboard"),
+		ExperimentalDirectUDP:  c.Bool("experimental-direct-udp"),
+		ExperimentalSTUNServer: c.String("experimental-stun-server"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -827,30 +858,43 @@ func receive(c *cli.Context) (err error) {
 
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
+	if c.Bool("experimental-direct-udp") && (comm.Socks5Proxy != "" || comm.HttpProxy != "") {
+		return errors.New("--experimental-direct-udp cannot be combined with a SOCKS5 or HTTP proxy")
+	}
+	if c.Bool("experimental-direct-udp") {
+		if err = validateExperimentalSTUNServer(c.String("experimental-stun-server")); err != nil {
+			return err
+		}
+	}
 	if storedToken := strings.TrimSpace(os.Getenv("CROC_STORE_TOKEN")); storedToken != "" {
+		if c.Bool("experimental-direct-udp") {
+			return errors.New("--experimental-direct-udp requires a live peer and cannot receive a stored transfer")
+		}
 		setDebugLevel(c)
 		return receiveStored(c, storedToken)
 	}
 	crocOptions := croc.Options{
-		SharedSecret:      c.String("code"),
-		IsSender:          false,
-		Debug:             c.Bool("debug"),
-		NoPrompt:          c.Bool("yes"),
-		RelayAddress:      c.String("relay"),
-		RelayAddress6:     c.String("relay6"),
-		Stdout:            c.Bool("stdout"),
-		Ask:               c.Bool("ask"),
-		RelayPassword:     determinePass(c),
-		OnlyLocal:         c.Bool("local"),
-		IP:                c.String("ip"),
-		Overwrite:         c.Bool("overwrite"),
-		Rename:            c.Bool("rename"),
-		Curve:             c.String("curve"),
-		TestFlag:          c.Bool("testing"),
-		MulticastAddress:  c.String("multicast"),
-		Quiet:             c.Bool("quiet"),
-		DisableClipboard:  c.Bool("disable-clipboard"),
-		ExtendedClipboard: c.Bool("extended-clipboard"),
+		SharedSecret:           c.String("code"),
+		IsSender:               false,
+		Debug:                  c.Bool("debug"),
+		NoPrompt:               c.Bool("yes"),
+		RelayAddress:           c.String("relay"),
+		RelayAddress6:          c.String("relay6"),
+		Stdout:                 c.Bool("stdout"),
+		Ask:                    c.Bool("ask"),
+		RelayPassword:          determinePass(c),
+		OnlyLocal:              c.Bool("local"),
+		IP:                     c.String("ip"),
+		Overwrite:              c.Bool("overwrite"),
+		Rename:                 c.Bool("rename"),
+		Curve:                  c.String("curve"),
+		TestFlag:               c.Bool("testing"),
+		MulticastAddress:       c.String("multicast"),
+		Quiet:                  c.Bool("quiet"),
+		DisableClipboard:       c.Bool("disable-clipboard"),
+		ExtendedClipboard:      c.Bool("extended-clipboard"),
+		ExperimentalDirectUDP:  c.Bool("experimental-direct-udp"),
+		ExperimentalSTUNServer: c.String("experimental-stun-server"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -870,6 +914,9 @@ func receive(c *cli.Context) (err error) {
 		crocOptions.SharedSecret = strings.Join(phrase, "-")
 	}
 	if storeclient.IsStoredValue(crocOptions.SharedSecret) {
+		if c.Bool("experimental-direct-udp") {
+			return errors.New("--experimental-direct-udp requires a live peer and cannot receive a stored transfer")
+		}
 		setDebugLevel(c)
 		if runtime.GOOS != "windows" && !utils.Exists(getClassicConfigFile(true)) {
 			fmt.Print(`For security, stored-transfer links are not accepted as command-line
@@ -956,6 +1003,9 @@ Run croc with no argument and paste the link at the prompt, or use:
 		}
 	}
 	if storeclient.IsStoredValue(crocOptions.SharedSecret) {
+		if c.Bool("experimental-direct-udp") {
+			return errors.New("--experimental-direct-udp requires a live peer and cannot receive a stored transfer")
+		}
 		return receiveStored(c, crocOptions.SharedSecret)
 	}
 	if publicRelayMode {
