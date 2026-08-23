@@ -38,6 +38,7 @@ import (
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/compress"
 	"github.com/schollz/croc/v11/src/crypt"
+	"github.com/schollz/croc/v11/src/directquic"
 	"github.com/schollz/croc/v11/src/message"
 	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/pakekey"
@@ -76,6 +77,8 @@ const (
 	maxDecompressedChunkSize           = models.TCP_BUFFER_SIZE/2 + 8
 )
 
+const DefaultExperimentalSTUNServer = directquic.DefaultSTUNServer
+
 func init() {
 	log.SetLevel("debug")
 	log.SetOutput(termui.LoggerOutput(os.Stdout))
@@ -92,40 +95,42 @@ func Debug(debug bool) {
 
 // Options specifies user specific options
 type Options struct {
-	IsSender          bool
-	SharedSecret      string
-	RoomName          string
-	Debug             bool
-	RelayAddress      string
-	RelayAddress6     string
-	PublicRelay       bool
-	RelayPorts        []string
-	RelayPassword     string
-	Stdout            bool
-	NoPrompt          bool
-	NoMultiplexing    bool
-	DisableLocal      bool
-	OnlyLocal         bool
-	IgnoreStdin       bool
-	Ask               bool
-	SendingText       bool
-	NoCompress        bool
-	IP                string
-	Overwrite         bool
-	Rename            bool
-	Curve             string
-	HashAlgorithm     string
-	ThrottleUpload    string
-	ZipFolder         bool
-	TestFlag          bool
-	GitIgnore         bool
-	MulticastAddress  string
-	ShowQrCode        bool
-	Exclude           []string
-	ExcludeFile       []string
-	Quiet             bool
-	DisableClipboard  bool
-	ExtendedClipboard bool
+	IsSender               bool
+	SharedSecret           string
+	RoomName               string
+	Debug                  bool
+	RelayAddress           string
+	RelayAddress6          string
+	PublicRelay            bool
+	RelayPorts             []string
+	RelayPassword          string
+	Stdout                 bool
+	NoPrompt               bool
+	NoMultiplexing         bool
+	DisableLocal           bool
+	OnlyLocal              bool
+	IgnoreStdin            bool
+	Ask                    bool
+	SendingText            bool
+	NoCompress             bool
+	IP                     string
+	Overwrite              bool
+	Rename                 bool
+	Curve                  string
+	HashAlgorithm          string
+	ThrottleUpload         string
+	ZipFolder              bool
+	TestFlag               bool
+	GitIgnore              bool
+	MulticastAddress       string
+	ShowQrCode             bool
+	Exclude                []string
+	ExcludeFile            []string
+	Quiet                  bool
+	DisableClipboard       bool
+	ExtendedClipboard      bool
+	ExperimentalDirectUDP  bool   `json:"-"`
+	ExperimentalSTUNServer string `json:"-"`
 }
 
 type SimpleMessage struct {
@@ -188,6 +193,14 @@ type Client struct {
 	reconnectVersion        int
 	peerReconnectVersion    int
 	peerPerFileCompression  bool
+	directMu                sync.Mutex
+	directSession           *directquic.Session
+	directConn              *directquic.Conn
+	directAccept            chan directQUICConnectResult
+	directSelected          bool
+	directLaneCount         int
+	directReceivingFile     int
+	usedDirectQUIC          atomic.Bool
 	senderRouteReady        chan struct{}
 	filesReady              chan struct{}
 	filesReadyErr           error
@@ -249,7 +262,8 @@ type RemoteFileRequest struct {
 	FilesToTransferCurrentNum int
 	MachineID                 string
 	ReconnectVersion          int
-	Features                  []string `json:",omitempty"`
+	Features                  []string         `json:",omitempty"`
+	DirectQUIC                *DirectQUICOffer `json:"direct_quic,omitempty"`
 }
 
 // SenderInfo lists the files to be transferred
@@ -264,10 +278,27 @@ type SenderInfo struct {
 	HashAlgorithm          string
 	ReconnectVersion       int
 	NextReconnectRoom      string
-	Features               []string `json:",omitempty"`
+	Features               []string         `json:",omitempty"`
+	DirectQUIC             *DirectQUICOffer `json:"direct_quic,omitempty"`
 }
 
-const perFileCompressionFeature = "per-file-compression-v1"
+type DirectQUICOffer = directquic.Offer
+
+type DirectQUICSelection struct {
+	Transport string `json:"transport"`
+	SessionID []byte `json:"session_id"`
+	LaneCount int    `json:"lane_count"`
+}
+
+type directQUICConnectResult struct {
+	conn *directquic.Conn
+	err  error
+}
+
+const (
+	perFileCompressionFeature = "per-file-compression-v1"
+	directQUICFeature         = directquic.Feature
+)
 
 // ErrRelayConnection marks a failure to establish a relay control or data
 // connection. Callers may use it to invalidate cached relay selections without
@@ -286,6 +317,14 @@ func supportsFeature(features []string, wanted string) bool {
 // New establishes a new connection for transferring files between two instances.
 func New(ops Options) (c *Client, err error) {
 	defer func() { err = redact.Error(err, ops.SharedSecret) }()
+	if ops.ExperimentalDirectUDP && (comm.Socks5Proxy != "" || comm.HttpProxy != "") {
+		return nil, errors.New("experimental direct UDP cannot be combined with a SOCKS5 or HTTP proxy")
+	}
+	if ops.ExperimentalDirectUDP && !ops.OnlyLocal && ops.ExperimentalSTUNServer != "" {
+		if err = directquic.ValidateSTUNServer(ops.ExperimentalSTUNServer); err != nil {
+			return nil, fmt.Errorf("invalid experimental STUN server: %w", err)
+		}
+	}
 	c = new(Client)
 	c.FilesHasFinished = make(map[int]struct{})
 
@@ -362,6 +401,7 @@ func New(ops Options) (c *Client, err error) {
 	c.receiveMutex = &sync.Mutex{}
 	c.senderRouteReady = make(chan struct{})
 	c.externalIPReady = make(chan struct{})
+	c.directReceivingFile = -1
 	c.stop = newStop(context.Background())
 	return
 }
@@ -416,10 +456,12 @@ type transferAttemptState struct {
 	errc    chan error
 	control *comm.Comm
 	once    sync.Once
+}
 
-	sendMu    sync.Mutex
-	sendDone  int
-	sendClose sync.Once
+type senderFileTransfer struct {
+	file      *os.File
+	remaining atomic.Int32
+	closeOnce sync.Once
 }
 
 func (a *transferAttemptState) report(err error) {
@@ -437,24 +479,22 @@ func (a *transferAttemptState) report(err error) {
 	})
 }
 
-func (a *transferAttemptState) finishSenderData(total int, file *os.File) {
-	if file == nil {
+func newSenderFileTransfer(file *os.File, lanes int) *senderFileTransfer {
+	transfer := &senderFileTransfer{file: file}
+	transfer.remaining.Store(int32(lanes))
+	return transfer
+}
+
+func (t *senderFileTransfer) done() {
+	if t == nil || t.file == nil || t.remaining.Add(-1) != 0 {
 		return
 	}
-	a.sendMu.Lock()
-	a.sendDone++
-	done := a.sendDone == total
-	a.sendMu.Unlock()
-	if done {
-		a.sendClose.Do(func() {
-			log.Debug("closing file")
-			if err := file.Close(); err != nil {
-				if !errors.Is(err, os.ErrClosed) {
-					log.Errorf("error closing file: %v", err)
-				}
-			}
-		})
-	}
+	t.closeOnce.Do(func() {
+		log.Debug("closing file")
+		if err := t.file.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+			log.Errorf("error closing file: %v", err)
+		}
+	})
 }
 
 func generateReconnectRoom() (string, error) {
@@ -606,6 +646,7 @@ func (c *Client) canRetryTransfer(err error, attempt int) bool {
 }
 
 func (c *Client) closeAttempt() {
+	c.closeDirectQUIC()
 	for _, conn := range c.conn {
 		if conn != nil {
 			conn.Close()
@@ -1530,6 +1571,7 @@ func (c *Client) receiverReconnectRelayAttempt(attempt int) error {
 func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, totalNumberFolders int) (err error) {
 	defer func() { err = c.redactError(err) }()
 	go c.stop.done()
+	defer c.closeDirectQUIC()
 	defer c.stop.Cancel()
 	c.EmptyFoldersToTransfer = emptyFoldersToTransfer
 	c.TotalNumberFolders = totalNumberFolders
@@ -1778,6 +1820,7 @@ func (c *Client) discoverReceivePeers() (discoveries []peerdiscovery.Discovered)
 func (c *Client) Receive() (err error) {
 	defer func() { err = c.redactError(err) }()
 	go c.stop.done()
+	defer c.closeDirectQUIC()
 	defer c.stop.Cancel()
 	defer c.clearReceiveStatus()
 	if _, err = c.receiveFilesystem(); err != nil {
@@ -2232,7 +2275,11 @@ func (c *Client) createEmptyFolder(i int) (err error) {
 	return
 }
 
-func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error) {
+func (c *Client) processMessageFileInfo(m message.Message, attempts ...*transferAttemptState) (done bool, err error) {
+	var attempt *transferAttemptState
+	if len(attempts) > 0 {
+		attempt = attempts[0]
+	}
 	c.clearReceiveStatus()
 	var senderInfo SenderInfo
 	err = json.Unmarshal(m.Bytes, &senderInfo)
@@ -2337,6 +2384,22 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 			fname = quotedFilename(displayName, colorEnabled)
 		}
 		fmt.Fprintf(output, "\rReceiving %s (%s) \n", fname, utils.ByteCountDecimal(totalSize))
+	}
+	peerDirect := supportsFeature(senderInfo.Features, directQUICFeature)
+	if c.Options.ExperimentalDirectUDP && c.hasDirectQUICPayload() {
+		if attempt == nil {
+			return true, errors.New("experimental direct UDP requires transfer attempt state")
+		}
+		if peerDirect && senderInfo.DirectQUIC == nil {
+			return true, errors.New("peer advertised direct QUIC without an offer")
+		}
+		peerOffer := senderInfo.DirectQUIC
+		if !peerDirect {
+			peerOffer = nil
+		}
+		if err = c.prepareDirectQUICReceiver(peerOffer, attempt); err != nil {
+			return true, err
+		}
 	}
 	output, _ := termui.Output(os.Stderr)
 	fmt.Fprintf(output, "\nReceiving (<-%s)\n", peerIP(c.ExternalIPConnected))
@@ -2676,7 +2739,7 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		err = fmt.Errorf("peer error: %s", m.Message)
 		return true, err
 	case message.TypeFileInfo:
-		done, err = c.processMessageFileInfo(m)
+		done, err = c.processMessageFileInfo(m, attempt)
 	case message.TypeRecipientReady:
 		var remoteFile RemoteFileRequest
 		err = json.Unmarshal(m.Bytes, &remoteFile)
@@ -2693,8 +2756,6 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 			models.TCP_BUFFER_SIZE/2,
 		)
 		log.Debugf("current file has %d requested chunks", c.CurrentFileChunkCount)
-		c.Step3RecipientRequestFile = true
-		c.markTransferStarted()
 
 		if c.Options.Ask {
 			output, colorEnabled := termui.Output(os.Stderr)
@@ -2713,6 +2774,27 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 				return
 			}
 		}
+		peerDirect := supportsFeature(remoteFile.Features, directQUICFeature)
+		c.directMu.Lock()
+		haveDirectSession := c.directSession != nil
+		directSelected := c.directSelected
+		c.directMu.Unlock()
+		if haveDirectSession && !directSelected {
+			if peerDirect && remoteFile.DirectQUIC == nil {
+				return true, errors.New("peer advertised direct QUIC without an offer")
+			}
+			peerOffer := remoteFile.DirectQUIC
+			if !peerDirect {
+				peerOffer = nil
+			}
+			if err = c.selectDirectQUIC(peerOffer); err != nil {
+				return true, err
+			}
+		}
+		c.Step3RecipientRequestFile = true
+		c.markTransferStarted()
+	case message.TypeTransportSelected:
+		err = c.processDirectQUICSelection(m.Bytes, attempt)
 	case message.TypeCloseSender:
 		c.bar.Finish()
 		log.Debug("close-sender received...")
@@ -2760,6 +2842,7 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 			}
 			c.nextReconnectRoom = nextReconnectRoom
 		}
+		directOffer := c.prepareDirectQUICSender()
 		b, err = json.Marshal(SenderInfo{
 			FilesToTransfer:        c.FilesToTransfer,
 			EmptyFoldersToTransfer: c.EmptyFoldersToTransfer,
@@ -2771,7 +2854,8 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 			HashAlgorithm:          c.Options.HashAlgorithm,
 			ReconnectVersion:       c.reconnectVersion,
 			NextReconnectRoom:      nextReconnectRoom,
-			Features:               []string{perFileCompressionFeature},
+			Features:               c.directQUICFeatures(),
+			DirectQUIC:             directOffer,
 		})
 		if err != nil {
 			log.Error(err)
@@ -2858,7 +2942,7 @@ func (c *Client) recipientInitializeFile() (err error) {
 	return
 }
 
-func (c *Client) recipientGetFileReady(finished bool) (err error) {
+func (c *Client) recipientGetFileReady(finished bool, attempt *transferAttemptState) (err error) {
 	if finished {
 		// TODO: do the last finishing stuff
 		log.Debug("finished")
@@ -2889,7 +2973,8 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 		FilesToTransferCurrentNum: c.FilesToTransferCurrentNum,
 		MachineID:                 machID,
 		ReconnectVersion:          c.reconnectVersion,
-		Features:                  []string{perFileCompressionFeature},
+		Features:                  c.directQUICFeatures(),
+		DirectQUIC:                c.currentDirectQUICOffer(),
 	})
 	c.CurrentFileChunkCount = utils.ChunkRangesCount(
 		c.CurrentFileChunkRanges,
@@ -2900,6 +2985,12 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 	if !finished {
 		// setup the progressbar
 		c.setBar()
+	}
+	if c.directQUICSelected() {
+		c.directMu.Lock()
+		lanes := c.directLaneCount
+		c.directMu.Unlock()
+		c.startDirectQUICReceive(c.FilesToTransferCurrentNum, lanes, attempt)
 	}
 
 	log.Debugf("sending recipient ready with %d chunks", c.CurrentFileChunkCount)
@@ -3003,7 +3094,7 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	return
 }
 
-func (c *Client) updateIfRecipientHasFileInfo() (err error) {
+func (c *Client) updateIfRecipientHasFileInfo(attempt *transferAttemptState) (err error) {
 	if c.Options.IsSender || !c.Step2FileInfoTransferred || c.Step3RecipientRequestFile {
 		return
 	}
@@ -3121,7 +3212,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			break
 		}
 	}
-	c.recipientGetFileReady(finished)
+	c.recipientGetFileReady(finished, attempt)
 	return
 }
 
@@ -3141,7 +3232,7 @@ func (c *Client) updateState(attempt *transferAttemptState) (err error) {
 		return
 	}
 
-	err = c.updateIfRecipientHasFileInfo()
+	err = c.updateIfRecipientHasFileInfo(attempt)
 	if err != nil {
 		return
 	}
@@ -3184,9 +3275,14 @@ func (c *Client) updateState(attempt *transferAttemptState) (err error) {
 		if err != nil {
 			return
 		}
-		for i := 0; i < len(c.Options.RelayPorts); i++ {
-			log.Debugf("starting sending over comm %d", i)
-			go c.sendData(i, c.conn[i+1], c.fread, attempt)
+		if c.directQUICSelected() {
+			c.sendDirectQUICData(c.fread, attempt)
+		} else {
+			fileTransfer := newSenderFileTransfer(c.fread, len(c.Options.RelayPorts))
+			for i := 0; i < len(c.Options.RelayPorts); i++ {
+				log.Debugf("starting sending over comm %d", i)
+				go c.sendData(i, c.conn[i+1], c.fread, attempt, fileTransfer)
+			}
 		}
 	}
 	return
@@ -3243,142 +3339,139 @@ func (c *Client) receiveData(i int, dataConn *comm.Comm, attempt *transferAttemp
 			log.Trace("got ping")
 			continue
 		}
-
-		if c.dataAEAD == nil {
-			attempt.report(fmt.Errorf("data cipher is not initialized"))
+		var stop bool
+		decompressedBuffer, stop = c.processReceivedDataChunk(i, data, decompressedBuffer, attempt)
+		if stop {
 			return
-		}
-		data, err = crypt.DecryptAEADInPlace(data, c.dataAEAD)
-		if err != nil {
-			attempt.report(err)
-			return
-		}
-		if c.currentFileUsesCompression() {
-			data, err = compress.DecompressTo(decompressedBuffer, data, maxDecompressedChunkSize)
-			if err != nil {
-				attempt.report(fmt.Errorf("decompress data chunk: %w", err))
-				return
-			}
-			decompressedBuffer = data
-		}
-		if len(data) < 9 || len(data) > maxDecompressedChunkSize {
-			attempt.report(fmt.Errorf("invalid data chunk size: %d", len(data)))
-			return
-		}
-
-		// get position
-		position := binary.LittleEndian.Uint64(data[:8])
-		positionInt64 := int64(position)
-
-		c.receiveMutex.Lock()
-		if c.CurrentFileIsClosed || c.CurrentFile == nil {
-			c.receiveMutex.Unlock()
-			log.Tracef("was closed %d", i)
-			return
-		}
-		if err := c.ctxErr(); err != nil {
-			c.CurrentFileIsClosed = true
-			file := c.CurrentFile
-			c.receiveMutex.Unlock()
-			log.Tracef("stopping: %v", err)
-			if err := file.Close(); err != nil {
-				log.Tracef("closing %s: %v", file.Name(), err)
-			} else {
-				log.Tracef("Successful closing %s", file.Name())
-			}
-			log.Tracef("sending close-sender")
-			if sendErr := message.Send(c.conn[0], c.Key, message.Message{
-				Type: message.TypeCloseSender,
-			}); sendErr != nil {
-				log.Tracef("sending close-sender: %v", sendErr)
-			}
-			return
-		}
-		receiveFile := c.CurrentFile
-		c.receiveMutex.Unlock()
-
-		// os.File supports concurrent WriteAt calls. Keep disk I/O outside the
-		// state lock so all relay connections can write in parallel.
-		_, err = receiveFile.WriteAt(data[8:], positionInt64)
-		if err != nil {
-			attempt.report(err)
-			return
-		}
-
-		c.receiveMutex.Lock()
-		if c.CurrentFileIsClosed || c.CurrentFile != receiveFile {
-			c.receiveMutex.Unlock()
-			return
-		}
-		c.TotalSent += int64(len(data[8:]))
-		c.TotalChunksTransferred++
-		finished := c.TotalChunksTransferred == c.CurrentFileChunkCount ||
-			c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size
-		if finished {
-			c.CurrentFileIsClosed = true
-		}
-		c.receiveMutex.Unlock()
-
-		c.bar.Add(len(data[8:]))
-		if finished {
-			log.Debug("finished receiving!")
-			if err = receiveFile.Close(); err != nil {
-				log.Debugf("error closing %s: %v", receiveFile.Name(), err)
-			} else {
-				log.Debugf("Successful closing %s", receiveFile.Name())
-			}
-			if c.Options.Stdout || c.Options.SendingText {
-				pathToFile := path.Join(
-					c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
-					c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
-				)
-				root, rootErr := c.receiveFilesystem()
-				if rootErr != nil {
-					attempt.report(rootErr)
-					return
-				}
-				file, openErr := root.Open(pathToFile)
-				if openErr != nil {
-					attempt.report(openErr)
-					return
-				}
-				b, readErr := io.ReadAll(file)
-				closeErr := file.Close()
-				if readErr != nil {
-					attempt.report(readErr)
-					return
-				}
-				if closeErr != nil {
-					attempt.report(closeErr)
-					return
-				}
-				fmt.Print(string(b))
-			}
-			log.Debug("sending close-sender")
-			err = message.Send(c.conn[0], c.Key, message.Message{
-				Type: message.TypeCloseSender,
-			})
-			if err != nil {
-				if c.ctxErr() == nil {
-					attempt.report(transferDisconnectError{err: err})
-				}
-				return
-			}
 		}
 	}
 }
 
-func (c *Client) sendData(i int, dataConn *comm.Comm, fread *os.File, attempt *transferAttemptState) {
+func (c *Client) processReceivedDataChunk(i int, data, decompressedBuffer []byte, attempt *transferAttemptState) ([]byte, bool) {
+	if c.dataAEAD == nil {
+		attempt.report(fmt.Errorf("data cipher is not initialized"))
+		return decompressedBuffer, true
+	}
+	var err error
+	data, err = crypt.DecryptAEADInPlace(data, c.dataAEAD)
+	if err != nil {
+		attempt.report(err)
+		return decompressedBuffer, true
+	}
+	if c.currentFileUsesCompression() {
+		data, err = compress.DecompressTo(decompressedBuffer, data, maxDecompressedChunkSize)
+		if err != nil {
+			attempt.report(fmt.Errorf("decompress data chunk: %w", err))
+			return decompressedBuffer, true
+		}
+		decompressedBuffer = data
+	}
+	if len(data) < 9 || len(data) > maxDecompressedChunkSize {
+		attempt.report(fmt.Errorf("invalid data chunk size: %d", len(data)))
+		return decompressedBuffer, true
+	}
+
+	positionInt64 := int64(binary.LittleEndian.Uint64(data[:8]))
+	c.receiveMutex.Lock()
+	if c.CurrentFileIsClosed || c.CurrentFile == nil {
+		c.receiveMutex.Unlock()
+		log.Tracef("was closed %d", i)
+		return decompressedBuffer, true
+	}
+	if err = c.ctxErr(); err != nil {
+		c.CurrentFileIsClosed = true
+		file := c.CurrentFile
+		c.receiveMutex.Unlock()
+		log.Tracef("stopping: %v", err)
+		if closeErr := file.Close(); closeErr != nil {
+			log.Tracef("closing %s: %v", file.Name(), closeErr)
+		}
+		if sendErr := message.Send(c.conn[0], c.Key, message.Message{Type: message.TypeCloseSender}); sendErr != nil {
+			log.Tracef("sending close-sender: %v", sendErr)
+		}
+		return decompressedBuffer, true
+	}
+	receiveFile := c.CurrentFile
+	c.receiveMutex.Unlock()
+
+	if _, err = receiveFile.WriteAt(data[8:], positionInt64); err != nil {
+		attempt.report(err)
+		return decompressedBuffer, true
+	}
+	c.receiveMutex.Lock()
+	if c.CurrentFileIsClosed || c.CurrentFile != receiveFile {
+		c.receiveMutex.Unlock()
+		return decompressedBuffer, true
+	}
+	c.TotalSent += int64(len(data[8:]))
+	c.TotalChunksTransferred++
+	finished := c.TotalChunksTransferred == c.CurrentFileChunkCount ||
+		c.TotalSent == c.FilesToTransfer[c.FilesToTransferCurrentNum].Size
+	if finished {
+		c.CurrentFileIsClosed = true
+	}
+	c.receiveMutex.Unlock()
+
+	c.bar.Add(len(data[8:]))
+	if !finished {
+		return decompressedBuffer, false
+	}
+	log.Debug("finished receiving!")
+	if err = receiveFile.Close(); err != nil {
+		log.Debugf("error closing %s: %v", receiveFile.Name(), err)
+	}
+	if c.Options.Stdout || c.Options.SendingText {
+		pathToFile := path.Join(
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
+			c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
+		)
+		root, rootErr := c.receiveFilesystem()
+		if rootErr != nil {
+			attempt.report(rootErr)
+			return decompressedBuffer, true
+		}
+		file, openErr := root.Open(pathToFile)
+		if openErr != nil {
+			attempt.report(openErr)
+			return decompressedBuffer, true
+		}
+		b, readErr := io.ReadAll(file)
+		closeErr := file.Close()
+		if readErr != nil {
+			attempt.report(readErr)
+			return decompressedBuffer, true
+		}
+		if closeErr != nil {
+			attempt.report(closeErr)
+			return decompressedBuffer, true
+		}
+		fmt.Print(string(b))
+	}
+	log.Debug("sending close-sender")
+	if err = message.Send(c.conn[0], c.Key, message.Message{Type: message.TypeCloseSender}); err != nil {
+		if c.ctxErr() == nil {
+			attempt.report(transferDisconnectError{err: err})
+		}
+		return decompressedBuffer, true
+	}
+	return decompressedBuffer, false
+}
+
+func (c *Client) sendData(i int, dataConn *comm.Comm, fread *os.File, attempt *transferAttemptState, fileTransfer *senderFileTransfer) {
+	c.sendDataLane(i, len(c.Options.RelayPorts), fread, attempt, fileTransfer, dataConn.Send)
+}
+
+func (c *Client) sendDataLane(i, laneCount int, fread *os.File, attempt *transferAttemptState, fileTransfer *senderFileTransfer, send func([]byte) error) {
 	defer func() {
 		if r := recover(); r != nil {
 			attempt.report(fmt.Errorf("send data panic: %v", r))
 		}
 		log.Debugf("finished with %d", i)
-		attempt.finishSenderData(len(c.Options.RelayPorts), fread)
+		fileTransfer.done()
 	}()
 
 	chunkSize := int64(models.TCP_BUFFER_SIZE / 2)
-	connectionCount := int64(len(c.Options.RelayPorts))
+	connectionCount := int64(laneCount)
 	readingPos := int64(i) * chunkSize
 	pos := uint64(readingPos)
 	stride := chunkSize * connectionCount
@@ -3421,7 +3514,7 @@ func (c *Client) sendData(i int, dataConn *comm.Comm, fread *os.File, attempt *t
 				return
 			}
 			encryptedBuffer = dataToSend
-			if err = dataConn.Send(dataToSend); err != nil {
+			if err = send(dataToSend); err != nil {
 				if c.ctxErr() == nil {
 					attempt.report(transferDisconnectError{err: err})
 				}
