@@ -53,35 +53,3 @@ If no connection is killed, inspect the active croc sockets and adjust the port:
 ```bash
 sudo ss -tnp | grep croc
 ```
-
-## Experimental Direct UDP/QUIC
-
-Build croc and start the same local relay shown above. Opt in on both peers and
-disable public STUN for a deterministic LAN check:
-
-```bash
-./bin/croc --debug --yes --overwrite --relay 127.0.0.1:9009 \
-  --experimental-direct-udp --experimental-stun-server off test-direct-code
-
-./bin/croc --debug --relay 127.0.0.1:9009 \
-  --experimental-direct-udp --experimental-stun-server off \
-  --no-compress send --code test-direct-code /tmp/croc-big.bin
-```
-
-Both terminals must report `Using experimental direct UDP (QUIC)`. If only one
-peer has the flag, they report the mismatch and transfer over TCP. If both peers
-advertise the feature but probing or the QUIC handshake fails, the transfer must
-fail without sending payload over the TCP data channels.
-
-The transport-level loopback benchmark is available with:
-
-```bash
-go test ./src/directquic -run '^$' -bench BenchmarkDirectQUICStream -benchmem
-```
-
-For comparable end-to-end results, use a 1 GiB incompressible file and
-`--no-compress`, run five trials each through the normal LAN TCP path, a relay
-TCP path, and direct QUIC, and report the median and range. On Linux, repeat with
-`tc netem` at 50 ms RTT and 0%, 0.5%, and 1% loss. Record sender and receiver
-CPU alongside goodput; `--debug` prints QUIC RTT, byte, packet-loss, and GSO
-statistics when the connection closes.

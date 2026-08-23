@@ -481,19 +481,6 @@ func TestParseRelayPorts(t *testing.T) {
 	}
 }
 
-func TestValidateExperimentalSTUNServer(t *testing.T) {
-	for _, value := range []string{"stun.cloudflare.com:3478", "127.0.0.1:19302", "[::1]:3478", "off", "OFF"} {
-		if err := validateExperimentalSTUNServer(value); err != nil {
-			t.Errorf("valid value %q rejected: %v", value, err)
-		}
-	}
-	for _, value := range []string{"", "stun.cloudflare.com", "stun:server:3478", "host:0", "host:65536"} {
-		if err := validateExperimentalSTUNServer(value); err == nil {
-			t.Errorf("invalid value %q accepted", value)
-		}
-	}
-}
-
 func TestResolveSendSharedSecret(t *testing.T) {
 	t.Run("uses env secret", func(t *testing.T) {
 		got := resolveSendSharedSecret("generated-secret", "password-example")

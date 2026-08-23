@@ -19,7 +19,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/schollz/croc/v11/src/directquic"
 	"github.com/schollz/croc/v11/src/message"
 	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/pakekey"
@@ -138,99 +137,6 @@ func TestPerFileCompressionNegotiationFallsBackForLegacyPeers(t *testing.T) {
 	client.Options.NoCompress = true
 	assert.False(t, client.currentFileUsesCompression(), "global disable always wins")
 	assert.True(t, supportsFeature([]string{"other", perFileCompressionFeature}, perFileCompressionFeature))
-}
-
-func TestExperimentalDirectUDPOptionsAreNotRemembered(t *testing.T) {
-	data, err := json.Marshal(Options{
-		ExperimentalDirectUDP:  true,
-		ExperimentalSTUNServer: "example.test:3478",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bytes.Contains(data, []byte("ExperimentalDirect")) || bytes.Contains(data, []byte("example.test")) {
-		t.Fatalf("experimental direct UDP options leaked into remembered JSON: %s", data)
-	}
-}
-
-func TestNegotiatedDirectQUICSetupFailureDoesNotDowngrade(t *testing.T) {
-	key := bytes.Repeat([]byte{5}, 32)
-	client, err := New(Options{
-		IsSender: true, SharedSecret: "direct-strict-test", Curve: "siec",
-		RelayPorts: []string{"9009"}, ExperimentalDirectUDP: true,
-		ExperimentalSTUNServer: "off", Quiet: true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer client.closeDirectQUIC()
-	client.Key = key
-	client.FilesToTransfer = []FileInfo{{Name: "payload", Size: 1}}
-	localOffer := client.prepareDirectQUICSender()
-	if localOffer == nil {
-		t.Fatal("sender did not create a direct QUIC offer")
-	}
-	receiverSession, err := directquic.New(client.stop.ctx, directquic.Config{
-		Role: directquic.RoleReceiver, Key: key, SessionID: localOffer.SessionID, DisableSTUN: true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer receiverSession.Close()
-	peerOffer := receiverSession.Offer()
-	peerOffer.Candidates = []directquic.Candidate{{Network: "udp4", Address: "192.0.2.1:9", Kind: "host"}}
-	if err = client.selectDirectQUIC(&peerOffer); err == nil || !strings.Contains(err.Error(), "experimental direct UDP setup failed") {
-		t.Fatalf("negotiated setup should fail strictly, got %v", err)
-	}
-	if isTransferDisconnectError(err) {
-		t.Fatalf("initial setup failure must not enter reconnect fallback: %v", err)
-	}
-	if client.directQUICSelected() || client.usedDirectQUIC.Load() {
-		t.Fatal("failed direct QUIC setup selected another data transport")
-	}
-}
-
-func TestDirectQUICStreamLossUsesReconnectPath(t *testing.T) {
-	client, err := New(Options{SharedSecret: "direct-stream-loss-test", Curve: "siec", Quiet: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	attempt := &transferAttemptState{errc: make(chan error, 1)}
-	client.receiveDirectQUICStream(0, bytes.NewReader([]byte{1}), attempt)
-	select {
-	case reported := <-attempt.errc:
-		if !isTransferDisconnectError(reported) {
-			t.Fatalf("stream loss should use secure reconnect path, got %v", reported)
-		}
-	default:
-		t.Fatal("stream loss was not reported")
-	}
-}
-
-func TestOneSidedDirectQUICOptInKeepsTCPPath(t *testing.T) {
-	client, err := New(Options{
-		IsSender: true, SharedSecret: "direct-one-sided-test", Curve: "siec",
-		RelayPorts: []string{"9009"}, ExperimentalDirectUDP: true,
-		ExperimentalSTUNServer: "off", Quiet: true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer client.closeDirectQUIC()
-	client.Key = bytes.Repeat([]byte{6}, 32)
-	client.FilesToTransfer = []FileInfo{{Name: "payload", Size: 1}}
-	if offer := client.prepareDirectQUICSender(); offer == nil {
-		t.Fatal("sender did not create a direct QUIC offer")
-	}
-	if err = client.selectDirectQUIC(nil); err != nil {
-		t.Fatalf("one-sided opt-in should keep TCP available: %v", err)
-	}
-	if client.directQUICSelected() || client.usedDirectQUIC.Load() {
-		t.Fatal("one-sided opt-in selected direct QUIC")
-	}
-	if supportsFeature(client.directQUICFeatures(), directQUICFeature) {
-		t.Fatal("closed one-sided session remained advertised")
-	}
 }
 
 func TestWebReceiveURL(t *testing.T) {
@@ -863,98 +769,6 @@ func TestCrocReadme(t *testing.T) {
 	}()
 
 	wg.Wait()
-}
-
-func TestExperimentalDirectQUICTransfer(t *testing.T) {
-	log.SetLevel("warn")
-	testDir := t.TempDir()
-	sourceDir := filepath.Join(testDir, "source")
-	receiveDir := filepath.Join(testDir, "receive")
-	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(receiveDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	want := map[string][]byte{
-		"first.bin":  bytes.Repeat([]byte("direct-quic-a"), 12_000),
-		"second.bin": bytes.Repeat([]byte("direct-quic-b"), 9_000),
-	}
-	var paths []string
-	for name, data := range want {
-		filename := filepath.Join(sourceDir, name)
-		if err := os.WriteFile(filename, data, 0o644); err != nil {
-			t.Fatal(err)
-		}
-		paths = append(paths, filename)
-	}
-	// Pre-populate one correctly sized destination with its first chunk intact.
-	// The zero-filled remainder is advertised as missing, exercising croc's
-	// existing resume ranges over the direct QUIC data path.
-	partial := make([]byte, len(want["first.bin"]))
-	copy(partial[:models.TCP_BUFFER_SIZE/2], want["first.bin"][:models.TCP_BUFFER_SIZE/2])
-	if err := os.WriteFile(filepath.Join(receiveDir, "first.bin"), partial, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	filesInfo, emptyFolders, totalFolders, err := GetFilesInfo(paths, false, false, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	originalCwd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.Chdir(receiveDir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(originalCwd) })
-
-	secret := fmt.Sprintf("direct-quic-%d", time.Now().UnixNano())
-	sender, err := New(Options{
-		IsSender: true, SharedSecret: secret, RelayAddress: "127.0.0.1:8281",
-		RelayPorts: []string{"8281"}, RelayPassword: "pass123", NoPrompt: true,
-		DisableLocal: true, Curve: "siec", Overwrite: true,
-		ExperimentalDirectUDP: true, ExperimentalSTUNServer: "off",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	receiver, err := New(Options{
-		SharedSecret: secret, RelayAddress: "127.0.0.1:8281", RelayPassword: "pass123",
-		NoPrompt: true, DisableLocal: true, Curve: "siec", Overwrite: true,
-		ExperimentalDirectUDP: true, ExperimentalSTUNServer: "off",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	errorsCh := make(chan error, 2)
-	go func() { errorsCh <- sender.Send(filesInfo, emptyFolders, totalFolders) }()
-	time.Sleep(100 * time.Millisecond)
-	go func() { errorsCh <- receiver.Receive() }()
-	for i := 0; i < 2; i++ {
-		select {
-		case transferErr := <-errorsCh:
-			if transferErr != nil {
-				t.Fatalf("direct QUIC transfer failed: %v", transferErr)
-			}
-		case <-time.After(20 * time.Second):
-			t.Fatal("direct QUIC transfer timed out")
-		}
-	}
-	if !sender.usedDirectQUIC.Load() || !receiver.usedDirectQUIC.Load() {
-		t.Fatal("transfer completed without selecting direct QUIC on both peers")
-	}
-	for name, expected := range want {
-		got, readErr := os.ReadFile(filepath.Join(receiveDir, name))
-		if readErr != nil {
-			t.Fatal(readErr)
-		}
-		if !bytes.Equal(got, expected) {
-			t.Fatalf("received %s did not match", name)
-		}
-	}
 }
 
 func TestCrocNonASCIIFileName(t *testing.T) {

@@ -362,41 +362,6 @@ You can send files via a proxy by adding `--socks5`:
 croc --socks5 "127.0.0.1:9050" send SOMEFILE
 ```
 
-#### Experimental Direct UDP/QUIC
-
-Live transfers can experimentally move their encrypted data chunks over a
-direct QUIC connection. The normal TCP relay remains in use for discovery,
-authentication, control messages, and compatibility. Both peers must opt in:
-
-```bash
-# receiver
-croc --experimental-direct-udp --yes your-code
-
-# sender
-croc --experimental-direct-udp send --code your-code SOMEFILE
-```
-
-The experiment gathers LAN and IPv6 addresses and, by default, contacts
-`stun.cloudflare.com:3478` to discover a public UDP address. Use host candidates
-only—and avoid contacting a public STUN service—with:
-
-```bash
-croc --experimental-direct-udp --experimental-stun-server off ...
-```
-
-You can instead supply another `host:port` with
-`--experimental-stun-server` or `CROC_EXPERIMENTAL_STUN_SERVER`. The feature
-does not use TURN, so restrictive or symmetric NATs and UDP-blocking firewalls
-may prevent a connection. Once both peers negotiate direct QUIC, setup failure
-aborts the transfer rather than silently using TCP. If only one peer opts in,
-the existing TCP transfer path is used.
-
-This flag is not saved by `--remember`. It cannot be combined with HTTP/SOCKS5
-proxy options or stored transfers because those modes cannot carry this direct
-UDP path. `--local` suppresses STUN and uses host candidates only. QUIC supplies
-pacing, congestion control, and loss recovery; croc retains its application
-encryption, compression, hashing, progress, and resume behavior above it.
-
 #### Change Encryption Curve
 
 To choose a different elliptic curve for encryption, use the `--curve` flag:
