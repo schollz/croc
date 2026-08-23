@@ -62,6 +62,9 @@ describe("Blog", () => {
       }),
     ).toBeVisible();
     expect(screen.getByText("FIELD NOTE 10")).toBeVisible();
+    expect(
+      screen.getByText(/the alternatives took 1\.3× to 21\.7× as long/),
+    ).toBeVisible();
     expect(screen.getByRole("heading", { name: "TL;DR" })).toBeVisible();
     expect(
       screen.getByText(/averaging 34\.8 MB\/s across its three timed runs/),

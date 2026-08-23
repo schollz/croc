@@ -1164,7 +1164,7 @@ const drafts: DraftBlogPost[] = [
     author: "schollz",
     visual: "bridge",
     takeaway:
-      "In my two US West-to-East tests, croc was fastest: 7.2 seconds for one audio file and 20.0 seconds for a folder with --zip.",
+      "Across eight CLI file-transfer tools, croc finished first in both tests; the alternatives took 1.3× to 21.7× as long.",
     blocks: [
       {
         type: "paragraph",
