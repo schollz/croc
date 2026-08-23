@@ -13,7 +13,7 @@
   },
   "index": {
     "title": "croc field notes: secure file transfer explained",
-    "description": "Notes and release updates from inside croc: live relays, PAKE encryption, browser transfers, temporary storage, and what changed in each version.",
+    "description": "Notes and release updates from inside croc: speed tests, live relays, PAKE encryption, browser transfers, temporary storage, and what changed in each version.",
     "keywords": [
       "croc blog",
       "croc release notes",
@@ -27,6 +27,39 @@
     "imageAlt": "An open field notebook containing simple symbols for a relay, code tiles, a key, and a file."
   },
   "posts": [
+    {
+      "slug": "croc-cli-speed-comparison",
+      "title": "How fast is croc?",
+      "seoTitle": "croc Speed Test: Eight CLI File-Transfer Tools Compared",
+      "description": "I timed eight command-line file-transfer tools between two servers using a 303 MB audio file and a folder of 64 photos.",
+      "category": "Benchmarks",
+      "publishedAt": "2026-08-23",
+      "modifiedAt": "2026-08-23",
+      "wordCount": 1127,
+      "readingMinutes": 6,
+      "relatedSlugs": [
+        "compare-file-transfer-tools",
+        "how-croc-moves-a-file"
+      ],
+      "keywords": [
+        "croc speed test",
+        "CLI file transfer benchmark",
+        "croc vs Magic Wormhole",
+        "croc vs Sendme",
+        "WebWormhole speed",
+        "Floe speed",
+        "AirPipe speed",
+        "derphole speed",
+        "wormhole-william speed",
+        "file transfer protocol",
+        "WebRTC file transfer",
+        "QUIC file transfer",
+        "command-line file transfer"
+      ],
+      "image": "/blog/images/croc-cli-speed-comparison.webp",
+      "socialImage": "/blog/images/croc-cli-speed-comparison.jpg",
+      "imageAlt": "Two terminal windows exchange an audio file across the United States while a stopwatch measures the transfer."
+    },
     {
       "slug": "croc-v11-release-update",
       "title": "From croc v10 to v11",
@@ -249,14 +282,14 @@
     },
     {
       "slug": "compare-file-transfer-tools",
-      "title": "36 ways to send a file",
-      "seoTitle": "36 Ways to Send a File: croc and 35 Alternatives",
-      "description": "Compare croc with 35 file transfer tools by resume support, account requirements, browser and CLI transfers, encryption, availability, and transfer paths.",
+      "title": "40 ways to send a file",
+      "seoTitle": "40 Ways to Send a File: croc and 39 Alternatives",
+      "description": "Compare croc with 39 file transfer tools by resume support, account requirements, browser and CLI transfers, encryption, availability, and transfer paths.",
       "category": "Field guide",
       "publishedAt": "2026-08-12",
-      "modifiedAt": "2026-08-12",
-      "wordCount": 2244,
-      "readingMinutes": 11,
+      "modifiedAt": "2026-08-23",
+      "wordCount": 2347,
+      "readingMinutes": 12,
       "relatedSlugs": [
         "browser-meets-terminal",
         "send-file-from-browser"
@@ -269,7 +302,11 @@
         "secure file transfer",
         "peer-to-peer file transfer",
         "cross-platform file sharing",
-        "no account file transfer"
+        "no account file transfer",
+        "derphole file transfer",
+        "wormhole-william",
+        "Floe file transfer",
+        "AirPipe file transfer"
       ],
       "image": "/blog/images/compare-file-transfer-tools.webp",
       "socialImage": "/blog/images/compare-file-transfer-tools.jpg",

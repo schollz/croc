@@ -886,6 +886,14 @@ function BlogBlockView({ block, index }: { block: BlogBlock; index: number }) {
       </figure>
     );
   }
+  if (block.type === "details") {
+    return (
+      <details className="blog-code-details">
+        <summary>{block.summary}</summary>
+        <pre><code>{block.lines.join("\n")}</code></pre>
+      </details>
+    );
+  }
   if (block.type === "aside") {
     return (
       <aside className="blog-callout">

@@ -86,7 +86,7 @@ test("mobile blog index exposes notes and updates without overflow", async ({
   await expect(
     page.getByRole("heading", { name: "Notes from inside the transfer." }),
   ).toBeVisible();
-  await expect(page.locator("main article")).toHaveCount(10);
+  await expect(page.locator("main article")).toHaveCount(11);
   await expect(
     page.locator("main article").first().getByRole("heading", {
       name: "From croc v10 to v11",
@@ -173,7 +173,7 @@ test("the comparison tables scroll without widening the mobile article", async (
 
   await expect(
     page.getByRole("heading", {
-      name: "36 ways to send a file",
+      name: "40 ways to send a file",
     }),
   ).toBeVisible();
   const tableRegion = page.getByRole("region", {
@@ -220,5 +220,5 @@ test("the comparison tables scroll without widening the mobile article", async (
   expect(indicatorWidths.every((width) => width <= 74)).toBe(true);
   await expect(
     page.locator(".blog-comparison-table tbody th a"),
-  ).toHaveCount(72);
+  ).toHaveCount(80);
 });

@@ -2873,6 +2873,37 @@ a.cli-download-primary:hover {
   line-height: 1.75;
 }
 
+.blog-code-details {
+  margin: 12px 0;
+  border: 1px solid var(--foreground);
+  background: var(--background);
+}
+
+.blog-code-details summary {
+  padding: 14px 16px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.5;
+  list-style-position: inside;
+}
+
+.blog-code-details[open] summary {
+  border-bottom: 1px solid var(--soft-border);
+}
+
+.blog-code-details pre {
+  margin: 0;
+  overflow-x: auto;
+  padding: 20px;
+  font: inherit;
+}
+
+.blog-code-details code {
+  font-size: 12px;
+  line-height: 1.75;
+}
+
 .blog-table-block {
   max-width: 100%;
   margin: 34px 0;
@@ -4112,6 +4143,10 @@ a.cli-download-primary:hover {
   }
 
   .blog-code-block pre {
+    padding: 16px;
+  }
+
+  .blog-code-details pre {
     padding: 16px;
   }
 
