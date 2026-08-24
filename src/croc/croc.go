@@ -128,7 +128,32 @@ type Options struct {
 	Quiet             bool
 	DisableClipboard  bool
 	ExtendedClipboard bool
-	ExperimentalDERP  bool `json:"-"`
+	Transport         TransportMode `json:",omitempty"`
+}
+
+// TransportMode controls how croc selects the file-data connection after the
+// PAKE-authenticated control channel is established.
+type TransportMode string
+
+const (
+	TransportAuto  TransportMode = "auto"
+	TransportDERP  TransportMode = "derp"
+	TransportRelay TransportMode = "relay"
+)
+
+// ParseTransportMode validates and normalizes a transport name. An empty value
+// is the API-compatible spelling of the default auto mode.
+func ParseTransportMode(value string) (TransportMode, error) {
+	mode := TransportMode(strings.ToLower(strings.TrimSpace(value)))
+	if mode == "" {
+		mode = TransportAuto
+	}
+	switch mode {
+	case TransportAuto, TransportDERP, TransportRelay:
+		return mode, nil
+	default:
+		return "", fmt.Errorf("invalid transport %q (choose auto, derp, or relay)", value)
+	}
 }
 
 type SimpleMessage struct {
@@ -176,30 +201,34 @@ type Client struct {
 	dataAEAD               cipher.AEAD
 
 	// tcp connections
-	conn                          []*comm.Comm
-	baseRoomName                  string
-	pakePassphrase                string
-	pakeInitiator                 []byte
-	pakeResponder                 []byte
-	pakeCurve                     string
-	pakeKeys                      pakekey.Keys
-	pakeConfirmationPending       bool
-	nextReconnectRoom             string
-	relayControlAddress           string
-	reconnectRelayAddresses       []string
-	reconnectRelayMu              sync.Mutex
-	reconnectVersion              int
-	peerReconnectVersion          int
-	peerPerFileCompression        bool
-	peerExperimentalDERP          bool
-	experimentalDERPOfferReceived bool
-	senderRouteReady              chan struct{}
-	filesReady                    chan struct{}
-	filesReadyErr                 error
-	senderRouteReadyOnce          sync.Once
-	externalIPReady               chan struct{}
-	externalIPReadyOnce           sync.Once
-	transferStarted               atomic.Bool
+	conn                       []*comm.Comm
+	baseRoomName               string
+	pakePassphrase             string
+	pakeInitiator              []byte
+	pakeResponder              []byte
+	pakeCurve                  string
+	pakeKeys                   pakekey.Keys
+	pakeConfirmationPending    bool
+	nextReconnectRoom          string
+	relayControlAddress        string
+	reconnectRelayAddresses    []string
+	reconnectRelayMu           sync.Mutex
+	reconnectVersion           int
+	peerReconnectVersion       int
+	peerPerFileCompression     bool
+	peerDERP                   bool
+	peerDERPNegotiation        bool
+	peerDERPRequired           bool
+	derpOfferReceived          bool
+	transportSelectionReceived bool
+	selectedDataTransport      atomic.Int32
+	senderRouteReady           chan struct{}
+	filesReady                 chan struct{}
+	filesReadyErr              error
+	senderRouteReadyOnce       sync.Once
+	externalIPReady            chan struct{}
+	externalIPReadyOnce        sync.Once
+	transferStarted            atomic.Bool
 	// localRelayPort is the control port of the ephemeral local relay started by
 	// setupLocalRelay(). It is captured before any goroutines that might
 	// overwrite c.Options.RelayPorts are launched.
@@ -273,9 +302,18 @@ type SenderInfo struct {
 }
 
 const (
-	perFileCompressionFeature    = "per-file-compression-v1"
-	experimentalDERPFeature      = "experimental-derp-v1"
-	experimentalDERPSetupTimeout = 30 * time.Second
+	perFileCompressionFeature = "per-file-compression-v1"
+	// Keep the original base capability so already-built experimental clients
+	// remain interoperable. Peers without derpNegotiationFeature are strict.
+	derpFeature            = "experimental-derp-v1"
+	derpNegotiationFeature = "experimental-derp-fallback-v1"
+	derpRequiredFeature    = "experimental-derp-required-v1"
+	derpSetupTimeout       = 30 * time.Second
+	derpStatusReady        = "ready"
+	derpStatusFallback     = "fallback"
+	selectedTransportUnset = 0
+	selectedTransportDERP  = 1
+	selectedTransportRelay = 2
 )
 
 // ErrRelayConnection marks a failure to establish a relay control or data
@@ -283,12 +321,13 @@ const (
 // treating peer or transfer failures as relay availability failures.
 var (
 	ErrRelayConnection = errors.New("relay connection failed")
-	// ErrExperimentalDERPConnection marks setup failures for the optional DERP
-	// data path. It is deliberately distinct from croc relay selection errors.
-	ErrExperimentalDERPConnection = errors.New("experimental DERP connection failed")
+	// ErrDERPConnection marks setup failures for the optional DERP data path. It
+	// is deliberately distinct from croc relay selection errors.
+	ErrDERPConnection = errors.New("DERP connection failed")
 
 	listenExperimentalDERP = derptransport.Listen
 	dialExperimentalDERP   = derptransport.Dial
+	derpAvailable          = derptransport.Available
 )
 
 func supportsFeature(features []string, wanted string) bool {
@@ -303,16 +342,23 @@ func New(ops Options) (c *Client, err error) {
 
 	// setup basic info
 	c.Options = ops
+	c.Options.Transport, err = ParseTransportMode(string(c.Options.Transport))
+	if err != nil {
+		return nil, err
+	}
 	Debug(c.Options.Debug)
-	if c.Options.ExperimentalDERP {
-		if c.Options.OnlyLocal {
-			return nil, errors.New("--experimental-derp cannot be combined with --local")
-		}
+	if c.Options.Transport != TransportAuto && c.Options.OnlyLocal {
+		return nil, errors.New("--transport cannot be combined with --local unless it is auto")
+	}
+	if c.Options.Transport == TransportDERP {
 		if c.Options.ShowQrCode {
-			return nil, errors.New("--experimental-derp cannot be combined with --qrcode")
+			return nil, errors.New("--transport derp cannot be combined with --qrcode")
+		}
+		if !derpAvailable() {
+			return nil, fmt.Errorf("%w: %w", ErrDERPConnection, derptransport.ErrUnsupported)
 		}
 		if routeErr := derptransport.ValidatePublicRoute(); routeErr != nil {
-			return nil, fmt.Errorf("%w: %w", ErrExperimentalDERPConnection, routeErr)
+			return nil, fmt.Errorf("%w: %w", ErrDERPConnection, routeErr)
 		}
 	}
 
@@ -420,6 +466,13 @@ type incompatiblePakeVersionError struct {
 	got int
 }
 
+type derpProtocolError struct {
+	err error
+}
+
+func (e derpProtocolError) Error() string { return e.err.Error() }
+func (e derpProtocolError) Unwrap() error { return e.err }
+
 func (e incompatiblePakeVersionError) Error() string {
 	return fmt.Sprintf(
 		"peer uses unsupported PAKE protocol version %d; upgrade both croc clients",
@@ -445,6 +498,11 @@ type transferAttemptState struct {
 	derpSetupContext  context.Context
 	derpSetupCancel   context.CancelFunc
 	derpSetupDeadline time.Time
+	derpPendingMu     sync.Mutex
+	derpPending       net.Conn
+	derpPendingCancel context.CancelFunc
+	derpStatusOnce    sync.Once
+	derpStatusErr     error
 
 	sendMu    sync.Mutex
 	sendDone  int
@@ -454,15 +512,74 @@ type transferAttemptState struct {
 func (a *transferAttemptState) beginDERPSetup(parent context.Context) (context.Context, context.CancelFunc, time.Time) {
 	if a == nil {
 		ctx, cancel := context.WithCancel(parent)
-		return ctx, cancel, time.Now().Add(experimentalDERPSetupTimeout)
+		return ctx, cancel, time.Now().Add(derpSetupTimeout)
 	}
 	a.derpSetupMu.Lock()
 	defer a.derpSetupMu.Unlock()
 	if a.derpSetupContext == nil {
 		a.derpSetupContext, a.derpSetupCancel = context.WithCancel(parent)
-		a.derpSetupDeadline = time.Now().Add(experimentalDERPSetupTimeout)
+		a.derpSetupDeadline = time.Now().Add(derpSetupTimeout)
 	}
 	return a.derpSetupContext, a.derpSetupCancel, a.derpSetupDeadline
+}
+
+func (a *transferAttemptState) setDERPPending(conn net.Conn, cancel context.CancelFunc) error {
+	if a == nil || conn == nil {
+		if conn != nil {
+			_ = conn.Close()
+		}
+		if cancel != nil {
+			cancel()
+		}
+		return errors.New("DERP returned an empty connection")
+	}
+	a.derpPendingMu.Lock()
+	defer a.derpPendingMu.Unlock()
+	if a.derpPending != nil {
+		_ = conn.Close()
+		if cancel != nil {
+			cancel()
+		}
+		return errors.New("duplicate pending DERP connection")
+	}
+	a.derpPending = conn
+	a.derpPendingCancel = cancel
+	return nil
+}
+
+func (a *transferAttemptState) takeDERPPending() (net.Conn, context.CancelFunc) {
+	if a == nil {
+		return nil, nil
+	}
+	a.derpPendingMu.Lock()
+	defer a.derpPendingMu.Unlock()
+	conn, cancel := a.derpPending, a.derpPendingCancel
+	a.derpPending = nil
+	a.derpPendingCancel = nil
+	return conn, cancel
+}
+
+func (a *transferAttemptState) closeDERPPending() {
+	conn, cancel := a.takeDERPPending()
+	if conn != nil {
+		_ = conn.Close()
+	}
+	if cancel != nil {
+		cancel()
+	}
+}
+
+func (a *transferAttemptState) sendDERPStatus(control *comm.Comm, key []byte, status string) error {
+	if a == nil || control == nil {
+		return errors.New("DERP status control connection is unavailable")
+	}
+	a.derpStatusOnce.Do(func() {
+		a.derpStatusErr = message.Send(control, key, message.Message{
+			Type:    message.TypeDERPStatus,
+			Message: status,
+		})
+	})
+	return a.derpStatusErr
 }
 
 func (a *transferAttemptState) finishDERPSetup() {
@@ -700,8 +817,12 @@ func (c *Client) resetForReconnectAttempt(attempt int) error {
 	c.pakeKeys = pakekey.Keys{}
 	c.pakeConfirmationPending = false
 	c.peerPerFileCompression = false
-	c.peerExperimentalDERP = false
-	c.experimentalDERPOfferReceived = false
+	c.peerDERP = false
+	c.peerDERPNegotiation = false
+	c.peerDERPRequired = false
+	c.derpOfferReceived = false
+	c.transportSelectionReceived = false
+	c.selectedDataTransport.Store(selectedTransportUnset)
 	c.CurrentFileChunkRanges = nil
 	c.CurrentFileChunkCount = 0
 	c.TotalSent = 0
@@ -1605,11 +1726,11 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 	if c.Options.RelayPassword != models.DEFAULT_PASSPHRASE {
 		flags.WriteString("--pass " + c.Options.RelayPassword + " ")
 	}
-	if c.Options.ExperimentalDERP {
-		flags.WriteString("--experimental-derp ")
+	if c.Options.Transport != TransportAuto {
+		flags.WriteString("--transport " + string(c.Options.Transport) + " ")
 	}
 	webURL := ""
-	if !c.Options.ExperimentalDERP {
+	if c.Options.Transport != TransportDERP {
 		webURL = webReceiveURL(c.Options.SharedSecret)
 	}
 	clipboardNotice := ""
@@ -2120,6 +2241,8 @@ func (c *Client) transfer() (err error) {
 		control:       c.conn[0],
 		derpSetupDone: make(chan struct{}),
 	}
+	defer attempt.closeDERPPending()
+	defer attempt.cancelDERPSetup()
 
 	// if recipient, initialize with sending pake information
 	log.Debug("ready")
@@ -2474,7 +2597,9 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 	if m.Version != pakekey.ProtocolVersion {
 		return incompatiblePakeVersionError{got: m.Version}
 	}
-	c.peerExperimentalDERP = supportsFeature(m.Features, experimentalDERPFeature)
+	c.peerDERP = supportsFeature(m.Features, derpFeature)
+	c.peerDERPNegotiation = supportsFeature(m.Features, derpNegotiationFeature)
+	c.peerDERPRequired = supportsFeature(m.Features, derpRequiredFeature)
 	if c.pakeConfirmationPending || c.Key != nil {
 		return pakeHandshakeError{err: fmt.Errorf("unexpected duplicate PAKE payload")}
 	}
@@ -2613,17 +2738,34 @@ func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error
 	if !c.Options.IsSender {
 		c.setReceiveStatus(receiveStatusOpeningTransferChannels)
 	}
-	if c.Options.ExperimentalDERP != c.peerExperimentalDERP {
-		return fmt.Errorf("experimental DERP mode mismatch: both peers must use --experimental-derp")
+	localDERP := c.localDERPSupported()
+	if c.peerRequiresDERP() && !localDERP {
+		return fmt.Errorf("peer requires DERP, but DERP is disabled or unavailable locally")
 	}
-	if c.Options.ExperimentalDERP {
-		if c.Options.IsSender {
-			return c.activateExperimentalDERPSender(attempt)
+	if c.Options.Transport == TransportDERP && !c.peerDERP {
+		return fmt.Errorf("--transport derp requires a DERP-capable peer")
+	}
+	if localDERP && c.peerDERP {
+		if c.peerDERPNegotiation {
+			if c.Options.IsSender {
+				return c.activateNegotiatedDERPSender(attempt)
+			}
+			c.watchDERPSelection(attempt)
+			return nil
 		}
-		c.watchExperimentalDERPSetup(attempt)
+		// Peers that only advertise the original feature predate coordinated
+		// fallback and therefore retain its strict, no-fallback behavior.
+		if c.Options.IsSender {
+			return c.activateLegacyDERPSender(attempt)
+		}
+		c.watchLegacyDERPSetup(attempt)
 		return c.sendExternalIP()
 	}
+	log.Debug("selected croc relay data transport")
+	return c.activateRelayDataChannels(attempt)
+}
 
+func (c *Client) activateRelayDataChannels(attempt *transferAttemptState) (err error) {
 	// connects to the other ports of the server for transfer
 	var wg sync.WaitGroup
 	relayControlAddress := c.currentRelayControlAddress()
@@ -2673,20 +2815,22 @@ func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error
 			return fmt.Errorf("%w: could not connect transfer ports: %v", ErrRelayConnection, connectErr)
 		}
 	}
+	c.selectedDataTransport.Store(selectedTransportRelay)
+	attempt.finishDERPSetup()
 	if !c.Options.IsSender {
 		err = c.sendExternalIP()
 	}
 	return
 }
 
-type experimentalDERPConn struct {
+type derpConn struct {
 	net.Conn
 	cancel context.CancelFunc
 	once   sync.Once
 }
 
-func (c *experimentalDERPConn) Close() error {
-	log.Debug("experimental DERP transport cleanup")
+func (c *derpConn) Close() error {
+	log.Debug("DERP transport cleanup")
 	err := c.Conn.Close()
 	if c.cancel != nil {
 		c.once.Do(c.cancel)
@@ -2694,46 +2838,62 @@ func (c *experimentalDERPConn) Close() error {
 	return err
 }
 
-type experimentalDERPListenResult struct {
+type derpListenResult struct {
 	listener derptransport.Listener
 	err      error
 }
 
-type experimentalDERPDialResult struct {
+type derpDialResult struct {
 	conn net.Conn
 	err  error
 }
 
 func (c *Client) pakeFeatures() []string {
-	if c.Options.ExperimentalDERP {
-		return []string{experimentalDERPFeature}
+	if !c.localDERPSupported() {
+		return nil
 	}
-	return nil
+	features := []string{derpFeature, derpNegotiationFeature}
+	if c.Options.Transport == TransportDERP {
+		features = append(features, derpRequiredFeature)
+	}
+	return features
+}
+
+func (c *Client) localDERPSupported() bool {
+	return c.Options.Transport != TransportRelay && !c.Options.OnlyLocal && derpAvailable()
+}
+
+func (c *Client) derpFallbackAllowed() bool {
+	return c.Options.Transport == TransportAuto && c.peerDERPNegotiation && !c.peerDERPRequired
+}
+
+func (c *Client) peerRequiresDERP() bool {
+	return c.peerDERP && (!c.peerDERPNegotiation || c.peerDERPRequired)
 }
 
 func (c *Client) transferConnectionCount() int {
-	if c.Options.ExperimentalDERP {
+	if c.selectedDataTransport.Load() == selectedTransportDERP {
 		return 1
 	}
 	return len(c.Options.RelayPorts)
 }
 
-func (c *Client) experimentalDERPPathEvent(status string) {
-	log.Debugf("experimental DERP transport: %s", status)
+func (c *Client) derpPathEvent(status string) {
+	log.Debugf("DERP transport: %s", status)
 }
 
-func (c *Client) experimentalDERPError(stage string, err error, tokenValue string) error {
+func (c *Client) derpError(stage string, err error, tokenValue string) error {
 	safeErr := redact.Error(err, tokenValue, c.Options.SharedSecret)
-	log.Debugf("experimental DERP %s failed: %v", stage, safeErr)
-	return fmt.Errorf("%w: %s: %w", ErrExperimentalDERPConnection, stage, safeErr)
+	log.Debugf("DERP %s failed: %v", stage, safeErr)
+	return fmt.Errorf("%w: %s: %w", ErrDERPConnection, stage, safeErr)
 }
 
-func (c *Client) installExperimentalDERPConn(raw net.Conn, cancel context.CancelFunc, attempt *transferAttemptState) error {
+func (c *Client) installDERPConn(raw net.Conn, cancel context.CancelFunc, attempt *transferAttemptState) error {
 	if raw == nil {
 		if cancel != nil {
 			cancel()
 		}
-		return errors.New("experimental DERP returned an empty connection")
+		return errors.New("DERP returned an empty connection")
 	}
 	if len(c.conn) < 2 {
 		connections := make([]*comm.Comm, 2)
@@ -2743,8 +2903,9 @@ func (c *Client) installExperimentalDERPConn(raw net.Conn, cancel context.Cancel
 	if c.conn[1] != nil {
 		c.conn[1].Close()
 	}
-	managed := &experimentalDERPConn{Conn: raw, cancel: cancel}
+	managed := &derpConn{Conn: raw, cancel: cancel}
 	c.conn[1] = comm.New(managed)
+	c.selectedDataTransport.Store(selectedTransportDERP)
 	attempt.finishDERPSetup()
 	if !c.Options.IsSender {
 		go c.receiveData(0, c.conn[1], attempt)
@@ -2752,12 +2913,12 @@ func (c *Client) installExperimentalDERPConn(raw net.Conn, cancel context.Cancel
 	return nil
 }
 
-func (c *Client) activateExperimentalDERPSender(attempt *transferAttemptState) error {
+func (c *Client) activateLegacyDERPSender(attempt *transferAttemptState) error {
 	setupCtx, cancel, deadline := attempt.beginDERPSetup(c.stop.ctx)
-	listenResult := make(chan experimentalDERPListenResult)
+	listenResult := make(chan derpListenResult)
 	go func() {
-		listener, err := listenExperimentalDERP(setupCtx, c.experimentalDERPPathEvent)
-		result := experimentalDERPListenResult{listener: listener, err: err}
+		listener, err := listenExperimentalDERP(setupCtx, c.derpPathEvent)
+		result := derpListenResult{listener: listener, err: err}
 		select {
 		case listenResult <- result:
 		case <-setupCtx.Done():
@@ -2774,33 +2935,33 @@ func (c *Client) activateExperimentalDERPSender(attempt *transferAttemptState) e
 		timer.Stop()
 		if result.err != nil {
 			cancel()
-			return c.experimentalDERPError("listener setup", result.err, "")
+			return c.derpError("listener setup", result.err, "")
 		}
 		if result.listener == nil {
 			cancel()
-			return c.experimentalDERPError("listener setup", errors.New("empty listener"), "")
+			return c.derpError("listener setup", errors.New("empty listener"), "")
 		}
 		listener = result.listener
 	case <-timer.C:
 		cancel()
-		return c.experimentalDERPError("listener setup", context.DeadlineExceeded, "")
+		return c.derpError("listener setup", context.DeadlineExceeded, "")
 	case <-c.stop.ctx.Done():
 		timer.Stop()
 		cancel()
-		return c.experimentalDERPError("listener setup", c.stop.ctx.Err(), "")
+		return c.derpError("listener setup", c.stop.ctx.Err(), "")
 	}
 
 	tokenValue := listener.Token()
 	if err := derptransport.ValidateToken(tokenValue, time.Now()); err != nil {
 		_ = listener.Close()
 		cancel()
-		return c.experimentalDERPError("offer creation", err, tokenValue)
+		return c.derpError("offer creation", err, tokenValue)
 	}
 	controlConn := c.conn[0].Connection()
 	if err := controlConn.SetWriteDeadline(deadline); err != nil {
 		_ = listener.Close()
 		cancel()
-		return c.experimentalDERPError("offer exchange", err, tokenValue)
+		return c.derpError("offer exchange", err, tokenValue)
 	}
 	if err := message.Send(c.conn[0], c.Key, message.Message{
 		Type:    message.TypeDERPOffer,
@@ -2808,18 +2969,18 @@ func (c *Client) activateExperimentalDERPSender(attempt *transferAttemptState) e
 	}); err != nil {
 		_ = listener.Close()
 		cancel()
-		return c.experimentalDERPError("offer exchange", err, tokenValue)
+		return c.derpError("offer exchange", err, tokenValue)
 	}
 	if err := controlConn.SetWriteDeadline(time.Now().Add(3 * time.Hour)); err != nil {
 		_ = listener.Close()
 		cancel()
-		return c.experimentalDERPError("offer exchange", err, tokenValue)
+		return c.derpError("offer exchange", err, tokenValue)
 	}
 
-	acceptResult := make(chan experimentalDERPDialResult)
+	acceptResult := make(chan derpDialResult)
 	go func() {
 		raw, err := listener.Accept(setupCtx)
-		result := experimentalDERPDialResult{conn: raw, err: err}
+		result := derpDialResult{conn: raw, err: err}
 		select {
 		case acceptResult <- result:
 		case <-setupCtx.Done():
@@ -2835,22 +2996,196 @@ func (c *Client) activateExperimentalDERPSender(attempt *transferAttemptState) e
 		if result.err != nil {
 			_ = listener.Close()
 			cancel()
-			return c.experimentalDERPError("peer connection", result.err, tokenValue)
+			return c.derpError("peer connection", result.err, tokenValue)
 		}
-		return c.installExperimentalDERPConn(result.conn, cancel, attempt)
+		cleanup := func() {
+			_ = listener.Close()
+			cancel()
+		}
+		return c.installDERPConn(result.conn, cleanup, attempt)
 	case <-timer.C:
 		_ = listener.Close()
 		cancel()
-		return c.experimentalDERPError("peer connection", context.DeadlineExceeded, tokenValue)
+		return c.derpError("peer connection", context.DeadlineExceeded, tokenValue)
 	case <-c.stop.ctx.Done():
 		timer.Stop()
 		_ = listener.Close()
 		cancel()
-		return c.experimentalDERPError("peer connection", c.stop.ctx.Err(), tokenValue)
+		return c.derpError("peer connection", c.stop.ctx.Err(), tokenValue)
 	}
 }
 
-func (c *Client) watchExperimentalDERPSetup(attempt *transferAttemptState) {
+func (c *Client) activateNegotiatedDERPSender(attempt *transferAttemptState) error {
+	setupCtx, cancel, deadline := attempt.beginDERPSetup(c.stop.ctx)
+	decisionDeadline := deadline.Add(-2 * time.Second)
+	listenResult := make(chan derpListenResult)
+	go func() {
+		listener, err := listenExperimentalDERP(setupCtx, c.derpPathEvent)
+		result := derpListenResult{listener: listener, err: err}
+		select {
+		case listenResult <- result:
+		case <-setupCtx.Done():
+			if listener != nil {
+				_ = listener.Close()
+			}
+		}
+	}()
+
+	var listener derptransport.Listener
+	timer := time.NewTimer(max(time.Until(decisionDeadline), 0))
+	select {
+	case result := <-listenResult:
+		timer.Stop()
+		if result.err != nil {
+			cancel()
+			return c.selectRelayAfterDERPFailure("listener setup", result.err, "", attempt)
+		}
+		if result.listener == nil {
+			cancel()
+			return c.selectRelayAfterDERPFailure("listener setup", errors.New("empty listener"), "", attempt)
+		}
+		listener = result.listener
+	case <-timer.C:
+		cancel()
+		return c.selectRelayAfterDERPFailure("listener setup", context.DeadlineExceeded, "", attempt)
+	case <-c.stop.ctx.Done():
+		timer.Stop()
+		cancel()
+		return c.derpError("listener setup", c.stop.ctx.Err(), "")
+	}
+
+	tokenValue := listener.Token()
+	if err := derptransport.ValidateToken(tokenValue, time.Now()); err != nil {
+		_ = listener.Close()
+		cancel()
+		return c.selectRelayAfterDERPFailure("offer creation", err, tokenValue, attempt)
+	}
+	controlConn := c.conn[0].Connection()
+	if err := controlConn.SetWriteDeadline(decisionDeadline); err != nil {
+		_ = listener.Close()
+		cancel()
+		return c.derpError("offer exchange", err, tokenValue)
+	}
+	if err := message.Send(c.conn[0], c.Key, message.Message{
+		Type:    message.TypeDERPOffer,
+		Message: tokenValue,
+	}); err != nil {
+		_ = listener.Close()
+		cancel()
+		return c.derpError("offer exchange", err, tokenValue)
+	}
+	if err := controlConn.SetWriteDeadline(time.Now().Add(3 * time.Hour)); err != nil {
+		_ = listener.Close()
+		cancel()
+		return c.derpError("offer exchange", err, tokenValue)
+	}
+
+	acceptResult := make(chan derpDialResult)
+	go func() {
+		raw, err := listener.Accept(setupCtx)
+		result := derpDialResult{conn: raw, err: err}
+		select {
+		case acceptResult <- result:
+		case <-setupCtx.Done():
+			if raw != nil {
+				_ = raw.Close()
+			}
+		}
+	}()
+
+	status, statusErr := c.receiveDERPStatus(decisionDeadline)
+	if statusErr != nil {
+		_ = listener.Close()
+		cancel()
+		return c.selectRelayAfterDERPFailure("peer readiness", statusErr, tokenValue, attempt)
+	}
+	if status == derpStatusFallback {
+		_ = listener.Close()
+		cancel()
+		return c.selectRelayAfterDERPFailure("peer connection", errors.New("peer could not establish DERP"), tokenValue, attempt)
+	}
+	if status != derpStatusReady {
+		_ = listener.Close()
+		cancel()
+		return fmt.Errorf("invalid DERP status %q", status)
+	}
+
+	timer = time.NewTimer(max(time.Until(decisionDeadline), 0))
+	select {
+	case result := <-acceptResult:
+		timer.Stop()
+		if result.err != nil {
+			_ = listener.Close()
+			cancel()
+			return c.selectRelayAfterDERPFailure("peer connection", result.err, tokenValue, attempt)
+		}
+		if err := message.Send(c.conn[0], c.Key, message.Message{
+			Type:    message.TypeTransportSelect,
+			Message: string(TransportDERP),
+		}); err != nil {
+			_ = result.conn.Close()
+			_ = listener.Close()
+			cancel()
+			return c.derpError("transport selection", err, tokenValue)
+		}
+		log.Debug("selected DERP data transport")
+		cleanup := func() {
+			_ = listener.Close()
+			cancel()
+		}
+		return c.installDERPConn(result.conn, cleanup, attempt)
+	case <-timer.C:
+		_ = listener.Close()
+		cancel()
+		return c.selectRelayAfterDERPFailure("peer connection", context.DeadlineExceeded, tokenValue, attempt)
+	case <-c.stop.ctx.Done():
+		timer.Stop()
+		_ = listener.Close()
+		cancel()
+		return c.derpError("peer connection", c.stop.ctx.Err(), tokenValue)
+	}
+}
+
+func (c *Client) receiveDERPStatus(deadline time.Time) (string, error) {
+	payload, err := c.conn[0].ReceiveWithDeadline(deadline)
+	if err != nil {
+		return "", err
+	}
+	status, err := message.Decode(c.Key, payload)
+	if err != nil {
+		return "", derpProtocolError{err: fmt.Errorf("invalid encrypted DERP status: %w", err)}
+	}
+	if status.Type == message.TypeError {
+		return "", derpProtocolError{err: fmt.Errorf("peer error: %s", status.Message)}
+	}
+	if status.Type != message.TypeDERPStatus {
+		return "", derpProtocolError{err: fmt.Errorf("expected DERP status, got %s", status.Type)}
+	}
+	return status.Message, nil
+}
+
+func (c *Client) selectRelayAfterDERPFailure(stage string, setupErr error, tokenValue string, attempt *transferAttemptState) error {
+	derpErr := c.derpError(stage, setupErr, tokenValue)
+	var protocolErr derpProtocolError
+	if errors.As(setupErr, &protocolErr) {
+		return derpErr
+	}
+	if !c.derpFallbackAllowed() {
+		return derpErr
+	}
+	log.Debugf("DERP setup failed; falling back to croc relay: %v", derpErr)
+	attempt.closeDERPPending()
+	attempt.cancelDERPSetup()
+	if err := message.Send(c.conn[0], c.Key, message.Message{
+		Type:    message.TypeTransportSelect,
+		Message: string(TransportRelay),
+	}); err != nil {
+		return c.derpError("relay fallback selection", err, tokenValue)
+	}
+	return c.activateRelayDataChannels(attempt)
+}
+
+func (c *Client) watchLegacyDERPSetup(attempt *transferAttemptState) {
 	if attempt == nil || attempt.derpSetupDone == nil {
 		return
 	}
@@ -2863,14 +3198,82 @@ func (c *Client) watchExperimentalDERPSetup(attempt *transferAttemptState) {
 			return
 		case <-timer.C:
 			attempt.cancelDERPSetup()
-			attempt.report(c.experimentalDERPError("waiting for offer", context.DeadlineExceeded, ""))
+			attempt.report(c.derpError("waiting for offer", context.DeadlineExceeded, ""))
 		case <-c.stop.ctx.Done():
 			return
 		}
 	}()
 }
 
-func (c *Client) processExperimentalDERPOffer(m message.Message, attempt *transferAttemptState) (err error) {
+func (c *Client) watchDERPSelection(attempt *transferAttemptState) {
+	if attempt == nil || attempt.derpSetupDone == nil {
+		return
+	}
+	_, _, deadline := attempt.beginDERPSetup(c.stop.ctx)
+	go func() {
+		fallbackAt := deadline
+		if c.derpFallbackAllowed() {
+			fallbackAt = deadline.Add(-time.Second)
+		}
+		timer := time.NewTimer(max(time.Until(fallbackAt), 0))
+		defer timer.Stop()
+		select {
+		case <-attempt.derpSetupDone:
+			return
+		case <-timer.C:
+			attempt.cancelDERPSetup()
+			if !c.derpFallbackAllowed() {
+				attempt.report(c.derpError("transport selection", context.DeadlineExceeded, ""))
+				return
+			}
+			log.Debug("DERP setup deadline approaching; requesting croc relay fallback")
+			if err := attempt.sendDERPStatus(c.conn[0], c.Key, derpStatusFallback); err != nil {
+				attempt.report(c.derpError("relay fallback request", err, ""))
+				return
+			}
+			timer.Reset(max(time.Until(deadline), 0))
+			select {
+			case <-attempt.derpSetupDone:
+				return
+			case <-timer.C:
+				attempt.report(c.derpError("transport selection", context.DeadlineExceeded, ""))
+			case <-c.stop.ctx.Done():
+				return
+			}
+		case <-c.stop.ctx.Done():
+			return
+		}
+	}()
+}
+
+func (c *Client) finishDERPReceiverDial(raw net.Conn, cancel context.CancelFunc, tokenValue string, attempt *transferAttemptState) error {
+	if !c.peerDERPNegotiation {
+		return c.installDERPConn(raw, cancel, attempt)
+	}
+	if err := attempt.setDERPPending(raw, cancel); err != nil {
+		return c.derpError("peer connection", err, tokenValue)
+	}
+	if err := attempt.sendDERPStatus(c.conn[0], c.Key, derpStatusReady); err != nil {
+		attempt.closeDERPPending()
+		return c.derpError("peer readiness", err, tokenValue)
+	}
+	return nil
+}
+
+func (c *Client) finishDERPReceiverFailure(setupErr error, tokenValue string, attempt *transferAttemptState) error {
+	derpErr := c.derpError("peer connection", setupErr, tokenValue)
+	if !c.peerDERPNegotiation || !c.derpFallbackAllowed() {
+		return derpErr
+	}
+	attempt.cancelDERPSetup()
+	log.Debugf("DERP setup failed; requesting croc relay fallback: %v", derpErr)
+	if err := attempt.sendDERPStatus(c.conn[0], c.Key, derpStatusFallback); err != nil {
+		return c.derpError("relay fallback request", err, tokenValue)
+	}
+	return nil
+}
+
+func (c *Client) processDERPOffer(m message.Message, attempt *transferAttemptState) (err error) {
 	defer func() {
 		if err != nil {
 			attempt.cancelDERPSetup()
@@ -2879,23 +3282,23 @@ func (c *Client) processExperimentalDERPOffer(m message.Message, attempt *transf
 	if c.Options.IsSender {
 		return errors.New("sender rejected a DERP offer from the receiver")
 	}
-	if !c.Options.ExperimentalDERP || !c.peerExperimentalDERP {
-		return errors.New("DERP offer received without negotiated experimental DERP mode")
+	if !c.localDERPSupported() || !c.peerDERP {
+		return errors.New("DERP offer received without negotiated DERP mode")
 	}
-	if c.experimentalDERPOfferReceived {
+	if c.derpOfferReceived {
 		return errors.New("duplicate DERP offer rejected")
 	}
-	c.experimentalDERPOfferReceived = true
+	c.derpOfferReceived = true
 	tokenValue := m.Message
 	if err := derptransport.ValidateToken(tokenValue, time.Now()); err != nil {
-		return c.experimentalDERPError("offer validation", err, tokenValue)
+		return c.derpError("offer validation", err, tokenValue)
 	}
 
 	setupCtx, cancel, deadline := attempt.beginDERPSetup(c.stop.ctx)
-	dialResult := make(chan experimentalDERPDialResult)
+	dialResult := make(chan derpDialResult)
 	go func() {
-		raw, err := dialExperimentalDERP(setupCtx, tokenValue, c.experimentalDERPPathEvent)
-		result := experimentalDERPDialResult{conn: raw, err: err}
+		raw, err := dialExperimentalDERP(setupCtx, tokenValue, c.derpPathEvent)
+		result := derpDialResult{conn: raw, err: err}
 		select {
 		case dialResult <- result:
 		case <-setupCtx.Done():
@@ -2910,17 +3313,69 @@ func (c *Client) processExperimentalDERPOffer(m message.Message, attempt *transf
 		timer.Stop()
 		if result.err != nil {
 			cancel()
-			return c.experimentalDERPError("peer connection", result.err, tokenValue)
+			return c.finishDERPReceiverFailure(result.err, tokenValue, attempt)
 		}
-		return c.installExperimentalDERPConn(result.conn, cancel, attempt)
+		return c.finishDERPReceiverDial(result.conn, cancel, tokenValue, attempt)
 	case <-timer.C:
 		cancel()
-		return c.experimentalDERPError("peer connection", context.DeadlineExceeded, tokenValue)
+		return c.finishDERPReceiverFailure(context.DeadlineExceeded, tokenValue, attempt)
 	case <-c.stop.ctx.Done():
 		timer.Stop()
 		cancel()
-		return c.experimentalDERPError("peer connection", c.stop.ctx.Err(), tokenValue)
+		return c.derpError("peer connection", c.stop.ctx.Err(), tokenValue)
 	}
+}
+
+func (c *Client) processTransportSelect(m message.Message, attempt *transferAttemptState) error {
+	if c.Options.IsSender {
+		return errors.New("sender rejected a transport selection from the receiver")
+	}
+	if !c.peerDERP || !c.peerDERPNegotiation {
+		return errors.New("transport selection received without negotiated DERP fallback support")
+	}
+	if c.transportSelectionReceived {
+		return errors.New("duplicate transport selection rejected")
+	}
+	c.transportSelectionReceived = true
+
+	switch TransportMode(m.Message) {
+	case TransportDERP:
+		raw, cancel := attempt.takeDERPPending()
+		if raw == nil {
+			if cancel != nil {
+				cancel()
+			}
+			return errors.New("DERP selected without a ready connection")
+		}
+		log.Debug("selected DERP data transport")
+		if err := c.installDERPConn(raw, cancel, attempt); err != nil {
+			return err
+		}
+		return c.sendExternalIP()
+	case TransportRelay:
+		if !c.derpFallbackAllowed() {
+			return errors.New("peer selected relay when DERP fallback is not allowed")
+		}
+		log.Debug("selected croc relay data transport after DERP fallback")
+		attempt.closeDERPPending()
+		attempt.cancelDERPSetup()
+		attempt.finishDERPSetup()
+		return c.activateRelayDataChannels(attempt)
+	default:
+		return fmt.Errorf("invalid transport selection %q", m.Message)
+	}
+}
+
+func (c *Client) processUnexpectedDERPStatus(m message.Message) error {
+	if !c.Options.IsSender {
+		return errors.New("receiver rejected a DERP status from the sender")
+	}
+	if c.selectedDataTransport.Load() == selectedTransportRelay &&
+		(m.Message == derpStatusReady || m.Message == derpStatusFallback) {
+		log.Debugf("ignoring late DERP status after relay selection: %s", m.Message)
+		return nil
+	}
+	return fmt.Errorf("unexpected DERP status %q", m.Message)
 }
 
 func (c *Client) sendExternalIP() error {
@@ -2991,7 +3446,11 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 			log.Debug(err)
 		}
 	case message.TypeDERPOffer:
-		err = c.processExperimentalDERPOffer(m, attempt)
+		err = c.processDERPOffer(m, attempt)
+	case message.TypeDERPStatus:
+		err = c.processUnexpectedDERPStatus(m)
+	case message.TypeTransportSelect:
+		err = c.processTransportSelect(m, attempt)
 	case message.TypeExternalIP:
 		done, err = c.processExternalIP(m)
 	case message.TypeError:
@@ -3559,8 +4018,8 @@ func (c *Client) receiveData(i int, dataConn *comm.Comm, attempt *transferAttemp
 			if c.ctxErr() == nil {
 				if c.activeTransferStarted() {
 					attempt.report(transferDisconnectError{err: err})
-				} else if c.Options.ExperimentalDERP {
-					attempt.report(c.experimentalDERPError("data connection", err, ""))
+				} else if c.selectedDataTransport.Load() == selectedTransportDERP {
+					attempt.report(c.derpError("data connection", err, ""))
 				}
 			}
 			return

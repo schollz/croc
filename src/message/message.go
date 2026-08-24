@@ -20,6 +20,8 @@ const (
 	TypePAKEConfirm           Type = "pake-confirm"
 	TypeExperimentalDERPOffer Type = "derp-offer"
 	TypeDERPOffer                  = TypeExperimentalDERPOffer
+	TypeDERPStatus            Type = "derp-status"
+	TypeTransportSelect       Type = "transport-select"
 	TypeExternalIP            Type = "externalip"
 	TypeFinished              Type = "finished"
 	TypeError                 Type = "error"

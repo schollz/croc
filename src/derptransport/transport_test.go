@@ -83,6 +83,9 @@ func TestValidatePublicRouteRejectsEnvironmentOverride(t *testing.T) {
 }
 
 func TestPublicAttachRoundTripHermetic(t *testing.T) {
+	if !Available() {
+		t.Skip("DERP transport is unavailable on this platform")
+	}
 	derpServer := derpserver.New(key.NewNode(), t.Logf)
 	t.Cleanup(func() { _ = derpServer.Close() })
 	derpHTTP := httptest.NewServer(derpserver.Handler(derpServer))
@@ -172,6 +175,9 @@ func TestPublicAttachRoundTripHermetic(t *testing.T) {
 }
 
 func TestPublicAttachRoundTripLive(t *testing.T) {
+	if !Available() {
+		t.Skip("DERP transport is unavailable on this platform")
+	}
 	if os.Getenv("CROC_TEST_PUBLIC_DERP") != "1" {
 		t.Skip("set CROC_TEST_PUBLIC_DERP=1 to run against the public Tailscale DERP network")
 	}
