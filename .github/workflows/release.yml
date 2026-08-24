@@ -176,6 +176,22 @@ jobs:
             ext: ""
             archive: tar.gz
           - goos: linux
+            goarch: "386"
+            name: Linux-32bit
+            ext: ""
+            archive: tar.gz
+          - goos: linux
+            goarch: arm
+            name: Linux-ARM
+            ext: ""
+            archive: tar.gz
+          - goos: linux
+            goarch: arm
+            goarm: "5"
+            name: Linux-ARMv5
+            ext: ""
+            archive: tar.gz
+          - goos: linux
             goarch: arm64
             name: Linux-ARM64
             ext: ""
@@ -508,8 +524,8 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
           assets=( *.zip *.tar.gz *_checksums.txt )
-          if (( ${#assets[@]} != 19 )); then
-            echo "Expected 19 release assets (16 croc archives, croc-web, source, and checksums); found ${#assets[@]}" >&2
+          if (( ${#assets[@]} != 22 )); then
+            echo "Expected 22 release assets (19 croc archives, croc-web, source, and checksums); found ${#assets[@]}" >&2
             printf '  %s\n' "${assets[@]}" >&2
             exit 1
           fi

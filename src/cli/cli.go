@@ -145,7 +145,7 @@ func newApp() *cli.App {
 		&cli.BoolFlag{Name: "quiet", Usage: "disable all output"},
 		&cli.BoolFlag{Name: "disable-clipboard", Usage: "disable copy to clipboard"},
 		&cli.BoolFlag{Name: "extended-clipboard", Usage: "copy full command with secret as env variable to clipboard"},
-		&cli.BoolFlag{Name: "experimental-derp", Usage: "use the public Tailscale DERP network for the file data stream (experimental)"},
+		&cli.StringFlag{Name: "transport", Value: string(croc.TransportAuto), Usage: "file data transport (auto, derp, relay)"},
 		&cli.StringFlag{Name: "revoke", Usage: "revoke a stored transfer using its local sender receipt"},
 		&cli.StringFlag{Name: "multicast", Value: "239.255.255.250", Usage: "multicast address to use for local discovery"},
 		&cli.StringFlag{Name: "curve", Value: "p256", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
@@ -484,6 +484,9 @@ func applyRememberedSendOptions(c *cli.Context, options *croc.Options, remembere
 	if !c.IsSet("disable-clipboard") {
 		options.DisableClipboard = remembered.DisableClipboard
 	}
+	if !c.IsSet("transport") && remembered.Transport != "" {
+		options.Transport = remembered.Transport
+	}
 	if !c.IsSet("relay") && strings.HasPrefix(remembered.RelayAddress, "non-default:") {
 		rememberedAddr := strings.TrimPrefix(remembered.RelayAddress, "non-default:")
 		options.RelayAddress = strings.TrimSpace(rememberedAddr)
@@ -514,16 +517,18 @@ func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
-	if c.Bool("experimental-derp") {
-		if c.Bool("store") {
-			return errors.New("--experimental-derp cannot be combined with --store")
-		}
-		if c.Bool("local") {
-			return errors.New("--experimental-derp cannot be combined with --local")
-		}
-		if c.Bool("qrcode") {
-			return errors.New("--experimental-derp cannot be combined with --qrcode")
-		}
+	transport, err := croc.ParseTransportMode(c.String("transport"))
+	if err != nil {
+		return err
+	}
+	if c.Bool("store") && transport != croc.TransportAuto {
+		return errors.New("--transport must be auto for stored transfers")
+	}
+	if c.Bool("local") && transport != croc.TransportAuto {
+		return errors.New("--transport must be auto for local-only transfers")
+	}
+	if c.Bool("qrcode") && transport == croc.TransportDERP {
+		return errors.New("--transport derp cannot be combined with --qrcode")
 	}
 	if c.Bool("store") {
 		return sendStored(c)
@@ -588,7 +593,7 @@ func send(c *cli.Context) (err error) {
 		Quiet:             c.Bool("quiet"),
 		DisableClipboard:  c.Bool("disable-clipboard"),
 		ExtendedClipboard: c.Bool("extended-clipboard"),
-		ExperimentalDERP:  c.Bool("experimental-derp"),
+		Transport:         transport,
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -604,6 +609,9 @@ func send(c *cli.Context) (err error) {
 			return
 		}
 		applyRememberedSendOptions(c, &crocOptions, rememberedOptions)
+	}
+	if crocOptions.OnlyLocal && crocOptions.Transport != croc.TransportAuto {
+		return errors.New("--transport must be auto for local-only transfers")
 	}
 	publicRelayMode := usesPublicRelay(c, crocOptions)
 
@@ -840,12 +848,16 @@ func receive(c *cli.Context) (err error) {
 
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
-	if c.Bool("experimental-derp") && c.Bool("local") {
-		return errors.New("--experimental-derp cannot be combined with --local")
+	transport, err := croc.ParseTransportMode(c.String("transport"))
+	if err != nil {
+		return err
+	}
+	if c.Bool("local") && transport != croc.TransportAuto {
+		return errors.New("--transport must be auto for local-only transfers")
 	}
 	if storedToken := strings.TrimSpace(os.Getenv("CROC_STORE_TOKEN")); storedToken != "" {
-		if c.Bool("experimental-derp") {
-			return errors.New("--experimental-derp cannot be used with a stored transfer")
+		if transport != croc.TransportAuto {
+			return errors.New("--transport must be auto for stored transfers")
 		}
 		setDebugLevel(c)
 		return receiveStored(c, storedToken)
@@ -870,7 +882,7 @@ func receive(c *cli.Context) (err error) {
 		Quiet:             c.Bool("quiet"),
 		DisableClipboard:  c.Bool("disable-clipboard"),
 		ExtendedClipboard: c.Bool("extended-clipboard"),
-		ExperimentalDERP:  c.Bool("experimental-derp"),
+		Transport:         transport,
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -890,8 +902,8 @@ func receive(c *cli.Context) (err error) {
 		crocOptions.SharedSecret = strings.Join(phrase, "-")
 	}
 	if storeclient.IsStoredValue(crocOptions.SharedSecret) {
-		if c.Bool("experimental-derp") {
-			return errors.New("--experimental-derp cannot be used with a stored transfer")
+		if crocOptions.Transport != croc.TransportAuto {
+			return errors.New("--transport must be auto for stored transfers")
 		}
 		setDebugLevel(c)
 		if runtime.GOOS != "windows" && !utils.Exists(getClassicConfigFile(true)) {
@@ -947,6 +959,9 @@ Run croc with no argument and paste the link at the prompt, or use:
 		if !c.IsSet("local") {
 			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
 		}
+		if !c.IsSet("transport") && rememberedOptions.Transport != "" {
+			crocOptions.Transport = rememberedOptions.Transport
+		}
 		if !c.IsSet("relay") && strings.HasPrefix(rememberedOptions.RelayAddress, "non-default:") {
 			var rememberedAddr = strings.TrimPrefix(rememberedOptions.RelayAddress, "non-default:")
 			rememberedAddr = strings.TrimSpace(rememberedAddr)
@@ -957,6 +972,9 @@ Run croc with no argument and paste the link at the prompt, or use:
 			rememberedAddr = strings.TrimSpace(rememberedAddr)
 			crocOptions.RelayAddress6 = rememberedAddr
 		}
+	}
+	if crocOptions.OnlyLocal && crocOptions.Transport != croc.TransportAuto {
+		return errors.New("--transport must be auto for local-only transfers")
 	}
 	publicRelayMode := usesPublicRelay(c, crocOptions)
 
@@ -979,8 +997,8 @@ Run croc with no argument and paste the link at the prompt, or use:
 		}
 	}
 	if storeclient.IsStoredValue(crocOptions.SharedSecret) {
-		if c.Bool("experimental-derp") {
-			return errors.New("--experimental-derp cannot be used with a stored transfer")
+		if crocOptions.Transport != croc.TransportAuto {
+			return errors.New("--transport must be auto for stored transfers")
 		}
 		return receiveStored(c, crocOptions.SharedSecret)
 	}

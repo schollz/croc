@@ -32,6 +32,9 @@ import (
 
 func init() {
 	log.SetLevel("trace")
+	// The broad croc integration suite exercises the in-process TCP relay. DERP
+	// has dedicated hermetic tests that opt back in explicitly.
+	derpAvailable = func() bool { return false }
 
 	go tcp.Run("debug", "127.0.0.1", "8281", "pass123", "8282,8283,8284,8285")
 	go tcp.Run("debug", "127.0.0.1", "8282", "pass123")

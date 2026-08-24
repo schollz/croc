@@ -329,55 +329,76 @@ func TestRevokeIsRootFlag(t *testing.T) {
 	}
 }
 
-func TestExperimentalDERPIsVisibleRootFlag(t *testing.T) {
+func TestTransportIsVisibleRootFlagAndDefaultsToAuto(t *testing.T) {
 	app := newApp()
-	var got bool
+	var got string
 	for _, command := range app.Commands {
 		if command.Name == "send" {
 			command.Action = func(ctx *cli.Context) error {
-				got = ctx.Bool("experimental-derp")
+				got = ctx.String("transport")
 				return nil
 			}
 		}
 	}
-	if err := app.Run([]string{"croc", "--experimental-derp", "send"}); err != nil {
-		t.Fatalf("parse --experimental-derp: %v", err)
+	if err := app.Run([]string{"croc", "send"}); err != nil {
+		t.Fatalf("parse default transport: %v", err)
 	}
-	if !got {
-		t.Fatal("send action did not receive --experimental-derp")
+	if got != "auto" {
+		t.Fatalf("default transport = %q, want auto", got)
+	}
+	if err := app.Run([]string{"croc", "--transport", "derp", "send"}); err != nil {
+		t.Fatalf("parse --transport derp: %v", err)
+	}
+	if got != "derp" {
+		t.Fatalf("transport = %q, want derp", got)
 	}
 	visible := false
 	for _, rootFlag := range app.Flags {
-		if rootFlag.Names()[0] == "experimental-derp" {
+		if rootFlag.Names()[0] == "transport" {
 			visible = true
 			break
 		}
 	}
 	if !visible {
-		t.Fatal("--experimental-derp is not a visible root flag")
+		t.Fatal("--transport is not a visible root flag")
 	}
 }
 
-func TestExperimentalDERPRejectsIncompatibleCLIOptions(t *testing.T) {
+func TestTransportRejectsInvalidValuesAndIncompatibleCLIOptions(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
 		want string
 	}{
 		{
-			name: "local",
-			args: []string{"croc", "--experimental-derp", "--local", "--ignore-stdin", "send", "--text", "hello"},
-			want: "--experimental-derp cannot be combined with --local",
+			name: "invalid",
+			args: []string{"croc", "--transport", "magic", "--ignore-stdin", "send", "--text", "hello"},
+			want: `invalid transport "magic" (choose auto, derp, or relay)`,
 		},
 		{
-			name: "stored",
-			args: []string{"croc", "--experimental-derp", "--ignore-stdin", "send", "--store", "unused"},
-			want: "--experimental-derp cannot be combined with --store",
+			name: "local derp",
+			args: []string{"croc", "--transport", "derp", "--local", "--ignore-stdin", "send", "--text", "hello"},
+			want: "--transport must be auto for local-only transfers",
+		},
+		{
+			name: "local relay",
+			args: []string{"croc", "--transport", "relay", "--local", "--ignore-stdin", "send", "--text", "hello"},
+			want: "--transport must be auto for local-only transfers",
+		},
+		{
+			name: "stored derp",
+			args: []string{"croc", "--transport", "derp", "--ignore-stdin", "send", "--store", "unused"},
+			want: "--transport must be auto for stored transfers",
+		},
+		{
+			name: "stored relay",
+			args: []string{"croc", "--transport", "relay", "--ignore-stdin", "send", "--store", "unused"},
+			want: "--transport must be auto for stored transfers",
 		},
 		{
 			name: "qrcode",
-			args: []string{"croc", "--experimental-derp", "--ignore-stdin", "send", "--qrcode", "unused"},
-			want: "--experimental-derp cannot be combined with --qrcode",
+			args: []string{"croc", "--transport", "derp", "--ignore-stdin", "send", "--qrcode", "unused"},
+			want: "--transport derp cannot be combined with --qrcode",
 		},
 	}
 	for _, test := range tests {
@@ -894,6 +915,54 @@ func TestApplyRememberedSendOptionsDisableClipboard(t *testing.T) {
 				}
 				if got.DisableClipboard != tt.want {
 					t.Fatalf("DisableClipboard = %v, want %v", got.DisableClipboard, tt.want)
+				}
+				return
+			}
+			t.Fatal("send command not found")
+		})
+	}
+}
+
+func TestApplyRememberedSendOptionsTransport(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		args       []string
+		remembered croc.TransportMode
+		want       croc.TransportMode
+	}{
+		{
+			name:       "inherits remembered DERP",
+			args:       []string{"croc", "send"},
+			remembered: croc.TransportDERP,
+			want:       croc.TransportDERP,
+		},
+		{
+			name:       "explicit relay overrides remembered DERP",
+			args:       []string{"croc", "--transport", "relay", "send"},
+			remembered: croc.TransportDERP,
+			want:       croc.TransportRelay,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			app := newApp()
+			for _, command := range app.Commands {
+				if command.Name != "send" {
+					continue
+				}
+				command.Action = func(ctx *cli.Context) error {
+					got, err := croc.ParseTransportMode(ctx.String("transport"))
+					if err != nil {
+						return err
+					}
+					options := croc.Options{Transport: got}
+					applyRememberedSendOptions(ctx, &options, croc.Options{Transport: test.remembered})
+					if options.Transport != test.want {
+						t.Fatalf("Transport = %q, want %q", options.Transport, test.want)
+					}
+					return nil
+				}
+				if err := app.Run(test.args); err != nil {
+					t.Fatal(err)
 				}
 				return
 			}

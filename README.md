@@ -32,6 +32,27 @@ You can use croc without installing anything at [getcroc.com](https://getcroc.co
 
 The browser version is fully compatible with the CLI, so you can send and receive files between them.
 
+## Data transport selection
+
+The native CLI defaults to `--transport auto`. After the normal three-word-code
+PAKE handshake, two compatible native clients try a direct/DERP data connection
+through the public Tailscale DERP network. If the peer is a browser, an older
+client, or DERP setup fails, both clients use croc's existing relay data ports.
+The croc relay remains the encrypted control channel in either case.
+
+Use `--transport derp` to require the direct/DERP path without relay fallback,
+or `--transport relay` to skip DERP negotiation. DERP uses `HTTPS_PROXY` and
+`NO_PROXY`; croc's `--connect` and `--socks5` flags continue to apply to its
+control relay. Custom `DERPHOLE_DERP_SERVER` routes are not accepted.
+
+Linux 386, ARM, and ARMv5 releases use relay transport in auto mode because the
+derphole session implementation is unavailable on those targets. Explicit
+`--transport derp` reports an unsupported-platform error. No Tailscale account
+or `tailscaled` installation is required on supported native platforms.
+Public DERP is best effort and may apply fairness limits; see Tailscale's
+[DERP reference](https://tailscale.com/docs/reference/derp-servers) and
+[performance guidance](https://tailscale.com/docs/reference/troubleshooting/poor-performance-tailnet).
+
 ## Install
 
 You can download [the latest release for your system](https://github.com/schollz/croc/releases/latest), or install a release from the command-line:

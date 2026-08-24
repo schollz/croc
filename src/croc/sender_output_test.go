@@ -80,10 +80,10 @@ Or open:
 func TestFormatSendInstructionsWithoutBrowserURL(t *testing.T) {
 	const secret = "film-alibi-jet"
 	want := `On the other computer, run:
-  croc --experimental-derp film-alibi-jet
+  croc --transport derp film-alibi-jet
 `
 
-	got := formatSendInstructions(secret, "--experimental-derp ", "", "", false)
+	got := formatSendInstructions(secret, "--transport derp ", "", "", false)
 	if got != want {
 		t.Fatalf("instructions differ:\nwant: %q\n got: %q", want, got)
 	}
@@ -121,9 +121,9 @@ func TestFormatClipboardTextHasNoStyling(t *testing.T) {
 	}
 }
 
-func TestFormatExtendedClipboardIncludesExperimentalDERP(t *testing.T) {
-	got := formatClipboardText("acid-pink-fostered-succeeding", "--experimental-derp ", true)
-	want := `CROC_SECRET="acid-pink-fostered-succeeding" croc --experimental-derp`
+func TestFormatExtendedClipboardIncludesTransport(t *testing.T) {
+	got := formatClipboardText("acid-pink-fostered-succeeding", "--transport derp ", true)
+	want := `CROC_SECRET="acid-pink-fostered-succeeding" croc --transport derp`
 	if got != want {
 		t.Fatalf("clipboard text = %q; want %q", got, want)
 	}
