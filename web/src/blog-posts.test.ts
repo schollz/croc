@@ -8,10 +8,11 @@ import {
 } from "./blog-posts";
 
 describe("blog posts", () => {
-  it("ships ten notes and one substantial, addressable release update", () => {
-    expect(blogPosts).toHaveLength(11);
-    expect(new Set(blogPosts.map((post) => post.slug)).size).toBe(11);
+  it("ships ten notes and two substantial, addressable release updates", () => {
+    expect(blogPosts).toHaveLength(12);
+    expect(new Set(blogPosts.map((post) => post.slug)).size).toBe(12);
     expect(blogPosts.map((post) => post.slug)).toEqual([
+      "croc-v11-3-release-update",
       "croc-cli-speed-comparison",
       "croc-v11-release-update",
       "compare-file-transfer-tools",
@@ -25,7 +26,7 @@ describe("blog posts", () => {
       "why-croc-works-this-way",
     ]);
     expect(blogPosts.filter((post) => post.kind === "note")).toHaveLength(10);
-    expect(blogPosts.filter((post) => post.kind === "update")).toHaveLength(1);
+    expect(blogPosts.filter((post) => post.kind === "update")).toHaveLength(2);
 
     for (const post of blogPosts) {
       expect(post.slug).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
@@ -45,6 +46,15 @@ describe("blog posts", () => {
       expect(post.imageAlt.length).toBeGreaterThan(40);
       expect(["note", "update"]).toContain(post.kind);
       expect(getBlogPost(post.slug)).toBe(post);
+
+      for (const block of post.blocks) {
+        if ((block.type === "paragraph" || block.type === "aside") && block.links) {
+          for (const link of block.links) {
+            expect(block.text).toContain(link.label);
+            expect(link.href).toMatch(/^https:\/\//);
+          }
+        }
+      }
 
       const seo = blogSEO.posts.find((entry) => entry.slug === post.slug);
       const seoTitle = seo && "seoTitle" in seo ? seo.seoTitle : post.title;

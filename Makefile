@@ -18,4 +18,4 @@ build-web: web-assets
 	CGO_ENABLED=0 go build $(BUILD_FLAGS) -ldflags="$(LDFLAGS)" -o $(WEB_BINARY) ./cmd/croc-web
 
 serve:
-	go run github.com/air-verse/air@$(AIR_VERSION) -c .air.toml -- --store-dir "$(STORE_DIR)" --store-downloads "$(STORE_DOWNLOADS)"
+	go run github.com/air-verse/air@$(AIR_VERSION) -c .air.toml -- --bind 0.0.0.0:9014 --store-dir "$(STORE_DIR)" --store-downloads "$(STORE_DOWNLOADS)"

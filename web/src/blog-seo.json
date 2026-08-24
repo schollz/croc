@@ -28,6 +28,35 @@
   },
   "posts": [
     {
+      "slug": "croc-v11-3-release-update",
+      "title": "croc v11.3 goes peer-to-peer",
+      "seoTitle": "croc v11.3: Direct QUIC, Public DERP, and Relay Fallback",
+      "description": "croc v11.3 adds direct CLI-to-CLI QUIC, uses public Tailscale DERP for rendezvous and relay, and falls back to croc relays.",
+      "kind": "update",
+      "category": "Release notes",
+      "publishedAt": "2026-08-24",
+      "modifiedAt": "2026-08-24",
+      "wordCount": 1479,
+      "readingMinutes": 8,
+      "relatedSlugs": [
+        "croc-v11-release-update",
+        "how-croc-moves-a-file"
+      ],
+      "keywords": [
+        "croc v11.3",
+        "croc release notes",
+        "peer-to-peer file transfer",
+        "DERP file transfer",
+        "QUIC file transfer",
+        "UDP hole punching",
+        "Tailscale DERP",
+        "command-line file transfer"
+      ],
+      "image": "/blog/images/croc-v11-3-release-update.webp",
+      "socialImage": "/blog/images/croc-v11-3-release-update.jpg",
+      "imageAlt": "Three black-and-white panels show direct QUIC, public DERP fallback, and the established croc relay path."
+    },
+    {
       "slug": "croc-cli-speed-comparison",
       "title": "How fast is croc?",
       "seoTitle": "croc Speed Test: Eight CLI File-Transfer Tools Compared",

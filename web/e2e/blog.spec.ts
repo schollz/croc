@@ -86,10 +86,10 @@ test("mobile blog index exposes notes and updates without overflow", async ({
   await expect(
     page.getByRole("heading", { name: "Notes from inside the transfer." }),
   ).toBeVisible();
-  await expect(page.locator("main article")).toHaveCount(11);
+  await expect(page.locator("main article")).toHaveCount(12);
   await expect(
     page.locator("main article").first().getByRole("heading", {
-      name: "From croc v10 to v11",
+      name: "croc v11.3 goes peer-to-peer",
     }),
   ).toBeVisible();
   await expect(
@@ -162,6 +162,37 @@ test("direct article routes publish metadata and complete article content", asyn
   await expect(page.getByText("Related field notes")).toBeVisible();
   await expect(
     page.getByRole("link", { name: /Next note/ }),
+  ).toBeVisible();
+});
+
+test("the v11.3 update explains and sources each network path", async ({
+  page,
+}) => {
+  await page.goto("/blog/croc-v11-3-release-update");
+
+  await expect(
+    page.getByRole("heading", { name: "DERP is the introduction and the safety net" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Why QUIC is the direct stream" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "public DERP network" }),
+  ).toHaveAttribute("href", "https://tailscale.com/docs/reference/derp-servers");
+  await expect(
+    page.getByRole("link", { name: "direct-versus-relayed distinction" }),
+  ).toHaveAttribute("href", "https://tailscale.com/docs/reference/connection-types");
+  await expect(
+    page.getByRole("link", { name: "NAT traversal explainer" }),
+  ).toHaveAttribute("href", "https://tailscale.com/blog/how-nat-traversal-works");
+  await expect(page.getByRole("link", { name: "QUIC", exact: true })).toHaveAttribute(
+    "href",
+    "https://www.rfc-editor.org/rfc/rfc9000.html",
+  );
+  await expect(
+    page.getByRole("region", {
+      name: "How a v11.3 CLI-to-CLI transfer can carry file data",
+    }),
   ).toBeVisible();
 });
 

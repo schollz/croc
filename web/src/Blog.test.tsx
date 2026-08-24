@@ -11,7 +11,7 @@ describe("Blog", () => {
     expect(
       screen.getByRole("heading", { name: "Notes from inside the transfer." }),
     ).toBeVisible();
-    expect(screen.getAllByRole("article")).toHaveLength(11);
+    expect(screen.getAllByRole("article")).toHaveLength(12);
     const categories = screen.getByRole("navigation", {
       name: "Blog post categories",
     });
@@ -146,6 +146,48 @@ describe("Blog", () => {
       "content",
       "Updates",
     );
+  });
+
+  it("renders the v11.3 update with its DERP explanation and fallbacks", () => {
+    render(<Blog slug="croc-v11-3-release-update" />);
+
+    expect(
+      screen.getByRole("heading", { name: "croc v11.3 goes peer-to-peer" }),
+    ).toBeVisible();
+    expect(screen.getByText("UPDATE 02")).toBeVisible();
+    expect(
+      screen.getByRole("heading", {
+        name: "A server can make the introduction without carrying the file",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("heading", {
+        name: "How two computers behind routers find a direct path",
+      }),
+    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Why QUIC is the direct stream" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "public DERP network" })).toHaveAttribute(
+      "href",
+      "https://tailscale.com/docs/reference/derp-servers",
+    );
+    expect(screen.getByRole("link", { name: "NAT traversal explainer" })).toHaveAttribute(
+      "href",
+      "https://tailscale.com/blog/how-nat-traversal-works",
+    );
+    expect(screen.getByRole("link", { name: "QUIC" })).toHaveAttribute(
+      "href",
+      "https://www.rfc-editor.org/rfc/rfc9000.html",
+    );
+    expect(screen.getByRole("cell", { name: "sender ↔ receiver" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "v11.3.0" })).toHaveAttribute(
+      "href",
+      "https://github.com/schollz/croc/releases/tag/v11.3.0",
+    );
+    expect(
+      screen.getByRole("img", {
+        name: /direct QUIC, public DERP fallback/i,
+      }),
+    ).toHaveClass("blog-article-visual-cover");
   });
 
   it("renders a direct article route", () => {
