@@ -23,12 +23,16 @@ func formatSendInstructions(secret, flags, webURL, clipboardNotice string, color
 	if clipboardNotice != "" {
 		clipboardNotice = " (" + clipboardNotice + ")"
 	}
-	return fmt.Sprintf(`On the other computer, run:
-  croc %[2]s%[1]s%[4]s
-
+	instructions := fmt.Sprintf(`On the other computer, run:
+  croc %s%s%s
+`, flags, colorSecret(secret, colorEnabled), clipboardNotice)
+	if webURL != "" {
+		instructions += fmt.Sprintf(`
 Or open:
-  %[3]s
-`, colorSecret(secret, colorEnabled), flags, webURL, clipboardNotice)
+  %s
+`, webURL)
+	}
+	return instructions
 }
 
 func formatClipboardText(secret, flags string, extended bool) string {

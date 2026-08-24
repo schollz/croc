@@ -16,25 +16,28 @@ const maxDecompressedMessageSize = 64 * 1024 * 1024
 type Type string
 
 const (
-	TypePAKE           Type = "pake"
-	TypePAKEConfirm    Type = "pake-confirm"
-	TypeExternalIP     Type = "externalip"
-	TypeFinished       Type = "finished"
-	TypeError          Type = "error"
-	TypeCloseRecipient Type = "close-recipient"
-	TypeCloseSender    Type = "close-sender"
-	TypeRecipientReady Type = "recipientready"
-	TypeFileInfo       Type = "fileinfo"
+	TypePAKE                  Type = "pake"
+	TypePAKEConfirm           Type = "pake-confirm"
+	TypeExperimentalDERPOffer Type = "derp-offer"
+	TypeDERPOffer                  = TypeExperimentalDERPOffer
+	TypeExternalIP            Type = "externalip"
+	TypeFinished              Type = "finished"
+	TypeError                 Type = "error"
+	TypeCloseRecipient        Type = "close-recipient"
+	TypeCloseSender           Type = "close-sender"
+	TypeRecipientReady        Type = "recipientready"
+	TypeFileInfo              Type = "fileinfo"
 )
 
 // Message is the possible payload for messaging
 type Message struct {
-	Type    Type   `json:"t,omitempty"`
-	Version int    `json:"v,omitempty"`
-	Message string `json:"m,omitempty"`
-	Bytes   []byte `json:"b,omitempty"`
-	Bytes2  []byte `json:"b2,omitempty"`
-	Num     int    `json:"n,omitempty"`
+	Type     Type     `json:"t,omitempty"`
+	Version  int      `json:"v,omitempty"`
+	Message  string   `json:"m,omitempty"`
+	Bytes    []byte   `json:"b,omitempty"`
+	Bytes2   []byte   `json:"b2,omitempty"`
+	Num      int      `json:"n,omitempty"`
+	Features []string `json:"f,omitempty"`
 }
 
 func (m Message) String() string {

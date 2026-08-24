@@ -176,22 +176,6 @@ jobs:
             ext: ""
             archive: tar.gz
           - goos: linux
-            goarch: "386"
-            name: Linux-32bit
-            ext: ""
-            archive: tar.gz
-          - goos: linux
-            goarch: arm
-            name: Linux-ARM
-            ext: ""
-            archive: tar.gz
-          - goos: linux
-            goarch: arm
-            goarm: "5"
-            name: Linux-ARMv5
-            ext: ""
-            archive: tar.gz
-          - goos: linux
             goarch: arm64
             name: Linux-ARM64
             ext: ""
@@ -321,9 +305,9 @@ jobs:
           RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           if [ "${{ matrix.archive }}" = "zip" ]; then
-            zip "croc_${RELEASE_TAG}_${{ matrix.name }}.zip" croc${{ matrix.ext }} LICENSE src/codephrase/wordlists/LICENSE.txt
+            zip "croc_${RELEASE_TAG}_${{ matrix.name }}.zip" croc${{ matrix.ext }} LICENSE THIRD_PARTY_NOTICES.md src/codephrase/wordlists/LICENSE.txt
           else
-            tar -czvf "croc_${RELEASE_TAG}_${{ matrix.name }}.tar.gz" croc${{ matrix.ext }} LICENSE src/codephrase/wordlists/LICENSE.txt
+            tar -czvf "croc_${RELEASE_TAG}_${{ matrix.name }}.tar.gz" croc${{ matrix.ext }} LICENSE THIRD_PARTY_NOTICES.md src/codephrase/wordlists/LICENSE.txt
           fi
 
       - name: Upload unsigned Windows 64-bit artifact for signing
@@ -391,7 +375,7 @@ jobs:
             -ldflags='-s -w -buildid= -extldflags "-static"' \
             -o croc-web ./cmd/croc-web
           tar -czvf "croc-web_${RELEASE_TAG}_Linux-amd64.tar.gz" \
-            croc-web LICENSE src/codephrase/wordlists/LICENSE.txt
+            croc-web LICENSE THIRD_PARTY_NOTICES.md src/codephrase/wordlists/LICENSE.txt
 
       - name: Verify web binary version
         env:
@@ -524,8 +508,9 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
           assets=( *.zip *.tar.gz *_checksums.txt )
-          if (( ${#assets[@]} == 0 )); then
-            echo "No release assets were downloaded" >&2
+          if (( ${#assets[@]} != 19 )); then
+            echo "Expected 19 release assets (16 croc archives, croc-web, source, and checksums); found ${#assets[@]}" >&2
+            printf '  %s\n' "${assets[@]}" >&2
             exit 1
           fi
 

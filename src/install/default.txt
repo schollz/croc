@@ -680,12 +680,16 @@ main() {
       "amd64" ) croc_arch="64bit";;
     "aarch64" ) croc_arch="ARM64";;
       "arm64" ) croc_arch="ARM64";;
-     "armv7l" ) croc_arch="ARM";;
-     "armv8l" ) croc_arch="ARM";;
-     "armv9l" ) croc_arch="ARM";;
-       "i686" ) croc_arch="32bit";;
+     "armv5l"|"armv6l"|"armv7l"|"armv8l"|"armv9l" ) croc_arch="ARM";;
+       "i386"|"i486"|"i586"|"i686" ) croc_arch="32bit";;
     "riscv64" ) croc_arch="RISCV64";;
             * ) croc_arch="unknown";;
+  esac
+
+  case "${croc_os}-${croc_arch}" in
+    "Linux-32bit"|"Linux-ARM" )
+      print_message "== Linux 386 and 32-bit ARM releases are no longer supported." "error"
+      exit 1;;
   esac
 
   croc_file="${croc_bin_name}_v${croc_version}_${croc_os}-${croc_arch}.${croc_dl_ext}"

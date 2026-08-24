@@ -329,6 +329,67 @@ func TestRevokeIsRootFlag(t *testing.T) {
 	}
 }
 
+func TestExperimentalDERPIsVisibleRootFlag(t *testing.T) {
+	app := newApp()
+	var got bool
+	for _, command := range app.Commands {
+		if command.Name == "send" {
+			command.Action = func(ctx *cli.Context) error {
+				got = ctx.Bool("experimental-derp")
+				return nil
+			}
+		}
+	}
+	if err := app.Run([]string{"croc", "--experimental-derp", "send"}); err != nil {
+		t.Fatalf("parse --experimental-derp: %v", err)
+	}
+	if !got {
+		t.Fatal("send action did not receive --experimental-derp")
+	}
+	visible := false
+	for _, rootFlag := range app.Flags {
+		if rootFlag.Names()[0] == "experimental-derp" {
+			visible = true
+			break
+		}
+	}
+	if !visible {
+		t.Fatal("--experimental-derp is not a visible root flag")
+	}
+}
+
+func TestExperimentalDERPRejectsIncompatibleCLIOptions(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "local",
+			args: []string{"croc", "--experimental-derp", "--local", "--ignore-stdin", "send", "--text", "hello"},
+			want: "--experimental-derp cannot be combined with --local",
+		},
+		{
+			name: "stored",
+			args: []string{"croc", "--experimental-derp", "--ignore-stdin", "send", "--store", "unused"},
+			want: "--experimental-derp cannot be combined with --store",
+		},
+		{
+			name: "qrcode",
+			args: []string{"croc", "--experimental-derp", "--ignore-stdin", "send", "--qrcode", "unused"},
+			want: "--experimental-derp cannot be combined with --qrcode",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := newApp().Run(test.args)
+			if err == nil || err.Error() != test.want {
+				t.Fatalf("error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
 func TestStoreDownloadsFlagParsing(t *testing.T) {
 	for _, testCase := range []struct {
 		name string
