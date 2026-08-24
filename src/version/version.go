@@ -2,4 +2,4 @@
 package version
 
 // Value is the current croc release version.
-const Value = "11.2.5"
+const Value = "11.3.0"
