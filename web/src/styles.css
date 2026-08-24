@@ -2463,7 +2463,8 @@ a.cli-download-primary:hover {
   opacity: 0.55;
 }
 
-.release-visual {
+.release-visual,
+.derp-visual {
   display: grid;
   width: min(100%, 650px);
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2472,7 +2473,8 @@ a.cli-download-primary:hover {
   background: var(--background);
 }
 
-.release-visual > span {
+.release-visual > span,
+.derp-visual > span {
   display: grid;
   min-height: 150px;
   gap: 9px;
@@ -2484,33 +2486,39 @@ a.cli-download-primary:hover {
   text-align: center;
 }
 
-.release-visual > span:nth-child(2) {
+.release-visual > span:nth-child(2),
+.derp-visual > span:nth-child(2) {
   color: var(--background);
   background: var(--foreground);
 }
 
-.release-visual svg {
+.release-visual svg,
+.derp-visual svg {
   width: 28px;
   height: 28px;
 }
 
-.release-visual small {
+.release-visual small,
+.derp-visual small {
   color: var(--muted);
   font-size: 8px;
   text-transform: uppercase;
 }
 
-.release-visual > span:nth-child(2) small {
+.release-visual > span:nth-child(2) small,
+.derp-visual > span:nth-child(2) small {
   color: inherit;
 }
 
-.release-visual strong {
+.release-visual strong,
+.derp-visual strong {
   font-size: 13px;
   letter-spacing: -0.04em;
   text-transform: uppercase;
 }
 
-.release-visual > i {
+.release-visual > i,
+.derp-visual > i {
   display: grid;
   min-height: 44px;
   grid-column: 1 / -1;

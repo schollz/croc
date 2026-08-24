@@ -8,17 +8,29 @@ export type BlogVisual =
   | "browser"
   | "bridge"
   | "stored"
+  | "derp"
   | "release";
 
 export type BlogKind = "note" | "update";
 
+export type BlogTextLink = {
+  label: string;
+  href: string;
+};
+
 export type BlogBlock =
   | { type: "heading"; text: string }
-  | { type: "paragraph"; text: string }
+  | { type: "paragraph"; text: string; links?: BlogTextLink[] }
   | { type: "list"; items: string[] }
   | { type: "code"; label: string; lines: string[] }
   | { type: "details"; summary: string; lines: string[] }
-  | { type: "aside"; eyebrow: string; title: string; text: string }
+  | {
+      type: "aside";
+      eyebrow: string;
+      title: string;
+      text: string;
+      links?: BlogTextLink[];
+    }
   | {
       type: "table";
       caption: string;
@@ -147,6 +159,220 @@ export function readingMinutes(blocks: BlogBlock[]) {
 }
 
 const drafts: DraftBlogPost[] = [
+  {
+    slug: "croc-v11-3-release-update",
+    number: "02",
+    title: "croc v11.3 goes peer-to-peer",
+    description:
+      "croc v11.3 adds direct CLI-to-CLI QUIC, uses public Tailscale DERP for rendezvous and relay, and falls back to croc relays.",
+    kind: "update",
+    category: "Release notes",
+    publishedAt: "2026-08-24",
+    publishedLabel: "August 24, 2026",
+    author: "schollz",
+    visual: "derp",
+    takeaway:
+      "CLI-to-CLI transfers now try a direct QUIC path first, can stay encrypted over public DERP when direct networking is blocked, and return to croc's relay path if DERP setup fails.",
+    blocks: [
+      {
+        type: "paragraph",
+        text: "I have been working on croc again. The command is still the same: send a file, share the three-word code, and let the other computer receive it. In v11.3, however, the path taken by the file can be completely different.",
+      },
+      {
+        type: "paragraph",
+        text: "When two compatible native clients connect, croc now tries to move the file through a direct authenticated QUIC connection between them. If a direct route is blocked, the transfer can stay on the public Tailscale DERP network. If that transport cannot be established, both clients coordinate a final fallback to croc's existing relay data ports. croc is now peer-to-peer when it can be, and still works when it cannot be.",
+      },
+      { type: "heading", text: "The short version" },
+      {
+        type: "list",
+        items: [
+          "v11.2 spread public transfers across three croc relays, selected the first healthy relay to answer, and encoded that choice into the normal three-word code.",
+          "The later v11.2 releases improved terminal and browser feedback, added quiet background update notices, and hardened received paths, ZIP extraction, stored transfers, and relay admission.",
+          "v11.3 adds a CLI-to-CLI data transport built on derphole: direct QUIC when possible, public DERP when direct networking is blocked, and the previous croc relay path when DERP setup fails.",
+          "The default remains automatic. Browsers, older clients, stored transfers, and local-only transfers continue onto the compatible path without requiring a new workflow.",
+        ],
+      },
+      { type: "heading", text: "v11.2 learned to choose a relay" },
+      {
+        type: "paragraph",
+        text: "v11.2 replaced one public relay address with a pool of three deployments. On the first send from a machine, croc races a small ping against the pool and remembers the first healthy relay to answer. It then generates an ordinary EFF code whose hash maps to that relay. The receiver can repeat the same calculation from the code alone, so both sides arrive at the same place without adding server details to the phrase. The browser client uses the same scheme.",
+      },
+      {
+        type: "paragraph",
+        text: "That change distributed traffic and usually moved a transfer toward a responsive server, but the file bytes still crossed that server. v11.2.4 added clearer connection and completion messages, browser elapsed time, and a version check that waits until the transfer is over before mentioning an available update. v11.2.5 then tightened the less visible edges: filesystem operations are rooted inside the receive directory, unsafe or ambiguous paths are rejected before writing, archives are completely validated before extraction, local endpoint metadata is encrypted, and relay admission is bounded.",
+      },
+      { type: "heading", text: "v11.3 gives CLI transfers another path" },
+      {
+        type: "paragraph",
+        text: "For a normal internet transfer, the two computers still meet over croc's control connection and use the three-word code for the PAKE exchange. Only after both sides prove that they derived the expected key do v11.3 clients advertise the new capability and exchange a short-lived derphole offer over the encrypted channel. The file connection is a separate decision made after authentication, not a replacement for croc's code or handshake.",
+      },
+      { type: "heading", text: "DERP is the introduction and the safety net" },
+      {
+        type: "paragraph",
+        text: "DERP stands for Designated Encrypted Relay for Packets. Tailscale runs a geographically distributed public DERP network to help devices find one another and to relay encrypted packets when a direct connection is not available. Each croc client makes an outbound connection, which generally works even when a home router or firewall would reject an unsolicited inbound connection. derphole uses that common meeting point to exchange possible routes and to carry the session while it looks for a direct one.",
+        links: [
+          {
+            label: "public DERP network",
+            href: "https://tailscale.com/docs/reference/derp-servers",
+          },
+          {
+            label: "derphole",
+            href: "https://github.com/shayne/derphole",
+          },
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "This does not make croc a Tailscale VPN client. There is no Tailscale account, tailnet, tailscaled daemon, or WireGuard configuration involved. v11.3 uses derphole to speak to the public DERP infrastructure directly. croc still owns the three-word-code rendezvous, the PAKE-authenticated control channel, the file-transfer protocol, and the encryption applied to the file chunks.",
+        links: [
+          {
+            label: "uses derphole",
+            href: "https://github.com/schollz/croc/blob/v11.3.0/src/derptransport/transport_supported.go",
+          },
+        ],
+      },
+      {
+        type: "aside",
+        eyebrow: "WHAT PEER-TO-PEER MEANS",
+        title: "A server can make the introduction without carrying the file",
+        text: "Peer-to-peer describes who forwards the file data, not whether any server was contacted. On a direct path, the sender's packets go to the receiver's network endpoint with no DERP or croc relay forwarding them. Servers can still introduce the clients and coordinate that route without being in the file's data path. A transfer that remains on DERP is private and useful, but it is relayed rather than peer-to-peer. A direct path also means the two peers necessarily communicate with—and can observe—one another's public network endpoint. Tailscale makes the same direct-versus-relayed distinction in its connection model.",
+        links: [
+          {
+            label: "direct-versus-relayed distinction",
+            href: "https://tailscale.com/docs/reference/connection-types",
+          },
+        ],
+      },
+      { type: "heading", text: "How two computers behind routers find a direct path" },
+      {
+        type: "paragraph",
+        text: "Most routers perform network address translation, and most firewalls allow replies to an outbound packet while dropping unexpected inbound traffic. The clients gather possible local and public UDP addresses, exchange them through the DERP side channel, and send probes toward one another at nearly the same time. Those outbound probes create temporary mappings that an answering packet can cross. This is UDP hole punching: neither person needs to open a port manually. Tailscale's NAT traversal explainer is a good, detailed account of the moving parts.",
+        links: [
+          {
+            label: "NAT traversal explainer",
+            href: "https://tailscale.com/blog/how-nat-traversal-works",
+          },
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "When a probe succeeds, derphole promotes the session to that direct route without restarting the transfer. Some NAT combinations, carrier networks, and firewalls that block UDP will not admit a usable direct path. In those cases DERP keeps forwarding the end-to-end encrypted session. It is the bridge while a direct route is being tested and the safety net when none can be made.",
+      },
+      { type: "heading", text: "Why QUIC is the direct stream" },
+      {
+        type: "paragraph",
+        text: "UDP is useful for crossing NATs, but bare UDP datagrams are not the reliable byte stream croc expects. QUIC is a standardized transport built over UDP that supplies authenticated encryption, reliable streams, loss recovery, and congestion control. derphole's attach session turns the selected direct or DERP route into a QUIC-backed net.Conn, and croc installs that connection as its data channel. The v11.3 adapter is small because the route discovery and promotion stay behind that familiar stream interface.",
+        links: [
+          {
+            label: "QUIC",
+            href: "https://www.rfc-editor.org/rfc/rfc9000.html",
+          },
+          {
+            label: "v11.3 adapter",
+            href: "https://github.com/schollz/croc/blob/v11.3.0/src/derptransport/transport_supported.go",
+          },
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "QUIC and derphole are the outer transport, not a replacement for croc's security model. croc still applies its own AES-GCM encryption to file chunks whichever route wins. A direct path does not weaken that model, and a relayed path does not expose the file contents to either relay network. The route changes; the shared key and encrypted payload do not.",
+      },
+      { type: "heading", text: "The three possible data paths" },
+      {
+        type: "table",
+        caption: "How a v11.3 CLI-to-CLI transfer can carry file data",
+        headers: ["Path", "Where file bytes travel", "Peer-to-peer?", "When it is used"],
+        rows: [
+          {
+            cells: ["Direct QUIC", "sender ↔ receiver", "Yes", "Preferred after UDP hole punching finds a working route"],
+            href: "https://www.rfc-editor.org/rfc/rfc9000.html",
+          },
+          {
+            cells: ["Public DERP", "sender → DERP → receiver", "No", "Encrypted fallback when no direct route is available"],
+            href: "https://tailscale.com/docs/reference/derp-servers",
+          },
+          {
+            cells: ["croc relay", "sender → croc relay → receiver", "No", "Compatibility path, or fallback when DERP setup fails"],
+            href: "https://github.com/schollz/croc/blob/v11.3.0/src/croc/croc.go",
+          },
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "The direct path removes a relay from the bulk-data route, so it can reduce latency, increase throughput, and reduce load on public relay infrastructure. It is an opportunity rather than a promise: the route that wins still depends on both networks. The important part is that v11.3 can discover the better path automatically without making reachability a requirement.",
+      },
+      { type: "heading", text: "Fallback is part of the design" },
+      {
+        type: "paragraph",
+        text: "The default is --transport auto. Compatible native clients negotiate the direct/DERP connection together and either accept it together or switch to the croc relay together. An older CLI or a browser does not advertise the capability, so v11.3 uses the established relay data path. This keeps mixed-version and browser-to-terminal transfers working while native clients gain a new route.",
+      },
+      {
+        type: "code",
+        label: "Choose the data transport explicitly",
+        lines: [
+          "# Require direct/DERP setup; fail instead of using croc relay data ports",
+          "$ croc --transport derp send big-file.zip",
+          "",
+          "# Use croc's established parallel TCP relay data path",
+          "$ croc --transport relay send big-file.zip",
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "Stored transfers and local-only transfers keep their existing behavior. Linux 386 and ARM builds also use the relay path because the derphole packet session is not compiled on those targets. In ordinary use there is nothing to select: auto is meant to make the best compatible attempt and preserve the old route as the dependable last step.",
+      },
+      { type: "heading", text: "What changed in each release" },
+      {
+        type: "table",
+        caption: "croc v11.2 and v11.3 release sequence",
+        headers: ["Release", "Published", "What it brought"],
+        rows: [
+          {
+            cells: ["v11.2.0", "August 18, 2026", "Three public relays, latency-based selection, deterministic code-to-relay mapping, and matching browser support"],
+            href: "https://github.com/schollz/croc/releases/tag/v11.2.0",
+          },
+          {
+            cells: ["v11.2.1", "August 18, 2026", "Public-relay corrections, deterministic cancellation tests, and repaired Windows signing"],
+            href: "https://github.com/schollz/croc/releases/tag/v11.2.1",
+          },
+          {
+            cells: ["v11.2.2", "August 19, 2026", "Browser link-handling fixes, a security policy, and release-signing maintenance"],
+            href: "https://github.com/schollz/croc/releases/tag/v11.2.2",
+          },
+          {
+            cells: ["v11.2.3", "August 20, 2026", "A TCP fix, the current Go toolchain, dependency maintenance, and automated release tagging"],
+            href: "https://github.com/schollz/croc/releases/tag/v11.2.3",
+          },
+          {
+            cells: ["v11.2.4", "August 20, 2026", "Deferred update notices, clearer terminal status, improved destination details, and browser fixes"],
+            href: "https://github.com/schollz/croc/releases/tag/v11.2.4",
+          },
+          {
+            cells: ["v11.2.5", "August 22, 2026", "Transfer, relay, filesystem, archive, and stored-mode hardening plus browser elapsed time"],
+            href: "https://github.com/schollz/croc/releases/tag/v11.2.5",
+          },
+          {
+            cells: ["v11.3.0", "August 24, 2026", "Automatic CLI-to-CLI direct QUIC and public DERP transport with coordinated croc relay fallback"],
+            href: "https://github.com/schollz/croc/releases/tag/v11.3.0",
+          },
+        ],
+      },
+      { type: "heading", text: "Try v11.3" },
+      {
+        type: "code",
+        label: "Install the latest release",
+        lines: [
+          "$ curl https://getcroc.com | bash",
+          "$ croc --version",
+          "croc version 11.3.0",
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "Then send and receive exactly as before. I like this change because it removes an old assumption from croc: a relay can be essential for introducing two computers without needing to carry every byte after they meet. When the networks cooperate, it can now get out of the way.",
+      },
+    ],
+  },
   {
     slug: "croc-v11-release-update",
     number: "01",
