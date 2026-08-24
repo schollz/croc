@@ -536,7 +536,7 @@ func TestUnknownTransferIDsUseBoundedLockState(t *testing.T) {
 	clock := &testClock{now: time.Unix(1_700_000_000, 0).UTC()}
 	service := newTestService(t, clock)
 
-	for index := 0; index < transferLockStripes*2; index++ {
+	for index := range transferLockStripes * 2 {
 		var raw [storecrypto.TransferIDLen]byte
 		binary.BigEndian.PutUint64(raw[8:], uint64(index))
 		id := storecrypto.EncodeBase64URL(raw[:])

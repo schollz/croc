@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -52,8 +53,8 @@ func BenchmarkSenderChunkScheduling(b *testing.B) {
 		var sum int64
 		b.ReportMetric(float64(chunks*connections), "positions/op")
 		for n := 0; n < b.N; n++ {
-			for connection := int64(0); connection < connections; connection++ {
-				for chunk := int64(0); chunk < chunks; chunk++ {
+			for connection := range connections {
+				for chunk := range chunks {
 					if chunk%connections == connection {
 						sum += chunk * chunkSize
 					}
@@ -67,7 +68,7 @@ func BenchmarkSenderChunkScheduling(b *testing.B) {
 		b.ReportMetric(float64(chunks), "positions/op")
 		stride := chunkSize * connections
 		for n := 0; n < b.N; n++ {
-			for connection := int64(0); connection < connections; connection++ {
+			for connection := range connections {
 				for offset := connection * chunkSize; offset < fileSize; offset += stride {
 					sum += offset
 				}
@@ -94,7 +95,7 @@ func BenchmarkReceiveChunkWrites(b *testing.B) {
 	runWrites := func(lock *sync.Mutex) {
 		var wg sync.WaitGroup
 		wg.Add(connections)
-		for connection := 0; connection < connections; connection++ {
+		for connection := range connections {
 			go func(offset int64) {
 				defer wg.Done()
 				if lock != nil {
@@ -858,7 +859,7 @@ func TestCrocNonASCIIFileName(t *testing.T) {
 	go func() {
 		errCh <- receiver.Receive()
 	}()
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		if err := <-errCh; err != nil {
 			t.Errorf("transfer failed: %v", err)
 		}
@@ -985,7 +986,7 @@ func TestCrocRenameExistingFile(t *testing.T) {
 	go func() {
 		errCh <- receiver.Receive()
 	}()
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		if err := <-errCh; err != nil {
 			t.Errorf("transfer failed: %v", err)
 		}
@@ -1257,13 +1258,7 @@ func TestGetFilesInfoZipFolderHonoursFilters(t *testing.T) {
 		}
 	}
 	wantKept := "myproj/main.go"
-	found := false
-	for _, name := range got {
-		if name == wantKept {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(got, wantKept)
 	if !found {
 		t.Errorf("expected %q in zip; got %v", wantKept, got)
 	}
@@ -1462,8 +1457,7 @@ func TestSenderAndReceiverPreferLocalRelayOverExternalRelay(t *testing.T) {
 		t.Skipf("local relay regression requires a non-loopback local IP: %v", err)
 	}
 	externalPorts := freeConsecutiveTestPorts(t, 5)
-	ctx, stopRelay := context.WithCancel(context.Background())
-	defer stopRelay()
+	ctx := t.Context()
 	go tcp.RunCtx(ctx, "warn", "127.0.0.1", externalPorts[0], "pass123", strings.Join(externalPorts[1:], ","))
 	for _, port := range externalPorts[1:] {
 		go tcp.RunCtx(ctx, "warn", "127.0.0.1", port, "pass123")
@@ -1522,7 +1516,7 @@ func TestSenderAndReceiverPreferLocalRelayOverExternalRelay(t *testing.T) {
 		errc <- receiver.Receive()
 	}()
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		if err := <-errc; err != nil {
 			t.Fatalf("transfer failed: %v", err)
 		}
@@ -1547,8 +1541,7 @@ func TestSenderLocalProbeDoesNotCorruptExternalRoute(t *testing.T) {
 
 	externalPorts := freeConsecutiveTestPortsForHost(t, externalHost, 9)
 	localPorts := freeConsecutiveTestPorts(t, 5)
-	ctx, stopRelay := context.WithCancel(context.Background())
-	defer stopRelay()
+	ctx := t.Context()
 	go tcp.RunCtx(ctx, "warn", externalHost, externalPorts[0], "pass123", strings.Join(externalPorts[1:], ","))
 	for _, port := range externalPorts[1:] {
 		go tcp.RunCtx(ctx, "warn", externalHost, port, "pass123")
@@ -1611,7 +1604,7 @@ func TestSenderLocalProbeDoesNotCorruptExternalRoute(t *testing.T) {
 		errc <- receiver.Receive()
 	}()
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case err := <-errc:
 			if err != nil {
@@ -1743,7 +1736,7 @@ func hashed(c *Client) bool {
 
 func waitHashed(sender *Client) (err error) {
 	err = fmt.Errorf("not hashed")
-	for i := 0; i < 300; i++ { // Max 3 seconds
+	for range 300 { // Max 3 seconds
 		if hashed(sender) {
 			time.Sleep(100 * time.Millisecond)
 			return nil
@@ -1760,7 +1753,7 @@ func createTestFile(t *testing.T, size int) (string, func()) {
 	}
 
 	data := make([]byte, size)
-	for i := 0; i < size; i++ {
+	for i := range size {
 		data[i] = byte(i % 256)
 	}
 
@@ -1797,12 +1790,12 @@ func freeConsecutiveTestPorts(t *testing.T, count int) []string {
 
 func freeConsecutiveTestPortsForHost(t *testing.T, host string, count int) []string {
 	t.Helper()
-	for attempts := 0; attempts < 100; attempts++ {
+	for range 100 {
 		base := 20000 + rand.Intn(20000)
 		listeners := make([]net.Listener, 0, count)
 		ports := make([]string, 0, count)
 		ok := true
-		for i := 0; i < count; i++ {
+		for i := range count {
 			port := strconv.Itoa(base + i)
 			listener, err := net.Listen("tcp", net.JoinHostPort(host, port))
 			if err != nil {
@@ -1927,7 +1920,7 @@ func runReconnectDropTest(t *testing.T, connIndex int, disableReceiverReconnect 
 	}()
 
 	var firstErr error
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case err := <-errc:
 			if err != nil && firstErr == nil {
@@ -2183,7 +2176,7 @@ func TestBase(t *testing.T) {
 	}()
 
 	go func() {
-		for i := 0; i < 3000; i++ {
+		for range 3000 {
 			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
 				time.Sleep(time.Millisecond)
 				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
@@ -2300,7 +2293,7 @@ func TestCtx(t *testing.T) {
 	}()
 
 	go func() {
-		for i := 0; i < 3000; i++ {
+		for range 3000 {
 			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
 				time.Sleep(time.Millisecond)
 				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
@@ -2441,7 +2434,7 @@ func TestAllCtx(t *testing.T) {
 	}()
 
 	go func() {
-		for i := 0; i < 3000; i++ {
+		for range 3000 {
 			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
 				time.Sleep(time.Millisecond)
 				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
@@ -2564,7 +2557,7 @@ func TestSendCtx(t *testing.T) {
 	}()
 
 	go func() {
-		for i := 0; i < 3000; i++ {
+		for range 3000 {
 			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
 				time.Sleep(time.Millisecond)
 				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
@@ -2687,7 +2680,7 @@ func TestReceiveCtx(t *testing.T) {
 	}()
 
 	go func() {
-		for i := 0; i < 3000; i++ {
+		for range 3000 {
 			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
 				time.Sleep(time.Millisecond)
 				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
@@ -2810,7 +2803,7 @@ func TestRunCtx(t *testing.T) {
 	}()
 
 	go func() {
-		for i := 0; i < 3000; i++ {
+		for range 3000 {
 			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
 				time.Sleep(time.Millisecond)
 				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {

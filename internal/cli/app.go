@@ -81,7 +81,7 @@ type App struct {
 	// is used as the default behavior.
 	ExitErrHandler ExitErrHandlerFunc
 	// Other custom info
-	Metadata map[string]interface{}
+	Metadata map[string]any
 	// Carries a function which returns app specific info.
 	ExtraInfo func() map[string]string
 	// CustomAppHelpTemplate the text template for app help topic.
@@ -199,7 +199,7 @@ func (a *App) Setup() {
 	sort.Sort(a.categories.(*commandCategories))
 
 	if a.Metadata == nil {
-		a.Metadata = make(map[string]interface{})
+		a.Metadata = make(map[string]any)
 	}
 }
 
@@ -518,7 +518,7 @@ func (a *Author) String() string {
 // HandleAction attempts to figure out which Action signature was used.  If
 // it's an ActionFunc or a func with the legacy signature for Action, the func
 // is run!
-func HandleAction(action interface{}, context *Context) (err error) {
+func HandleAction(action any, context *Context) (err error) {
 	switch a := action.(type) {
 	case ActionFunc:
 		return a(context)

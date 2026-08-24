@@ -2,6 +2,7 @@ package tcp
 
 import (
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -109,10 +110,5 @@ func WithRoomTTL(ttl time.Duration) serverOptsFunc {
 }
 
 func containsSlice(s []string, e string) bool {
-	for _, ss := range s {
-		if e == ss {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(s, e)
 }

@@ -3,6 +3,7 @@ package cli
 import (
 	"flag"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -206,12 +207,7 @@ func (c *Command) Names() []string {
 
 // HasName returns true if Command.Name matches given name
 func (c *Command) HasName(name string) bool {
-	for _, n := range c.Names() {
-		if n == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(c.Names(), name)
 }
 
 func (c *Command) startApp(ctx *Context) error {
@@ -290,11 +286,5 @@ func (c *Command) appendFlag(fl Flag) {
 }
 
 func hasCommand(commands []*Command, command *Command) bool {
-	for _, existing := range commands {
-		if command == existing {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(commands, command)
 }

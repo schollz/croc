@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -107,7 +108,7 @@ func (c *Context) Lineage() []*Context {
 }
 
 // Value returns the value of the flag corresponding to `name`
-func (c *Context) Value(name string) interface{} {
+func (c *Context) Value(name string) any {
 	return c.flagSet.Lookup(name).Value.(flag.Getter).Get()
 }
 
@@ -129,20 +130,16 @@ func lookupFlag(name string, ctx *Context) Flag {
 		}
 
 		for _, f := range c.Command.Flags {
-			for _, n := range f.Names() {
-				if n == name {
-					return f
-				}
+			if slices.Contains(f.Names(), name) {
+				return f
 			}
 		}
 	}
 
 	if ctx.App != nil {
 		for _, f := range ctx.App.Flags {
-			for _, n := range f.Names() {
-				if n == name {
-					return f
-				}
+			if slices.Contains(f.Names(), name) {
+				return f
 			}
 		}
 	}

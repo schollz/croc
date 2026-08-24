@@ -1,6 +1,7 @@
 package mnemonicode
 
 import (
+	"slices"
 	"testing"
 )
 
@@ -86,7 +87,7 @@ func TestEncodeWordList(t *testing.T) {
 			if len(result) != tt.want {
 				t.Errorf("EncodeWordList() returned %d words, want %d", len(result), tt.want)
 			}
-			
+
 			// Check that all words are valid
 			for i, word := range result {
 				if word == "" {
@@ -99,15 +100,15 @@ func TestEncodeWordList(t *testing.T) {
 
 func TestEncodeWordListConsistency(t *testing.T) {
 	input := []byte{0x12, 0x34, 0x56, 0x78}
-	
+
 	// Encode twice with empty dst
 	result1 := EncodeWordList([]string{}, input)
 	result2 := EncodeWordList([]string{}, input)
-	
+
 	if len(result1) != len(result2) {
 		t.Errorf("Inconsistent result lengths: %d vs %d", len(result1), len(result2))
 	}
-	
+
 	for i := range result1 {
 		if result1[i] != result2[i] {
 			t.Errorf("Inconsistent result at index %d: %s vs %s", i, result1[i], result2[i])
@@ -120,13 +121,13 @@ func TestEncodeWordListCapacityHandling(t *testing.T) {
 	dst := make([]string, 1, 10)
 	dst[0] = "existing"
 	input := []byte{0x01, 0x02}
-	
+
 	result := EncodeWordList(dst, input)
-	
+
 	if len(result) != 3 { // 1 existing + 2 new
 		t.Errorf("Expected 3 words, got %d", len(result))
 	}
-	
+
 	if result[0] != "existing" {
 		t.Errorf("Expected first word to be 'existing', got %s", result[0])
 	}
@@ -143,25 +144,19 @@ func TestEncodeWordListBoundaryValues(t *testing.T) {
 		{"max four bytes", []byte{0xFF, 0xFF, 0xFF, 0xFF}},
 		{"all zeros", []byte{0x00, 0x00, 0x00, 0x00}},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := EncodeWordList([]string{}, tt.src)
 			expectedLen := WordsRequired(len(tt.src))
-			
+
 			if len(result) != expectedLen {
 				t.Errorf("Expected %d words, got %d", expectedLen, len(result))
 			}
-			
+
 			// Ensure all words are from the WordList
 			for _, word := range result {
-				found := false
-				for _, validWord := range WordList {
-					if word == validWord {
-						found = true
-						break
-					}
-				}
+				found := slices.Contains(WordList, word)
 				if !found {
 					t.Errorf("Invalid word generated: %s", word)
 				}

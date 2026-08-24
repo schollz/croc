@@ -321,7 +321,7 @@ func LocalIP() string {
 
 // GenerateRandomPin returns a randomly generated pin with set length
 func GenerateRandomPin() string {
-	s := ""
+	var s strings.Builder
 	max := new(big.Int)
 	max.SetInt64(9)
 	for range NbPinNumbers {
@@ -329,9 +329,9 @@ func GenerateRandomPin() string {
 		if err != nil {
 			panic(err)
 		}
-		s += fmt.Sprintf("%d", v)
+		s.WriteString(fmt.Sprintf("%d", v))
 	}
-	return s
+	return s.String()
 }
 
 // GetRandomName returns a random three-word croc code.
@@ -480,10 +480,7 @@ func ChunkRangesBytes(chunkRanges []int64, fileSize, defaultChunkSize int64) int
 		if start < 0 || start >= fileSize || count <= 0 {
 			continue
 		}
-		end := start + count*chunkSize
-		if end > fileSize {
-			end = fileSize
-		}
+		end := min(start+count*chunkSize, fileSize)
 		if end > start {
 			total += end - start
 		}
@@ -888,7 +885,7 @@ func RejectSymlinkPath(root, target string) error {
 	}
 
 	current := rootAbs
-	for _, component := range strings.Split(rel, string(os.PathSeparator)) {
+	for component := range strings.SplitSeq(rel, string(os.PathSeparator)) {
 		current = filepath.Join(current, component)
 		info, statErr := os.Lstat(current)
 		if os.IsNotExist(statErr) {

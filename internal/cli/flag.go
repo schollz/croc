@@ -4,8 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"reflect"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -164,21 +166,21 @@ func unquoteUsage(usage string) (string, string) {
 }
 
 func prefixedNames(names []string, placeholder string) string {
-	var prefixed string
+	var prefixed strings.Builder
 	for i, name := range names {
 		if name == "" {
 			continue
 		}
 
-		prefixed += prefixFor(name) + name
+		prefixed.WriteString(prefixFor(name) + name)
 		if placeholder != "" {
-			prefixed += " " + placeholder
+			prefixed.WriteString(" " + placeholder)
 		}
 		if i < len(names)-1 {
-			prefixed += ", "
+			prefixed.WriteString(", ")
 		}
 	}
-	return prefixed
+	return prefixed.String()
 }
 
 func withEnvHint(envVars []string, str string) string {
@@ -236,7 +238,7 @@ func withFileHint(filePath, str string) string {
 
 func flagValue(f Flag) reflect.Value {
 	fv := reflect.ValueOf(f)
-	for fv.Kind() == reflect.Ptr {
+	for fv.Kind() == reflect.Pointer {
 		fv = reflect.Indirect(fv)
 	}
 	return fv
@@ -318,13 +320,7 @@ func stringifySliceFlag(usage string, names, defaultVals []string) string {
 }
 
 func hasFlag(flags []Flag, fl Flag) bool {
-	for _, existing := range flags {
-		if fl == existing {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(flags, fl)
 }
 
 func flagFromEnvOrFile(envVars []string, filePath string) (val string, ok bool) {
@@ -334,8 +330,8 @@ func flagFromEnvOrFile(envVars []string, filePath string) (val string, ok bool) 
 			return val, true
 		}
 	}
-	for _, fileVar := range strings.Split(filePath, ",") {
-		if data, err := ioutil.ReadFile(fileVar); err == nil {
+	for fileVar := range strings.SplitSeq(filePath, ",") {
+		if data, err := os.ReadFile(fileVar); err == nil {
 			return string(data), true
 		}
 	}

@@ -2,6 +2,7 @@ package models
 
 import (
 	"net"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -55,13 +56,7 @@ func TestPublicDNSServers(t *testing.T) {
 	}
 
 	for _, expected := range expectedServers {
-		found := false
-		for _, dns := range publicDNS {
-			if dns == expected {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(publicDNS, expected)
 		if !found {
 			t.Errorf("Expected DNS server %s not found in publicDNS", expected)
 		}

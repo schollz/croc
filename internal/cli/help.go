@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"unicode/utf8"
 )
@@ -40,10 +41,10 @@ var helpSubcommand = &Command{
 }
 
 // Prints help for the App or Command
-type helpPrinter func(w io.Writer, templ string, data interface{})
+type helpPrinter func(w io.Writer, templ string, data any)
 
 // Prints help for the App or Command with custom template function.
-type helpPrinterCustom func(w io.Writer, templ string, data interface{}, customFunc map[string]interface{})
+type helpPrinterCustom func(w io.Writer, templ string, data any, customFunc map[string]any)
 
 // HelpPrinter is a function that writes the help output. If not set explicitly,
 // this calls HelpPrinterCustom using only the default template functions.
@@ -80,8 +81,8 @@ func ShowAppHelp(c *Context) error {
 		return nil
 	}
 
-	customAppData := func() map[string]interface{} {
-		return map[string]interface{}{
+	customAppData := func() map[string]any {
+		return map[string]any{
 			"ExtraInfo": c.App.ExtraInfo,
 		}
 	}
@@ -113,17 +114,12 @@ func printCommandSuggestions(commands []*Command, writer io.Writer) {
 }
 
 func cliArgContains(flagName string) bool {
-	for _, name := range strings.Split(flagName, ",") {
+	for name := range strings.SplitSeq(flagName, ",") {
 		name = strings.TrimSpace(name)
-		count := utf8.RuneCountInString(name)
-		if count > 2 {
-			count = 2
-		}
+		count := min(utf8.RuneCountInString(name), 2)
 		flag := fmt.Sprintf("%s%s", strings.Repeat("-", count), name)
-		for _, a := range os.Args {
-			if a == flag {
-				return true
-			}
+		if slices.Contains(os.Args, flag) {
+			return true
 		}
 	}
 	return false
@@ -139,10 +135,9 @@ func printFlagSuggestions(lastArg string, flags []Flag, writer io.Writer) {
 		for _, name := range flag.Names() {
 			name = strings.TrimSpace(name)
 			// this will get total count utf8 letters in flag name
-			count := utf8.RuneCountInString(name)
-			if count > 2 {
-				count = 2 // resuse this count to generate single - or -- in flag completion
-			}
+			count := min(utf8.RuneCountInString(name),
+				// resuse this count to generate single - or -- in flag completion
+				2)
 			// if flag name has more than one utf8 letter and last argument in cli has -- prefix then
 			// skip flag completion for short flags example -v or -x
 			if strings.HasPrefix(lastArg, "--") && count == 1 {
@@ -262,7 +257,7 @@ func ShowCommandCompletions(ctx *Context, command string) {
 // a direct renderer keeps the same output while allowing method dead-code
 // elimination. templ is still used to distinguish app and subcommand layouts;
 // custom templates and functions are intentionally unsupported by this fork.
-func printHelpCustom(out io.Writer, templ string, data interface{}, customFuncs map[string]interface{}) {
+func printHelpCustom(out io.Writer, templ string, data any, customFuncs map[string]any) {
 	switch value := data.(type) {
 	case *App:
 		if templ == SubcommandHelpTemplate {
@@ -438,7 +433,7 @@ func renderHelpRows(w io.Writer, prefix string, rows []helpRow) {
 	}
 }
 
-func printHelp(out io.Writer, templ string, data interface{}) {
+func printHelp(out io.Writer, templ string, data any) {
 	HelpPrinterCustom(out, templ, data, nil)
 }
 
