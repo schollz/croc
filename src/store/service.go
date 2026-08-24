@@ -87,7 +87,7 @@ type metadata struct {
 	Version            int       `json:"version"`
 	ID                 string    `json:"id"`
 	State              state     `json:"state"`
-	CreatedAt          time.Time `json:"createdAt,omitzero"`
+	CreatedAt          time.Time `json:"createdAt"`
 	UploadExpiresAt    time.Time `json:"uploadExpiresAt,omitzero"`
 	CompletedAt        time.Time `json:"completedAt,omitzero"`
 	ExpiresAt          time.Time `json:"expiresAt,omitzero"`
