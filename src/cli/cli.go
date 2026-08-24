@@ -145,6 +145,7 @@ func newApp() *cli.App {
 		&cli.BoolFlag{Name: "quiet", Usage: "disable all output"},
 		&cli.BoolFlag{Name: "disable-clipboard", Usage: "disable copy to clipboard"},
 		&cli.BoolFlag{Name: "extended-clipboard", Usage: "copy full command with secret as env variable to clipboard"},
+		&cli.BoolFlag{Name: "experimental-derp", Usage: "use the public Tailscale DERP network for the file data stream (experimental)"},
 		&cli.StringFlag{Name: "revoke", Usage: "revoke a stored transfer using its local sender receipt"},
 		&cli.StringFlag{Name: "multicast", Value: "239.255.255.250", Usage: "multicast address to use for local discovery"},
 		&cli.StringFlag{Name: "curve", Value: "p256", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
@@ -513,6 +514,17 @@ func send(c *cli.Context) (err error) {
 	setDebugLevel(c)
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
+	if c.Bool("experimental-derp") {
+		if c.Bool("store") {
+			return errors.New("--experimental-derp cannot be combined with --store")
+		}
+		if c.Bool("local") {
+			return errors.New("--experimental-derp cannot be combined with --local")
+		}
+		if c.Bool("qrcode") {
+			return errors.New("--experimental-derp cannot be combined with --qrcode")
+		}
+	}
 	if c.Bool("store") {
 		return sendStored(c)
 	}
@@ -576,6 +588,7 @@ func send(c *cli.Context) (err error) {
 		Quiet:             c.Bool("quiet"),
 		DisableClipboard:  c.Bool("disable-clipboard"),
 		ExtendedClipboard: c.Bool("extended-clipboard"),
+		ExperimentalDERP:  c.Bool("experimental-derp"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -827,7 +840,13 @@ func receive(c *cli.Context) (err error) {
 
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
+	if c.Bool("experimental-derp") && c.Bool("local") {
+		return errors.New("--experimental-derp cannot be combined with --local")
+	}
 	if storedToken := strings.TrimSpace(os.Getenv("CROC_STORE_TOKEN")); storedToken != "" {
+		if c.Bool("experimental-derp") {
+			return errors.New("--experimental-derp cannot be used with a stored transfer")
+		}
 		setDebugLevel(c)
 		return receiveStored(c, storedToken)
 	}
@@ -851,6 +870,7 @@ func receive(c *cli.Context) (err error) {
 		Quiet:             c.Bool("quiet"),
 		DisableClipboard:  c.Bool("disable-clipboard"),
 		ExtendedClipboard: c.Bool("extended-clipboard"),
+		ExperimentalDERP:  c.Bool("experimental-derp"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -870,6 +890,9 @@ func receive(c *cli.Context) (err error) {
 		crocOptions.SharedSecret = strings.Join(phrase, "-")
 	}
 	if storeclient.IsStoredValue(crocOptions.SharedSecret) {
+		if c.Bool("experimental-derp") {
+			return errors.New("--experimental-derp cannot be used with a stored transfer")
+		}
 		setDebugLevel(c)
 		if runtime.GOOS != "windows" && !utils.Exists(getClassicConfigFile(true)) {
 			fmt.Print(`For security, stored-transfer links are not accepted as command-line
@@ -956,6 +979,9 @@ Run croc with no argument and paste the link at the prompt, or use:
 		}
 	}
 	if storeclient.IsStoredValue(crocOptions.SharedSecret) {
+		if c.Bool("experimental-derp") {
+			return errors.New("--experimental-derp cannot be used with a stored transfer")
+		}
 		return receiveStored(c, crocOptions.SharedSecret)
 	}
 	if publicRelayMode {

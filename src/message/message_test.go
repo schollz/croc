@@ -54,9 +54,10 @@ func TestDecodeRejectsMalformedCompressedMessage(t *testing.T) {
 
 func TestPakeVersionAndConfirmationRoundTrip(t *testing.T) {
 	want := Message{
-		Type:    TypePAKEConfirm,
-		Version: 2,
-		Bytes:   []byte("confirmation-tag"),
+		Type:     TypePAKEConfirm,
+		Version:  2,
+		Bytes:    []byte("confirmation-tag"),
+		Features: []string{"experimental-derp-v1"},
 	}
 	encoded, err := Encode(nil, want)
 	assert.NoError(t, err)

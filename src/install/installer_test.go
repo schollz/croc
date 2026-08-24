@@ -98,6 +98,35 @@ func TestInstallerBuildsReleaseAssetURLsFromDynamicVersion(t *testing.T) {
 	}
 }
 
+func TestInstallerRejectsUnsupportedLinux32BitTargets(t *testing.T) {
+	contents, err := os.ReadFile("default.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := string(contents)
+	for _, fragment := range []string{`"Linux-32bit"`, `"Linux-ARM"`, "no longer supported"} {
+		if !strings.Contains(script, fragment) {
+			t.Fatalf("installer does not reject unsupported Linux target %q", fragment)
+		}
+	}
+
+	ci, err := os.ReadFile("../../.github/workflows/ci.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	release, err := os.ReadFile("../../.github/workflows/release.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, contents := range map[string][]byte{"CI": ci, "release": release} {
+		for _, forbidden := range []string{"GOOS=linux GOARCH=386", "GOOS=linux GOARCH=arm go", "Linux-32bit", "Linux-ARMv5", "name: Linux-ARM\n"} {
+			if strings.Contains(string(contents), forbidden) {
+				t.Fatalf("%s workflow still contains unsupported target %q", name, forbidden)
+			}
+		}
+	}
+}
+
 func runInstallerVersionLookup(t *testing.T, tool, response string, toolStatus int) (string, error) {
 	t.Helper()
 
