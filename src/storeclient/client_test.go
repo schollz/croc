@@ -177,7 +177,7 @@ func TestUploadWithMultipleDownloadsRemainsAvailableUntilLastCommit(t *testing.T
 	require.NoError(t, err)
 	assert.Equal(t, 3, result.Downloads)
 
-	for download := 0; download < 3; download++ {
+	for range 3 {
 		manifest, _, inspectErr := client.Inspect(context.Background(), result.Share)
 		require.NoError(t, inspectErr)
 		output := t.TempDir()

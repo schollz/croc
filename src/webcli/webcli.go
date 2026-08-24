@@ -166,7 +166,7 @@ func determinePass(value string) string {
 
 func parseRelayPorts(value string) []string {
 	var ports []string
-	for _, port := range strings.Split(value, ",") {
+	for port := range strings.SplitSeq(value, ",") {
 		if port = strings.TrimSpace(port); port != "" {
 			ports = append(ports, port)
 		}
@@ -176,7 +176,7 @@ func parseRelayPorts(value string) []string {
 
 func parseRelayHosts(value string) []string {
 	var hosts []string
-	for _, host := range strings.Split(value, ",") {
+	for host := range strings.SplitSeq(value, ",") {
 		if host = strings.TrimSpace(host); host != "" {
 			hosts = append(hosts, host)
 		}

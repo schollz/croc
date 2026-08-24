@@ -87,19 +87,19 @@ type metadata struct {
 	Version            int       `json:"version"`
 	ID                 string    `json:"id"`
 	State              state     `json:"state"`
-	CreatedAt          time.Time `json:"createdAt"`
-	UploadExpiresAt    time.Time `json:"uploadExpiresAt,omitempty"`
-	CompletedAt        time.Time `json:"completedAt,omitempty"`
-	ExpiresAt          time.Time `json:"expiresAt,omitempty"`
+	CreatedAt          time.Time `json:"createdAt,omitzero"`
+	UploadExpiresAt    time.Time `json:"uploadExpiresAt,omitzero"`
+	CompletedAt        time.Time `json:"completedAt,omitzero"`
+	ExpiresAt          time.Time `json:"expiresAt,omitzero"`
 	ExpiresSeconds     int64     `json:"expiresSeconds,omitempty"`
-	TombstoneExpiresAt time.Time `json:"tombstoneExpiresAt,omitempty"`
+	TombstoneExpiresAt time.Time `json:"tombstoneExpiresAt,omitzero"`
 	ManifestBytes      int64     `json:"manifestBytes"`
 	ChunkBytes         []int64   `json:"chunkBytes"`
 	ReservedBytes      int64     `json:"reservedBytes"`
 	UploadVerifier     string    `json:"uploadVerifier"`
 	RedeemVerifier     string    `json:"redeemVerifier"`
 	ClaimVerifier      string    `json:"claimVerifier,omitempty"`
-	ClaimExpiresAt     time.Time `json:"claimExpiresAt,omitempty"`
+	ClaimExpiresAt     time.Time `json:"claimExpiresAt,omitzero"`
 	DownloadsTotal     int       `json:"downloadsTotal,omitempty"`
 	DownloadsRemaining int       `json:"downloadsRemaining,omitempty"`
 	CommittedClaims    []string  `json:"committedClaims,omitempty"`
@@ -1018,10 +1018,7 @@ func (s *Service) claim(response http.ResponseWriter, request *http.Request, id 
 	}
 	now := s.now()
 	if meta.State == stateClaimed && meta.ClaimExpiresAt.After(now) {
-		seconds := int64(meta.ClaimExpiresAt.Sub(now).Seconds())
-		if seconds < 1 {
-			seconds = 1
-		}
+		seconds := max(int64(meta.ClaimExpiresAt.Sub(now).Seconds()), 1)
 		response.Header().Set("Retry-After", strconv.FormatInt(seconds, 10))
 		http.Error(response, "stored transfer is already claimed", http.StatusLocked)
 		return

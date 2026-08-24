@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1399,8 +1400,7 @@ func TestHashFileCtxWithCancellation(t *testing.T) {
 
 	// Test 4: Imohash should be fast enough to complete before cancellation
 	t.Run("Imohash fast completion", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		// Imohash samples the file, so it should complete quickly
 		hash, err := HashFileCtx(ctx, "bigfile.test", "imohash", false)
@@ -1560,13 +1560,7 @@ func TestZipDirectoryHonoursExclusions(t *testing.T) {
 		}
 	}
 	wantKept := "src/main.go"
-	found := false
-	for _, name := range members {
-		if name == wantKept {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(members, wantKept)
 	if !found {
 		t.Errorf("expected %q in zip; got %v", wantKept, members)
 	}
@@ -1611,13 +1605,7 @@ func TestZipDirectoryHonoursIgnoredPaths(t *testing.T) {
 	}
 	wantKept := []string{"src/main.go", "src/build/output.bin"}
 	for _, want := range wantKept {
-		found := false
-		for _, name := range members {
-			if name == want {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(members, want)
 		if !found {
 			t.Errorf("expected %q in zip; got %v", want, members)
 		}

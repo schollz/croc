@@ -120,9 +120,7 @@ func TestRootConcurrentFilesystemMutationCannotEscape(t *testing.T) {
 
 	stop := make(chan struct{})
 	var mutator sync.WaitGroup
-	mutator.Add(1)
-	go func() {
-		defer mutator.Done()
+	mutator.Go(func() {
 		for {
 			select {
 			case <-stop:
@@ -134,7 +132,7 @@ func TestRootConcurrentFilesystemMutationCannotEscape(t *testing.T) {
 			_ = os.Remove(parent)
 			_ = os.Mkdir(parent, 0o700)
 		}
-	}()
+	})
 	for range 500 {
 		_ = root.MkdirAll("parent/nested", 0o700)
 		file, openErr := root.OpenFile("parent/payload.txt", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)

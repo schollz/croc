@@ -54,7 +54,7 @@ func (s *StringSlice) Value() []string {
 }
 
 // Get returns the slice of strings set by this flag
-func (s *StringSlice) Get() interface{} {
+func (s *StringSlice) Get() any {
 	return *s
 }
 
@@ -130,7 +130,7 @@ func (f *StringSliceFlag) Apply(set *flag.FlagSet) error {
 			destination = f.Destination
 		}
 
-		for _, s := range strings.Split(val, ",") {
+		for s := range strings.SplitSeq(val, ",") {
 			if err := destination.Set(strings.TrimSpace(s)); err != nil {
 				return fmt.Errorf("could not parse %q as string value for flag %s: %s", val, f.Name, err)
 			}

@@ -392,10 +392,7 @@ func prepareUpload(
 		prepared.manifest.Files[index] = file.manifest
 		remaining := file.info.Size()
 		for chunk := 0; chunk < file.manifest.ChunkCount; chunk++ {
-			size := int64(storecrypto.ChunkSize)
-			if remaining < size {
-				size = remaining
-			}
+			size := min(remaining, int64(storecrypto.ChunkSize))
 			prepared.chunkBytes = append(prepared.chunkBytes, size+28)
 			remaining -= size
 		}
@@ -591,9 +588,7 @@ func (c *Client) uploadFile(
 	var firstErr error
 	var fileSent int64
 	for range workerCount {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			chunkCipher, cipherErr := storecrypto.NewChunkCipher(result.Share.MasterKey)
 			if cipherErr != nil {
 				resultMu.Lock()
@@ -653,7 +648,7 @@ func (c *Client) uploadFile(
 				})
 				resultMu.Unlock()
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	return sent, firstErr
@@ -720,7 +715,7 @@ func hashReader(ctx context.Context, reader io.Reader) ([]byte, error) {
 
 func (c *Client) putWithRetry(ctx context.Context, target, token string, payload []byte) error {
 	var last error
-	for attempt := 0; attempt < 3; attempt++ {
+	for attempt := range 3 {
 		request, err := http.NewRequestWithContext(ctx, http.MethodPut, target, bytes.NewReader(payload))
 		if err != nil {
 			return err
@@ -992,9 +987,7 @@ func (c *Client) writeFileChunks(
 	var wg sync.WaitGroup
 	var firstErr error
 	for range workerCount {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			chunkCipher, cipherErr := storecrypto.NewChunkCipher(session.share.MasterKey)
 			if cipherErr != nil {
 				session.stateMu.Lock()
@@ -1053,7 +1046,7 @@ func (c *Client) writeFileChunks(
 					return
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	if firstErr != nil {

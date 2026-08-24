@@ -240,8 +240,8 @@ func isLowercaseWord(word string) bool {
 }
 
 func isLowercaseListWord(word string) bool {
-	parts := strings.Split(word, "-")
-	for _, part := range parts {
+	parts := strings.SplitSeq(word, "-")
+	for part := range parts {
 		if !isLowercaseWord(part) {
 			return false
 		}

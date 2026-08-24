@@ -28,6 +28,8 @@
 
 package mnemonicode
 
+import "slices"
+
 const base = 1626
 
 // WordsRequired returns the number of words required to encode input
@@ -68,9 +70,9 @@ func EncodeWordList(dst []string, src []byte) (result []string) {
 	}
 	if len(src) > 0 {
 		x = 0
-		for i := len(src) - 1; i >= 0; i-- {
+		for _, s := range slices.Backward(src) {
 			x <<= 8
-			x |= uint32(src[i])
+			x |= uint32(s)
 		}
 		i := int(x % base)
 		result = append(result, WordList[i])

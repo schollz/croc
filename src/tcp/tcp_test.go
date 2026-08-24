@@ -140,7 +140,7 @@ func TestConcurrentRoomAdmissionRespectsWaitingRoomLimit(t *testing.T) {
 
 	start := make(chan struct{})
 	var wg sync.WaitGroup
-	for i := 0; i < 64; i++ {
+	for i := range 64 {
 		wg.Add(1)
 		go func(room int) {
 			defer wg.Done()

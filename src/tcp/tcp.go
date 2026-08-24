@@ -169,11 +169,9 @@ func (s *server) start() (err error) {
 	s.handshakeSlots = make(chan struct{}, s.maxPendingHandshakes)
 	s.admissionLimits = newAdmissionLimiter(s.sourceJoinLimit, s.roomJoinLimit, s.joinLimitWindow)
 
-	s.stop.wg.Add(1)
-	go func() {
-		defer s.stop.wg.Done()
+	s.stop.wg.Go(func() {
 		s.deleteOldRooms()
-	}()
+	})
 	// defer s.stopRoomDeletion()
 	defer s.stop.Cancel()
 	if s.stop.gui {

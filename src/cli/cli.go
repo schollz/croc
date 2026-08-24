@@ -498,7 +498,7 @@ func applyRememberedSendOptions(c *cli.Context, options *croc.Options, remembere
 // same as "9009,9010" instead of producing invalid port strings like " 9010".
 func parseRelayPorts(portsFlag string) []string {
 	var ports []string
-	for _, p := range strings.Split(portsFlag, ",") {
+	for p := range strings.SplitSeq(portsFlag, ",") {
 		if p = strings.TrimSpace(p); p != "" {
 			ports = append(ports, p)
 		}
@@ -526,14 +526,14 @@ func send(c *cli.Context) (err error) {
 		transfersParam = 4
 	}
 	excludeStrings := []string{}
-	for _, v := range strings.Split(c.String("exclude"), ",") {
+	for v := range strings.SplitSeq(c.String("exclude"), ",") {
 		v = strings.ToLower(strings.TrimSpace(v))
 		if v != "" {
 			excludeStrings = append(excludeStrings, v)
 		}
 	}
 	excludeFiles := []string{}
-	for _, v := range strings.Split(c.String("exclude-file"), ",") {
+	for v := range strings.SplitSeq(c.String("exclude-file"), ",") {
 		v = utils.NormalizeRelativePath(strings.TrimSpace(v))
 		if v != "" && v != "." {
 			excludeFiles = append(excludeFiles, v)

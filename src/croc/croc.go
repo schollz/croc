@@ -18,6 +18,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -234,7 +235,7 @@ type FileInfo struct {
 	FolderSource string      `json:"fs,omitempty"`
 	Hash         []byte      `json:"h,omitempty"`
 	Size         int64       `json:"s,omitempty"`
-	ModTime      time.Time   `json:"m,omitempty"`
+	ModTime      time.Time   `json:"m,omitzero"`
 	IsCompressed bool        `json:"c"`
 	IsEncrypted  bool        `json:"e,omitempty"`
 	Symlink      string      `json:"sy,omitempty"`
@@ -275,12 +276,7 @@ const perFileCompressionFeature = "per-file-compression-v1"
 var ErrRelayConnection = errors.New("relay connection failed")
 
 func supportsFeature(features []string, wanted string) bool {
-	for _, feature := range features {
-		if feature == wanted {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(features, wanted)
 }
 
 // New establishes a new connection for transferring files between two instances.
@@ -503,10 +499,8 @@ func (c *Client) rememberReconnectRelayAddress(address string) {
 	}
 	c.reconnectRelayMu.Lock()
 	defer c.reconnectRelayMu.Unlock()
-	for _, existing := range c.reconnectRelayAddresses {
-		if existing == address {
-			return
-		}
+	if slices.Contains(c.reconnectRelayAddresses, address) {
+		return
 	}
 	c.reconnectRelayAddresses = append(c.reconnectRelayAddresses, address)
 }
@@ -537,13 +531,7 @@ func (c *Client) reconnectRelayCandidates() []string {
 		candidates = append(candidates, c.relayControlAddress)
 	}
 	for _, address := range c.reconnectRelayAddresses {
-		seen := false
-		for _, candidate := range candidates {
-			if candidate == address {
-				seen = true
-				break
-			}
-		}
+		seen := slices.Contains(candidates, address)
 		if !seen {
 			candidates = append(candidates, address)
 		}
@@ -1813,7 +1801,7 @@ func (c *Client) Receive() (err error) {
 
 		if err == nil && len(discoveries) > 0 {
 			log.Debugf("all discoveries: %+v", discoveries)
-			for i := 0; i < len(discoveries); i++ {
+			for i := range discoveries {
 				log.Debugf("checking discovery result %d", i)
 				if !bytes.HasPrefix(discoveries[i].Payload, []byte("croc")) {
 					log.Debug("skipping discovery")
@@ -2935,10 +2923,7 @@ func formatDescription(description string) string {
 		}
 	}
 
-	maxDescription := width - progressMetaWidth
-	if maxDescription < minDescription {
-		maxDescription = minDescription
-	}
+	maxDescription := max(width-progressMetaWidth, minDescription)
 
 	runes := []rune(description)
 	if len(runes) > maxDescription {
