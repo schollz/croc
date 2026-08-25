@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	quic "github.com/quic-go/quic-go"
 	"github.com/shayne/derphole/pkg/derpbind"
 	"github.com/shayne/derphole/pkg/token"
 	"tailscale.com/derp/derpserver"
@@ -24,6 +25,42 @@ import (
 type transportAcceptResult struct {
 	conn io.ReadWriteCloser
 	err  error
+}
+
+func TestCleanGroupCloseClassification(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "terminal group close", err: &quic.ApplicationError{ErrorCode: 0, ErrorMessage: "attach group complete"}, want: true},
+		{name: "premature message", err: &quic.ApplicationError{ErrorCode: 0, ErrorMessage: "premature close"}},
+		{name: "nonzero code", err: &quic.ApplicationError{ErrorCode: 1, ErrorMessage: "attach group complete"}},
+		{name: "ordinary error", err: errors.New("attach group complete")},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := IsCleanGroupClose(test.err); got != test.want {
+				t.Fatalf("IsCleanGroupClose(%v) = %v, want %v", test.err, got, test.want)
+			}
+		})
+	}
+}
+
+func TestGroupConfigDefaultsAndOverrides(t *testing.T) {
+	defaults := normalizeGroupConfig(GroupConfig{})
+	if defaults.StreamCount != 8 || defaults.MaxRawPaths != 4 || defaults.RawDirectBudget != 3*time.Second || defaults.ForceRelay {
+		t.Fatalf("default group config = %+v", defaults)
+	}
+	override := GroupConfig{
+		StreamCount:     4,
+		MaxRawPaths:     2,
+		RawDirectBudget: time.Second,
+		ForceRelay:      true,
+	}
+	if got := normalizeGroupConfig(override); got != override {
+		t.Fatalf("normalized override = %+v, want %+v", got, override)
+	}
 }
 
 func encodeTestToken(t *testing.T, expires time.Time, capabilities uint32, route derpbind.Route) string {
@@ -72,6 +109,20 @@ func TestValidateToken(t *testing.T) {
 	custom := encodeTestToken(t, now.Add(time.Minute), token.CapabilityAttach, route)
 	if err = ValidateToken(custom, now); !errors.Is(err, ErrCustomRoute) {
 		t.Fatalf("custom route error = %v, want %v", err, ErrCustomRoute)
+	}
+}
+
+func TestValidateGroupTokenRequiresBothAttachCapabilities(t *testing.T) {
+	now := time.Now()
+	valid := encodeTestToken(t, now.Add(time.Minute), token.CapabilityAttach|token.CapabilityAttachGroup, derpbind.Route{})
+	if err := ValidateGroupToken(valid, now); err != nil {
+		t.Fatalf("valid group token rejected: %v", err)
+	}
+	for _, capabilities := range []uint32{token.CapabilityAttach, token.CapabilityAttachGroup, token.CapabilityShare} {
+		encoded := encodeTestToken(t, now.Add(time.Minute), capabilities, derpbind.Route{})
+		if err := ValidateGroupToken(encoded, now); !errors.Is(err, ErrCapability) {
+			t.Fatalf("ValidateGroupToken(%#x) error = %v, want %v", capabilities, err, ErrCapability)
+		}
 	}
 }
 
