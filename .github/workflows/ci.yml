@@ -2,16 +2,21 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   security-regressions:
-    name: Security regressions (${{ matrix.os }})
+    name: Security portability regressions (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-15, windows-2025]
+        os: [macos-15, windows-2025]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
@@ -100,20 +105,27 @@ jobs:
       - name: Run unit tests
         run: go test -v ./...
 
-      - name: Build files
+      - name: Build pull-request smoke targets
         run: |
           go version
+          COMMON='-buildvcs=false -trimpath -tags netgo,osusergo'
+          SMALL='-s -w -buildid= -extldflags "-static"'
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $COMMON -ldflags "$SMALL" -o croc-linux-amd64
+          CGO_ENABLED=0 GOOS=linux GOARCH=386 go build $COMMON -ldflags "$SMALL" -o croc-linux-386
+          GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go build $COMMON -ldflags "$SMALL" -o croc-linux-arm5
+          CGO_ENABLED=0 GOOS=linux GOARCH=386 go test -c -o /tmp/derptransport-linux-386.test ./src/derptransport
+          GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go test -c -o /tmp/derptransport-linux-arm5.test ./src/derptransport
+          go test -tags croc_attach_bench ./src/croc -run '^$'
+
+      - name: Build remaining platform targets
+        if: github.event_name != 'pull_request'
+        run: |
           COMMON='-buildvcs=false -trimpath -tags netgo,osusergo'
           SMALL='-s -w -buildid= -extldflags "-static"'
           DARWIN='-s -w -buildid= -extldflags "-sectcreate __TEXT __info_plist Info.plist"'
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $COMMON -ldflags "$SMALL" -o croc-windows-amd64.exe
           CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build $COMMON -ldflags "$SMALL" -o croc-windows-arm64.exe
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $COMMON -ldflags "$SMALL" -o croc-linux-amd64
-          CGO_ENABLED=0 GOOS=linux GOARCH=386 go build $COMMON -ldflags "$SMALL" -o croc-linux-386
           CGO_ENABLED=0 GOOS=linux GOARCH=arm go build $COMMON -ldflags "$SMALL" -o croc-linux-arm
-          GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go build $COMMON -ldflags "$SMALL" -o croc-linux-arm5
-          CGO_ENABLED=0 GOOS=linux GOARCH=386 go test -c -o /tmp/derptransport-linux-386.test ./src/derptransport
-          GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go test -c -o /tmp/derptransport-linux-arm5.test ./src/derptransport
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $COMMON -ldflags "$SMALL" -o croc-linux-arm64
           CGO_ENABLED=0 GOOS=linux GOARCH=riscv64 go build $COMMON -ldflags "$SMALL" -o croc-linux-riscv64
           CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build $COMMON -ldflags "$DARWIN" -o croc-darwin-amd64
