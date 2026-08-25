@@ -1,5 +1,7 @@
 module github.com/schollz/croc/v11
 
+replace github.com/shayne/derphole => github.com/schollz/derphole v0.18.2-croc.1
+
 go 1.27.0
 
 require (
@@ -11,6 +13,7 @@ require (
 	github.com/mattn/go-colorable v0.1.15
 	github.com/mattn/go-isatty v0.0.24
 	github.com/minio/highwayhash v1.0.4
+	github.com/quic-go/quic-go v0.59.0
 	github.com/rivo/uniseg v0.4.7
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/schollz/logger v1.2.0
@@ -46,7 +49,6 @@ require (
 	github.com/mdlayher/socket v0.5.0 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
-	github.com/quic-go/quic-go v0.59.0 // indirect
 	github.com/tailscale/go-winio v0.0.0-20231025203758-c4f33415bf55 // indirect
 	github.com/tscholl2/siec v0.0.0-20240310163802-c2c6f6198406 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
