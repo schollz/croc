@@ -1,0 +1,9 @@
+remote=root@134.122.43.205
+pairs_per_topology=1
+iperf_seconds=3
+bytes_per_transfer=268435456
+local_os=darwin-arm64
+local_go=go1.27.0
+remote_os=linux-amd64
+remote_kernel=6.8.0-106-generic
+remote_iperf=3.16

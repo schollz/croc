@@ -1,0 +1,94 @@
+{
+  "bootstrap": {
+    "resamples": 100000,
+    "seed": 20260824
+  },
+  "directions": {
+    "l2r": {
+      "group8": {
+        "max_remote_rss_kib": 47872.0,
+        "median_cpu_seconds_per_gib": 68.64,
+        "median_goodput_mbps": 107.27274663169439,
+        "median_normalized_goodput": 2.105066054,
+        "median_remote_rss_kib": 27388.0,
+        "median_wall_seconds": 80.075647,
+        "raw_direct_runs": 5,
+        "runs": 5,
+        "sha256_valid": 5
+      },
+      "legacy": {
+        "max_remote_rss_kib": 50900.0,
+        "median_cpu_seconds_per_gib": 156.66,
+        "median_goodput_mbps": 22.793379582505214,
+        "median_normalized_goodput": 0.302334825,
+        "median_remote_rss_kib": 42496.0,
+        "median_wall_seconds": 376.860946,
+        "raw_direct_runs": 0,
+        "runs": 5,
+        "sha256_valid": 5
+      }
+    },
+    "r2l": {
+      "group8": {
+        "max_remote_rss_kib": 58752.0,
+        "median_cpu_seconds_per_gib": 57.3,
+        "median_goodput_mbps": 213.66422185509617,
+        "median_normalized_goodput": 1.94535672,
+        "median_remote_rss_kib": 46480.0,
+        "median_wall_seconds": 40.202962,
+        "raw_direct_runs": 2,
+        "runs": 5,
+        "sha256_valid": 5
+      },
+      "legacy": {
+        "max_remote_rss_kib": 43776.0,
+        "median_cpu_seconds_per_gib": 67.67999999999999,
+        "median_goodput_mbps": 179.30746071879045,
+        "median_normalized_goodput": 1.635243618,
+        "median_remote_rss_kib": 41600.0,
+        "median_wall_seconds": 47.906175,
+        "raw_direct_runs": 0,
+        "runs": 5,
+        "sha256_valid": 5
+      }
+    }
+  },
+  "paired": {
+    "combined": {
+      "ci95_high": 4.782333218957633,
+      "ci95_low": 1.5843709679504083,
+      "geometric_mean": 2.644248424039167,
+      "pairs": 10
+    },
+    "combined_raw_only": {
+      "ci95_high": 7.121470762730691,
+      "ci95_low": 1.6893209577266697,
+      "geometric_mean": 3.379625922420021,
+      "pairs": 7
+    },
+    "l2r": {
+      "ci95_high": 10.449569362151609,
+      "ci95_low": 2.445010732475146,
+      "geometric_mean": 5.112790725876144,
+      "pairs": 5
+    },
+    "l2r_raw_only": {
+      "ci95_high": 10.449569362151609,
+      "ci95_low": 2.445010732475146,
+      "geometric_mean": 5.112790725876144,
+      "pairs": 5
+    },
+    "r2l": {
+      "ci95_high": 1.5757384296263766,
+      "ci95_low": 1.1207548622463186,
+      "geometric_mean": 1.3675603213420082,
+      "pairs": 5
+    },
+    "r2l_raw_only": {
+      "ci95_high": 1.5254360064844814,
+      "ci95_low": 0.9449228494412165,
+      "geometric_mean": 1.2005912451319751,
+      "pairs": 2
+    }
+  }
+}

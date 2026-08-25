@@ -1,0 +1,22 @@
+remote=root@134.122.43.205
+pairs=3
+iperf_seconds=10
+candidate=group-s8-p4
+candidate_streams=8
+candidate_raw_paths=4
+expected_mode=raw-direct
+expected_path=direct
+expected_streams=8
+bytes=268435456
+local_sha256=9c40a2ef8b9580533c38c2fa269ca6468af11ca19491487244636b472292737a
+remote_sha256=492e35df60386587c6c4d3b2c7cbded4d579f9502f8bbf4e33df073b1e3ead42
+local_uname=Darwin Zacks-MacBook-Air.local 25.5.0 Darwin Kernel Version 25.5.0: Tue Jun  9 22:27:52 PDT 2026; root:xnu-12377.121.10~1/RELEASE_ARM64_T8112 arm64
+local_go=go version go1.27.0 darwin/arm64
+Linux pihole-wireguard-20260317-091229 6.8.0-106-generic #106-Ubuntu SMP PREEMPT_DYNAMIC Fri Mar  6 07:58:08 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+iperf 3.16 (cJSON 1.7.15)
+e2edebcd8d30fd7a3748f783fa8e5a095fc5029b27fa4fbf4ca1cdb8af65c19e  /tmp/croc-attach-8x4-final/croc-group-force-relay-darwin-arm64
+d53bbed8796cb60474605d1bd838fc39c791f8cfe134a6162ebe42e27b6a2f9e  /tmp/croc-attach-8x4-final/croc-group-s8-p4-darwin-arm64
+7a5548fc48a8208001b08e954663166ad6405b39d8b30b531fbbfc02b60b59d8  /tmp/croc-attach-8x4-final/croc-legacy-darwin-arm64
+5ef737a8cb41a9799399c69ce74c1135a1e9514cc409884dee971b39f30012ca  /tmp/croc-attach-8x4-final/croc-group-force-relay-linux-amd64
+58186fd166b589c81b2783adef5e5c32d669a65fab1ae3902c8f24cfb3dbb96d  /tmp/croc-attach-8x4-final/croc-group-s8-p4-linux-amd64
+fa7eb382b31289d7b6a997f87e3409a3e84583e967075c5ab43699073dd40cd9  /tmp/croc-attach-8x4-final/croc-legacy-linux-amd64
