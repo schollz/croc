@@ -68,6 +68,14 @@ func (l *fakeDERPListener) Close() error {
 }
 
 func experimentalDERPTestToken(t *testing.T) string {
+	return experimentalDERPToken(t, token.CapabilityAttach)
+}
+
+func experimentalDERPGroupTestToken(t *testing.T) string {
+	return experimentalDERPToken(t, token.CapabilityAttach|token.CapabilityAttachGroup)
+}
+
+func experimentalDERPToken(t *testing.T, capabilities uint32) string {
 	t.Helper()
 	sequence := experimentalDERPTokenSequence.Add(1)
 	var sessionID [16]byte
@@ -79,7 +87,7 @@ func experimentalDERPTestToken(t *testing.T) string {
 		SessionID:       sessionID,
 		ExpiresUnix:     time.Now().Add(time.Minute).Unix(),
 		BootstrapRegion: 1,
-		Capabilities:    token.CapabilityAttach,
+		Capabilities:    capabilities,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -87,24 +95,20 @@ func experimentalDERPTestToken(t *testing.T) string {
 	return encoded
 }
 
-func enableDERPForTest(t *testing.T) {
+func newExperimentalDERPTestClient(t *testing.T, sender bool, transports ...derpDataTransport) *Client {
 	t.Helper()
-	oldAvailable := derpAvailable
-	derpAvailable = func() bool { return true }
-	t.Cleanup(func() { derpAvailable = oldAvailable })
-}
-
-func newExperimentalDERPTestClient(t *testing.T, sender bool) *Client {
-	t.Helper()
-	enableDERPForTest(t)
-	client, err := New(Options{
+	transport := derpDataTransport(newFakeDERPDataTransport(false))
+	if len(transports) > 0 {
+		transport = transports[0]
+	}
+	client, err := newClient(Options{
 		SharedSecret: "correct-horse-battery",
 		IsSender:     sender,
 		Transport:    TransportDERP,
 		Curve:        "p256",
 		RelayAddress: "invalid relay address that must not be dialed",
 		RelayPorts:   []string{"1", "2", "3", "4"},
-	})
+	}, transport)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +136,7 @@ func TestTransportOptionIsRemembered(t *testing.T) {
 }
 
 func TestExperimentalDERPNewRejectsUnsupportedModesAndRoute(t *testing.T) {
-	enableDERPForTest(t)
+	transport := newFakeDERPDataTransport(false)
 	for _, test := range []struct {
 		name    string
 		options Options
@@ -144,69 +148,75 @@ func TestExperimentalDERPNewRejectsUnsupportedModesAndRoute(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			test.options.SharedSecret = "experimental-derp-conflict"
 			test.options.Transport = TransportDERP
-			if _, err := New(test.options); err == nil || !strings.Contains(err.Error(), test.want) {
+			if _, err := newClient(test.options, transport); err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("New() error = %v, want %q", err, test.want)
 			}
 		})
 	}
 	t.Run("custom DERP route", func(t *testing.T) {
 		t.Setenv(derpbind.CustomDERPServerEnv, "https://derp.example")
-		_, err := New(Options{SharedSecret: "experimental-derp-route", Transport: TransportDERP})
+		_, err := newClient(Options{SharedSecret: "experimental-derp-route", Transport: TransportDERP}, transport)
 		if !errors.Is(err, ErrDERPConnection) || !errors.Is(err, derptransport.ErrCustomRoute) {
 			t.Fatalf("New() error = %v", err)
 		}
 	})
 	t.Run("auto defers custom route to fallback", func(t *testing.T) {
 		t.Setenv(derpbind.CustomDERPServerEnv, "https://derp.example")
-		if _, err := New(Options{SharedSecret: "auto-derp-route", Transport: TransportAuto, Curve: "p256"}); err != nil {
+		if _, err := newClient(Options{SharedSecret: "auto-derp-route", Transport: TransportAuto, Curve: "p256"}, transport); err != nil {
 			t.Fatalf("New() rejected auto transport: %v", err)
 		}
 	})
 }
 
 func TestUnavailableDERPPlatformUsesRelayInAutoAndRejectsStrict(t *testing.T) {
-	oldAvailable := derpAvailable
-	derpAvailable = func() bool { return false }
-	defer func() { derpAvailable = oldAvailable }()
-
-	auto, err := New(Options{SharedSecret: "unsupported-auto-transport", Transport: TransportAuto, Curve: "p256"})
+	transport := &fakeDERPDataTransport{}
+	auto, err := newClient(Options{SharedSecret: "unsupported-auto-transport", Transport: TransportAuto, Curve: "p256"}, transport)
 	if err != nil {
 		t.Fatalf("auto transport rejected: %v", err)
 	}
 	if features := auto.pakeFeatures(); len(features) != 0 {
 		t.Fatalf("unsupported auto advertised DERP: %v", features)
 	}
-	_, err = New(Options{SharedSecret: "unsupported-strict-transport", Transport: TransportDERP})
+	_, err = newClient(Options{SharedSecret: "unsupported-strict-transport", Transport: TransportDERP}, transport)
 	if !errors.Is(err, ErrDERPConnection) || !errors.Is(err, derptransport.ErrUnsupported) {
 		t.Fatalf("strict unsupported error = %v", err)
 	}
 }
 
 func TestTransportPolicyFeaturesAndStrictMismatch(t *testing.T) {
-	enableDERPForTest(t)
+	legacyTransport := newFakeDERPDataTransport(false)
 	strict := &Client{
-		Options: Options{IsSender: true, Transport: TransportDERP},
-		stop:    newStop(context.Background()),
+		Options:       Options{IsSender: true, Transport: TransportDERP},
+		stop:          newStop(context.Background()),
+		derpTransport: legacyTransport,
 	}
 	if err := strict.activateSecureChannel(newDERPAttempt(nil)); err == nil || !strings.Contains(err.Error(), "DERP-capable peer") {
 		t.Fatalf("strict mismatch error = %v", err)
 	}
 
-	autoFeatures := (&Client{Options: Options{Transport: TransportAuto}}).pakeFeatures()
+	autoFeatures := (&Client{Options: Options{Transport: TransportAuto}, derpTransport: legacyTransport}).pakeFeatures()
 	if !supportsFeature(autoFeatures, derpFeature) || !supportsFeature(autoFeatures, derpNegotiationFeature) || supportsFeature(autoFeatures, derpRequiredFeature) {
 		t.Fatalf("auto PAKE features = %v", autoFeatures)
+	}
+	if supportsFeature(autoFeatures, derpAttachGroupFeature) {
+		t.Fatalf("unvalidated AttachGroup feature was advertised: %v", autoFeatures)
+	}
+	groupTransport := newFakeDERPDataTransport(true)
+	if gatedFeatures := (&Client{Options: Options{Transport: TransportAuto}, derpTransport: groupTransport}).pakeFeatures(); !supportsFeature(gatedFeatures, derpAttachGroupFeature) {
+		t.Fatalf("validated AttachGroup feature was not advertised: %v", gatedFeatures)
 	}
 	strictFeatures := strict.pakeFeatures()
 	if !supportsFeature(strictFeatures, derpRequiredFeature) {
 		t.Fatalf("strict PAKE features = %v", strictFeatures)
 	}
-	if got := (&Client{Options: Options{Transport: TransportRelay}}).pakeFeatures(); len(got) != 0 {
+	if got := (&Client{Options: Options{Transport: TransportRelay}, derpTransport: groupTransport}).pakeFeatures(); len(got) != 0 {
 		t.Fatalf("relay PAKE features = %v", got)
 	}
 	legacyStrictPeer := &Client{
-		Options:  Options{Transport: TransportRelay},
-		peerDERP: true,
-		stop:     newStop(context.Background()),
+		Options:       Options{Transport: TransportRelay},
+		peerDERP:      true,
+		stop:          newStop(context.Background()),
+		derpTransport: legacyTransport,
 	}
 	if err := legacyStrictPeer.activateSecureChannel(newDERPAttempt(nil)); err == nil || !strings.Contains(err.Error(), "peer requires DERP") {
 		t.Fatalf("legacy strict peer mismatch error = %v", err)
@@ -214,11 +224,9 @@ func TestTransportPolicyFeaturesAndStrictMismatch(t *testing.T) {
 }
 
 func TestAutoTransportSkipsDERPForIncapablePeer(t *testing.T) {
-	enableDERPForTest(t)
-	oldListen := listenExperimentalDERP
-	defer func() { listenExperimentalDERP = oldListen }()
+	transport := newFakeDERPDataTransport(false)
 	var listenCalls atomic.Int32
-	listenExperimentalDERP = func(context.Context, derptransport.PathEvent) (derptransport.Listener, error) {
+	transport.listen = func(context.Context, derptransport.PathEvent) (derptransport.Listener, error) {
 		listenCalls.Add(1)
 		return nil, errors.New("must not be called")
 	}
@@ -229,7 +237,8 @@ func TestAutoTransportSkipsDERPForIncapablePeer(t *testing.T) {
 			RelayAddress: "127.0.0.1:1",
 			RelayPorts:   []string{"1"},
 		},
-		stop: newStop(context.Background()),
+		stop:          newStop(context.Background()),
+		derpTransport: transport,
 	}
 	err := client.activateSecureChannel(newDERPAttempt(nil))
 	if !errors.Is(err, ErrRelayConnection) {
@@ -255,7 +264,7 @@ func TestRelayFallbackClosesPendingDERPConnection(t *testing.T) {
 	local, peer := net.Pipe()
 	defer peer.Close()
 	canceled := atomic.Bool{}
-	if err := attempt.setDERPPending(local, func() { canceled.Store(true) }); err != nil {
+	if err := attempt.setDERPPending(newSingleDERPBundle(local), func() { canceled.Store(true) }); err != nil {
 		t.Fatal(err)
 	}
 	err := client.processTransportSelect(message.Message{
@@ -274,10 +283,10 @@ func TestRelayFallbackClosesPendingDERPConnection(t *testing.T) {
 }
 
 func TestExperimentalDERPSenderInstallsOneDataConnection(t *testing.T) {
-	oldListen := listenExperimentalDERP
-	defer func() { listenExperimentalDERP = oldListen }()
-
-	client := newExperimentalDERPTestClient(t, true)
+	// A new gated binary must retain legacy Attach when the peer did not
+	// advertise AttachGroup.
+	transport := newFakeDERPDataTransport(true)
+	client := newExperimentalDERPTestClient(t, true, transport)
 	controlLocal, controlPeer := net.Pipe()
 	defer controlPeer.Close()
 	client.conn[0] = comm.New(controlLocal)
@@ -286,7 +295,7 @@ func TestExperimentalDERPSenderInstallsOneDataConnection(t *testing.T) {
 	tokenValue := experimentalDERPTestToken(t)
 	listener := &fakeDERPListener{tokenValue: tokenValue, conn: dataLocal}
 	var listenCalls atomic.Int32
-	listenExperimentalDERP = func(context.Context, derptransport.PathEvent) (derptransport.Listener, error) {
+	transport.listen = func(context.Context, derptransport.PathEvent) (derptransport.Listener, error) {
 		listenCalls.Add(1)
 		return listener, nil
 	}
@@ -328,15 +337,13 @@ func TestExperimentalDERPSenderInstallsOneDataConnection(t *testing.T) {
 }
 
 func TestExperimentalDERPReceiverValidatesAndDialsOfferOnce(t *testing.T) {
-	oldDial := dialExperimentalDERP
-	defer func() { dialExperimentalDERP = oldDial }()
-
-	client := newExperimentalDERPTestClient(t, false)
+	transport := newFakeDERPDataTransport(false)
+	client := newExperimentalDERPTestClient(t, false, transport)
 	dataLocal, dataPeer := net.Pipe()
 	defer dataPeer.Close()
 	tokenValue := experimentalDERPTestToken(t)
 	var dialCalls atomic.Int32
-	dialExperimentalDERP = func(_ context.Context, gotToken string, _ derptransport.PathEvent) (net.Conn, error) {
+	transport.dial = func(_ context.Context, gotToken string, _ derptransport.PathEvent) (net.Conn, error) {
 		if gotToken != tokenValue {
 			t.Errorf("dial token changed")
 		}
@@ -384,12 +391,10 @@ func TestExperimentalDERPOfferRejections(t *testing.T) {
 }
 
 func TestExperimentalDERPSetupErrorHasNoFallbackOrTokenLeak(t *testing.T) {
-	oldDial := dialExperimentalDERP
-	defer func() { dialExperimentalDERP = oldDial }()
-
-	client := newExperimentalDERPTestClient(t, false)
+	transport := newFakeDERPDataTransport(false)
+	client := newExperimentalDERPTestClient(t, false, transport)
 	tokenValue := experimentalDERPTestToken(t)
-	dialExperimentalDERP = func(context.Context, string, derptransport.PathEvent) (net.Conn, error) {
+	transport.dial = func(context.Context, string, derptransport.PathEvent) (net.Conn, error) {
 		return nil, errors.New("dial failed for " + tokenValue)
 	}
 	err := client.processDERPOffer(message.Message{Type: message.TypeDERPOffer, Message: tokenValue}, newDERPAttempt(nil))
@@ -405,13 +410,11 @@ func TestExperimentalDERPSetupErrorHasNoFallbackOrTokenLeak(t *testing.T) {
 }
 
 func TestExperimentalDERPSetupTimeoutCancelsDial(t *testing.T) {
-	oldDial := dialExperimentalDERP
-	defer func() { dialExperimentalDERP = oldDial }()
-
-	client := newExperimentalDERPTestClient(t, false)
+	transport := newFakeDERPDataTransport(false)
+	client := newExperimentalDERPTestClient(t, false, transport)
 	tokenValue := experimentalDERPTestToken(t)
 	canceled := make(chan struct{})
-	dialExperimentalDERP = func(ctx context.Context, _ string, _ derptransport.PathEvent) (net.Conn, error) {
+	transport.dial = func(ctx context.Context, _ string, _ derptransport.PathEvent) (net.Conn, error) {
 		<-ctx.Done()
 		close(canceled)
 		return nil, ctx.Err()
@@ -431,10 +434,8 @@ func TestExperimentalDERPSetupTimeoutCancelsDial(t *testing.T) {
 }
 
 func TestExperimentalDERPReconnectReplacesConnectionAndOffer(t *testing.T) {
-	oldDial := dialExperimentalDERP
-	defer func() { dialExperimentalDERP = oldDial }()
-
-	client := newExperimentalDERPTestClient(t, false)
+	transport := newFakeDERPDataTransport(false)
+	client := newExperimentalDERPTestClient(t, false, transport)
 	firstToken := experimentalDERPTestToken(t)
 	secondToken := experimentalDERPTestToken(t)
 	if firstToken == secondToken {
@@ -442,7 +443,7 @@ func TestExperimentalDERPReconnectReplacesConnectionAndOffer(t *testing.T) {
 	}
 	peers := make(chan net.Conn, 2)
 	var dialCalls atomic.Int32
-	dialExperimentalDERP = func(context.Context, string, derptransport.PathEvent) (net.Conn, error) {
+	transport.dial = func(context.Context, string, derptransport.PathEvent) (net.Conn, error) {
 		local, peer := net.Pipe()
 		peers <- peer
 		dialCalls.Add(1)
@@ -492,37 +493,76 @@ func TestUnencryptedExperimentalDERPOfferIsRejected(t *testing.T) {
 }
 
 func TestExperimentalDERPEndToEndFileTransfer(t *testing.T) {
-	enableDERPForTest(t)
-	oldListen, oldDial := listenExperimentalDERP, dialExperimentalDERP
-	defer func() {
-		listenExperimentalDERP = oldListen
-		dialExperimentalDERP = oldDial
-	}()
+	t.Run("legacy", func(t *testing.T) { testExperimentalDERPEndToEndFileTransfer(t, false) })
+	t.Run("attach-group", func(t *testing.T) { testExperimentalDERPEndToEndFileTransfer(t, true) })
+}
+
+func testExperimentalDERPEndToEndFileTransfer(t *testing.T, grouped bool) {
+	t.Helper()
+	transport := newFakeDERPDataTransport(grouped)
 
 	tokenValue := experimentalDERPTestToken(t)
-	listener := &pairedDERPListener{
-		tokenValue:  tokenValue,
-		connections: make(chan net.Conn, 1),
-		closed:      make(chan struct{}),
+	expectedStreams := 1
+	if grouped {
+		tokenValue = experimentalDERPGroupTestToken(t)
+		expectedStreams = 4
 	}
 	var listenCalls, dialCalls atomic.Int32
-	listenExperimentalDERP = func(context.Context, derptransport.PathEvent) (derptransport.Listener, error) {
-		listenCalls.Add(1)
-		return listener, nil
-	}
-	dialExperimentalDERP = func(ctx context.Context, gotToken string, _ derptransport.PathEvent) (net.Conn, error) {
-		if gotToken != tokenValue {
-			return nil, errors.New("unexpected token")
+	if grouped {
+		listener := &pairedDERPGroupListener{
+			tokenValue: tokenValue,
+			bundles:    make(chan derptransport.Bundle, 1),
+			closed:     make(chan struct{}),
 		}
-		dialCalls.Add(1)
-		senderConn, receiverConn := net.Pipe()
-		select {
-		case listener.connections <- senderConn:
-			return receiverConn, nil
-		case <-ctx.Done():
-			_ = senderConn.Close()
-			_ = receiverConn.Close()
-			return nil, ctx.Err()
+		transport.listenGroup = func(context.Context, derptransport.PathEvent) (derptransport.GroupListener, error) {
+			listenCalls.Add(1)
+			return listener, nil
+		}
+		transport.dialGroup = func(ctx context.Context, gotToken string, _ derptransport.PathEvent) (derptransport.Bundle, error) {
+			if gotToken != tokenValue {
+				return nil, errors.New("unexpected token")
+			}
+			dialCalls.Add(1)
+			senderConnections := make([]net.Conn, expectedStreams)
+			receiverConnections := make([]net.Conn, expectedStreams)
+			for i := range expectedStreams {
+				senderConnections[i], receiverConnections[i] = net.Pipe()
+			}
+			senderBundle := &fakeDERPBundle{connections: senderConnections, stats: derptransport.BundleStats{Mode: "raw-direct", Path: "direct", StreamCount: expectedStreams}}
+			receiverBundle := &fakeDERPBundle{connections: receiverConnections, stats: derptransport.BundleStats{Mode: "raw-direct", Path: "direct", StreamCount: expectedStreams}}
+			select {
+			case listener.bundles <- senderBundle:
+				return receiverBundle, nil
+			case <-ctx.Done():
+				_ = senderBundle.Close()
+				_ = receiverBundle.Close()
+				return nil, ctx.Err()
+			}
+		}
+	} else {
+		listener := &pairedDERPListener{
+			tokenValue:  tokenValue,
+			connections: make(chan net.Conn, 1),
+			closed:      make(chan struct{}),
+		}
+		transport.listen = func(context.Context, derptransport.PathEvent) (derptransport.Listener, error) {
+			listenCalls.Add(1)
+			return listener, nil
+		}
+		transport.dial = func(ctx context.Context, gotToken string, _ derptransport.PathEvent) (net.Conn, error) {
+			if gotToken != tokenValue {
+				return nil, errors.New("unexpected token")
+			}
+			dialCalls.Add(1)
+			senderConn, receiverConn := net.Pipe()
+			select {
+			case listener.connections <- senderConn:
+				return receiverConn, nil
+			case <-ctx.Done():
+				_ = senderConn.Close()
+				_ = receiverConn.Close()
+				return nil, ctx.Err()
+			}
 		}
 	}
 
@@ -542,7 +582,7 @@ func TestExperimentalDERPEndToEndFileTransfer(t *testing.T) {
 	defer os.Remove(receivedName)
 
 	secret := "experimental-derp-file-transfer"
-	sender, err := New(Options{
+	sender, err := newClient(Options{
 		IsSender:         true,
 		SharedSecret:     secret,
 		RelayAddress:     "127.0.0.1:8281",
@@ -554,11 +594,11 @@ func TestExperimentalDERPEndToEndFileTransfer(t *testing.T) {
 		Overwrite:        true,
 		Transport:        TransportAuto,
 		DisableClipboard: true,
-	})
+	}, transport)
 	if err != nil {
 		t.Fatal(err)
 	}
-	receiver, err := New(Options{
+	receiver, err := newClient(Options{
 		SharedSecret:     secret,
 		RelayAddress:     "127.0.0.1:8281",
 		RelayPassword:    "pass123",
@@ -568,7 +608,7 @@ func TestExperimentalDERPEndToEndFileTransfer(t *testing.T) {
 		Overwrite:        true,
 		Transport:        TransportAuto,
 		DisableClipboard: true,
-	})
+	}, transport)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -602,7 +642,7 @@ func TestExperimentalDERPEndToEndFileTransfer(t *testing.T) {
 		t.Fatalf("Attach setup calls = listen %d, dial %d", listenCalls.Load(), dialCalls.Load())
 	}
 	for _, client := range []*Client{sender, receiver} {
-		for i := 2; i < len(client.conn); i++ {
+		for i := expectedStreams + 1; i < len(client.conn); i++ {
 			if client.conn[i] != nil {
 				t.Fatalf("croc relay data connection %d was opened in DERP mode", i)
 			}
@@ -611,24 +651,18 @@ func TestExperimentalDERPEndToEndFileTransfer(t *testing.T) {
 }
 
 func TestAutoTransportFallsBackToRelayEndToEnd(t *testing.T) {
-	enableDERPForTest(t)
-	oldListen, oldDial := listenExperimentalDERP, dialExperimentalDERP
-	defer func() {
-		listenExperimentalDERP = oldListen
-		dialExperimentalDERP = oldDial
-	}()
-
+	transport := newFakeDERPDataTransport(false)
 	var listenCalls, dialCalls atomic.Int32
 	listener := &pairedDERPListener{
 		tokenValue:  experimentalDERPTestToken(t),
 		connections: make(chan net.Conn),
 		closed:      make(chan struct{}),
 	}
-	listenExperimentalDERP = func(context.Context, derptransport.PathEvent) (derptransport.Listener, error) {
+	transport.listen = func(context.Context, derptransport.PathEvent) (derptransport.Listener, error) {
 		listenCalls.Add(1)
 		return listener, nil
 	}
-	dialExperimentalDERP = func(context.Context, string, derptransport.PathEvent) (net.Conn, error) {
+	transport.dial = func(context.Context, string, derptransport.PathEvent) (net.Conn, error) {
 		dialCalls.Add(1)
 		return nil, errors.New("injected DERP dial failure")
 	}
@@ -662,13 +696,13 @@ func TestAutoTransportFallsBackToRelayEndToEnd(t *testing.T) {
 	}
 	senderOptions := options
 	senderOptions.IsSender = true
-	sender, err := New(senderOptions)
+	sender, err := newClient(senderOptions, transport)
 	if err != nil {
 		t.Fatal(err)
 	}
 	receiverOptions := options
 	receiverOptions.RelayPorts = nil
-	receiver, err := New(receiverOptions)
+	receiver, err := newClient(receiverOptions, transport)
 	if err != nil {
 		t.Fatal(err)
 	}

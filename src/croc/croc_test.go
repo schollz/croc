@@ -32,10 +32,6 @@ import (
 
 func init() {
 	log.SetLevel("trace")
-	// The broad croc integration suite exercises the in-process TCP relay. DERP
-	// has dedicated hermetic tests that opt back in explicitly.
-	derpAvailable = func() bool { return false }
-
 	go tcp.Run("debug", "127.0.0.1", "8281", "pass123", "8282,8283,8284,8285")
 	go tcp.Run("debug", "127.0.0.1", "8282", "pass123")
 	go tcp.Run("debug", "127.0.0.1", "8283", "pass123")
@@ -715,7 +711,7 @@ func TestCrocReadme(t *testing.T) {
 	const secret = "acid-acorn-acre"
 
 	log.Debug("setting up sender")
-	sender, err := New(Options{
+	sender, err := newTestClient(Options{
 		IsSender:      true,
 		SharedSecret:  secret,
 		Debug:         true,
@@ -734,7 +730,7 @@ func TestCrocReadme(t *testing.T) {
 	}
 
 	log.Debug("setting up receiver")
-	receiver, err := New(Options{
+	receiver, err := newTestClient(Options{
 		IsSender:      false,
 		SharedSecret:  secret,
 		Debug:         true,
@@ -825,7 +821,7 @@ func TestCrocNonASCIIFileName(t *testing.T) {
 	})
 
 	secret := fmt.Sprintf("non-ascii-filename-%d", time.Now().UnixNano())
-	sender, err := New(Options{
+	sender, err := newTestClient(Options{
 		IsSender:      true,
 		SharedSecret:  secret,
 		RelayAddress:  "127.0.0.1:8281",
@@ -840,7 +836,7 @@ func TestCrocNonASCIIFileName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create sender: %v", err)
 	}
-	receiver, err := New(Options{
+	receiver, err := newTestClient(Options{
 		IsSender:      false,
 		SharedSecret:  secret,
 		RelayAddress:  "127.0.0.1:8281",
@@ -953,7 +949,7 @@ func TestCrocRenameExistingFile(t *testing.T) {
 	})
 
 	secret := fmt.Sprintf("rename-existing-%d", time.Now().UnixNano())
-	sender, err := New(Options{
+	sender, err := newTestClient(Options{
 		IsSender:      true,
 		SharedSecret:  secret,
 		RelayAddress:  "127.0.0.1:8281",
@@ -967,7 +963,7 @@ func TestCrocRenameExistingFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create sender: %v", err)
 	}
-	receiver, err := New(Options{
+	receiver, err := newTestClient(Options{
 		IsSender:      false,
 		SharedSecret:  secret,
 		RelayAddress:  "127.0.0.1:8281",
@@ -1018,7 +1014,7 @@ func TestCrocEmptyFolder(t *testing.T) {
 	os.MkdirAll(pathName, 0o755)
 
 	log.Debug("setting up sender")
-	sender, err := New(Options{
+	sender, err := newTestClient(Options{
 		IsSender:      true,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
@@ -1036,7 +1032,7 @@ func TestCrocEmptyFolder(t *testing.T) {
 	}
 
 	log.Debug("setting up receiver")
-	receiver, err := New(Options{
+	receiver, err := newTestClient(Options{
 		IsSender:      false,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
@@ -1090,7 +1086,7 @@ func TestCrocSymlink(t *testing.T) {
 	}
 
 	log.Debug("setting up sender")
-	sender, err := New(Options{
+	sender, err := newTestClient(Options{
 		IsSender:      true,
 		SharedSecret:  "8124-testingthecroc",
 		Debug:         true,
@@ -1109,7 +1105,7 @@ func TestCrocSymlink(t *testing.T) {
 	}
 
 	log.Debug("setting up receiver")
-	receiver, err := New(Options{
+	receiver, err := newTestClient(Options{
 		IsSender:      false,
 		SharedSecret:  "8124-testingthecroc",
 		Debug:         true,
@@ -1391,7 +1387,7 @@ func TestCrocLocal(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
 
 	log.Debug("setting up sender")
-	sender, err := New(Options{
+	sender, err := newTestClient(Options{
 		IsSender:      true,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
@@ -1411,7 +1407,7 @@ func TestCrocLocal(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	log.Debug("setting up receiver")
-	receiver, err := New(Options{
+	receiver, err := newTestClient(Options{
 		IsSender:      false,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
@@ -1473,7 +1469,7 @@ func TestSenderAndReceiverPreferLocalRelayOverExternalRelay(t *testing.T) {
 	defer os.Remove(receivedFile)
 
 	secret := fmt.Sprintf("localrelay-%d", time.Now().UnixNano())
-	sender, err := New(Options{
+	sender, err := newTestClient(Options{
 		IsSender:      true,
 		SharedSecret:  secret,
 		Debug:         true,
@@ -1494,7 +1490,7 @@ func TestSenderAndReceiverPreferLocalRelayOverExternalRelay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetFilesInfo: %v", err)
 	}
-	receiver, err := New(Options{
+	receiver, err := newTestClient(Options{
 		IsSender:      false,
 		SharedSecret:  secret,
 		Debug:         true,
@@ -1558,7 +1554,7 @@ func TestSenderLocalProbeDoesNotCorruptExternalRoute(t *testing.T) {
 
 	secret := fmt.Sprintf("externalroute-%d", time.Now().UnixNano())
 	externalAddress := net.JoinHostPort(externalHost, externalPorts[0])
-	sender, err := New(Options{
+	sender, err := newTestClient(Options{
 		IsSender:      true,
 		SharedSecret:  secret,
 		Debug:         true,
@@ -1579,7 +1575,7 @@ func TestSenderLocalProbeDoesNotCorruptExternalRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetFilesInfo: %v", err)
 	}
-	receiver, err := New(Options{
+	receiver, err := newTestClient(Options{
 		IsSender:      false,
 		SharedSecret:  secret,
 		Debug:         true,
@@ -1643,7 +1639,7 @@ func TestCrocError(t *testing.T) {
 
 	Debug(false)
 	log.SetLevel("warn")
-	sender, _ := New(Options{
+	sender, _ := newTestClient(Options{
 		IsSender:      true,
 		SharedSecret:  "8123-testingthecroc2",
 		Debug:         true,
@@ -1670,7 +1666,7 @@ func TestReceiverStdoutWithInvalidSecret(t *testing.T) {
 	// This should fail gracefully without panicking
 	log.SetLevel("warn")
 	unusedPort := freeTestPort(t)
-	receiver, err := New(Options{
+	receiver, err := newTestClient(Options{
 		IsSender:      false,
 		SharedSecret:  "invalid-secret-12345",
 		Debug:         true,
@@ -1852,7 +1848,7 @@ func runReconnectDropTest(t *testing.T, connIndex int, disableReceiverReconnect 
 	defer stopRelay()
 
 	uniqueSecret := fmt.Sprintf("reconnect-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
-	sender, err := New(Options{
+	sender, err := newTestClient(Options{
 		IsSender:       true,
 		SharedSecret:   uniqueSecret,
 		Debug:          true,
@@ -1876,7 +1872,7 @@ func runReconnectDropTest(t *testing.T, connIndex int, disableReceiverReconnect 
 		t.Fatalf("Get file info failed: %v", errGet)
 	}
 
-	receiver, err := New(Options{
+	receiver, err := newTestClient(Options{
 		IsSender:       false,
 		SharedSecret:   uniqueSecret,
 		Debug:          true,
@@ -1992,7 +1988,7 @@ func TestReconnectFallsBackToRememberedRelay(t *testing.T) {
 	secret := fmt.Sprintf("fallback-%d", time.Now().UnixNano())
 	room := fmt.Sprintf("fallback-room-%d", time.Now().UnixNano())
 
-	sender, err := New(Options{
+	sender, err := newTestClient(Options{
 		IsSender:       true,
 		SharedSecret:   secret,
 		Debug:          true,
@@ -2006,7 +2002,7 @@ func TestReconnectFallsBackToRememberedRelay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create sender: %v", err)
 	}
-	receiver, err := New(Options{
+	receiver, err := newTestClient(Options{
 		IsSender:       false,
 		SharedSecret:   secret,
 		Debug:          true,
@@ -2106,7 +2102,7 @@ func TestBase(t *testing.T) {
 
 	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
 
-	sender, err := New(Options{
+	sender, err := newTestClient(Options{
 		IsSender:      true,
 		SharedSecret:  uniqueSecret,
 		Debug:         true,
@@ -2128,7 +2124,7 @@ func TestBase(t *testing.T) {
 		t.Fatalf("Get file info failed: %v", errGet)
 	}
 
-	receiver, err := New(Options{
+	receiver, err := newTestClient(Options{
 		IsSender:      false,
 		SharedSecret:  uniqueSecret,
 		Debug:         true,
