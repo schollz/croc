@@ -199,18 +199,25 @@ func TestTransportPolicyFeaturesAndStrictMismatch(t *testing.T) {
 		t.Fatalf("auto PAKE features = %v", autoFeatures)
 	}
 	if supportsFeature(autoFeatures, derpAttachGroupFeature) {
-		t.Fatalf("unvalidated AttachGroup feature was advertised: %v", autoFeatures)
+		t.Fatalf("disabled AttachGroup feature was advertised: %v", autoFeatures)
 	}
 	groupTransport := newFakeDERPDataTransport(true)
-	if gatedFeatures := (&Client{Options: Options{Transport: TransportAuto}, derpTransport: groupTransport}).pakeFeatures(); !supportsFeature(gatedFeatures, derpAttachGroupFeature) {
-		t.Fatalf("validated AttachGroup feature was not advertised: %v", gatedFeatures)
+	if groupFeatures := (&Client{Options: Options{Transport: TransportAuto}, derpTransport: groupTransport}).pakeFeatures(); !supportsFeature(groupFeatures, derpAttachGroupFeature) {
+		t.Fatalf("enabled AttachGroup feature was not advertised: %v", groupFeatures)
 	}
 	strictFeatures := strict.pakeFeatures()
 	if !supportsFeature(strictFeatures, derpRequiredFeature) {
 		t.Fatalf("strict PAKE features = %v", strictFeatures)
 	}
+	strictGroupFeatures := (&Client{Options: Options{Transport: TransportDERP}, derpTransport: groupTransport}).pakeFeatures()
+	if !supportsFeature(strictGroupFeatures, derpRequiredFeature) || !supportsFeature(strictGroupFeatures, derpAttachGroupFeature) {
+		t.Fatalf("strict AttachGroup PAKE features = %v", strictGroupFeatures)
+	}
 	if got := (&Client{Options: Options{Transport: TransportRelay}, derpTransport: groupTransport}).pakeFeatures(); len(got) != 0 {
 		t.Fatalf("relay PAKE features = %v", got)
+	}
+	if got := (&Client{Options: Options{Transport: TransportAuto, OnlyLocal: true}, derpTransport: groupTransport}).pakeFeatures(); len(got) != 0 {
+		t.Fatalf("local-only PAKE features = %v", got)
 	}
 	legacyStrictPeer := &Client{
 		Options:       Options{Transport: TransportRelay},

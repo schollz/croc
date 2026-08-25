@@ -4,7 +4,7 @@ package croc
 
 import "github.com/schollz/croc/v11/src/derptransport"
 
-func derpAttachGroupBuildEnabled() bool { return false }
+func derpAttachGroupBuildEnabled() bool { return true }
 
 func derpAttachGroupBuildConfig() derptransport.GroupConfig {
 	return derptransport.DefaultGroupConfig()

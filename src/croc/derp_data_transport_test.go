@@ -4,10 +4,32 @@ import (
 	"context"
 	"errors"
 	"net"
+	"testing"
 	"time"
 
 	"github.com/schollz/croc/v11/src/derptransport"
 )
+
+func TestDefaultDERPDataTransportEnablesEightByFourAttachGroup(t *testing.T) {
+	provider, ok := defaultDERPDataTransport().(productionDERPDataTransport)
+	if !ok {
+		t.Fatalf("default DERP transport type = %T", defaultDERPDataTransport())
+	}
+	if !provider.AttachGroupEnabled() {
+		t.Fatal("normal build did not enable AttachGroup")
+	}
+	if got := provider.groupConfig; got.StreamCount != 8 || got.MaxRawPaths != 4 || got.RawDirectBudget != 3*time.Second || got.ForceRelay {
+		t.Fatalf("normal AttachGroup config = %+v", got)
+	}
+	if derptransport.Available() {
+		for _, mode := range []TransportMode{TransportAuto, TransportDERP} {
+			features := (&Client{Options: Options{Transport: mode}}).pakeFeatures()
+			if !supportsFeature(features, derpAttachGroupFeature) {
+				t.Fatalf("normal %s build did not advertise AttachGroup: %v", mode, features)
+			}
+		}
+	}
+}
 
 type fakeDERPDataTransport struct {
 	available          bool

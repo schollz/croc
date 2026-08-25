@@ -1,5 +1,9 @@
 # AttachGroup productionization screen — 2026-08-24
 
+> Historical decision: automatic 8/4 selection was later enabled for v11.3.2.
+> The measurements and original promotion assessment below are preserved
+> unchanged.
+
 This is a short engineering screen, not a promotion record. It used one paired
 256 MiB incompressible transfer per direction and topology between the local
 macOS arm64 host and `134.122.43.205` (Linux amd64). Every received file matched

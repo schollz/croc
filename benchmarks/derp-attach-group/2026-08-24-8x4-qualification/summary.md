@@ -1,5 +1,9 @@
 # 8/4 AttachGroup qualification — 2026-08-24
 
+> Historical decision: automatic selection was later enabled for v11.3.2 as an
+> explicit product decision accepting the reverse-direction regression. The
+> measurements and original gate result below are preserved unchanged.
+
 ## Decision
 
 Do not enable automatic AttachGroup selection and do not publish the croc

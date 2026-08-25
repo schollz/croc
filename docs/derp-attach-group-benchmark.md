@@ -1,10 +1,21 @@
-# DERP AttachGroup activation gate
+# DERP AttachGroup activation and benchmark record
 
-Production selection of `experimental-derp-attach-group-v1` is controlled by
-`derpAttachGroupAutomaticSelection` in `src/croc/croc.go`. The normal build
-keeps this disabled until the fixed eight-stream/four-path profile passes the
-live gate below. With the gate disabled, croc continues to use legacy
-single-stream Attach even though the adapter and benchmark support AttachGroup.
+Beginning with v11.3.2, normal builds advertise
+`experimental-derp-attach-group-v1` whenever DERP is available. Two advertising
+peers automatically use the fixed eight-stream/four-path profile; a peer that
+does not advertise the feature continues to use legacy single-stream Attach.
+There is no user-facing tuning control.
+
+The normal-build setting is provided by `derpAttachGroupBuildEnabled` in
+`src/croc/derp_attach_group_config_default.go`. The benchmark-only build tag
+retains internal topology and fallback controls for reproducible testing.
+
+## Activation decision
+
+The original performance gate below found faster Mac-to-server transfers but a
+normalized server-to-Mac regression. Automatic selection was subsequently
+enabled for v11.3.2 as an explicit product decision accepting that tradeoff.
+The historical measurements and gate criteria remain unchanged.
 
 ## Hermetic framing check
 
