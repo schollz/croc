@@ -1,5 +1,23 @@
 # Repository instructions
 
+## Version control with GitButler
+
+Use the GitButler CLI (`but`) for all version-control operations. Do not use
+Git write commands such as `git add`, `git commit`, `git push`, `git checkout`,
+`git merge`, `git rebase`, `git stash`, or `git cherry-pick`.
+
+- Use `but diff` to inspect uncommitted changes.
+- Use `but status` for branch, stack, commit, and conflict overviews; add `-fv`
+  only when file or hunk IDs are needed.
+- Use `but commit -b <branch> -m "<message>" <change-ids>` to create commits.
+- Use `but push <top-branch>` to push a branch or stack.
+- Use `but pr new <branch>` to create pull requests, especially for stacked
+  branches.
+
+Read-only Git commands such as `git log`, `git blame`, and `git show --stat` are
+allowed when useful. GitHub Actions and release operations continue to use the
+GitHub CLI (`gh`) as documented below.
+
 ## Releasing croc
 
 Releases are prepared by the **Prepare Release** GitHub Actions workflow. Do not
@@ -74,5 +92,6 @@ gh run list --workflow deploy.yml --limit 3 \
 ```
 
 Use `gh run watch RUN_ID --exit-status` to follow the downstream run. Never use
-`gh release create` or `git tag` for this release flow. The Prepare Release
-workflow owns the version commit, tag, artifacts, and draft.
+`gh release create` or manually create or move the release tag with Git or
+GitButler. The Prepare Release workflow owns the version commit, tag, artifacts,
+and draft.
