@@ -14,13 +14,13 @@ import (
 	"time"
 
 	"github.com/schollz/croc/v11/internal/cli"
+	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/publicrelay"
 	storeapi "github.com/schollz/croc/v11/src/store"
 	buildversion "github.com/schollz/croc/v11/src/version"
 	"github.com/schollz/croc/v11/src/webassets"
 	"github.com/schollz/croc/v11/src/webrelay"
-	log "github.com/schollz/logger"
 )
 
 // Version specifies the version reported by croc-web.

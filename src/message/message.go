@@ -7,7 +7,7 @@ import (
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/compress"
 	"github.com/schollz/croc/v11/src/crypt"
-	log "github.com/schollz/logger"
+	log "github.com/schollz/croc/v11/src/logger"
 )
 
 const maxDecompressedMessageSize = 64 * 1024 * 1024
@@ -16,19 +16,18 @@ const maxDecompressedMessageSize = 64 * 1024 * 1024
 type Type string
 
 const (
-	TypePAKE                  Type = "pake"
-	TypePAKEConfirm           Type = "pake-confirm"
-	TypeExperimentalDERPOffer Type = "derp-offer"
-	TypeDERPOffer                  = TypeExperimentalDERPOffer
-	TypeDERPStatus            Type = "derp-status"
-	TypeTransportSelect       Type = "transport-select"
-	TypeExternalIP            Type = "externalip"
-	TypeFinished              Type = "finished"
-	TypeError                 Type = "error"
-	TypeCloseRecipient        Type = "close-recipient"
-	TypeCloseSender           Type = "close-sender"
-	TypeRecipientReady        Type = "recipientready"
-	TypeFileInfo              Type = "fileinfo"
+	TypePAKE            Type = "pake"
+	TypePAKEConfirm     Type = "pake-confirm"
+	TypeTailcatOffer    Type = "tailcat-offer"
+	TypeTailcatStatus   Type = "tailcat-status"
+	TypeTransportSelect Type = "transport-select"
+	TypeExternalIP      Type = "externalip"
+	TypeFinished        Type = "finished"
+	TypeError           Type = "error"
+	TypeCloseRecipient  Type = "close-recipient"
+	TypeCloseSender     Type = "close-sender"
+	TypeRecipientReady  Type = "recipientready"
+	TypeFileInfo        Type = "fileinfo"
 )
 
 // Message is the possible payload for messaging

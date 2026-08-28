@@ -22,10 +22,10 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/schollz/croc/v11/src/publicrelay"
 	"github.com/schollz/croc/v11/src/store"
 	buildversion "github.com/schollz/croc/v11/src/version"
-	log "github.com/schollz/logger"
 )
 
 const (

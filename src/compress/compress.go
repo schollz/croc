@@ -8,7 +8,7 @@ import (
 	"io"
 	"sync"
 
-	log "github.com/schollz/logger"
+	log "github.com/schollz/croc/v11/src/logger"
 )
 
 // ErrDecompressedSizeExceeded indicates that decompressed data exceeded the

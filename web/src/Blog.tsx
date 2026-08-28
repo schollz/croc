@@ -586,7 +586,7 @@ function DERPVisual() {
     <div className="derp-visual">
       <span>
         <ArrowRight />
-        <small>direct QUIC</small>
+        <small>Tailcat direct</small>
         <strong>peer to peer</strong>
       </span>
       <span>

@@ -365,10 +365,15 @@ croc --socks5 "127.0.0.1:9050" send SOMEFILE
 ### Data transport selection
 
 The native CLI defaults to `--transport auto`. After the normal three-word-code
-PAKE handshake, two compatible native clients try a direct/DERP data connection
-through the public Tailscale DERP network. If the peer is a browser, an older
-client, or DERP setup fails, both clients use croc's existing relay data ports.
-Otherwise it attempts to use DERP. Public DERP is best effort and may apply fairness limits; see Tailscale's [DERP reference](https://tailscale.com/docs/reference/derp-servers) and
+PAKE handshake, two compatible native clients create PAKE-bound Tailcat node
+identities and open one or more TCP streams over an in-process Tailscale
+userspace WireGuard network. Magicsock starts through DERP and promotes the
+connection to a direct UDP path whenever NAT traversal succeeds. If the peer is
+a browser, an older client, or Tailcat setup fails, both clients use croc's
+existing relay data ports. The public spelling `--transport derp` is retained;
+in strict mode it requires Tailcat support and disables croc-relay fallback.
+Public DERP is best effort and may apply fairness limits; see Tailscale's
+[DERP reference](https://tailscale.com/docs/reference/derp-servers) and
 [performance guidance](https://tailscale.com/docs/reference/troubleshooting/poor-performance-tailnet).
 
 

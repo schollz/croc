@@ -27,9 +27,6 @@ go.work.sum
 # Browser automation debug artifacts
 /.playwright-mcp/
 
-# Local reference clone; releases use the pinned Go module instead.
-/derphole/
-
 # Croc builds
 /croc
 /croc-web

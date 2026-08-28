@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/schollz/logger"
+	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/schollz/pake/v3"
 
 	"github.com/schollz/croc/v11/src/comm"

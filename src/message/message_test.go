@@ -7,7 +7,7 @@ import (
 
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/crypt"
-	log "github.com/schollz/logger"
+	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -57,7 +57,7 @@ func TestPakeVersionAndConfirmationRoundTrip(t *testing.T) {
 		Type:     TypePAKEConfirm,
 		Version:  2,
 		Bytes:    []byte("confirmation-tag"),
-		Features: []string{"experimental-derp-v1"},
+		Features: []string{"experimental-tailcat-v1"},
 	}
 	encoded, err := Encode(nil, want)
 	assert.NoError(t, err)
