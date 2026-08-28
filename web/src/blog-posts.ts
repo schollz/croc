@@ -99,6 +99,7 @@ const fileTransferToolOrder = [
   "Send Anywhere",
   "LocalSend",
   "KDE Connect",
+  "derphole",
   "wormhole-william",
   "Magic Wormhole",
   "qrcp",
@@ -1154,9 +1155,9 @@ const drafts: DraftBlogPost[] = [
   {
     slug: "compare-file-transfer-tools",
     number: "09",
-    title: "39 ways to send a file",
+    title: "40 ways to send a file",
     description:
-      "Compare croc with 38 file transfer tools by resume support, account requirements, browser and CLI transfers, encryption, availability, and transfer paths.",
+      "Compare croc with 39 file transfer tools by resume support, account requirements, browser and CLI transfers, encryption, availability, and transfer paths.",
     category: "Field guide",
     publishedAt: "2026-08-12",
     publishedLabel: "August 12, 2026",
@@ -1171,11 +1172,11 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "Nine years later, sending a file should be a solved problem. Instead I found 39 solutions and at least four different definitions of the problem. Some make a live pipe between two computers. Some synchronize a folder forever. Some work only while two browser tabs remain awake. Others store a copy and produce a link for somebody who may arrive tomorrow.",
+        text: "Nine years later, sending a file should be a solved problem. Instead I found 40 solutions and at least four different definitions of the problem. Some make a live pipe between two computers. Some synchronize a folder forever. Some work only while two browser tabs remain awake. Others store a copy and produce a link for somebody who may arrive tomorrow.",
       },
       {
         type: "paragraph",
-        text: "This field guide compares croc with 38 file transfer tools, including Magic Wormhole, Floe, AirPipe, Syncthing, LocalSend, PairDrop, WeTransfer, MEGA, and Firefox Send. The tables cover resumable transfers, account requirements, browser, command-line, and app endpoints, availability, encryption, and the path each file takes.",
+        text: "This field guide compares croc with 39 file transfer tools, including Magic Wormhole, derphole, Floe, AirPipe, Syncthing, LocalSend, PairDrop, WeTransfer, MEGA, and Firefox Send. The tables cover resumable transfers, account requirements, browser, command-line, and app endpoints, availability, encryption, and the path each file takes.",
       },
       {
         type: "aside",
@@ -1183,7 +1184,7 @@ const drafts: DraftBlogPost[] = [
         title: "I know one row from the inside",
         text: "I built croc, so naturally I know that row best. AirDrop, Syncthing, OnionShare, and stored-link services each solve different jobs that croc should not pretend are identical.",
       },
-      { type: "heading", text: "How I compared 39 file transfer tools" },
+      { type: "heading", text: "How I compared 40 file transfer tools" },
       {
         type: "paragraph",
         text: "I checked official sites, documentation, and repositories on August 23, 2026. A full circle means the project documents that capability without an important limitation. A half-filled circle means it works only on some platforms, in some modes, through a documented third-party adapter, or with another caveat. An empty circle means I could not find documented support. Under Resume, that specifically means I could not find a promise that a stopped transfer can restart without beginning the file at byte zero.",
@@ -1231,6 +1232,7 @@ const drafts: DraftBlogPost[] = [
           { cells: ["croc", "●", "●", "●", "●", "●", "●", "●"], href: "https://github.com/schollz/croc", highlight: true },
           { cells: ["Magic Wormhole", "●", "●", "○", "○", "○", "● installed command is wormhole", "○"], href: "https://github.com/magic-wormhole/magic-wormhole" },
           { cells: ["iroh Sendme", "◐ example application", "●", "●", "○", "○", "●", "○"], href: "https://github.com/n0-computer/sendme" },
+          { cells: ["derphole", "●", "●", "○", "○", "○", "●", "○"], href: "https://github.com/shayne/derphole" },
           { cells: ["wormhole-william", "●", "●", "○", "○", "○", "●", "○"], href: "https://github.com/psanford/wormhole-william" },
           { cells: ["ZeroTier Toss", "○ archived; ~7 years (2017–2024)", "●", "○", "○", "○", "●", "○"], href: "https://github.com/zerotier/toss" },
           { cells: ["Portal", "◐ quiet project", "●", "○", "○", "○", "●", "○"], href: "https://github.com/SpatiumPortae/portal" },
@@ -1295,6 +1297,7 @@ const drafts: DraftBlogPost[] = [
           { cells: ["croc", "Application E2EE; PAKE + AES-GCM", "Live relay; optional client-encrypted storage"], href: "https://github.com/schollz/croc", highlight: true },
           { cells: ["Magic Wormhole", "Application E2EE with PAKE", "Live direct or transit relay"], href: "https://github.com/magic-wormhole/magic-wormhole" },
           { cells: ["iroh Sendme", "Authenticated TLS to node ID", "Live hole-punched path or encrypted relay"], href: "https://github.com/n0-computer/sendme" },
+          { cells: ["derphole", "Application E2EE with token-derived AEAD", "Live DERP relay with promotion to direct encrypted UDP"], href: "https://github.com/shayne/derphole" },
           { cells: ["wormhole-william", "Application E2EE with PAKE", "Live direct or transit relay"], href: "https://github.com/psanford/wormhole-william" },
           { cells: ["ZeroTier Toss", "No encryption; token authentication", "Direct TCP, mainly LAN/virtual LAN"], href: "https://github.com/zerotier/toss" },
           { cells: ["Portal", "Application E2EE with PAKE2", "Live direct connection or relay"], href: "https://github.com/SpatiumPortae/portal" },
@@ -1380,14 +1383,14 @@ const drafts: DraftBlogPost[] = [
     number: "10",
     title: "How fast is croc?",
     description:
-      "I timed seven command-line file-transfer tools between two servers using a 303 MB audio file and a folder of 64 photos.",
+      "I timed eight command-line file-transfer tools between two servers using a 303 MB audio file and a folder of 64 photos.",
     category: "Benchmarks",
     publishedAt: "2026-08-23",
     publishedLabel: "August 23, 2026",
     author: "schollz",
     visual: "bridge",
     takeaway:
-      "Across seven CLI file-transfer tools, croc finished first in both tests; the alternatives took 1.6× to 21.7× as long.",
+      "Across eight CLI file-transfer tools, croc finished first in both tests; the alternatives took 1.3× to 21.7× as long.",
     blocks: [
       {
         type: "paragraph",
@@ -1437,6 +1440,10 @@ const drafts: DraftBlogPost[] = [
             highlight: true,
           },
           {
+            cells: ["derphole", "9.6 s", "31.6 MB/s", "1.3× croc time"],
+            href: "https://github.com/shayne/derphole",
+          },
+          {
             cells: ["Magic Wormhole", "11.5 s", "26.3 MB/s", "1.6× croc time"],
             href: "https://github.com/magic-wormhole/magic-wormhole",
           },
@@ -1481,6 +1488,10 @@ const drafts: DraftBlogPost[] = [
             cells: ["croc", "30.9 s", "24.5 MB/s", "1.5× zip time"],
             href: "https://github.com/schollz/croc",
             highlight: true,
+          },
+          {
+            cells: ["derphole", "34.9 s", "21.7 MB/s", "1.7× zip time"],
+            href: "https://github.com/shayne/derphole",
           },
           {
             cells: ["Magic Wormhole", "40.1 s", "18.8 MB/s", "2.0× zip time"],
@@ -1528,6 +1539,13 @@ const drafts: DraftBlogPost[] = [
           },
           {
             cells: [
+              "derphole",
+              "DERP for rendezvous and fallback, with paced direct UDP lanes when available",
+            ],
+            href: "https://github.com/shayne/derphole",
+          },
+          {
+            cells: [
               "Magic Wormhole",
               "One encrypted Wormhole Transit TCP connection, either direct or through a relay",
             ],
@@ -1572,7 +1590,7 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "croc and Magic Wormhole were fast for fairly simple reasons. croc keeps several TCP connections busy at once, while Magic Wormhole uses one straightforward Transit TCP stream. croc also compresses data when it is worthwhile. For the folder, --zip turned 64 little transfers into one long transfer, which seems to be much easier.",
+        text: "croc, derphole, and Magic Wormhole were fast for fairly simple reasons. croc keeps several TCP connections busy at once, derphole can switch to paced direct UDP, and Magic Wormhole uses one straightforward Transit TCP stream. croc also compresses data when it is worthwhile. For the folder, --zip turned 64 little transfers into one long transfer, which seems to be much easier.",
       },
       {
         type: "paragraph",
@@ -1585,7 +1603,7 @@ const drafts: DraftBlogPost[] = [
       { type: "heading", text: "croc is the fastest" },
       {
         type: "paragraph",
-        text: "For this trip across the country, croc was the fastest. Magic Wormhole was not far behind, and pre-zipping the folder helped even more. I would like to repeat the experiment and save the route chosen by each tool, because direct versus relayed traffic could explain a lot. But the useful result is already simple: after I pressed enter on the receiver, croc made me wait the least.",
+        text: "For this trip across the country, croc was the fastest. derphole and Magic Wormhole were not far behind, and pre-zipping the folder helped even more. I would like to repeat the experiment and save the route chosen by each tool, because direct versus relayed traffic could explain a lot. But the useful result is already simple: after I pressed enter on the receiver, croc made me wait the least.",
       },
       { type: "heading", text: "Install and run" },
       {
@@ -1686,6 +1704,20 @@ const drafts: DraftBlogPost[] = [
           "",
           "# Receiver",
           "$ time airpipe download YOUR-PASSPHRASE",
+        ],
+      },
+      {
+        type: "details",
+        summary: "derphole — 9.6 seconds for audio; 34.9 seconds for photos",
+        lines: [
+          "# Download the matching binary from GitHub Releases",
+          "# https://github.com/shayne/derphole/releases/latest",
+          "",
+          "# Sender",
+          "$ derphole send audio.wav",
+          "",
+          "# Receiver",
+          "$ time derphole receive YOUR-CODE",
         ],
       },
     ],

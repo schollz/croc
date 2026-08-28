@@ -25,7 +25,7 @@ describe("Blog", () => {
     );
     expect(
       screen.getByRole("heading", {
-        name: "39 ways to send a file",
+        name: "40 ways to send a file",
       }),
     ).toBeVisible();
     expect(
@@ -63,7 +63,7 @@ describe("Blog", () => {
     ).toBeVisible();
     expect(screen.getByText("FIELD NOTE 10")).toBeVisible();
     expect(
-      screen.getByText(/the alternatives took 1\.6× to 21\.7× as long/),
+      screen.getByText(/the alternatives took 1\.3× to 21\.7× as long/),
     ).toBeVisible();
     expect(screen.getByRole("heading", { name: "TL;DR" })).toBeVisible();
     expect(
@@ -75,6 +75,8 @@ describe("Blog", () => {
     expect(screen.getByRole("cell", { name: "42.4 s" })).toBeVisible();
     expect(screen.getByRole("cell", { name: "91.7 s" })).toBeVisible();
     expect(screen.getByRole("cell", { name: "156.5 s" })).toBeVisible();
+    expect(screen.getByRole("cell", { name: "9.6 s" })).toBeVisible();
+    expect(screen.getByRole("cell", { name: "34.9 s" })).toBeVisible();
     expect(screen.getByRole("cell", { name: "11.5 s" })).toBeVisible();
     expect(screen.getByRole("cell", { name: "110.0 s" })).toBeVisible();
     expect(screen.getByRole("cell", { name: "116.6 s" })).toBeVisible();
@@ -82,6 +84,9 @@ describe("Blog", () => {
     expect(screen.getByRole("cell", { name: "354.9 s" })).toBeVisible();
     expect(
       screen.getAllByRole("rowheader", { name: "wormhole-william" }),
+    ).toHaveLength(3);
+    expect(
+      screen.getAllByRole("rowheader", { name: "derphole" }),
     ).toHaveLength(3);
     expect(
       screen.getByRole("heading", {
@@ -106,8 +111,11 @@ describe("Blog", () => {
     const commandSummaries = document.querySelectorAll(
       "details.blog-code-details > summary",
     );
-    expect(commandSummaries).toHaveLength(7);
+    expect(commandSummaries).toHaveLength(8);
     expect(commandSummaries[0]).toHaveTextContent("croc — 7.2 seconds");
+    expect(commandSummaries[7]).toHaveTextContent(
+      "derphole — 9.6 seconds for audio; 34.9 seconds for photos",
+    );
     expect(commandSummaries[0].parentElement).not.toHaveAttribute("open");
     (commandSummaries[0] as HTMLElement).click();
     expect(screen.getByText(/time croc YOUR-CODE/)).toBeVisible();
@@ -268,13 +276,13 @@ describe("Blog", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "39 ways to send a file",
+        name: "40 ways to send a file",
       }),
     ).toBeVisible();
     expect(screen.getAllByRole("table")).toHaveLength(2);
-    expect(screen.getAllByRole("row")).toHaveLength(80);
+    expect(screen.getAllByRole("row")).toHaveLength(82);
     const [capabilityTable, architectureTable] = screen.getAllByRole("table");
-    for (const tool of ["wormhole-william", "Floe", "AirPipe"]) {
+    for (const tool of ["derphole", "wormhole-william", "Floe", "AirPipe"]) {
       expect(screen.getAllByRole("rowheader", { name: tool })).toHaveLength(2);
     }
     expect(
@@ -333,15 +341,15 @@ describe("Blog", () => {
     const toolLinks = document.querySelectorAll(
       ".blog-comparison-table tbody th a",
     );
-    expect(toolLinks).toHaveLength(78);
+    expect(toolLinks).toHaveLength(80);
     expect(
       new Set([...toolLinks].map((link) => link.textContent)).size,
-    ).toBe(39);
+    ).toBe(40);
     expect(
       document.querySelectorAll(
         ".blog-comparison-table td.is-indicator-column .blog-status-indicator",
       ),
-    ).toHaveLength(273);
+    ).toHaveLength(280);
     expect(
       screen.getByRole("img", {
         name: /File transfer tools comparison showing one file connected/i,
@@ -351,7 +359,7 @@ describe("Blog", () => {
       "/blog/images/compare-file-transfer-tools.webp",
     );
     expect(document.title).toBe(
-      "39 Ways to Send a File: croc and 38 Alternatives",
+      "40 Ways to Send a File: croc and 39 Alternatives",
     );
     expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
       "href",
@@ -395,8 +403,8 @@ describe("Blog", () => {
       expect.arrayContaining([
         expect.objectContaining({
           "@type": "BlogPosting",
-          headline: "39 ways to send a file",
-          wordCount: 2323,
+          headline: "40 ways to send a file",
+          wordCount: 2347,
         }),
       ]),
     );
