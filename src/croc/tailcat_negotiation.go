@@ -22,7 +22,9 @@ const (
 	tailcatStatusReady              = "ready"
 	tailcatStatusFallback           = "fallback"
 	selectedTransportTailcat        = 1
-	autoTailcatThresholdBytes int64 = 310 * 1024 * 1024
+	autoTailcatThresholdBytes int64 = 128 * 1024 * 1024
+	stagedRelayDelay                = 350 * time.Millisecond
+	stagedSelectionTimeout          = 8 * time.Second
 )
 
 type tailcatClientState struct {
@@ -52,6 +54,8 @@ type tailcatAttemptState struct {
 	pendingMu     sync.Mutex
 	pending       *tailcatDataBundle
 	pendingCancel context.CancelFunc
+	pendingReady  chan struct{}
+	pendingOnce   sync.Once
 	statusOnce    sync.Once
 	statusErr     error
 }
@@ -91,7 +95,18 @@ func (a *transferAttemptState) setTailcatPending(bundle *tailcatDataBundle, canc
 	}
 	a.tailcat.pending = bundle
 	a.tailcat.pendingCancel = cancel
+	ready := a.tailcatPendingReady()
+	a.tailcat.pendingOnce.Do(func() { close(ready) })
 	return nil
+}
+
+func (a *transferAttemptState) tailcatPendingReady() chan struct{} {
+	a.tailcat.setupMu.Lock()
+	defer a.tailcat.setupMu.Unlock()
+	if a.tailcat.pendingReady == nil {
+		a.tailcat.pendingReady = make(chan struct{})
+	}
+	return a.tailcat.pendingReady
 }
 
 func (a *transferAttemptState) takeTailcatPending() (*tailcatDataBundle, context.CancelFunc) {
@@ -162,6 +177,9 @@ func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error
 	}
 	if localTailcat && c.tailcat.peerCapable {
 		if c.Options.IsSender {
+			if c.Options.Transport == TransportAuto && c.peerStagedTransport {
+				return c.activateStagedTransportSender(attempt)
+			}
 			return c.activateTailcatSender(attempt)
 		}
 		c.watchTailcatSelection(attempt)
@@ -172,7 +190,7 @@ func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error
 }
 
 func (c *Client) pakeFeatures() []string {
-	features := []string{inlinePeerMetadataFeature, progressiveFileHashFeature}
+	features := []string{inlinePeerMetadataFeature, progressiveFileHashFeature, stagedTransportFeature, implicitTailcatReadyFeature}
 	if !c.localTailcatSupported() {
 		return features
 	}
@@ -315,13 +333,13 @@ func (c *Client) installTailcatBundle(bundle *tailcatDataBundle, cleanup func(),
 	}
 	bundle.addCleanup(cleanup)
 	c.closeTailcatBundle()
+	c.selectedDataTransport.Store(selectedTransportTailcat)
 	c.replaceDataConnections(bundle.connections)
 	c.tailcat.bundleMu.Lock()
 	c.tailcat.bundle = bundle
 	c.tailcat.bundleMu.Unlock()
 	c.tailcat.terminal.Store(false)
 	c.tailcat.transferConnections.Store(int32(len(bundle.connections)))
-	c.selectedDataTransport.Store(selectedTransportTailcat)
 	attempt.finishTailcatSetup()
 	if !c.Options.IsSender {
 		for i := range bundle.connections {
@@ -565,6 +583,9 @@ func (c *Client) finishTailcatReceiverDial(bundle *tailcatDataBundle, cancel con
 	if err := attempt.setTailcatPending(bundle, cancel); err != nil {
 		return c.tailcatError("peer connection", err, tokenValue)
 	}
+	if c.peerImplicitTailcatReady && c.peerStagedTransport && !c.peerRequiresTailcat() {
+		return nil
+	}
 	if err := attempt.sendTailcatStatus(c.connection(0), c.Key, tailcatStatusReady); err != nil {
 		attempt.closeTailcatPending()
 		return c.tailcatError("peer readiness", err, tokenValue)
@@ -619,6 +640,32 @@ func (c *Client) processTailcatOffer(m message.Message, attempt *transferAttempt
 			}
 		}
 	}()
+	if c.peerImplicitTailcatReady && c.peerStagedTransport && !c.peerRequiresTailcat() {
+		go func() {
+			timer := time.NewTimer(time.Until(deadline))
+			defer timer.Stop()
+			select {
+			case result := <-dialResult:
+				if result.err != nil {
+					if finishErr := c.finishTailcatReceiverFailure(result.err, tokenValue, attempt); finishErr != nil {
+						attempt.report(finishErr)
+					}
+					return
+				}
+				if finishErr := c.finishTailcatReceiverDial(result.bundle, cancel, tokenValue, attempt); finishErr != nil {
+					attempt.report(finishErr)
+				}
+			case <-timer.C:
+				cancel()
+				if finishErr := c.finishTailcatReceiverFailure(context.DeadlineExceeded, tokenValue, attempt); finishErr != nil {
+					attempt.report(finishErr)
+				}
+			case <-c.stop.ctx.Done():
+				cancel()
+			}
+		}()
+		return nil
+	}
 	timer := time.NewTimer(time.Until(deadline))
 	select {
 	case result := <-dialResult:
@@ -653,6 +700,16 @@ func (c *Client) processTransportSelect(m message.Message, attempt *transferAtte
 	switch TransportMode(m.Message) {
 	case TransportDERP:
 		bundle, cancel := attempt.takeTailcatPending()
+		if bundle == nil && c.peerImplicitTailcatReady {
+			select {
+			case <-attempt.tailcatPendingReady():
+				bundle, cancel = attempt.takeTailcatPending()
+			case <-time.After(stagedSelectionTimeout):
+				return errors.New("Tailcat selected before receiver connection became ready")
+			case <-c.stop.ctx.Done():
+				return c.stop.ctx.Err()
+			}
+		}
 		if bundle == nil {
 			if cancel != nil {
 				cancel()
@@ -669,6 +726,9 @@ func (c *Client) processTransportSelect(m message.Message, attempt *transferAtte
 			return errors.New("peer selected relay when Tailcat fallback is not allowed")
 		}
 		log.Debug("selected croc relay data transport after Tailcat fallback")
+		if c.peerStagedTransport {
+			return c.commitStagedRelayReceiver(attempt)
+		}
 		attempt.closeTailcatPending()
 		attempt.cancelTailcatSetup()
 		attempt.finishTailcatSetup()

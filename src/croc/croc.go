@@ -223,6 +223,8 @@ type Client struct {
 	peerPerFileCompression     bool
 	peerInlineMetadata         bool
 	peerProgressiveHash        bool
+	peerStagedTransport        bool
+	peerImplicitTailcatReady   bool
 	tailcat                    tailcatClientState
 	transportSelectionReceived bool
 	selectedDataTransport      atomic.Int32
@@ -270,6 +272,11 @@ type Client struct {
 	senderDataFile           *os.File
 	senderDataWorkers        map[*comm.Comm]struct{}
 	senderWorkerSequence     int
+	relayStandbyMu           sync.Mutex
+	relayStandbyReady        bool
+	stagedRelayDelayOverride time.Duration
+	stagedSelectionOverride  time.Duration
+	stagedRelayOpen          func(*transferAttemptState, []int, bool) error
 
 	// ctx.go for graceful shutdown
 	*stop
@@ -332,11 +339,13 @@ type SenderInfo struct {
 }
 
 const (
-	perFileCompressionFeature  = "per-file-compression-v1"
-	inlinePeerMetadataFeature  = "inline-peer-metadata-v1"
-	progressiveFileHashFeature = "progressive-file-hash-v1"
-	selectedTransportUnset     = 0
-	selectedTransportRelay     = 2
+	perFileCompressionFeature   = "per-file-compression-v1"
+	inlinePeerMetadataFeature   = "inline-peer-metadata-v1"
+	progressiveFileHashFeature  = "progressive-file-hash-v1"
+	stagedTransportFeature      = "staged-transport-v1"
+	implicitTailcatReadyFeature = "implicit-tailcat-ready-v1"
+	selectedTransportUnset      = 0
+	selectedTransportRelay      = 2
 )
 
 // ErrRelayConnection marks a failure to establish a relay control or data
@@ -744,11 +753,17 @@ func (c *Client) resetForReconnectAttempt(attempt int) error {
 	c.pakeConfirmationPending = false
 	c.peerPerFileCompression = false
 	c.peerInlineMetadata = false
+	c.peerProgressiveHash = false
+	c.peerStagedTransport = false
+	c.peerImplicitTailcatReady = false
 	c.tailcat.peerCapable = false
 	c.tailcat.peerRequired = false
 	c.tailcat.offerReceived = false
 	c.transportSelectionReceived = false
 	c.selectedDataTransport.Store(selectedTransportUnset)
+	c.relayStandbyMu.Lock()
+	c.relayStandbyReady = false
+	c.relayStandbyMu.Unlock()
 	c.tailcat.transferConnections.Store(0)
 	c.tailcat.terminal.Store(false)
 	c.CurrentFileChunkRanges = nil
@@ -2601,6 +2616,8 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 	c.tailcat.peerRequired = supportsFeature(m.Features, tailcatRequiredFeature)
 	c.peerInlineMetadata = supportsFeature(m.Features, inlinePeerMetadataFeature)
 	c.peerProgressiveHash = supportsFeature(m.Features, progressiveFileHashFeature)
+	c.peerStagedTransport = supportsFeature(m.Features, stagedTransportFeature)
+	c.peerImplicitTailcatReady = supportsFeature(m.Features, implicitTailcatReadyFeature)
 	if c.pakeConfirmationPending || c.Key != nil {
 		return pakeHandshakeError{err: fmt.Errorf("unexpected duplicate PAKE payload")}
 	}
@@ -2736,7 +2753,20 @@ func (c *Client) processMessagePakeConfirm(m message.Message, attempt *transferA
 }
 
 func (c *Client) activateRelayDataChannels(attempt *transferAttemptState) (err error) {
-	// connects to the other ports of the server for transfer
+	limit := min(len(c.Options.RelayPorts), 8)
+	indices := make([]int, limit)
+	for i := range indices {
+		indices[i] = i
+	}
+	if err := c.openRelayDataChannels(attempt, indices, !c.Options.IsSender); err != nil {
+		return err
+	}
+	c.selectedDataTransport.Store(selectedTransportRelay)
+	attempt.finishTailcatSetup()
+	return c.finishDataTransportActivation()
+}
+
+func (c *Client) openRelayDataChannels(attempt *transferAttemptState, indices []int, startReceive bool) (err error) {
 	var wg sync.WaitGroup
 	relayControlAddress := c.currentRelayControlAddress()
 	if relayControlAddress == "" {
@@ -2748,10 +2778,15 @@ func (c *Client) activateRelayDataChannels(attempt *transferAttemptState) (err e
 		return fmt.Errorf("bad relay address %s: %w", relayControlAddress, err)
 	}
 
-	errc := make(chan error, len(c.Options.RelayPorts))
-	wg.Add(len(c.Options.RelayPorts))
-	for i := 0; i < len(c.Options.RelayPorts); i++ {
-		log.Debugf("port: [%s]", c.Options.RelayPorts[i])
+	errc := make(chan error, len(indices))
+	wg.Add(len(indices))
+	for _, index := range indices {
+		if index < 0 || index >= len(c.Options.RelayPorts) || index >= 8 {
+			wg.Done()
+			errc <- fmt.Errorf("invalid relay data index %d", index)
+			continue
+		}
+		log.Debugf("port: [%s]", c.Options.RelayPorts[index])
 		go func(j int) {
 			defer wg.Done()
 			server := net.JoinHostPort(relayHost, c.Options.RelayPorts[j])
@@ -2765,12 +2800,16 @@ func (c *Client) activateRelayDataChannels(attempt *transferAttemptState) (err e
 				errc <- connErr
 				return
 			}
-			c.setConnection(j+1, dataConn)
-			log.Debugf("connected to %s", server)
-			if !c.Options.IsSender {
-				go c.receiveData(j, dataConn, attempt)
+			if !c.installRelayDataConnection(j+1, dataConn) {
+				return
 			}
-		}(i)
+			log.Debugf("connected to %s", server)
+			if startReceive && !c.Options.IsSender {
+				go c.receiveData(j, dataConn, attempt)
+			} else if c.Options.IsSender {
+				c.startLateSenderWorker(dataConn)
+			}
+		}(index)
 	}
 	wg.Wait()
 	close(errc)
@@ -2779,9 +2818,7 @@ func (c *Client) activateRelayDataChannels(attempt *transferAttemptState) (err e
 			return fmt.Errorf("%w: could not connect transfer ports: %v", ErrRelayConnection, connectErr)
 		}
 	}
-	c.selectedDataTransport.Store(selectedTransportRelay)
-	attempt.finishTailcatSetup()
-	return c.finishDataTransportActivation()
+	return nil
 }
 
 type tailcatListenResult struct {
@@ -2906,6 +2943,10 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		err = c.processExactHashRequest(m)
 	case message.TypeExactHashResult:
 		err = c.processExactHashResult(m)
+	case message.TypeRelayStandby:
+		err = c.processRelayStandby(attempt)
+	case message.TypeRelayRamp:
+		err = c.processRelayRamp(attempt)
 	case message.TypeRecipientReady:
 		var remoteFile RemoteFileRequest
 		err = json.Unmarshal(m.Bytes, &remoteFile)

@@ -98,6 +98,28 @@ func (c *Client) setConnection(index int, connection *comm.Comm) {
 	}
 }
 
+func (c *Client) installRelayDataConnection(index int, connection *comm.Comm) bool {
+	if connection == nil {
+		return false
+	}
+	c.connectionsMu.Lock()
+	defer c.connectionsMu.Unlock()
+	if c.selectedDataTransport.Load() == selectedTransportTailcat {
+		connection.Close()
+		return false
+	}
+	if index >= len(c.conn) {
+		connections := make([]*comm.Comm, index+1)
+		copy(connections, c.conn)
+		c.conn = connections
+	}
+	if c.conn[index] != nil {
+		c.conn[index].Close()
+	}
+	c.conn[index] = connection
+	return true
+}
+
 func (c *Client) connectionsSnapshot() []*comm.Comm {
 	c.connectionsMu.RLock()
 	defer c.connectionsMu.RUnlock()

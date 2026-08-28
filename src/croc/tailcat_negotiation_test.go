@@ -121,7 +121,7 @@ func TestTotalLogicalTransferSizeAndAutoThreshold(t *testing.T) {
 		{name: "below threshold", files: []FileInfo{{Size: autoTailcatThresholdBytes - 1}}, want: autoTailcatThresholdBytes - 1},
 		{name: "at threshold", files: []FileInfo{{Size: autoTailcatThresholdBytes}}, want: autoTailcatThresholdBytes},
 		{name: "above threshold", files: []FileInfo{{Size: autoTailcatThresholdBytes + 1}}, want: autoTailcatThresholdBytes + 1},
-		{name: "combined size", files: []FileInfo{{Size: 200 * 1024 * 1024}, {Size: 110 * 1024 * 1024}}, want: autoTailcatThresholdBytes},
+		{name: "combined size", files: []FileInfo{{Size: 200 * 1024 * 1024}, {Size: 110 * 1024 * 1024}}, want: 310 * 1024 * 1024},
 		{name: "ignore non-positive", files: []FileInfo{{Size: -1}, {Size: 0}, {Size: 42}}, want: 42},
 		{name: "saturate overflow", files: []FileInfo{{Size: math.MaxInt64 - 1}, {Size: 2}}, want: math.MaxInt64},
 	}

@@ -31,6 +31,8 @@ const (
 	TypeFilePrepared     Type = "file-prepared"
 	TypeExactHashRequest Type = "exact-hash-request"
 	TypeExactHashResult  Type = "exact-hash-result"
+	TypeRelayStandby     Type = "relay-standby"
+	TypeRelayRamp        Type = "relay-ramp"
 )
 
 // Message is the possible payload for messaging
