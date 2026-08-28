@@ -161,14 +161,6 @@ func ValidateEntries(entries []Entry) ([]Entry, error) {
 			}
 			ancestor = path.Dir(ancestor)
 		}
-		if entry.Kind != KindDirectory {
-			prefix := CollisionKey(entry.Path) + "/"
-			for key, existing := range byKey {
-				if strings.HasPrefix(key, prefix) {
-					return nil, fmt.Errorf("%w: non-directory %q contains %q", ErrPathCollision, entry.Path, existing.path)
-				}
-			}
-		}
 	}
 	return normalized, nil
 }

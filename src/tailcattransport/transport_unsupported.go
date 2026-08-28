@@ -1,4 +1,4 @@
-//go:build dragonfly || netbsd
+//go:build croc_no_tailcat || (!linux && !windows && !darwin && !freebsd && !openbsd)
 
 package tailcattransport
 
@@ -18,6 +18,12 @@ func DerivePublicKeys([]byte) (key.NodePublic, key.NodePublic, error) {
 type Listener struct{}
 
 func Listen(context.Context, []byte, Config, PathEvent) (*Listener, error) {
+	return nil, ErrUnsupported
+}
+
+func Prepare(context.Context, Config) (*Prepared, error) { return nil, ErrUnsupported }
+
+func ListenPrepared(context.Context, []byte, Config, PathEvent, *Prepared) (*Listener, error) {
 	return nil, ErrUnsupported
 }
 

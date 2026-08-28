@@ -147,6 +147,8 @@ func HashFile(fname string, algorithm string, showProgress ...bool) (hash256 []b
 	switch algorithm {
 	case "imohash":
 		return IMOHashFile(fname)
+	case "imohash-v2":
+		return imoHashV2File(fname)
 	case "md5":
 		return MD5HashFile(fname, doShowProgress)
 	case "xxhash":
@@ -237,6 +239,20 @@ func IMOHashFile(fname string) (hash []byte, err error) {
 	b, err := imopartial.SumFile(fname)
 	hash = b[:]
 	return
+}
+
+// imoHashV2File returns croc's versioned multi-point progressive digest.
+func imoHashV2File(fname string) ([]byte, error) {
+	f, err := os.Open(fname)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	return imoHashV2Reader(io.NewSectionReader(f, 0, info.Size()), nil)
 }
 
 // IMOHashFileFull returns imohash of full file

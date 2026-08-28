@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"strings"
 	"sync/atomic"
@@ -16,13 +17,41 @@ import (
 	"github.com/schollz/croc/v11/src/tailcattransport"
 )
 
+type preparingTailcatTransport struct {
+	*fakeTailcatTransport
+	prepareCalls atomic.Int32
+	listenValue  any
+	prepared     any
+	listener     tailcatDataListener
+}
+
+func (f *preparingTailcatTransport) Prepare(context.Context) (any, error) {
+	f.prepareCalls.Add(1)
+	return f.prepared, nil
+}
+
+func (f *preparingTailcatTransport) ListenPrepared(_ context.Context, _ []byte, _ tailcattransport.PathEvent, prepared any) (tailcatDataListener, error) {
+	f.listenValue = prepared
+	return f.listener, nil
+}
+
 func TestTailcatPAKEFeaturesAndCompatibility(t *testing.T) {
 	provider := &fakeTailcatTransport{available: true}
-	auto := (&Client{Options: Options{Transport: TransportAuto}, tailcat: tailcatClientState{transport: provider}}).pakeFeatures()
-	if !supportsFeature(auto, tailcatFeature) || supportsFeature(auto, tailcatRequiredFeature) {
-		t.Fatalf("auto features = %v", auto)
+	receiverAuto := (&Client{Options: Options{Transport: TransportAuto}, tailcat: tailcatClientState{transport: provider}}).pakeFeatures()
+	if !supportsFeature(receiverAuto, inlinePeerMetadataFeature) || !supportsFeature(receiverAuto, tailcatFeature) || supportsFeature(receiverAuto, tailcatRequiredFeature) {
+		t.Fatalf("receiver auto features = %v", receiverAuto)
 	}
-	strict := (&Client{Options: Options{Transport: TransportDERP}, tailcat: tailcatClientState{transport: provider}}).pakeFeatures()
+	senderSmall := &Client{Options: Options{IsSender: true, Transport: TransportAuto}, tailcat: tailcatClientState{transport: provider}}
+	if got := senderSmall.pakeFeatures(); !supportsFeature(got, inlinePeerMetadataFeature) || supportsFeature(got, tailcatFeature) {
+		t.Fatalf("small sender auto features = %v", got)
+	}
+	senderLarge := &Client{Options: Options{IsSender: true, Transport: TransportAuto}, tailcat: tailcatClientState{transport: provider}}
+	senderLarge.tailcat.transferBytes.Store(autoTailcatThresholdBytes)
+	largeFeatures := senderLarge.pakeFeatures()
+	if !supportsFeature(largeFeatures, tailcatFeature) || supportsFeature(largeFeatures, tailcatRequiredFeature) {
+		t.Fatalf("large sender auto features = %v", largeFeatures)
+	}
+	strict := (&Client{Options: Options{IsSender: true, Transport: TransportDERP}, tailcat: tailcatClientState{transport: provider}}).pakeFeatures()
 	if !supportsFeature(strict, tailcatFeature) || !supportsFeature(strict, tailcatRequiredFeature) {
 		t.Fatalf("strict features = %v", strict)
 	}
@@ -31,7 +60,7 @@ func TestTailcatPAKEFeaturesAndCompatibility(t *testing.T) {
 		{Options: Options{Transport: TransportAuto, OnlyLocal: true}, tailcat: tailcatClientState{transport: provider}},
 		{Options: Options{Transport: TransportAuto}, tailcat: tailcatClientState{transport: &fakeTailcatTransport{}}},
 	} {
-		if got := client.pakeFeatures(); len(got) != 0 {
+		if got := client.pakeFeatures(); !supportsFeature(got, inlinePeerMetadataFeature) || supportsFeature(got, tailcatFeature) {
 			t.Fatalf("unsupported mode advertised Tailcat: %v", got)
 		}
 	}
@@ -40,7 +69,130 @@ func TestTailcatPAKEFeaturesAndCompatibility(t *testing.T) {
 	}
 }
 
-func TestUnavailableTailcatUsesRelayInAutoAndRejectsStrict(t *testing.T) {
+func TestTailcatPreparationIsReusedAfterSessionKeyExists(t *testing.T) {
+	prepared := &struct{ region int }{region: 7}
+	listener := &fakeTailcatListener{offer: "prepared"}
+	provider := &preparingTailcatTransport{
+		fakeTailcatTransport: &fakeTailcatTransport{available: true},
+		prepared:             prepared,
+		listener:             listener,
+	}
+	client := &Client{
+		Options: Options{IsSender: true, Transport: TransportAuto},
+		stop:    newStop(context.Background()),
+		tailcat: tailcatClientState{transport: provider},
+		Key:     []byte("session key exists only after PAKE"),
+	}
+	client.tailcat.transferBytes.Store(128 * 1024 * 1024)
+	client.startTailcatPreparation()
+	got, err := client.listenTailcatData(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != listener || provider.listenValue != prepared || provider.prepareCalls.Load() != 1 {
+		t.Fatalf("prepared listener reuse failed: listener=%v value=%v calls=%d", got, provider.listenValue, provider.prepareCalls.Load())
+	}
+}
+
+func TestInlinePeerMetadataSkipsDedicatedActivationExchange(t *testing.T) {
+	fast := &Client{Options: Options{IsSender: true}, peerInlineMetadata: true}
+	if err := fast.finishDataTransportActivation(); err != nil {
+		t.Fatal(err)
+	}
+	if !fast.lifecycleSnapshot().ChannelSecured {
+		t.Fatal("inline metadata did not complete secure-channel activation")
+	}
+
+	legacy := &Client{Options: Options{IsSender: true}}
+	if err := legacy.finishDataTransportActivation(); err != nil {
+		t.Fatal(err)
+	}
+	if legacy.lifecycleSnapshot().ChannelSecured {
+		t.Fatal("legacy sender skipped the dedicated endpoint exchange")
+	}
+}
+
+func TestTotalLogicalTransferSizeAndAutoThreshold(t *testing.T) {
+	tests := []struct {
+		name  string
+		files []FileInfo
+		want  int64
+	}{
+		{name: "below threshold", files: []FileInfo{{Size: autoTailcatThresholdBytes - 1}}, want: autoTailcatThresholdBytes - 1},
+		{name: "at threshold", files: []FileInfo{{Size: autoTailcatThresholdBytes}}, want: autoTailcatThresholdBytes},
+		{name: "above threshold", files: []FileInfo{{Size: autoTailcatThresholdBytes + 1}}, want: autoTailcatThresholdBytes + 1},
+		{name: "combined size", files: []FileInfo{{Size: 200 * 1024 * 1024}, {Size: 110 * 1024 * 1024}}, want: 310 * 1024 * 1024},
+		{name: "ignore non-positive", files: []FileInfo{{Size: -1}, {Size: 0}, {Size: 42}}, want: 42},
+		{name: "saturate overflow", files: []FileInfo{{Size: math.MaxInt64 - 1}, {Size: 2}}, want: math.MaxInt64},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := totalLogicalTransferSize(tt.files); got != tt.want {
+				t.Fatalf("totalLogicalTransferSize() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+
+	provider := &fakeTailcatTransport{available: true}
+	for _, tt := range []struct {
+		name     string
+		bytes    int64
+		eligible bool
+	}{
+		{name: "below", bytes: autoTailcatThresholdBytes - 1},
+		{name: "equal", bytes: autoTailcatThresholdBytes, eligible: true},
+		{name: "above", bytes: autoTailcatThresholdBytes + 1, eligible: true},
+	} {
+		t.Run("auto "+tt.name, func(t *testing.T) {
+			client := &Client{Options: Options{IsSender: true, Transport: TransportAuto}, tailcat: tailcatClientState{transport: provider}}
+			client.tailcat.transferBytes.Store(tt.bytes)
+			if got := client.autoTailcatEligible(); got != tt.eligible {
+				t.Fatalf("autoTailcatEligible() = %t, want %t", got, tt.eligible)
+			}
+		})
+	}
+}
+
+func TestReceiverCannotSelectTransport(t *testing.T) {
+	provider := &fakeTailcatTransport{available: true}
+	if _, err := newClient(Options{SharedSecret: "receiver-auto", Curve: "p256", Transport: TransportAuto}, provider); err != nil {
+		t.Fatalf("receiver auto transport rejected: %v", err)
+	}
+	for _, mode := range []TransportMode{TransportDERP, TransportRelay} {
+		_, err := newClient(Options{SharedSecret: "receiver-explicit", Curve: "p256", Transport: mode}, provider)
+		if err == nil || err.Error() != "transport selection is sender-only" {
+			t.Fatalf("receiver transport %q error = %v", mode, err)
+		}
+	}
+}
+
+func TestResolveTransportModeForAvailability(t *testing.T) {
+	tests := []struct {
+		name       string
+		mode       TransportMode
+		available  bool
+		want       TransportMode
+		downgraded bool
+	}{
+		{name: "available auto", mode: TransportAuto, available: true, want: TransportAuto},
+		{name: "unavailable auto", mode: TransportAuto, want: TransportAuto},
+		{name: "available relay", mode: TransportRelay, available: true, want: TransportRelay},
+		{name: "unavailable relay", mode: TransportRelay, want: TransportRelay},
+		{name: "available derp", mode: TransportDERP, available: true, want: TransportDERP},
+		{name: "unavailable derp", mode: TransportDERP, want: TransportRelay, downgraded: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, downgraded := resolveTransportMode(test.mode, test.available)
+			if got != test.want || downgraded != test.downgraded {
+				t.Fatalf("resolveTransportMode(%q, %t) = (%q, %t); want (%q, %t)", test.mode, test.available, got, downgraded, test.want, test.downgraded)
+			}
+		})
+	}
+}
+
+func TestUnavailableTailcatUsesRelayInAutoAndDowngradesStrict(t *testing.T) {
 	provider := &unavailableTestDataTransport{}
 	auto, err := newClient(Options{
 		SharedSecret: "tailcat-unavailable-auto",
@@ -50,16 +202,24 @@ func TestUnavailableTailcatUsesRelayInAutoAndRejectsStrict(t *testing.T) {
 	if err != nil {
 		t.Fatalf("auto transport rejected: %v", err)
 	}
-	if features := auto.pakeFeatures(); len(features) != 0 {
+	if features := auto.pakeFeatures(); !supportsFeature(features, inlinePeerMetadataFeature) || supportsFeature(features, tailcatFeature) {
 		t.Fatalf("unavailable auto transport advertised Tailcat: %v", features)
 	}
-	_, err = newClient(Options{
+	strict, err := newClient(Options{
 		SharedSecret: "tailcat-unavailable-strict",
+		IsSender:     true,
 		Transport:    TransportDERP,
 		Curve:        "p256",
+		ShowQrCode:   true,
 	}, provider)
-	if !errors.Is(err, ErrDERPConnection) || !errors.Is(err, tailcattransport.ErrUnsupported) {
-		t.Fatalf("strict unavailable error = %v", err)
+	if err != nil {
+		t.Fatalf("strict unavailable transport rejected: %v", err)
+	}
+	if strict.Options.Transport != TransportRelay {
+		t.Fatalf("strict unavailable transport = %q; want relay", strict.Options.Transport)
+	}
+	if features := strict.pakeFeatures(); supportsFeature(features, tailcatFeature) || supportsFeature(features, tailcatRequiredFeature) {
+		t.Fatalf("downgraded transport advertised Tailcat: %v", features)
 	}
 }
 
@@ -116,9 +276,6 @@ func TestInstallTailcatBundleInstallsEveryStreamAndCleansOnce(t *testing.T) {
 	if err := c.installTailcatBundle(bundle, nil, attempt); err != nil {
 		t.Fatal(err)
 	}
-	if got := c.transferConnectionCount(); got != streams {
-		t.Fatalf("connection count = %d, want %d", got, streams)
-	}
 	for i := 1; i <= streams; i++ {
 		if c.connection(i) == nil {
 			t.Fatalf("stream %d was not installed", i-1)
@@ -165,6 +322,7 @@ func TestNegotiatedTailcatSenderSelectsAndInstallsEveryStream(t *testing.T) {
 		stop:    newStop(context.Background()),
 		tailcat: tailcatClientState{transport: provider, peerCapable: true},
 	}
+	client.tailcat.transferBytes.Store(autoTailcatThresholdBytes)
 	client.setConnection(0, comm.New(controlLocal))
 	attempt := newTailcatTestAttempt(client.connection(0))
 	peerResult := make(chan error, 1)
@@ -203,8 +361,8 @@ func TestNegotiatedTailcatSenderSelectsAndInstallsEveryStream(t *testing.T) {
 	if err := <-peerResult; err != nil {
 		t.Fatal(err)
 	}
-	if client.selectedDataTransport.Load() != selectedTransportTailcat || client.transferConnectionCount() != streams {
-		t.Fatalf("selection/count = %d/%d", client.selectedDataTransport.Load(), client.transferConnectionCount())
+	if client.selectedDataTransport.Load() != selectedTransportTailcat {
+		t.Fatalf("selected transport = %d", client.selectedDataTransport.Load())
 	}
 	for i := 1; i <= streams; i++ {
 		if client.connection(i) == nil {
@@ -266,10 +424,10 @@ func TestStrictTailcatFailureDoesNotFallback(t *testing.T) {
 		return nil, errors.New("injected Tailcat dial failure")
 	}
 	client := &Client{
-		Options: Options{Transport: TransportDERP},
+		Options: Options{Transport: TransportAuto},
 		Key:     bytes.Repeat([]byte{0x12}, 32),
 		stop:    newStop(context.Background()),
-		tailcat: tailcatClientState{transport: provider, peerCapable: true},
+		tailcat: tailcatClientState{transport: provider, peerCapable: true, peerRequired: true},
 	}
 	err := client.processTailcatOffer(message.Message{Type: message.TypeTailcatOffer, Message: "offer"}, newTailcatTestAttempt(nil))
 	if !errors.Is(err, ErrDERPConnection) {
@@ -306,6 +464,33 @@ func TestAutoTransportSkipsTailcatForOlderPeer(t *testing.T) {
 	}
 }
 
+func TestAutoTransportSkipsTailcatBelowThreshold(t *testing.T) {
+	var listenCalls atomic.Int32
+	provider := &fakeTailcatTransport{available: true}
+	provider.listen = func(context.Context, []byte, tailcattransport.PathEvent) (tailcatDataListener, error) {
+		listenCalls.Add(1)
+		return nil, errors.New("must not be called")
+	}
+	client := &Client{
+		Options: Options{
+			IsSender:     true,
+			Transport:    TransportAuto,
+			RelayAddress: "127.0.0.1:1",
+			RelayPorts:   []string{"1"},
+		},
+		conn:    make([]*comm.Comm, 2),
+		stop:    newStop(context.Background()),
+		tailcat: tailcatClientState{transport: provider, peerCapable: true},
+	}
+	client.tailcat.transferBytes.Store(autoTailcatThresholdBytes - 1)
+	if err := client.activateSecureChannel(newTailcatTestAttempt(nil)); !errors.Is(err, ErrRelayConnection) {
+		t.Fatalf("small-transfer relay error = %v", err)
+	}
+	if listenCalls.Load() != 0 {
+		t.Fatalf("Tailcat listener called %d times below the auto threshold", listenCalls.Load())
+	}
+}
+
 func TestTailcatSetupDeadlineCancelsDial(t *testing.T) {
 	provider := &fakeTailcatTransport{available: true}
 	canceled := make(chan struct{})
@@ -315,10 +500,10 @@ func TestTailcatSetupDeadlineCancelsDial(t *testing.T) {
 		return nil, ctx.Err()
 	}
 	client := &Client{
-		Options: Options{Transport: TransportDERP},
+		Options: Options{Transport: TransportAuto},
 		Key:     bytes.Repeat([]byte{0x64}, 32),
 		stop:    newStop(context.Background()),
-		tailcat: tailcatClientState{transport: provider, peerCapable: true},
+		tailcat: tailcatClientState{transport: provider, peerCapable: true, peerRequired: true},
 	}
 	attempt := newTailcatTestAttempt(nil)
 	attempt.tailcat.setupContext, attempt.tailcat.setupCancel = context.WithCancel(client.stop.ctx)

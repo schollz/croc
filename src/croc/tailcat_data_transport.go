@@ -19,6 +19,11 @@ type tailcatDataTransport interface {
 	ValidateOffer(string, []byte) error
 }
 
+type tailcatPreparingTransport interface {
+	Prepare(context.Context) (any, error)
+	ListenPrepared(context.Context, []byte, tailcattransport.PathEvent, any) (tailcatDataListener, error)
+}
+
 type productionTailcatDataTransport struct {
 	config tailcattransport.Config
 }
@@ -28,6 +33,22 @@ func defaultTailcatDataTransport() tailcatDataTransport {
 }
 
 func (productionTailcatDataTransport) Available() bool { return tailcattransport.Available() }
+
+func (p productionTailcatDataTransport) Prepare(ctx context.Context) (any, error) {
+	return tailcattransport.Prepare(ctx, p.config)
+}
+
+func (p productionTailcatDataTransport) ListenPrepared(ctx context.Context, sessionKey []byte, events tailcattransport.PathEvent, value any) (tailcatDataListener, error) {
+	prepared, ok := value.(*tailcattransport.Prepared)
+	if !ok && value != nil {
+		return nil, errors.New("invalid prepared Tailcat result")
+	}
+	listener, err := tailcattransport.ListenPrepared(ctx, sessionKey, p.config, events, prepared)
+	if err != nil {
+		return nil, err
+	}
+	return productionTailcatListener{Listener: listener}, nil
+}
 
 func (p productionTailcatDataTransport) Listen(ctx context.Context, sessionKey []byte, events tailcattransport.PathEvent) (tailcatDataListener, error) {
 	listener, err := tailcattransport.Listen(ctx, sessionKey, p.config, events)

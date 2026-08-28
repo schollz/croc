@@ -52,6 +52,14 @@ func TestDecodeRejectsMalformedCompressedMessage(t *testing.T) {
 	assert.Contains(t, err.Error(), "decompress message")
 }
 
+func TestEncodeRejectsOversizedDecompressedMessage(t *testing.T) {
+	_, err := encodeWithLimit(nil, Message{Type: TypeMessage, Message: "too large"}, 8)
+	assert.ErrorIs(t, err, ErrMessageTooLarge)
+
+	_, err = encodeWithLimit(nil, Message{Type: TypeMessage}, len(`{"t":"message"}`))
+	assert.NoError(t, err)
+}
+
 func TestPakeVersionAndConfirmationRoundTrip(t *testing.T) {
 	want := Message{
 		Type:     TypePAKEConfirm,

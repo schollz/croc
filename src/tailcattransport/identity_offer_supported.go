@@ -1,4 +1,4 @@
-//go:build !dragonfly && !netbsd
+//go:build !croc_no_tailcat && (linux || windows || darwin || freebsd || openbsd)
 
 package tailcattransport
 

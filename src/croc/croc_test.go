@@ -20,6 +20,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/schollz/croc/v11/src/comm"
 	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/schollz/croc/v11/src/message"
 	"github.com/schollz/croc/v11/src/models"
@@ -38,6 +39,28 @@ func init() {
 	go tcp.Run("debug", "127.0.0.1", "8284", "pass123")
 	go tcp.Run("debug", "127.0.0.1", "8285", "pass123")
 	time.Sleep(1 * time.Second)
+}
+
+func TestReceiveControlFrameSkipsRelayKeepalives(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	client := comm.New(clientConn)
+	server := comm.New(serverConn)
+	defer client.Close()
+	defer server.Close()
+
+	written := make(chan error, 1)
+	go func() {
+		if err := server.Send([]byte{1}); err != nil {
+			written <- err
+			return
+		}
+		written <- server.Send([]byte("control-response"))
+	}()
+
+	got, err := receiveControlFrame(client)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("control-response"), got)
+	assert.NoError(t, <-written)
 }
 
 var benchmarkChunkOffsetSum int64
@@ -724,9 +747,13 @@ func TestCrocReadme(t *testing.T) {
 		Curve:         "siec",
 		Overwrite:     true,
 		GitIgnore:     false,
+		Transport:     TransportDERP,
 	})
 	if err != nil {
 		panic(err)
+	}
+	if sender.Options.Transport != TransportRelay {
+		t.Fatalf("unavailable strict transport = %q; want relay", sender.Options.Transport)
 	}
 
 	log.Debug("setting up receiver")
@@ -769,6 +796,17 @@ func TestCrocReadme(t *testing.T) {
 	}()
 
 	wg.Wait()
+	want, err := os.ReadFile("../../README.md")
+	if err != nil {
+		t.Fatalf("read source README: %v", err)
+	}
+	got, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatalf("read received README: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatal("relay-only transfer output differs from source")
+	}
 }
 
 func TestCrocNonASCIIFileName(t *testing.T) {
@@ -1524,8 +1562,10 @@ func TestSenderAndReceiverPreferLocalRelayOverExternalRelay(t *testing.T) {
 	}
 
 	localControlAddress := net.JoinHostPort("127.0.0.1", sender.localRelayPort)
-	assert.Equal(t, localControlAddress, sender.currentRelayControlAddress())
-	_, receiverPort, err := net.SplitHostPort(receiver.currentRelayControlAddress())
+	senderAddress, _ := sender.currentRelayControlRoute()
+	receiverAddress, _ := receiver.currentRelayControlRoute()
+	assert.Equal(t, localControlAddress, senderAddress)
+	_, receiverPort, err := net.SplitHostPort(receiverAddress)
 	assert.NoError(t, err)
 	assert.Equal(t, sender.localRelayPort, receiverPort)
 	assert.NotEqual(t, externalPorts[0], receiverPort)
@@ -1978,6 +2018,22 @@ func TestReconnectRetryEligibility(t *testing.T) {
 	assert.False(t, c.canRetryTransfer(transferDisconnectError{err: fmt.Errorf("EOF")}, 0))
 }
 
+func TestRelayCapabilityFollowsCommittedRoute(t *testing.T) {
+	client := &Client{}
+	client.setRelayControlRoute("relay.example:9009", "public-capability", false)
+	address, capability := client.currentRelayControlRoute()
+	assert.Equal(t, "relay.example:9009", address)
+	assert.Equal(t, "public-capability", capability)
+	assert.False(t, client.relayControlRouteIsPeerToPeer(address))
+
+	client.setRelayControlRoute("127.0.0.1:9009", "", true)
+	address, capability = client.currentRelayControlRoute()
+	assert.Equal(t, "127.0.0.1:9009", address)
+	assert.Empty(t, capability)
+	assert.True(t, client.relayControlRouteIsPeerToPeer(address))
+	assert.False(t, client.relayControlRouteIsPeerToPeer("relay.example:9009"))
+}
+
 func TestReconnectFallsBackToRememberedRelay(t *testing.T) {
 	controlPort, stopRelay := startReconnectRelay(t)
 	defer stopRelay()
@@ -2017,7 +2073,7 @@ func TestReconnectFallsBackToRememberedRelay(t *testing.T) {
 
 	for _, client := range []*Client{sender, receiver} {
 		client.nextReconnectRoom = room
-		client.setRelayControlAddress(deadAddress)
+		client.setRelayControlRoute(deadAddress, "", false)
 		client.rememberReconnectRelayAddress(relayAddress)
 	}
 
@@ -2241,7 +2297,6 @@ func TestCtx(t *testing.T) {
 		Debug:         true,
 		RelayAddress:  "127.0.0.1:8288",
 		RelayPassword: "pass123",
-		Transport:     TransportRelay,
 		Stdout:        false,
 		NoPrompt:      true,
 		DisableLocal:  true,
@@ -2379,7 +2434,6 @@ func TestAllCtx(t *testing.T) {
 		Debug:         true,
 		RelayAddress:  "127.0.0.1:8290",
 		RelayPassword: "pass123",
-		Transport:     TransportRelay,
 		Stdout:        false,
 		NoPrompt:      true,
 		DisableLocal:  true,
@@ -2499,7 +2553,6 @@ func TestSendCtx(t *testing.T) {
 		Debug:         true,
 		RelayAddress:  "127.0.0.1:8292",
 		RelayPassword: "pass123",
-		Transport:     TransportRelay,
 		Stdout:        false,
 		NoPrompt:      true,
 		DisableLocal:  true,
@@ -2619,7 +2672,6 @@ func TestReceiveCtx(t *testing.T) {
 		Debug:         true,
 		RelayAddress:  "127.0.0.1:8294",
 		RelayPassword: "pass123",
-		Transport:     TransportRelay,
 		Stdout:        false,
 		NoPrompt:      true,
 		DisableLocal:  true,
@@ -2739,7 +2791,6 @@ func TestRunCtx(t *testing.T) {
 		Debug:         true,
 		RelayAddress:  "127.0.0.1:8296",
 		RelayPassword: "pass123",
-		Transport:     TransportRelay,
 		Stdout:        false,
 		NoPrompt:      true,
 		DisableLocal:  true,

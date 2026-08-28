@@ -2,6 +2,7 @@ package receivefs
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -40,11 +41,29 @@ func TestValidateEntriesRejectsPortableCollisions(t *testing.T) {
 		{{Path: "README", Kind: KindFile}, {Path: "readme", Kind: KindFile}},
 		{{Path: "é.txt", Kind: KindFile}, {Path: "e\u0301.txt", Kind: KindFile}},
 		{{Path: "parent", Kind: KindFile}, {Path: "parent/child", Kind: KindFile}},
+		{{Path: "parent/child", Kind: KindFile}, {Path: "parent", Kind: KindFile}},
+		{{Path: "link/child", Kind: KindFile}, {Path: "link", Kind: KindSymlink}},
+		{{Path: "link", Kind: KindSymlink}, {Path: "link/child", Kind: KindFile}},
+		{{Path: "Parent", Kind: KindFile}, {Path: "parent/child", Kind: KindFile}},
+		{{Path: "é", Kind: KindSymlink}, {Path: "e\u0301/child", Kind: KindFile}},
 		{{Path: "same", Kind: KindDirectory}, {Path: "same", Kind: KindFile}},
 	}
 	for _, entries := range tests {
 		if _, err := ValidateEntries(entries); !errors.Is(err, ErrPathCollision) {
 			t.Fatalf("ValidateEntries(%+v) error = %v, want collision", entries, err)
+		}
+	}
+}
+
+func BenchmarkValidateEntries200K(b *testing.B) {
+	entries := make([]Entry, 200_000)
+	for i := range entries {
+		entries[i] = Entry{Path: fmt.Sprintf("folder/file-%06d", i), Kind: KindFile}
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := ValidateEntries(entries); err != nil {
+			b.Fatal(err)
 		}
 	}
 }

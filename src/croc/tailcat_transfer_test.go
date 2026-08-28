@@ -118,6 +118,7 @@ func TestTailcatMultiStreamEndToEndFileTransfer(t *testing.T) {
 	}
 	senderOptions := options
 	senderOptions.IsSender = true
+	senderOptions.Transport = TransportDERP
 	sender, err := newClient(senderOptions, provider)
 	if err != nil {
 		t.Fatal(err)
@@ -166,7 +167,7 @@ func TestDefaultTailcatStreamConfigIsValid(t *testing.T) {
 	if err := config.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if config.StreamCount != 1 {
+	if config.StreamCount != 8 {
 		t.Fatalf("production Tailcat stream count = %d", config.StreamCount)
 	}
 }

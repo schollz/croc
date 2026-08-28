@@ -33,6 +33,14 @@ func bigFile() {
 	os.WriteFile("bigfile.test", bytes.Repeat([]byte("z"), bigFileSize), 0o666)
 }
 
+func benchmarkHashFile() string {
+	if filename := os.Getenv("CROC_BENCH_FILE"); filename != "" {
+		return filename
+	}
+	bigFile()
+	return "bigfile.test"
+}
+
 func TestShortenProgressFilename(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -109,10 +117,22 @@ func BenchmarkMD5(b *testing.B) {
 }
 
 func BenchmarkXXHash(b *testing.B) {
-	bigFile()
+	filename := benchmarkHashFile()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		XXHashFile("bigfile.test", false)
+		if _, err := XXHashFile(filename, false); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkImoHashV2(b *testing.B) {
+	filename := benchmarkHashFile()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := HashFile(filename, "imohash-v2"); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
