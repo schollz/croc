@@ -10,12 +10,12 @@ import (
 )
 
 // tailcatStreamBuildCount is overridden with -ldflags -X for benchmark builds.
-var tailcatStreamBuildCount = "1"
+var tailcatStreamBuildCount = "8"
 
 func tailcatBuildConfig() tailcattransport.Config {
 	count, err := strconv.Atoi(strings.TrimSpace(tailcatStreamBuildCount))
 	if err != nil || count < tailcattransport.MinStreamCount || count > tailcattransport.MaxStreamCount {
-		count = 1
+		count = 8
 	}
 	return tailcattransport.Config{StreamCount: count}
 }

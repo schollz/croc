@@ -167,7 +167,7 @@ func TestDefaultTailcatStreamConfigIsValid(t *testing.T) {
 	if err := config.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if config.StreamCount != 1 {
+	if config.StreamCount != 8 {
 		t.Fatalf("production Tailcat stream count = %d", config.StreamCount)
 	}
 }
