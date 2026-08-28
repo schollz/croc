@@ -173,13 +173,6 @@ If you prefer, you can [install Go](https://go.dev/dl/) and build from source (r
 go install github.com/schollz/croc/v11@latest
 ```
 
-Packagers can build a relay-only binary without the Tailcat userspace
-WireGuard transport by adding the `croc_no_tailcat` build tag:
-
-```bash
-go build -tags croc_no_tailcat
-```
-
 ### On Android
 
 There are F-Droid apps available:
@@ -371,31 +364,15 @@ croc --socks5 "127.0.0.1:9050" send SOMEFILE
 
 ### Data transport selection
 
-The sender chooses the data transport with `croc send --transport auto|derp|relay`.
-In the default `auto` mode, transfers whose combined logical size is below
-128 MiB use croc's relay data ports. Transfers of exactly 128 MiB or larger give
-Tailcat a 350 ms head start, then prepare relay standby channels if needed. A direct
-Tailcat path wins before commitment; otherwise the ready relay path is used,
-with DERP-backed Tailcat retained as a fallback if relay admission fails. The
-threshold is applied before compression and includes all files in the transfer.
-
-For Tailcat transfers, two compatible native clients create PAKE-bound node
+The native CLI defaults to `--transport auto`. After the normal three-word-code
+PAKE handshake, two compatible native clients create PAKE-bound Tailcat node
 identities and open one or more TCP streams over an in-process Tailscale
 userspace WireGuard network. Magicsock starts through DERP and promotes the
-connection to a direct UDP path whenever NAT traversal succeeds. The receiver
-advertises Tailcat support and follows the sender's selection; it does not have
-a `--transport` option. Browsers, older clients, local-only transfers, and
-unsupported platforms continue to use the croc relay.
-
-Tailcat is compiled for Linux, Windows, macOS, FreeBSD, and OpenBSD. Other
-platforms and builds made with `croc_no_tailcat` are relay-only. If such a build
-loads or is given an explicit `derp` transport setting, it warns once and uses
-the croc relay instead.
-
-Explicit `croc send --transport relay` always uses the croc relay. The public
-spelling `croc send --transport derp` is retained for strict Tailcat mode; it
-ignores transfer size, requires Tailcat support, and disables croc-relay
-fallback. Public DERP is best effort and may apply fairness limits; see Tailscale's
+connection to a direct UDP path whenever NAT traversal succeeds. If the peer is
+a browser, an older client, or Tailcat setup fails, both clients use croc's
+existing relay data ports. The public spelling `--transport derp` is retained;
+in strict mode it requires Tailcat support and disables croc-relay fallback.
+Public DERP is best effort and may apply fairness limits; see Tailscale's
 [DERP reference](https://tailscale.com/docs/reference/derp-servers) and
 [performance guidance](https://tailscale.com/docs/reference/troubleshooting/poor-performance-tailnet).
 
@@ -410,17 +387,11 @@ croc --curve p521 <codephrase>
 
 #### Change Hash Algorithm
 
-Native clients use `xxhash` by default for maximum interoperability with native
-and browser receivers. To opt into the faster negotiated `imohash` profile:
+For faster hashing, use the `imohash` algorithm:
 
 ```bash
 croc send --hash imohash SOMEFILE
 ```
-
-When both native peers support it, files over 8 MiB sample sixteen evenly spaced
-256 KiB windows, and a sampled match is confirmed with full xxhash on both peers
-before an existing file is skipped. Peers without progressive hash support
-automatically fall back to eager xxhash.
 
 #### Clipboard Options
 
