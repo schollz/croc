@@ -726,6 +726,13 @@ func MeasureServerLatencyContext(ctx context.Context, address string, timeout ti
 // ConnectToTCPServer will initiate a new connection
 // to the specified address, room with optional time limit
 func ConnectToTCPServer(address, password, room string, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, err error) {
+	c, banner, ipaddr, _, err = ConnectToTCPServerControl(address, password, room, timelimit...)
+	return
+}
+
+// ConnectToTCPServerControl joins a control room and returns an optional fast
+// data-admission capability advertised by an upgraded relay.
+func ConnectToTCPServerControl(address, password, room string, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, capability string, err error) {
 	defer func() { err = redact.Error(err, password, room) }()
 	if len(timelimit) > 0 {
 		c, err = comm.NewConnection(address, timelimit[0])
@@ -736,7 +743,7 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		log.Debug(err)
 		return
 	}
-	banner, ipaddr, err = HandshakeTCPServer(c, password, room)
+	banner, ipaddr, capability, err = HandshakeTCPServerCapability(c, password, room)
 	return
 }
 

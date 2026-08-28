@@ -20,6 +20,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/schollz/croc/v11/src/comm"
 	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/schollz/croc/v11/src/message"
 	"github.com/schollz/croc/v11/src/models"
@@ -38,6 +39,28 @@ func init() {
 	go tcp.Run("debug", "127.0.0.1", "8284", "pass123")
 	go tcp.Run("debug", "127.0.0.1", "8285", "pass123")
 	time.Sleep(1 * time.Second)
+}
+
+func TestReceiveControlFrameSkipsRelayKeepalives(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	client := comm.New(clientConn)
+	server := comm.New(serverConn)
+	defer client.Close()
+	defer server.Close()
+
+	written := make(chan error, 1)
+	go func() {
+		if err := server.Send([]byte{1}); err != nil {
+			written <- err
+			return
+		}
+		written <- server.Send([]byte("control-response"))
+	}()
+
+	got, err := receiveControlFrame(client)
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("control-response"), got)
+	assert.NoError(t, <-written)
 }
 
 var benchmarkChunkOffsetSum int64
@@ -1976,6 +1999,19 @@ func TestReconnectRetryEligibility(t *testing.T) {
 	c.nextReconnectRoom = "next-room"
 	c.peerReconnectVersion = 0
 	assert.False(t, c.canRetryTransfer(transferDisconnectError{err: fmt.Errorf("EOF")}, 0))
+}
+
+func TestRelayCapabilityFollowsCommittedRoute(t *testing.T) {
+	client := &Client{}
+	client.setRelayControlRoute("relay.example:9009", "public-capability")
+	address, capability := client.currentRelayControlRoute()
+	assert.Equal(t, "relay.example:9009", address)
+	assert.Equal(t, "public-capability", capability)
+
+	client.setRelayControlRoute("127.0.0.1:9009", "")
+	address, capability = client.currentRelayControlRoute()
+	assert.Equal(t, "127.0.0.1:9009", address)
+	assert.Empty(t, capability)
 }
 
 func TestReconnectFallsBackToRememberedRelay(t *testing.T) {

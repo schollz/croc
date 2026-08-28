@@ -347,6 +347,7 @@ const (
 	implicitTailcatReadyFeature = "implicit-tailcat-ready-v1"
 	selectedTransportUnset      = 0
 	selectedTransportRelay      = 2
+	localProbeResponseTimeout   = 500 * time.Millisecond
 )
 
 // ErrRelayConnection marks a failure to establish a relay control or data
@@ -628,6 +629,13 @@ func (c *Client) rememberReconnectRelayAddress(address string) {
 }
 
 func (c *Client) setRelayControlAddress(address string) {
+	c.reconnectRelayMu.Lock()
+	capability := c.relayCapability
+	c.reconnectRelayMu.Unlock()
+	c.setRelayControlRoute(address, capability)
+}
+
+func (c *Client) setRelayControlRoute(address, capability string) {
 	address = normalizeRelayAddress(address)
 	if address == "" {
 		return
@@ -635,6 +643,7 @@ func (c *Client) setRelayControlAddress(address string) {
 	c.reconnectRelayMu.Lock()
 	defer c.reconnectRelayMu.Unlock()
 	c.relayControlAddress = address
+	c.relayCapability = capability
 	c.Options.RelayAddress = address
 	reconnectRelayAddresses := []string{address}
 	for _, existing := range c.reconnectRelayAddresses {
@@ -665,6 +674,12 @@ func (c *Client) currentRelayControlAddress() string {
 	c.reconnectRelayMu.Lock()
 	defer c.reconnectRelayMu.Unlock()
 	return c.relayControlAddress
+}
+
+func (c *Client) currentRelayControlRoute() (address, capability string) {
+	c.reconnectRelayMu.Lock()
+	defer c.reconnectRelayMu.Unlock()
+	return c.relayControlAddress, c.relayCapability
 }
 
 func (c *Client) activeTransferStarted() bool {
@@ -1548,7 +1563,7 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 			log.Debugf("received unexpected handshake payload (%d bytes)", len(data))
 		}
 	}
-	c.setRelayControlAddress(localControlAddress)
+	c.setRelayControlRoute(localControlAddress, "")
 	c.setConnection(0, conn)
 	log.Debug("exchanged header message")
 	c.Options.RelayPorts = strings.Split(banner, ",")
@@ -1687,6 +1702,24 @@ func (c *Client) senderWaitForHandshake(conn *comm.Comm) error {
 	}
 }
 
+// receiveControlFrame ignores relay keepalives while a pre-transfer control
+// exchange is waiting for its next application frame. A keepalive may be
+// queued immediately after room admission, before the peer's PAKE response.
+func receiveControlFrame(conn *comm.Comm) ([]byte, error) {
+	deadline := time.Now().Add(localProbeResponseTimeout)
+	for {
+		data, err := conn.ReceiveWithDeadline(deadline)
+		if err != nil {
+			return nil, err
+		}
+		if bytes.Equal(data, []byte{1}) {
+			log.Trace("got ping")
+			continue
+		}
+		return data, nil
+	}
+}
+
 func isFatalSenderRouteError(err error) bool {
 	if err == nil {
 		return false
@@ -1730,7 +1763,7 @@ func (c *Client) reconnectRelayAttempt(handshake func(*comm.Comm) error) error {
 	}
 	var reconnectErrors []string
 	for _, address := range candidates {
-		conn, banner, ipaddr, err := tcp.ConnectToTCPServer(address, c.Options.RelayPassword, room)
+		conn, banner, ipaddr, capability, err := tcp.ConnectToTCPServerControl(address, c.Options.RelayPassword, room)
 		if err != nil {
 			reconnectErrors = append(reconnectErrors, fmt.Sprintf("%s: %v", address, err))
 			continue
@@ -1751,7 +1784,7 @@ func (c *Client) reconnectRelayAttempt(handshake func(*comm.Comm) error) error {
 			reconnectErrors = append(reconnectErrors, fmt.Sprintf("%s: %v", address, err))
 			continue
 		}
-		c.setRelayControlAddress(address)
+		c.setRelayControlRoute(address, capability)
 		c.setConnection(0, conn)
 		c.Options.RoomName = room
 		c.Options.RelayPorts = strings.Split(banner, ",")
@@ -1860,14 +1893,13 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 			// Preserve the public relay's observation before a direct route can
 			// switch the sender to its own loopback relay.
 			c.ExternalIP = route.externalIP
-			c.relayCapability = route.capability
 			c.markExternalIPReady()
 			if routeErr = c.senderWaitForHandshake(route.connection); routeErr != nil {
 				errchan <- routeErr
 				return
 			}
 
-			c.setRelayControlAddress(route.address)
+			c.setRelayControlRoute(route.address, route.capability)
 			c.setConnection(0, route.connection)
 			c.Options.RelayPorts = strings.Split(route.banner, ",")
 			if c.Options.NoMultiplexing {
@@ -2054,12 +2086,11 @@ func (c *Client) Receive() (err error) {
 		return
 	}
 	c.ExternalIP = route.externalIP
-	c.relayCapability = route.capability
 	if usingLocal {
 		c.ExternalIPConnected = route.address
 	}
 	c.setConnection(0, route.connection)
-	c.setRelayControlAddress(route.address)
+	c.setRelayControlRoute(route.address, route.capability)
 	log.Debugf("receiver connection established: %+v", c.connection(0))
 	log.Debugf("banner: %s", route.banner)
 	banner := route.banner
@@ -2096,7 +2127,7 @@ func (c *Client) Receive() (err error) {
 				log.Errorf("dataMessage send error: %v", err)
 				return
 			}
-			data, err = c.connection(0).Receive()
+			data, err = receiveControlFrame(c.connection(0))
 			if err != nil {
 				return
 			}
@@ -2145,7 +2176,7 @@ func (c *Client) Receive() (err error) {
 			if err = c.connection(0).Send(data); err != nil {
 				log.Errorf("ips send error: %v", err)
 			}
-			data, err = c.connection(0).Receive()
+			data, err = receiveControlFrame(c.connection(0))
 			if err != nil {
 				return
 			}
@@ -2200,7 +2231,7 @@ func (c *Client) Receive() (err error) {
 				log.Debugf("banner: %s", banner2)
 				// reset to the local port
 				banner = banner2
-				c.setRelayControlAddress(serverTry)
+				c.setRelayControlRoute(serverTry, "")
 				c.ExternalIPConnected = peerIP(serverTry)
 				c.ExternalIP = externalIP
 				c.connection(0).Close()
@@ -2771,7 +2802,7 @@ func (c *Client) activateRelayDataChannels(attempt *transferAttemptState) (err e
 
 func (c *Client) openRelayDataChannels(attempt *transferAttemptState, indices []int, startReceive bool) (err error) {
 	var wg sync.WaitGroup
-	relayControlAddress := c.currentRelayControlAddress()
+	relayControlAddress, relayCapability := c.currentRelayControlRoute()
 	if relayControlAddress == "" {
 		relayControlAddress = c.Options.RelayAddress
 	}
@@ -2798,7 +2829,7 @@ func (c *Client) openRelayDataChannels(attempt *transferAttemptState, indices []
 				server,
 				c.Options.RelayPassword,
 				fmt.Sprintf("%s-%d", c.Options.RoomName, j),
-				c.relayCapability,
+				relayCapability,
 			)
 			if connErr != nil {
 				errc <- connErr
