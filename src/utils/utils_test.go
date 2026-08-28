@@ -120,7 +120,9 @@ func BenchmarkXXHash(b *testing.B) {
 	filename := benchmarkHashFile()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		XXHashFile(filename, false)
+		if _, err := XXHashFile(filename, false); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -128,7 +130,9 @@ func BenchmarkImoHashV2(b *testing.B) {
 	filename := benchmarkHashFile()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		IMOHashV2File(filename)
+		if _, err := HashFile(filename, "imohash-v2"); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 

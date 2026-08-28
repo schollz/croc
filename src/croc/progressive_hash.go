@@ -10,11 +10,21 @@ import (
 	"github.com/schollz/croc/v11/src/utils"
 )
 
+const (
+	defaultHashAlgorithm     = "xxhash"
+	progressiveHashOption    = "imohash"
+	progressiveHashAlgorithm = "imohash-v2"
+)
+
+func (c *Client) progressiveHashActive() bool {
+	return c.peerProgressiveHash && c.Options.HashAlgorithm == progressiveHashAlgorithm
+}
+
 func (c *Client) processMessageFilePrepared(m message.Message) error {
-	if c.Options.IsSender || !c.peerProgressiveHash || c.Options.HashAlgorithm != "imohash-v2" {
+	if c.Options.IsSender || !c.progressiveHashActive() {
 		return errors.New("unexpected file-prepared message")
 	}
-	var prepared FilePrepared
+	var prepared filePrepared
 	if err := json.Unmarshal(m.Bytes, &prepared); err != nil {
 		return err
 	}
@@ -51,7 +61,7 @@ func (c *Client) beginExactHash(index int, filename string) error {
 		c.clearExactHashPending(index)
 		return err
 	}
-	hash, err := utils.HashFileCtx(c.stop.ctx, filename, "xxhash", !c.Options.SendingText)
+	hash, err := utils.HashFileCtx(c.stop.ctx, filename, defaultHashAlgorithm, !c.Options.SendingText)
 	if err != nil {
 		c.clearExactHashPending(index)
 		return err
@@ -85,7 +95,7 @@ func (c *Client) exactHashDecision(index int) (known, matches, pending bool) {
 }
 
 func (c *Client) processExactHashRequest(m message.Message) error {
-	if !c.Options.IsSender || !c.peerProgressiveHash || c.Options.HashAlgorithm != "imohash-v2" {
+	if !c.Options.IsSender || !c.progressiveHashActive() {
 		return errors.New("unexpected exact hash request")
 	}
 	index := m.Num
@@ -96,7 +106,7 @@ func (c *Client) processExactHashRequest(m message.Message) error {
 		return err
 	}
 	filename := sourceFilePath(c.FilesToTransfer[index])
-	hash, err := c.stop.hash(filename, "xxhash", c.FilesToTransfer[index].Size > 1e7)
+	hash, err := c.stop.hash(filename, defaultHashAlgorithm, c.FilesToTransfer[index].Size > 1e7)
 	if err != nil {
 		return err
 	}
@@ -111,7 +121,7 @@ func (c *Client) processExactHashRequest(m message.Message) error {
 }
 
 func (c *Client) processExactHashResult(m message.Message) error {
-	if c.Options.IsSender || !c.peerProgressiveHash || c.Options.HashAlgorithm != "imohash-v2" {
+	if c.Options.IsSender || !c.progressiveHashActive() {
 		return errors.New("unexpected exact hash result")
 	}
 	c.exactHashMu.Lock()

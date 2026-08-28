@@ -243,9 +243,6 @@ func TestInstallTailcatBundleInstallsEveryStreamAndCleansOnce(t *testing.T) {
 	if err := c.installTailcatBundle(bundle, nil, attempt); err != nil {
 		t.Fatal(err)
 	}
-	if got := c.transferConnectionCount(); got != streams {
-		t.Fatalf("connection count = %d, want %d", got, streams)
-	}
 	for i := 1; i <= streams; i++ {
 		if c.connection(i) == nil {
 			t.Fatalf("stream %d was not installed", i-1)
@@ -331,8 +328,8 @@ func TestNegotiatedTailcatSenderSelectsAndInstallsEveryStream(t *testing.T) {
 	if err := <-peerResult; err != nil {
 		t.Fatal(err)
 	}
-	if client.selectedDataTransport.Load() != selectedTransportTailcat || client.transferConnectionCount() != streams {
-		t.Fatalf("selection/count = %d/%d", client.selectedDataTransport.Load(), client.transferConnectionCount())
+	if client.selectedDataTransport.Load() != selectedTransportTailcat {
+		t.Fatalf("selected transport = %d", client.selectedDataTransport.Load())
 	}
 	for i := 1; i <= streams; i++ {
 		if client.connection(i) == nil {

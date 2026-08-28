@@ -19,9 +19,9 @@ import (
 )
 
 const (
-	IMOHashV2SmallFileLimit int64 = 8 * 1024 * 1024
-	IMOHashV2WindowSize     int64 = 256 * 1024
-	IMOHashV2WindowCount          = 16
+	imoHashV2SmallFileLimit int64 = 8 * 1024 * 1024
+	imoHashV2WindowSize     int64 = 256 * 1024
+	imoHashV2WindowCount          = 16
 )
 
 var imoHashV2Domain = []byte("croc-imohash-v2\x00")
@@ -156,7 +156,7 @@ func HashFileCtx(ctx context.Context, fname string, algorithm string, showProgre
 	case "imohash":
 		return IMOHashReader(sr, bar)
 	case "imohash-v2":
-		return IMOHashV2Reader(sr, bar)
+		return imoHashV2Reader(sr, bar)
 	case "md5":
 		return MD5HashReader(sr, bar)
 	case "xxhash":
@@ -168,25 +168,25 @@ func HashFileCtx(ctx context.Context, fname string, algorithm string, showProgre
 	}
 }
 
-// IMOHashV2Offsets returns the ordered sample starts used by imohash-v2. Small
+// imoHashV2Offsets returns the ordered sample starts used by imohash-v2. Small
 // files are represented by one complete-file window. Large files use sixteen
 // evenly spaced windows, including the beginning and end of the file.
-func IMOHashV2Offsets(size int64) []int64 {
-	if size <= IMOHashV2SmallFileLimit {
+func imoHashV2Offsets(size int64) []int64 {
+	if size <= imoHashV2SmallFileLimit {
 		return []int64{0}
 	}
-	last := size - IMOHashV2WindowSize
-	offsets := make([]int64, IMOHashV2WindowCount)
+	last := size - imoHashV2WindowSize
+	offsets := make([]int64, imoHashV2WindowCount)
 	for i := range offsets {
-		offsets[i] = int64(i) * last / int64(IMOHashV2WindowCount-1)
+		offsets[i] = int64(i) * last / int64(imoHashV2WindowCount-1)
 	}
 	return offsets
 }
 
-// IMOHashV2Reader computes croc's versioned progressive file digest. The
+// imoHashV2Reader computes croc's versioned progressive file digest. The
 // digest commits to the domain, original file size, and every sampled extent
 // before its bytes, so a digest cannot be reinterpreted under another layout.
-func IMOHashV2Reader(sr *io.SectionReader, bar *progressbar.ProgressBar) ([]byte, error) {
+func imoHashV2Reader(sr *io.SectionReader, bar *progressbar.ProgressBar) ([]byte, error) {
 	if sr == nil {
 		return nil, errors.New("nil section reader")
 	}
@@ -196,15 +196,22 @@ func IMOHashV2Reader(sr *io.SectionReader, bar *progressbar.ProgressBar) ([]byte
 	}
 
 	size := sr.Size()
+	if size < 0 {
+		return nil, errors.New("negative section size")
+	}
 	h := murmur3.New128()
 	_, _ = h.Write(imoHashV2Domain)
 	var encoded [8]byte
 	binary.LittleEndian.PutUint64(encoded[:], uint64(size))
 	_, _ = h.Write(encoded[:])
 
-	buffer := make([]byte, IMOHashV2WindowSize)
-	for _, offset := range IMOHashV2Offsets(size) {
-		length := min(IMOHashV2WindowSize, size-offset)
+	windowSize := imoHashV2WindowSize
+	if size <= imoHashV2SmallFileLimit {
+		windowSize = size
+	}
+	buffer := make([]byte, windowSize)
+	for _, offset := range imoHashV2Offsets(size) {
+		length := min(windowSize, size-offset)
 		if length < 0 {
 			length = 0
 		}

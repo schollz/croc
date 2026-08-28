@@ -22,7 +22,7 @@ func (r *countingReaderAt) ReadAt(p []byte, off int64) (int, error) {
 
 func hashV2Bytes(t *testing.T, data []byte) []byte {
 	t.Helper()
-	hash, err := IMOHashV2Reader(io.NewSectionReader(bytes.NewReader(data), 0, int64(len(data))), nil)
+	hash, err := imoHashV2Reader(io.NewSectionReader(bytes.NewReader(data), 0, int64(len(data))), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,15 +30,15 @@ func hashV2Bytes(t *testing.T, data []byte) []byte {
 }
 
 func TestIMOHashV2Offsets(t *testing.T) {
-	if got := IMOHashV2Offsets(1024); len(got) != 1 || got[0] != 0 {
+	if got := imoHashV2Offsets(1024); len(got) != 1 || got[0] != 0 {
 		t.Fatalf("small offsets = %v", got)
 	}
 	size := int64(16 * 1024 * 1024)
-	offsets := IMOHashV2Offsets(size)
-	if len(offsets) != IMOHashV2WindowCount {
+	offsets := imoHashV2Offsets(size)
+	if len(offsets) != imoHashV2WindowCount {
 		t.Fatalf("got %d offsets", len(offsets))
 	}
-	if offsets[0] != 0 || offsets[len(offsets)-1] != size-IMOHashV2WindowSize {
+	if offsets[0] != 0 || offsets[len(offsets)-1] != size-imoHashV2WindowSize {
 		t.Fatalf("endpoints = %d, %d", offsets[0], offsets[len(offsets)-1])
 	}
 	for i := 1; i < len(offsets); i++ {
@@ -68,29 +68,29 @@ func TestIMOHashV2Vectors(t *testing.T) {
 }
 
 func TestIMOHashV2ReadBudgetAndMutations(t *testing.T) {
-	size := int(IMOHashV2SmallFileLimit + 4*1024*1024)
+	size := int(imoHashV2SmallFileLimit + 4*1024*1024)
 	data := make([]byte, size)
 	for i := range data {
 		data[i] = byte(i*31 + 7)
 	}
 	reader := &countingReaderAt{data: data}
-	original, err := IMOHashV2Reader(io.NewSectionReader(reader, 0, int64(size)), nil)
+	original, err := imoHashV2Reader(io.NewSectionReader(reader, 0, int64(size)), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reader.read > IMOHashV2WindowSize*IMOHashV2WindowCount {
-		t.Fatalf("read %d bytes, budget %d", reader.read, IMOHashV2WindowSize*IMOHashV2WindowCount)
+	if reader.read > imoHashV2WindowSize*imoHashV2WindowCount {
+		t.Fatalf("read %d bytes, budget %d", reader.read, imoHashV2WindowSize*imoHashV2WindowCount)
 	}
 
 	sampled := append([]byte(nil), data...)
-	sampled[IMOHashV2Offsets(int64(size))[4]+123] ^= 0xff
+	sampled[imoHashV2Offsets(int64(size))[4]+123] ^= 0xff
 	if bytes.Equal(original, hashV2Bytes(t, sampled)) {
 		t.Fatal("sampled mutation was not detected")
 	}
 
 	unsampled := append([]byte(nil), data...)
-	offsets := IMOHashV2Offsets(int64(size))
-	gap := offsets[0] + IMOHashV2WindowSize + (offsets[1]-offsets[0]-IMOHashV2WindowSize)/2
+	offsets := imoHashV2Offsets(int64(size))
+	gap := offsets[0] + imoHashV2WindowSize + (offsets[1]-offsets[0]-imoHashV2WindowSize)/2
 	unsampled[gap] ^= 0xff
 	if !bytes.Equal(original, hashV2Bytes(t, unsampled)) {
 		t.Fatal("unsampled mutation unexpectedly changed progressive digest")
@@ -98,7 +98,7 @@ func TestIMOHashV2ReadBudgetAndMutations(t *testing.T) {
 }
 
 func TestIMOHashV2SmallFilesAreReadCompletely(t *testing.T) {
-	data := bytes.Repeat([]byte("abcdefgh"), 1024)
+	data := bytes.Repeat([]byte("abcdefgh"), 128*1024)
 	original := hashV2Bytes(t, data)
 	for _, index := range []int{0, len(data) / 2, len(data) - 1} {
 		changed := append([]byte(nil), data...)

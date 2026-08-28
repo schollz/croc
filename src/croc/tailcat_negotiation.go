@@ -28,20 +28,19 @@ const (
 )
 
 type tailcatClientState struct {
-	transport           tailcatDataTransport
-	peerCapable         bool
-	peerRequired        bool
-	offerReceived       bool
-	transferBytes       atomic.Int64
-	autoDecisionOnce    sync.Once
-	transferConnections atomic.Int32
-	terminal            atomic.Bool
-	bundleMu            sync.Mutex
-	bundle              *tailcatDataBundle
-	prepareOnce         sync.Once
-	prepareReady        chan struct{}
-	prepared            any
-	prepareErr          error
+	transport        tailcatDataTransport
+	peerCapable      bool
+	peerRequired     bool
+	offerReceived    bool
+	transferBytes    atomic.Int64
+	autoDecisionOnce sync.Once
+	terminal         atomic.Bool
+	bundleMu         sync.Mutex
+	bundle           *tailcatDataBundle
+	prepareOnce      sync.Once
+	prepareReady     chan struct{}
+	prepared         any
+	prepareErr       error
 }
 
 type tailcatAttemptState struct {
@@ -268,11 +267,12 @@ func (c *Client) listenTailcatData(ctx context.Context) (tailcatDataListener, er
 }
 
 func (c *Client) startTailcatPreparation() {
-	transport, ok := c.dataTransport().(tailcatPreparingTransport)
-	if !ok || !c.dataTransport().Available() || c.Options.Transport == TransportRelay || c.Options.OnlyLocal {
+	dataTransport := c.dataTransport()
+	transport, ok := dataTransport.(tailcatPreparingTransport)
+	if !ok || !dataTransport.Available() || c.Options.Transport == TransportRelay || c.Options.OnlyLocal {
 		return
 	}
-	if c.Options.Transport == TransportAuto && c.tailcat.transferBytes.Load() < 128*1024*1024 {
+	if c.Options.Transport == TransportAuto && c.tailcat.transferBytes.Load() < autoTailcatThresholdBytes {
 		return
 	}
 	c.tailcat.prepareOnce.Do(func() {
@@ -299,16 +299,6 @@ func (c *Client) validateTailcatOffer(offer string) error {
 
 func (c *Client) peerRequiresTailcat() bool {
 	return c.tailcat.peerCapable && c.tailcat.peerRequired
-}
-
-func (c *Client) transferConnectionCount() int {
-	if c.selectedDataTransport.Load() == selectedTransportTailcat {
-		if count := int(c.tailcat.transferConnections.Load()); count > 0 {
-			return count
-		}
-		return 1
-	}
-	return len(c.Options.RelayPorts)
 }
 
 func (c *Client) tailcatPathEvent(status string) {
@@ -339,7 +329,6 @@ func (c *Client) installTailcatBundle(bundle *tailcatDataBundle, cleanup func(),
 	c.tailcat.bundle = bundle
 	c.tailcat.bundleMu.Unlock()
 	c.tailcat.terminal.Store(false)
-	c.tailcat.transferConnections.Store(int32(len(bundle.connections)))
 	attempt.finishTailcatSetup()
 	if !c.Options.IsSender {
 		for i := range bundle.connections {
@@ -357,7 +346,6 @@ func (c *Client) closeTailcatBundle() {
 	if bundle != nil {
 		_ = bundle.Close()
 	}
-	c.tailcat.transferConnections.Store(0)
 }
 
 func (c *Client) activateTailcatSender(attempt *transferAttemptState) error {

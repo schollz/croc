@@ -419,15 +419,13 @@ func TestTransportRejectsInvalidValuesAndIncompatibleCLIOptions(t *testing.T) {
 	}
 }
 
-func TestSendHashDefaultsToImplicitXXHash(t *testing.T) {
+func TestSendHashDefaultsToXXHash(t *testing.T) {
 	app := newApp()
 	var algorithm string
-	var explicit bool
 	for _, command := range app.Commands {
 		if command.Name == "send" {
 			command.Action = func(ctx *cli.Context) error {
 				algorithm = ctx.String("hash")
-				explicit = ctx.IsSet("hash")
 				return nil
 			}
 		}
@@ -435,14 +433,8 @@ func TestSendHashDefaultsToImplicitXXHash(t *testing.T) {
 	if err := app.Run([]string{"croc", "send"}); err != nil {
 		t.Fatal(err)
 	}
-	if algorithm != "xxhash" || explicit {
-		t.Fatalf("default hash = %q, explicit=%v", algorithm, explicit)
-	}
-	if err := app.Run([]string{"croc", "send", "--hash", "imohash"}); err != nil {
-		t.Fatal(err)
-	}
-	if algorithm != "imohash" || !explicit {
-		t.Fatalf("explicit hash = %q, explicit=%v", algorithm, explicit)
+	if algorithm != "xxhash" {
+		t.Fatalf("default hash = %q", algorithm)
 	}
 }
 

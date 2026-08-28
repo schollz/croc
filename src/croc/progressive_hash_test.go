@@ -30,9 +30,9 @@ func progressiveTestFile(t *testing.T, directory, name string, data []byte) File
 	}
 }
 
-func progressiveTestClient() *Client {
+func progressiveTestClient(algorithm string) *Client {
 	return &Client{
-		Options:          Options{IsSender: true, HashAlgorithm: "imohash", HashExplicit: true, NoCompress: true},
+		Options:          Options{IsSender: true, HashAlgorithm: algorithm, NoCompress: true},
 		stop:             newStop(context.Background()),
 		exactHashPending: -1,
 		exactHashResults: make(map[int]bool),
@@ -45,9 +45,7 @@ func TestDefaultHashUsesXXHashWithProgressivePeer(t *testing.T) {
 		progressiveTestFile(t, directory, "first", bytes.Repeat([]byte("first"), 1024)),
 		progressiveTestFile(t, directory, "second", bytes.Repeat([]byte("second"), 1024)),
 	}
-	client := progressiveTestClient()
-	client.Options.HashAlgorithm = "xxhash"
-	client.Options.HashExplicit = false
+	client := progressiveTestClient("")
 	if err := client.sendCollectFiles(files); err != nil {
 		t.Fatal(err)
 	}
@@ -58,25 +56,25 @@ func TestDefaultHashUsesXXHashWithProgressivePeer(t *testing.T) {
 	if err := client.finalizeHashNegotiation(); err != nil {
 		t.Fatal(err)
 	}
-	if client.Options.HashAlgorithm != "xxhash" {
+	if client.Options.HashAlgorithm != defaultHashAlgorithm {
 		t.Fatalf("wire algorithm = %q", client.Options.HashAlgorithm)
 	}
 }
 
-func TestExplicitIMOHashFallsBackToXXHashForLegacyPeer(t *testing.T) {
+func TestRequestedImohashFallsBackToXXHashForLegacyPeer(t *testing.T) {
 	directory := t.TempDir()
 	file := progressiveTestFile(t, directory, "payload", bytes.Repeat([]byte("legacy"), 1024))
-	client := progressiveTestClient()
+	client := progressiveTestClient(progressiveHashOption)
 	if err := client.sendCollectFiles([]FileInfo{file}); err != nil {
 		t.Fatal(err)
 	}
 	if err := client.finalizeHashNegotiation(); err != nil {
 		t.Fatal(err)
 	}
-	if client.Options.HashAlgorithm != "xxhash" {
+	if client.Options.HashAlgorithm != defaultHashAlgorithm {
 		t.Fatalf("wire algorithm = %q", client.Options.HashAlgorithm)
 	}
-	want, err := utils.HashFile(filepath.Join(directory, file.Name), "xxhash")
+	want, err := utils.HashFile(filepath.Join(directory, file.Name), defaultHashAlgorithm)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,13 +83,13 @@ func TestExplicitIMOHashFallsBackToXXHashForLegacyPeer(t *testing.T) {
 	}
 }
 
-func TestExplicitIMOHashNegotiatesV2AndPreparesLazily(t *testing.T) {
+func TestRequestedImohashNegotiatesV2AndPreparesLazily(t *testing.T) {
 	directory := t.TempDir()
 	files := []FileInfo{
 		progressiveTestFile(t, directory, "first", bytes.Repeat([]byte("first"), 1024)),
 		progressiveTestFile(t, directory, "second", bytes.Repeat([]byte("second"), 1024)),
 	}
-	client := progressiveTestClient()
+	client := progressiveTestClient(progressiveHashOption)
 	if err := client.sendCollectFiles(files); err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +100,7 @@ func TestExplicitIMOHashNegotiatesV2AndPreparesLazily(t *testing.T) {
 	if err := client.finalizeHashNegotiation(); err != nil {
 		t.Fatal(err)
 	}
-	if client.Options.HashAlgorithm != "imohash-v2" {
+	if client.Options.HashAlgorithm != progressiveHashAlgorithm {
 		t.Fatalf("wire algorithm = %q", client.Options.HashAlgorithm)
 	}
 	if client.FilesToTransfer[1].Prepared {
@@ -113,7 +111,7 @@ func TestExplicitIMOHashNegotiatesV2AndPreparesLazily(t *testing.T) {
 func TestPreparedSourceMutationIsRejected(t *testing.T) {
 	directory := t.TempDir()
 	file := progressiveTestFile(t, directory, "payload", []byte("before"))
-	client := progressiveTestClient()
+	client := progressiveTestClient(progressiveHashOption)
 	if err := client.sendCollectFiles([]FileInfo{file}); err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +136,7 @@ func TestProgressiveHashPreservesSymlinkSemantics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := progressiveTestClient()
+	client := progressiveTestClient(progressiveHashOption)
 	file := FileInfo{Name: "link", FolderSource: directory, FolderRemote: "./", Size: info.Size(), ModTime: info.ModTime(), Mode: info.Mode()}
 	if err := client.sendCollectFiles([]FileInfo{file}); err != nil {
 		t.Fatal(err)
@@ -149,7 +147,7 @@ func TestProgressiveHashPreservesSymlinkSemantics(t *testing.T) {
 }
 
 func TestExactHashDecisionIsConsumed(t *testing.T) {
-	client := progressiveTestClient()
+	client := progressiveTestClient(progressiveHashOption)
 	client.exactHashResults[3] = false
 	known, matches, pending := client.exactHashDecision(3)
 	if !known || matches || pending {

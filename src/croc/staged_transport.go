@@ -61,15 +61,18 @@ func (c *Client) openStagedRelay(attempt *transferAttemptState, indices []int, r
 
 func (c *Client) activateStagedTransportSender(attempt *transferAttemptState) error {
 	baseCtx, baseCancel, _ := attempt.beginTailcatSetup(c.stop.ctx)
-	setupCtx, cancel := context.WithTimeout(baseCtx, c.stagedSelectionTimeout())
+	setupCtx, timeoutCancel := context.WithTimeout(baseCtx, c.stagedSelectionTimeout())
+	cancel := func() {
+		timeoutCancel()
+		baseCancel()
+	}
 	defer func() {
 		if c.selectedDataTransport.Load() == selectedTransportUnset {
 			cancel()
-			baseCancel()
 		}
 	}()
 
-	listenResult := make(chan tailcatListenResult, 1)
+	listenResult := make(chan tailcatListenResult)
 	go func() {
 		listener, err := c.listenTailcatData(setupCtx)
 		select {
@@ -103,7 +106,7 @@ func (c *Client) activateStagedTransportSender(attempt *transferAttemptState) er
 		return c.tailcatError("offer exchange", err, tokenValue)
 	}
 
-	acceptResult := make(chan tailcatDialResult, 1)
+	acceptResult := make(chan tailcatDialResult)
 	go func() {
 		bundle, err := listener.Accept(setupCtx)
 		select {

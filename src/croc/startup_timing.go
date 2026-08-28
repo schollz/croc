@@ -10,7 +10,7 @@ import (
 type startupTiming struct {
 	started time.Time
 	mu      sync.Mutex
-	seen    map[string]time.Duration
+	seen    map[string]struct{}
 }
 
 func (s *startupTiming) start() {
@@ -20,7 +20,7 @@ func (s *startupTiming) start() {
 		return
 	}
 	s.started = time.Now()
-	s.seen = map[string]time.Duration{"process-start": 0}
+	s.seen = map[string]struct{}{"process-start": {}}
 	log.Debug("startup milestone process-start elapsed=0s")
 }
 
@@ -33,23 +33,16 @@ func (s *startupTiming) mark(name string) {
 		s.started = time.Now()
 	}
 	if s.seen == nil {
-		s.seen = make(map[string]time.Duration)
+		s.seen = make(map[string]struct{})
 	}
 	if _, ok := s.seen[name]; ok {
 		s.mu.Unlock()
 		return
 	}
 	elapsed := time.Since(s.started)
-	s.seen[name] = elapsed
+	s.seen[name] = struct{}{}
 	s.mu.Unlock()
 	log.Debugf("startup milestone %s elapsed=%s", name, elapsed)
-}
-
-func (s *startupTiming) elapsed(name string) (time.Duration, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	elapsed, ok := s.seen[name]
-	return elapsed, ok
 }
 
 func (c *Client) markStartup(name string) {

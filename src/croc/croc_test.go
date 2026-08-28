@@ -1547,8 +1547,10 @@ func TestSenderAndReceiverPreferLocalRelayOverExternalRelay(t *testing.T) {
 	}
 
 	localControlAddress := net.JoinHostPort("127.0.0.1", sender.localRelayPort)
-	assert.Equal(t, localControlAddress, sender.currentRelayControlAddress())
-	_, receiverPort, err := net.SplitHostPort(receiver.currentRelayControlAddress())
+	senderAddress, _ := sender.currentRelayControlRoute()
+	receiverAddress, _ := receiver.currentRelayControlRoute()
+	assert.Equal(t, localControlAddress, senderAddress)
+	_, receiverPort, err := net.SplitHostPort(receiverAddress)
 	assert.NoError(t, err)
 	assert.Equal(t, sender.localRelayPort, receiverPort)
 	assert.NotEqual(t, externalPorts[0], receiverPort)
@@ -2053,7 +2055,7 @@ func TestReconnectFallsBackToRememberedRelay(t *testing.T) {
 
 	for _, client := range []*Client{sender, receiver} {
 		client.nextReconnectRoom = room
-		client.setRelayControlAddress(deadAddress)
+		client.setRelayControlRoute(deadAddress, "")
 		client.rememberReconnectRelayAddress(relayAddress)
 	}
 

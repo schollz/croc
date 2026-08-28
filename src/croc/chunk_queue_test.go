@@ -69,8 +69,12 @@ func TestRequestedChunkQueueHonorsResumeRanges(t *testing.T) {
 			t.Fatalf("offsets = %v, want %v", got, want)
 		}
 	}
-	claimed, completed, total := queue.counts()
-	if claimed != 3 || completed != 3 || total != 3 {
-		t.Fatalf("counts = %d/%d/%d", claimed, completed, total)
+}
+
+func TestRequestedChunkQueueCompletesEmptyRequest(t *testing.T) {
+	var done atomic.Int32
+	queue := newRequestedChunkQueue(nil, 0, 16, func() { done.Add(1) })
+	if _, ok := queue.claim(); ok || done.Load() != 1 {
+		t.Fatalf("empty queue claim=%v completion calls=%d", ok, done.Load())
 	}
 }
