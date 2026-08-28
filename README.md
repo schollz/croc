@@ -362,6 +362,10 @@ You can send files via a proxy by adding `--socks5`:
 croc --socks5 "127.0.0.1:9050" send SOMEFILE
 ```
 
+<p align="center">
+  <strong>Sponsored by <a href="https://sx.org/en/proxy/">SX.org</a>.</strong>
+</p>
+
 ### Data transport selection
 
 The native CLI defaults to `--transport auto`. After the normal three-word-code
