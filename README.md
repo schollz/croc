@@ -366,9 +366,11 @@ croc --socks5 "127.0.0.1:9050" send SOMEFILE
 
 The sender chooses the data transport with `croc send --transport auto|derp|relay`.
 In the default `auto` mode, transfers whose combined logical size is below
-310 MiB use croc's relay data ports. Transfers of exactly 310 MiB or larger try
-Tailcat and fall back to the croc relay if setup fails. The threshold is applied
-before compression and includes all files in the transfer.
+128 MiB use croc's relay data ports. Transfers of exactly 128 MiB or larger give
+Tailcat a 350 ms head start, then prepare relay standby channels if needed. A direct
+Tailcat path wins before commitment; otherwise the ready relay path is used,
+with DERP-backed Tailcat retained as a fallback if relay admission fails. The
+threshold is applied before compression and includes all files in the transfer.
 
 For Tailcat transfers, two compatible native clients create PAKE-bound node
 identities and open one or more TCP streams over an in-process Tailscale
@@ -396,10 +398,14 @@ croc --curve p521 <codephrase>
 
 #### Change Hash Algorithm
 
-For faster hashing, use the `imohash` algorithm:
+Native clients now use a versioned, multi-point `imohash` profile by default.
+Files over 8 MiB sample sixteen evenly spaced 256 KiB windows, and a sampled
+match is confirmed with full xxhash on both peers before an existing file is
+skipped. Older native and browser receivers automatically retain eager xxhash.
+To force the legacy full-file algorithm explicitly:
 
 ```bash
-croc send --hash imohash SOMEFILE
+croc send --hash xxhash SOMEFILE
 ```
 
 #### Clipboard Options
