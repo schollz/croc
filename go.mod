@@ -6,7 +6,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/coder/websocket v1.8.15
 	github.com/denisbrodbeck/machineid v1.0.1
-	github.com/fxamacker/cbor/v2 v2.9.0
+	github.com/fxamacker/cbor/v2 v2.9.3
 	github.com/google/go-cmp v0.7.0
 	github.com/kalafut/imohash v1.1.1
 	github.com/magisterquis/connectproxy v0.0.0-20200725203833-3582e84f0c9b
