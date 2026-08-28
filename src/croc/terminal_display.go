@@ -103,6 +103,45 @@ func peerIP(address string) string {
 	return strings.Trim(address, "[]")
 }
 
+func formatTransferDirection(isSender, peerToPeer bool, localAddress, peerAddress string) string {
+	local := peerIP(localAddress)
+	peer := peerIP(peerAddress)
+	if !peerToPeer || local == "" {
+		if isSender {
+			return "->" + peer
+		}
+		return "<-" + peer
+	}
+
+	if isSender {
+		return local + "->" + peer
+	}
+	return local + "<-" + peer
+}
+
+func (c *Client) peerToPeerDataPath() bool {
+	switch c.selectedDataTransport.Load() {
+	case selectedTransportRelay:
+		address, _ := c.currentRelayControlRoute()
+		return c.relayControlRouteIsPeerToPeer(address)
+	case selectedTransportTailcat:
+		c.tailcat.bundleMu.Lock()
+		defer c.tailcat.bundleMu.Unlock()
+		return tailcatBundlePath(c.tailcat.bundle) == "direct"
+	default:
+		return false
+	}
+}
+
+func (c *Client) transferDirection() string {
+	return formatTransferDirection(
+		c.Options.IsSender,
+		c.peerToPeerDataPath(),
+		c.ExternalIP,
+		c.ExternalIPConnected,
+	)
+}
+
 func preferredPeerIP(fallback, relayObserved string) string {
 	fallback = peerIP(fallback)
 	observed := peerIP(relayObserved)

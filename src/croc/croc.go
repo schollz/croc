@@ -216,6 +216,7 @@ type Client struct {
 	nextReconnectRoom          string
 	relayControlAddress        string
 	relayCapability            string
+	relayControlPeerToPeer     bool
 	reconnectRelayAddresses    []string
 	reconnectRelayMu           sync.Mutex
 	reconnectVersion           int
@@ -596,7 +597,7 @@ func (c *Client) rememberReconnectRelayAddress(address string) {
 	c.reconnectRelayAddresses = append(c.reconnectRelayAddresses, address)
 }
 
-func (c *Client) setRelayControlRoute(address, capability string) {
+func (c *Client) setRelayControlRoute(address, capability string, peerToPeer bool) {
 	address = normalizeRelayAddress(address)
 	if address == "" {
 		return
@@ -605,6 +606,7 @@ func (c *Client) setRelayControlRoute(address, capability string) {
 	defer c.reconnectRelayMu.Unlock()
 	c.relayControlAddress = address
 	c.relayCapability = capability
+	c.relayControlPeerToPeer = peerToPeer
 	c.Options.RelayAddress = address
 	reconnectRelayAddresses := []string{address}
 	for _, existing := range c.reconnectRelayAddresses {
@@ -635,6 +637,13 @@ func (c *Client) currentRelayControlRoute() (address, capability string) {
 	c.reconnectRelayMu.Lock()
 	defer c.reconnectRelayMu.Unlock()
 	return c.relayControlAddress, c.relayCapability
+}
+
+func (c *Client) relayControlRouteIsPeerToPeer(address string) bool {
+	address = normalizeRelayAddress(address)
+	c.reconnectRelayMu.Lock()
+	defer c.reconnectRelayMu.Unlock()
+	return address != "" && address == c.relayControlAddress && c.relayControlPeerToPeer
 }
 
 func (c *Client) activeTransferStarted() bool {
@@ -1386,7 +1395,7 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 			log.Debugf("received unexpected handshake payload (%d bytes)", len(data))
 		}
 	}
-	c.setRelayControlRoute(localControlAddress, "")
+	c.setRelayControlRoute(localControlAddress, "", true)
 	c.setConnection(0, conn)
 	log.Debug("exchanged header message")
 	c.Options.RelayPorts = strings.Split(banner, ",")
@@ -1607,7 +1616,7 @@ func (c *Client) reconnectRelayAttempt(handshake func(*comm.Comm) error) error {
 			reconnectErrors = append(reconnectErrors, fmt.Sprintf("%s: %v", address, err))
 			continue
 		}
-		c.setRelayControlRoute(address, capability)
+		c.setRelayControlRoute(address, capability, c.relayControlRouteIsPeerToPeer(address))
 		c.setConnection(0, conn)
 		c.Options.RoomName = room
 		c.Options.RelayPorts = strings.Split(banner, ",")
@@ -1722,7 +1731,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 				return
 			}
 
-			c.setRelayControlRoute(route.address, route.capability)
+			c.setRelayControlRoute(route.address, route.capability, false)
 			c.setConnection(0, route.connection)
 			c.Options.RelayPorts = strings.Split(route.banner, ",")
 			if c.Options.NoMultiplexing {
@@ -1913,7 +1922,7 @@ func (c *Client) Receive() (err error) {
 		c.ExternalIPConnected = route.address
 	}
 	c.setConnection(0, route.connection)
-	c.setRelayControlRoute(route.address, route.capability)
+	c.setRelayControlRoute(route.address, route.capability, usingLocal || isIPset)
 	log.Debugf("receiver connection established: %+v", c.connection(0))
 	log.Debugf("banner: %s", route.banner)
 	banner := route.banner
@@ -2054,7 +2063,7 @@ func (c *Client) Receive() (err error) {
 				log.Debugf("banner: %s", banner2)
 				// reset to the local port
 				banner = banner2
-				c.setRelayControlRoute(serverTry, "")
+				c.setRelayControlRoute(serverTry, "", true)
 				c.ExternalIPConnected = peerIP(serverTry)
 				c.ExternalIP = externalIP
 				c.connection(0).Close()
@@ -2394,7 +2403,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 		fmt.Fprintf(output, "\rReceiving %s (%s) \n", fname, utils.ByteCountDecimal(totalSize))
 	}
 	output, _ := termui.Output(os.Stderr)
-	fmt.Fprintf(output, "\nReceiving (<-%s)\n", peerIP(c.ExternalIPConnected))
+	fmt.Fprintf(output, "\nReceiving (%s)\n", c.transferDirection())
 
 	for i := 0; i < len(c.EmptyFoldersToTransfer); i += 1 {
 		root, rootErr := c.receiveFilesystem()
@@ -3325,7 +3334,7 @@ func (c *Client) updateState(attempt *transferAttemptState) (err error) {
 
 		if !c.firstSend {
 			output, _ := termui.Output(os.Stderr)
-			fmt.Fprintf(output, "\nSending (->%s)\n", peerIP(c.ExternalIPConnected))
+			fmt.Fprintf(output, "\nSending (%s)\n", c.transferDirection())
 			c.firstSend = true
 			// if there are empty files, show them as already have been transferred now
 			for i := range c.FilesToTransfer {

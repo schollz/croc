@@ -2005,15 +2005,18 @@ func TestReconnectRetryEligibility(t *testing.T) {
 
 func TestRelayCapabilityFollowsCommittedRoute(t *testing.T) {
 	client := &Client{}
-	client.setRelayControlRoute("relay.example:9009", "public-capability")
+	client.setRelayControlRoute("relay.example:9009", "public-capability", false)
 	address, capability := client.currentRelayControlRoute()
 	assert.Equal(t, "relay.example:9009", address)
 	assert.Equal(t, "public-capability", capability)
+	assert.False(t, client.relayControlRouteIsPeerToPeer(address))
 
-	client.setRelayControlRoute("127.0.0.1:9009", "")
+	client.setRelayControlRoute("127.0.0.1:9009", "", true)
 	address, capability = client.currentRelayControlRoute()
 	assert.Equal(t, "127.0.0.1:9009", address)
 	assert.Empty(t, capability)
+	assert.True(t, client.relayControlRouteIsPeerToPeer(address))
+	assert.False(t, client.relayControlRouteIsPeerToPeer("relay.example:9009"))
 }
 
 func TestReconnectFallsBackToRememberedRelay(t *testing.T) {
@@ -2055,7 +2058,7 @@ func TestReconnectFallsBackToRememberedRelay(t *testing.T) {
 
 	for _, client := range []*Client{sender, receiver} {
 		client.nextReconnectRoom = room
-		client.setRelayControlRoute(deadAddress, "")
+		client.setRelayControlRoute(deadAddress, "", false)
 		client.rememberReconnectRelayAddress(relayAddress)
 	}
 

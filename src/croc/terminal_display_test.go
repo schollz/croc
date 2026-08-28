@@ -61,6 +61,32 @@ func TestPeerIP(t *testing.T) {
 	}
 }
 
+func TestFormatTransferDirection(t *testing.T) {
+	tests := []struct {
+		name       string
+		isSender   bool
+		peerToPeer bool
+		local      string
+		peer       string
+		want       string
+	}{
+		{name: "sender relay", isSender: true, local: "198.51.100.10:4000", peer: "203.0.113.20:5000", want: "->203.0.113.20"},
+		{name: "receiver relay", local: "198.51.100.10:4000", peer: "203.0.113.20:5000", want: "<-203.0.113.20"},
+		{name: "sender peer-to-peer", isSender: true, peerToPeer: true, local: "198.51.100.10:4000", peer: "203.0.113.20:5000", want: "198.51.100.10->203.0.113.20"},
+		{name: "receiver peer-to-peer", peerToPeer: true, local: "198.51.100.10:4000", peer: "203.0.113.20:5000", want: "198.51.100.10<-203.0.113.20"},
+		{name: "peer-to-peer without local endpoint", isSender: true, peerToPeer: true, peer: "203.0.113.20:5000", want: "->203.0.113.20"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := formatTransferDirection(test.isSender, test.peerToPeer, test.local, test.peer)
+			if got != test.want {
+				t.Fatalf("transfer direction = %q; want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestPreferredPeerIP(t *testing.T) {
 	if got := preferredPeerIP("10.0.0.2:9009", "198.51.100.23:43760"); got != "198.51.100.23" {
 		t.Fatalf("public peer IP = %q; want 198.51.100.23", got)
