@@ -20,12 +20,12 @@ import (
 	"time"
 	"unicode/utf8"
 
+	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/schollz/croc/v11/src/message"
 	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/pakekey"
 	"github.com/schollz/croc/v11/src/tcp"
 	"github.com/schollz/croc/v11/src/utils"
-	log "github.com/schollz/logger"
 	"github.com/schollz/peerdiscovery"
 	"github.com/stretchr/testify/assert"
 )
@@ -1123,27 +1123,29 @@ func TestCrocSymlink(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
+	var senderErr, receiverErr error
 	go func() {
+		defer wg.Done()
 		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{pathName}, false, false, []string{})
 		if errGet != nil {
-			t.Errorf("failed to get minimal info: %v", errGet)
+			senderErr = fmt.Errorf("failed to get minimal info: %w", errGet)
+			return
 		}
-		err = sender.Send(filesInfo, emptyFolders, totalNumberFolders)
-		if err != nil {
-			t.Errorf("send failed: %v", err)
-		}
-		wg.Done()
+		senderErr = sender.Send(filesInfo, emptyFolders, totalNumberFolders)
 	}()
 	time.Sleep(100 * time.Millisecond)
 	go func() {
-		err = receiver.Receive()
-		if err != nil {
-			t.Errorf("receive failed: %v", err)
-		}
-		wg.Done()
+		defer wg.Done()
+		receiverErr = receiver.Receive()
 	}()
 
 	wg.Wait()
+	if senderErr != nil {
+		t.Errorf("send failed: %v", senderErr)
+	}
+	if receiverErr != nil {
+		t.Errorf("receive failed: %v", receiverErr)
+	}
 
 	linkPath := filepath.Join("link-in-folder", "README.link")
 	s, err := os.Readlink(linkPath)
@@ -1721,28 +1723,24 @@ func TestCleanUp(t *testing.T) {
 	}
 }
 
-func hashed(c *Client) bool {
-	if len(c.FilesToTransfer) == 0 {
-		return false
-	}
-	for _, file := range c.FilesToTransfer {
-		if len(file.Hash) == 0 {
-			return false
-		}
-	}
-	return true
+func waitHashed(sender *Client) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return sender.waitForFilesReady(ctx)
 }
 
-func waitHashed(sender *Client) (err error) {
-	err = fmt.Errorf("not hashed")
-	for range 300 { // Max 3 seconds
-		if hashed(sender) {
-			time.Sleep(100 * time.Millisecond)
-			return nil
-		}
-		time.Sleep(10 * time.Millisecond)
+func transferSetupComplete(sender, receiver *Client) bool {
+	senderState := sender.lifecycleSnapshot()
+	receiverState := receiver.lifecycleSnapshot()
+	if !senderState.ChannelSecured || !receiverState.ChannelSecured {
+		return false
 	}
-	return
+	if senderState.FileInfoTransferred && receiverState.FileInfoTransferred {
+		log.Warn("Step2FileInfoTransferred reached")
+		return true
+	}
+	log.Warn("Step1ChannelSecured reached")
+	return false
 }
 
 func createTestFile(t *testing.T, size int) (string, func()) {
@@ -1909,13 +1907,13 @@ func runReconnectDropTest(t *testing.T, connIndex int, disableReceiverReconnect 
 	go func() {
 		defer close(dropped)
 		ok := waitForReconnectCondition(5*time.Second, func() bool {
-			return sender.Step4FileTransferred && len(sender.conn) > connIndex && sender.conn[connIndex] != nil
+			return sender.lifecycleSnapshot().FileTransferred && sender.connection(connIndex) != nil
 		})
 		if !ok {
 			return
 		}
 		time.Sleep(150 * time.Millisecond)
-		sender.conn[connIndex].Close()
+		sender.connection(connIndex).Close()
 	}()
 
 	var firstErr error
@@ -2176,13 +2174,8 @@ func TestBase(t *testing.T) {
 
 	go func() {
 		for range 3000 {
-			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
-				time.Sleep(time.Millisecond)
-				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
-					log.Warn("Step2FileInfoTransferred reached")
-					return
-				}
-				log.Warn("Step1ChannelSecured reached")
+			if transferSetupComplete(sender, receiver) {
+				return
 			}
 			time.Sleep(time.Millisecond)
 		}
@@ -2295,13 +2288,8 @@ func TestCtx(t *testing.T) {
 
 	go func() {
 		for range 3000 {
-			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
-				time.Sleep(time.Millisecond)
-				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
-					log.Warn("Step2FileInfoTransferred reached")
-					return
-				}
-				log.Warn("Step1ChannelSecured reached")
+			if transferSetupComplete(sender, receiver) {
+				return
 			}
 			time.Sleep(time.Millisecond)
 		}
@@ -2438,14 +2426,9 @@ func TestAllCtx(t *testing.T) {
 
 	go func() {
 		for range 3000 {
-			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
-				time.Sleep(time.Millisecond)
-				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
-					log.Warn("Step2FileInfoTransferred reached")
-					cancel()
-					return
-				}
-				log.Warn("Step1ChannelSecured reached")
+			if transferSetupComplete(sender, receiver) {
+				cancel()
+				return
 			}
 			time.Sleep(time.Millisecond)
 		}
@@ -2563,14 +2546,9 @@ func TestSendCtx(t *testing.T) {
 
 	go func() {
 		for range 3000 {
-			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
-				time.Sleep(time.Millisecond)
-				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
-					log.Warn("Step2FileInfoTransferred reached")
-					cancel2()
-					return
-				}
-				log.Warn("Step1ChannelSecured reached")
+			if transferSetupComplete(sender, receiver) {
+				cancel2()
+				return
 			}
 			time.Sleep(time.Millisecond)
 		}
@@ -2688,14 +2666,9 @@ func TestReceiveCtx(t *testing.T) {
 
 	go func() {
 		for range 3000 {
-			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
-				time.Sleep(time.Millisecond)
-				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
-					log.Warn("Step2FileInfoTransferred reached")
-					cancel2()
-					return
-				}
-				log.Warn("Step1ChannelSecured reached")
+			if transferSetupComplete(sender, receiver) {
+				cancel2()
+				return
 			}
 			time.Sleep(time.Millisecond)
 		}
@@ -2813,14 +2786,9 @@ func TestRunCtx(t *testing.T) {
 
 	go func() {
 		for range 3000 {
-			if sender.Step1ChannelSecured && receiver.Step1ChannelSecured {
-				time.Sleep(time.Millisecond)
-				if sender.Step2FileInfoTransferred && receiver.Step2FileInfoTransferred {
-					log.Warn("Step2FileInfoTransferred reached")
-					cancel2()
-					return
-				}
-				log.Warn("Step1ChannelSecured reached")
+			if transferSetupComplete(sender, receiver) {
+				cancel2()
+				return
 			}
 			time.Sleep(time.Millisecond)
 		}

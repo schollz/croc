@@ -3,22 +3,25 @@ package croc
 
 import (
 	"context"
+	"sync"
 	"time"
 
+	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/schollz/croc/v11/src/message"
 	"github.com/schollz/croc/v11/src/tcp"
 	"github.com/schollz/croc/v11/src/utils"
-	log "github.com/schollz/logger"
 )
 
 // stop manages graceful shutdown
 type stop struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	stopChan chan struct{} //peerdiscovery
-	run      func(debugLevel string, host string, port string, password string, banner ...string) (err error)
-	hash     func(fname string, algorithm string, showProgress ...bool) (hash256 []byte, err error)
-	gui      bool
+	ctx        context.Context
+	cancel     context.CancelFunc
+	cancelOnce sync.Once
+	doneOnce   sync.Once
+	stopChan   chan struct{} //peerdiscovery
+	run        func(debugLevel string, host string, port string, password string, banner ...string) (err error)
+	hash       func(fname string, algorithm string, showProgress ...bool) (hash256 []byte, err error)
+	gui        bool
 }
 
 // newStop creates a new stop manager instance
@@ -38,9 +41,11 @@ func newStop(ctx context.Context) *stop {
 
 func (s *stop) done() {
 	<-s.ctx.Done()
-	time.Sleep(time.Millisecond)
-	close(s.stopChan)
-	log.Trace("croc done")
+	s.doneOnce.Do(func() {
+		time.Sleep(time.Millisecond)
+		close(s.stopChan)
+		log.Trace("croc done")
+	})
 }
 
 // NewCtx creates a client with context support
@@ -85,17 +90,17 @@ func (s *stop) ctxErr() error {
 
 // Cancel initiates interruption of my loops and goroutines
 func (s *stop) Cancel() {
-	log.Trace("croc Cancel")
-	if s.cancel != nil {
+	s.cancelOnce.Do(func() {
+		log.Trace("croc Cancel")
 		s.cancel()
-		s.cancel = nil
-	}
+	})
 }
 
 // SendError tells the peer to interrupt their loops and goroutines
 func (c *Client) SendError() {
-	if c.Key != nil && len(c.conn) > 0 && c.conn[0] != nil {
-		message.Send(c.conn[0], c.Key, message.Message{
+	control := c.connection(0)
+	if c.Key != nil && control != nil {
+		message.Send(control, c.Key, message.Message{
 			Type:    message.TypeError,
 			Message: "refusing files",
 		})

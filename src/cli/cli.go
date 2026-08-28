@@ -18,6 +18,7 @@ import (
 	"github.com/schollz/croc/v11/src/codephrase"
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/croc"
+	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/publicrelay"
 	"github.com/schollz/croc/v11/src/storeclient"
@@ -25,7 +26,6 @@ import (
 	"github.com/schollz/croc/v11/src/termui"
 	"github.com/schollz/croc/v11/src/utils"
 	buildversion "github.com/schollz/croc/v11/src/version"
-	log "github.com/schollz/logger"
 	"github.com/schollz/pake/v3"
 )
 

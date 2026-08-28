@@ -25,7 +25,7 @@ describe("Blog", () => {
     );
     expect(
       screen.getByRole("heading", {
-        name: "40 ways to send a file",
+        name: "39 ways to send a file",
       }),
     ).toBeVisible();
     expect(
@@ -63,7 +63,7 @@ describe("Blog", () => {
     ).toBeVisible();
     expect(screen.getByText("FIELD NOTE 10")).toBeVisible();
     expect(
-      screen.getByText(/the alternatives took 1\.3× to 21\.7× as long/),
+      screen.getByText(/the alternatives took 1\.6× to 21\.7× as long/),
     ).toBeVisible();
     expect(screen.getByRole("heading", { name: "TL;DR" })).toBeVisible();
     expect(
@@ -75,7 +75,7 @@ describe("Blog", () => {
     expect(screen.getByRole("cell", { name: "42.4 s" })).toBeVisible();
     expect(screen.getByRole("cell", { name: "91.7 s" })).toBeVisible();
     expect(screen.getByRole("cell", { name: "156.5 s" })).toBeVisible();
-    expect(screen.getByRole("cell", { name: "9.6 s" })).toBeVisible();
+    expect(screen.getByRole("cell", { name: "11.5 s" })).toBeVisible();
     expect(screen.getByRole("cell", { name: "110.0 s" })).toBeVisible();
     expect(screen.getByRole("cell", { name: "116.6 s" })).toBeVisible();
     expect(screen.getByRole("cell", { name: "231.4 s" })).toBeVisible();
@@ -106,7 +106,7 @@ describe("Blog", () => {
     const commandSummaries = document.querySelectorAll(
       "details.blog-code-details > summary",
     );
-    expect(commandSummaries).toHaveLength(8);
+    expect(commandSummaries).toHaveLength(7);
     expect(commandSummaries[0]).toHaveTextContent("croc — 7.2 seconds");
     expect(commandSummaries[0].parentElement).not.toHaveAttribute("open");
     (commandSummaries[0] as HTMLElement).click();
@@ -165,7 +165,7 @@ describe("Blog", () => {
         name: "How two computers behind routers find a direct path",
       }),
     ).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Why QUIC is the direct stream" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Why WireGuard carries the direct stream" })).toBeVisible();
     expect(screen.getByRole("link", { name: "public DERP network" })).toHaveAttribute(
       "href",
       "https://tailscale.com/docs/reference/derp-servers",
@@ -174,9 +174,9 @@ describe("Blog", () => {
       "href",
       "https://tailscale.com/blog/how-nat-traversal-works",
     );
-    expect(screen.getByRole("link", { name: "QUIC" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "WireGuard" })).toHaveAttribute(
       "href",
-      "https://www.rfc-editor.org/rfc/rfc9000.html",
+      "https://www.wireguard.com/protocol/",
     );
     expect(screen.getByRole("cell", { name: "sender ↔ receiver" })).toBeVisible();
     expect(screen.getByRole("link", { name: "v11.3.0" })).toHaveAttribute(
@@ -185,7 +185,7 @@ describe("Blog", () => {
     );
     expect(
       screen.getByRole("img", {
-        name: /direct QUIC, public DERP fallback/i,
+        name: /Tailcat direct transport, public DERP fallback/i,
       }),
     ).toHaveClass("blog-article-visual-cover");
   });
@@ -268,13 +268,13 @@ describe("Blog", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: "40 ways to send a file",
+        name: "39 ways to send a file",
       }),
     ).toBeVisible();
     expect(screen.getAllByRole("table")).toHaveLength(2);
-    expect(screen.getAllByRole("row")).toHaveLength(82);
+    expect(screen.getAllByRole("row")).toHaveLength(80);
     const [capabilityTable, architectureTable] = screen.getAllByRole("table");
-    for (const tool of ["derphole", "wormhole-william", "Floe", "AirPipe"]) {
+    for (const tool of ["wormhole-william", "Floe", "AirPipe"]) {
       expect(screen.getAllByRole("rowheader", { name: tool })).toHaveLength(2);
     }
     expect(
@@ -333,15 +333,15 @@ describe("Blog", () => {
     const toolLinks = document.querySelectorAll(
       ".blog-comparison-table tbody th a",
     );
-    expect(toolLinks).toHaveLength(80);
+    expect(toolLinks).toHaveLength(78);
     expect(
       new Set([...toolLinks].map((link) => link.textContent)).size,
-    ).toBe(40);
+    ).toBe(39);
     expect(
       document.querySelectorAll(
         ".blog-comparison-table td.is-indicator-column .blog-status-indicator",
       ),
-    ).toHaveLength(280);
+    ).toHaveLength(273);
     expect(
       screen.getByRole("img", {
         name: /File transfer tools comparison showing one file connected/i,
@@ -351,7 +351,7 @@ describe("Blog", () => {
       "/blog/images/compare-file-transfer-tools.webp",
     );
     expect(document.title).toBe(
-      "40 Ways to Send a File: croc and 39 Alternatives",
+      "39 Ways to Send a File: croc and 38 Alternatives",
     );
     expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
       "href",
@@ -395,8 +395,8 @@ describe("Blog", () => {
       expect.arrayContaining([
         expect.objectContaining({
           "@type": "BlogPosting",
-          headline: "40 ways to send a file",
-          wordCount: 2347,
+          headline: "39 ways to send a file",
+          wordCount: 2323,
         }),
       ]),
     );

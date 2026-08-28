@@ -30,14 +30,14 @@
     {
       "slug": "croc-v11-3-release-update",
       "title": "croc v11.3 goes peer-to-peer",
-      "seoTitle": "croc v11.3: Direct QUIC, Public DERP, and Relay Fallback",
-      "description": "croc v11.3 adds direct CLI-to-CLI QUIC, uses public Tailscale DERP for rendezvous and relay, and falls back to croc relays.",
+      "seoTitle": "croc v11.3: Tailcat WireGuard, DERP, and Relay Fallback",
+      "description": "croc v11.3 adds PAKE-bound Tailcat WireGuard streams, promotes them directly with magicsock, uses DERP as fallback, and retains croc relays.",
       "kind": "update",
       "category": "Release notes",
       "publishedAt": "2026-08-24",
       "modifiedAt": "2026-08-24",
-      "wordCount": 1479,
-      "readingMinutes": 8,
+      "wordCount": 1450,
+      "readingMinutes": 7,
       "relatedSlugs": [
         "croc-v11-release-update",
         "how-croc-moves-a-file"
@@ -47,24 +47,24 @@
         "croc release notes",
         "peer-to-peer file transfer",
         "DERP file transfer",
-        "QUIC file transfer",
+        "WireGuard file transfer",
         "UDP hole punching",
         "Tailscale DERP",
         "command-line file transfer"
       ],
       "image": "/blog/images/croc-v11-3-release-update.webp",
       "socialImage": "/blog/images/croc-v11-3-release-update.jpg",
-      "imageAlt": "Three black-and-white panels show direct QUIC, public DERP fallback, and the established croc relay path."
+      "imageAlt": "Three black-and-white panels show Tailcat direct transport, public DERP fallback, and the established croc relay path."
     },
     {
       "slug": "croc-cli-speed-comparison",
       "title": "How fast is croc?",
-      "seoTitle": "croc Speed Test: Eight CLI File-Transfer Tools Compared",
-      "description": "I timed eight command-line file-transfer tools between two servers using a 303 MB audio file and a folder of 64 photos.",
+      "seoTitle": "croc Speed Test: Seven CLI File-Transfer Tools Compared",
+      "description": "I timed seven command-line file-transfer tools between two servers using a 303 MB audio file and a folder of 64 photos.",
       "category": "Benchmarks",
       "publishedAt": "2026-08-23",
       "modifiedAt": "2026-08-23",
-      "wordCount": 1127,
+      "wordCount": 1055,
       "readingMinutes": 6,
       "relatedSlugs": [
         "compare-file-transfer-tools",
@@ -78,7 +78,6 @@
         "WebWormhole speed",
         "Floe speed",
         "AirPipe speed",
-        "derphole speed",
         "wormhole-william speed",
         "file transfer protocol",
         "WebRTC file transfer",
@@ -311,13 +310,13 @@
     },
     {
       "slug": "compare-file-transfer-tools",
-      "title": "40 ways to send a file",
-      "seoTitle": "40 Ways to Send a File: croc and 39 Alternatives",
-      "description": "Compare croc with 39 file transfer tools by resume support, account requirements, browser and CLI transfers, encryption, availability, and transfer paths.",
+      "title": "39 ways to send a file",
+      "seoTitle": "39 Ways to Send a File: croc and 38 Alternatives",
+      "description": "Compare croc with 38 file transfer tools by resume support, account requirements, browser and CLI transfers, encryption, availability, and transfer paths.",
       "category": "Field guide",
       "publishedAt": "2026-08-12",
       "modifiedAt": "2026-08-23",
-      "wordCount": 2347,
+      "wordCount": 2323,
       "readingMinutes": 12,
       "relatedSlugs": [
         "browser-meets-terminal",
@@ -332,7 +331,6 @@
         "peer-to-peer file transfer",
         "cross-platform file sharing",
         "no account file transfer",
-        "derphole file transfer",
         "wormhole-william",
         "Floe file transfer",
         "AirPipe file transfer"

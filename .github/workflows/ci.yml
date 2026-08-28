@@ -63,8 +63,8 @@ jobs:
       - name: Race-test relay admission
         run: go test -race ./src/tcp -run 'Test(AdmissionLimiter|RoomDenials|RelayAdmissionLimits|CanonicalSource|WithAdmissionLimits)'
 
-      - name: Race-test DERP transport lifecycle
-        run: go test -race ./src/derptransport
+      - name: Race-test Croc and Tailcat transport lifecycle
+        run: go test -race ./src/logger ./src/croc ./src/tcp ./src/tailcattransport ./internal/tailcat
 
   security-fuzz-smoke:
     name: Security fuzz smoke tests
@@ -113,9 +113,9 @@ jobs:
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $COMMON -ldflags "$SMALL" -o croc-linux-amd64
           CGO_ENABLED=0 GOOS=linux GOARCH=386 go build $COMMON -ldflags "$SMALL" -o croc-linux-386
           GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go build $COMMON -ldflags "$SMALL" -o croc-linux-arm5
-          CGO_ENABLED=0 GOOS=linux GOARCH=386 go test -c -o /tmp/derptransport-linux-386.test ./src/derptransport
-          GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go test -c -o /tmp/derptransport-linux-arm5.test ./src/derptransport
-          go test -tags croc_attach_bench ./src/croc -run '^$'
+          CGO_ENABLED=0 GOOS=linux GOARCH=386 go test -c -o /tmp/tailcattransport-linux-386.test ./src/tailcattransport
+          GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go test -c -o /tmp/tailcattransport-linux-arm5.test ./src/tailcattransport
+          go test -tags croc_tailcat_bench ./src/croc -run '^$'
 
       - name: Build remaining platform targets
         if: github.event_name != 'pull_request'

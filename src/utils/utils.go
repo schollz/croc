@@ -27,9 +27,9 @@ import (
 	"github.com/kalafut/imohash"
 	"github.com/minio/highwayhash"
 	"github.com/schollz/croc/v11/src/codephrase"
+	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/schollz/croc/v11/src/receivefs"
 	"github.com/schollz/croc/v11/src/termui"
-	log "github.com/schollz/logger"
 	"github.com/schollz/progressbar/v3"
 )
 

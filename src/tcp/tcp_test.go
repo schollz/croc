@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/schollz/logger"
+	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/stretchr/testify/assert"
 )
 
