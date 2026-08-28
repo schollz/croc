@@ -4,7 +4,9 @@ package utils
 import (
 	"context"
 	"crypto/md5"
+	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,7 +15,16 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/minio/highwayhash"
 	"github.com/schollz/progressbar/v3"
+	"github.com/twmb/murmur3"
 )
+
+const (
+	IMOHashV2SmallFileLimit int64 = 8 * 1024 * 1024
+	IMOHashV2WindowSize     int64 = 256 * 1024
+	IMOHashV2WindowCount          = 16
+)
+
+var imoHashV2Domain = []byte("croc-imohash-v2\x00")
 
 // ctxFile wraps os.File with context cancellation support.
 type ctxFile struct {
@@ -116,7 +127,7 @@ func HashFileCtx(ctx context.Context, fname string, algorithm string, showProgre
 	if shouldShowHashProgress(doShowProgress, fi.Size()) {
 		fnameShort := shortenProgressFilename(fname)
 
-		if algorithm == "imohash" {
+		if algorithm == "imohash" || algorithm == "imohash-v2" {
 			// Spinner for imohash (indeterminate progress, max = -1)
 			bar = progressbar.NewOptions64(-1,
 				progressbar.OptionSetWriter(os.Stderr),
@@ -144,6 +155,8 @@ func HashFileCtx(ctx context.Context, fname string, algorithm string, showProgre
 	switch algorithm {
 	case "imohash":
 		return IMOHashReader(sr, bar)
+	case "imohash-v2":
+		return IMOHashV2Reader(sr, bar)
 	case "md5":
 		return MD5HashReader(sr, bar)
 	case "xxhash":
@@ -153,6 +166,62 @@ func HashFileCtx(ctx context.Context, fname string, algorithm string, showProgre
 	default:
 		return nil, fmt.Errorf("unsupported algorithm: %s", algorithm)
 	}
+}
+
+// IMOHashV2Offsets returns the ordered sample starts used by imohash-v2. Small
+// files are represented by one complete-file window. Large files use sixteen
+// evenly spaced windows, including the beginning and end of the file.
+func IMOHashV2Offsets(size int64) []int64 {
+	if size <= IMOHashV2SmallFileLimit {
+		return []int64{0}
+	}
+	last := size - IMOHashV2WindowSize
+	offsets := make([]int64, IMOHashV2WindowCount)
+	for i := range offsets {
+		offsets[i] = int64(i) * last / int64(IMOHashV2WindowCount-1)
+	}
+	return offsets
+}
+
+// IMOHashV2Reader computes croc's versioned progressive file digest. The
+// digest commits to the domain, original file size, and every sampled extent
+// before its bytes, so a digest cannot be reinterpreted under another layout.
+func IMOHashV2Reader(sr *io.SectionReader, bar *progressbar.ProgressBar) ([]byte, error) {
+	if sr == nil {
+		return nil, errors.New("nil section reader")
+	}
+	if bar != nil {
+		_ = bar.Add(0)
+		defer bar.Finish()
+	}
+
+	size := sr.Size()
+	h := murmur3.New128()
+	_, _ = h.Write(imoHashV2Domain)
+	var encoded [8]byte
+	binary.LittleEndian.PutUint64(encoded[:], uint64(size))
+	_, _ = h.Write(encoded[:])
+
+	buffer := make([]byte, IMOHashV2WindowSize)
+	for _, offset := range IMOHashV2Offsets(size) {
+		length := min(IMOHashV2WindowSize, size-offset)
+		if length < 0 {
+			length = 0
+		}
+		binary.LittleEndian.PutUint64(encoded[:], uint64(offset))
+		_, _ = h.Write(encoded[:])
+		binary.LittleEndian.PutUint64(encoded[:], uint64(length))
+		_, _ = h.Write(encoded[:])
+		if length == 0 {
+			continue
+		}
+		window := buffer[:length]
+		if _, err := sr.ReadAt(window, offset); err != nil {
+			return nil, err
+		}
+		_, _ = h.Write(window)
+	}
+	return h.Sum(nil), nil
 }
 
 // IMOHashReader returns imohash for a SectionReader.

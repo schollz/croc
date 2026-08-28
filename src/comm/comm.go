@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/magisterquis/connectproxy"
@@ -32,6 +33,7 @@ const messageBodyReadTimeout = 10 * time.Minute
 // Comm is some basic TCP communication
 type Comm struct {
 	connection net.Conn
+	writeMu    sync.Mutex
 }
 
 // NewConnection gets a new comm to a tcp address
@@ -128,6 +130,8 @@ func (c *Comm) Close() {
 }
 
 func (c *Comm) Write(b []byte) (n int, err error) {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 	var header [8]byte
 	copy(header[:4], MAGIC_BYTES)
 	binary.LittleEndian.PutUint32(header[4:], uint32(len(b)))

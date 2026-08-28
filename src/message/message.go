@@ -16,18 +16,21 @@ const maxDecompressedMessageSize = 64 * 1024 * 1024
 type Type string
 
 const (
-	TypePAKE            Type = "pake"
-	TypePAKEConfirm     Type = "pake-confirm"
-	TypeTailcatOffer    Type = "tailcat-offer"
-	TypeTailcatStatus   Type = "tailcat-status"
-	TypeTransportSelect Type = "transport-select"
-	TypeExternalIP      Type = "externalip"
-	TypeFinished        Type = "finished"
-	TypeError           Type = "error"
-	TypeCloseRecipient  Type = "close-recipient"
-	TypeCloseSender     Type = "close-sender"
-	TypeRecipientReady  Type = "recipientready"
-	TypeFileInfo        Type = "fileinfo"
+	TypePAKE             Type = "pake"
+	TypePAKEConfirm      Type = "pake-confirm"
+	TypeTailcatOffer     Type = "tailcat-offer"
+	TypeTailcatStatus    Type = "tailcat-status"
+	TypeTransportSelect  Type = "transport-select"
+	TypeExternalIP       Type = "externalip"
+	TypeFinished         Type = "finished"
+	TypeError            Type = "error"
+	TypeCloseRecipient   Type = "close-recipient"
+	TypeCloseSender      Type = "close-sender"
+	TypeRecipientReady   Type = "recipientready"
+	TypeFileInfo         Type = "fileinfo"
+	TypeFilePrepared     Type = "file-prepared"
+	TypeExactHashRequest Type = "exact-hash-request"
+	TypeExactHashResult  Type = "exact-hash-result"
 )
 
 // Message is the possible payload for messaging

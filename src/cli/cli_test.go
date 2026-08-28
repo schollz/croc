@@ -419,6 +419,33 @@ func TestTransportRejectsInvalidValuesAndIncompatibleCLIOptions(t *testing.T) {
 	}
 }
 
+func TestSendHashDefaultsToImplicitIMOHash(t *testing.T) {
+	app := newApp()
+	var algorithm string
+	var explicit bool
+	for _, command := range app.Commands {
+		if command.Name == "send" {
+			command.Action = func(ctx *cli.Context) error {
+				algorithm = ctx.String("hash")
+				explicit = ctx.IsSet("hash")
+				return nil
+			}
+		}
+	}
+	if err := app.Run([]string{"croc", "send"}); err != nil {
+		t.Fatal(err)
+	}
+	if algorithm != "imohash" || explicit {
+		t.Fatalf("default hash = %q, explicit=%v", algorithm, explicit)
+	}
+	if err := app.Run([]string{"croc", "send", "--hash", "xxhash"}); err != nil {
+		t.Fatal(err)
+	}
+	if algorithm != "xxhash" || !explicit {
+		t.Fatalf("explicit hash = %q, explicit=%v", algorithm, explicit)
+	}
+}
+
 func TestStoreDownloadsFlagParsing(t *testing.T) {
 	for _, testCase := range []struct {
 		name string

@@ -117,6 +117,7 @@ type Options struct {
 	Rename            bool
 	Curve             string
 	HashAlgorithm     string
+	HashExplicit      bool `json:"-"`
 	ThrottleUpload    string
 	ZipFolder         bool
 	TestFlag          bool
@@ -221,6 +222,7 @@ type Client struct {
 	peerReconnectVersion       int
 	peerPerFileCompression     bool
 	peerInlineMetadata         bool
+	peerProgressiveHash        bool
 	tailcat                    tailcatClientState
 	transportSelectionReceived bool
 	selectedDataTransport      atomic.Int32
@@ -253,6 +255,15 @@ type Client struct {
 	finishedNum              int
 	numberOfTransferredFiles int
 	numberOfUnchangedFiles   int
+	preparedHashAlgorithm    string
+	sourceSnapshots          []os.FileInfo
+	filePreparationMu        sync.Mutex
+	remainingPreparationOnce sync.Once
+	preparationErr           atomic.Value
+	exactHashMu              sync.Mutex
+	exactHashPending         int
+	exactHashLocal           []byte
+	exactHashResults         map[int]bool
 
 	// ctx.go for graceful shutdown
 	*stop
@@ -279,6 +290,13 @@ type FileInfo struct {
 	Mode         os.FileMode `json:"md,omitempty"`
 	TempFile     bool        `json:"tf,omitempty"`
 	IsIgnored    bool        `json:"ig,omitempty"`
+	Prepared     bool        `json:"p,omitempty"`
+}
+
+type FilePrepared struct {
+	Index        int    `json:"i"`
+	Hash         []byte `json:"h"`
+	IsCompressed bool   `json:"c"`
 }
 
 // RemoteFileRequest requests specific bytes
@@ -308,10 +326,11 @@ type SenderInfo struct {
 }
 
 const (
-	perFileCompressionFeature = "per-file-compression-v1"
-	inlinePeerMetadataFeature = "inline-peer-metadata-v1"
-	selectedTransportUnset    = 0
-	selectedTransportRelay    = 2
+	perFileCompressionFeature  = "per-file-compression-v1"
+	inlinePeerMetadataFeature  = "inline-peer-metadata-v1"
+	progressiveFileHashFeature = "progressive-file-hash-v1"
+	selectedTransportUnset     = 0
+	selectedTransportRelay     = 2
 )
 
 // ErrRelayConnection marks a failure to establish a relay control or data
@@ -337,6 +356,8 @@ func newClient(ops Options, transport tailcatDataTransport) (c *Client, err erro
 	defer func() { err = redact.Error(err, ops.SharedSecret) }()
 	c = new(Client)
 	c.startup.start()
+	c.exactHashPending = -1
+	c.exactHashResults = make(map[int]bool)
 	if transport == nil {
 		transport = defaultTailcatDataTransport()
 	}
@@ -1166,14 +1187,22 @@ func exactPathExcluded(exclusions []string, candidate string) bool {
 
 func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {
 	c.FilesToTransfer = filesInfo
+	c.sourceSnapshots = make([]os.FileInfo, len(filesInfo))
 	totalFilesSize := int64(0)
-	compressionSample := make([]byte, compressionSampleSize)
-	var compressionOutput []byte
+	requestedAlgorithm := c.Options.HashAlgorithm
+	if requestedAlgorithm == "" {
+		requestedAlgorithm = "imohash"
+		c.Options.HashAlgorithm = requestedAlgorithm
+	}
+	c.preparedHashAlgorithm = requestedAlgorithm
+	progressiveCandidate := requestedAlgorithm == "imohash" && !c.Options.HashExplicit
+	if progressiveCandidate {
+		c.preparedHashAlgorithm = "imohash-v2"
+	}
+	preparedFirstRegular := false
 
 	for i, fileInfo := range c.FilesToTransfer {
-		var fullPath string
-		fullPath = fileInfo.FolderSource + string(os.PathSeparator) + fileInfo.Name
-		fullPath = filepath.Clean(fullPath)
+		fullPath := sourceFilePath(fileInfo)
 
 		if len(fileInfo.Name) > c.longestFilename {
 			c.longestFilename = len(fileInfo.Name)
@@ -1188,23 +1217,16 @@ func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {
 			log.Debugf("%+v", c.FilesToTransfer[i])
 		}
 
-		if c.Options.HashAlgorithm == "" {
-			c.Options.HashAlgorithm = "xxhash"
+		prepareNow := !progressiveCandidate || !fileInfo.Mode.IsRegular() || fileInfo.Size == 0 || !preparedFirstRegular
+		if fileInfo.Mode.IsRegular() && fileInfo.Size > 0 && prepareNow {
+			preparedFirstRegular = true
 		}
-		if !c.Options.NoCompress && fileInfo.Mode.IsRegular() && fileInfo.Size > 0 {
-			c.FilesToTransfer[i].IsCompressed, compressionOutput = shouldCompressFile(
-				fullPath,
-				compressionSample,
-				compressionOutput,
-			)
+		if prepareNow {
+			if err = c.prepareFile(i, c.preparedHashAlgorithm); err != nil {
+				return err
+			}
 		}
-
-		c.FilesToTransfer[i].Hash, err = c.stop.hash(fullPath, c.Options.HashAlgorithm, fileInfo.Size > 1e7)
-		log.Debugf("hashed %s to %x using %s", fullPath, c.FilesToTransfer[i].Hash, c.Options.HashAlgorithm)
 		totalFilesSize += fileInfo.Size
-		if err != nil {
-			return
-		}
 		log.Debugf("file %d info: %+v", i, c.FilesToTransfer[i])
 		fmt.Fprintf(os.Stderr, "\r                                 ")
 		output, _ := termui.Output(os.Stderr)
@@ -1238,6 +1260,138 @@ func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {
 		fmt.Fprintf(output, "\rSending %s (%s)\n", fname, utils.ByteCountDecimal(totalFilesSize))
 	}
 	return
+}
+
+func sourceFilePath(fileInfo FileInfo) string {
+	return filepath.Clean(fileInfo.FolderSource + string(os.PathSeparator) + fileInfo.Name)
+}
+
+func sourceInfoMatches(expected FileInfo, before, after os.FileInfo) bool {
+	if before == nil || after == nil {
+		return false
+	}
+	return expected.Size == before.Size() && expected.ModTime.Equal(before.ModTime()) &&
+		expected.Mode == before.Mode() && before.Size() == after.Size() &&
+		before.ModTime().Equal(after.ModTime()) && before.Mode() == after.Mode() &&
+		os.SameFile(before, after)
+}
+
+func (c *Client) prepareFile(index int, algorithm string) error {
+	if index < 0 || index >= len(c.FilesToTransfer) {
+		return fmt.Errorf("invalid file preparation index %d", index)
+	}
+	fileInfo := c.FilesToTransfer[index]
+	fullPath := sourceFilePath(fileInfo)
+	before, err := os.Lstat(fullPath)
+	if err != nil {
+		return err
+	}
+
+	if !c.Options.NoCompress && fileInfo.Mode.IsRegular() && fileInfo.Size > 0 {
+		c.FilesToTransfer[index].IsCompressed, _ = shouldCompressFile(
+			fullPath,
+			make([]byte, compressionSampleSize),
+			nil,
+		)
+	}
+	hash, err := c.stop.hash(fullPath, algorithm, fileInfo.Size > 1e7)
+	if err != nil {
+		return err
+	}
+	after, err := os.Lstat(fullPath)
+	if err != nil {
+		return err
+	}
+	if !sourceInfoMatches(fileInfo, before, after) {
+		return fmt.Errorf("source changed while preparing %s", fullPath)
+	}
+	c.FilesToTransfer[index].Hash = hash
+	c.FilesToTransfer[index].Prepared = true
+	c.sourceSnapshots[index] = after
+	log.Debugf("hashed %s to %x using %s", fullPath, hash, algorithm)
+	return nil
+}
+
+func (c *Client) prepareAllFiles(algorithm string, force bool) error {
+	for i := range c.FilesToTransfer {
+		if !force && c.FilesToTransfer[i].Prepared {
+			continue
+		}
+		if err := c.prepareFile(i, algorithm); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Client) finalizeHashNegotiation() error {
+	requested := c.Options.HashAlgorithm
+	if requested == "" {
+		requested = "imohash"
+	}
+	if c.preparedHashAlgorithm == "imohash-v2" && c.peerProgressiveHash {
+		c.Options.HashAlgorithm = "imohash-v2"
+		return nil
+	}
+	if c.preparedHashAlgorithm == "imohash-v2" {
+		// Default invocations must remain readable by v11.3 and current browser
+		// receivers, which only accept the eager xxhash wire format.
+		c.Options.HashAlgorithm = "xxhash"
+		c.preparedHashAlgorithm = "xxhash"
+		return c.prepareAllFiles("xxhash", true)
+	}
+	c.Options.HashAlgorithm = requested
+	return c.prepareAllFiles(requested, false)
+}
+
+type preparationFailure struct{ err error }
+
+func (c *Client) startRemainingFilePreparation() {
+	c.remainingPreparationOnce.Do(func() {
+		go func() {
+			for i := range c.FilesToTransfer {
+				if c.FilesToTransfer[i].Prepared {
+					continue
+				}
+				if err := c.prepareFile(i, c.preparedHashAlgorithm); err != nil {
+					c.preparationErr.Store(preparationFailure{err: err})
+					_ = message.Send(c.connection(0), c.Key, message.Message{Type: message.TypeError, Message: "source changed during file preparation"})
+					c.stop.Cancel()
+					return
+				}
+				prepared, err := json.Marshal(FilePrepared{
+					Index:        i,
+					Hash:         c.FilesToTransfer[i].Hash,
+					IsCompressed: c.FilesToTransfer[i].IsCompressed,
+				})
+				if err != nil {
+					c.preparationErr.Store(preparationFailure{err: err})
+					c.stop.Cancel()
+					return
+				}
+				if err = message.Send(c.connection(0), c.Key, message.Message{Type: message.TypeFilePrepared, Bytes: prepared}); err != nil {
+					c.preparationErr.Store(preparationFailure{err: err})
+					c.stop.Cancel()
+					return
+				}
+			}
+		}()
+	})
+}
+
+func (c *Client) validateSourceUnchanged(index int) error {
+	if index < 0 || index >= len(c.FilesToTransfer) || index >= len(c.sourceSnapshots) {
+		return fmt.Errorf("invalid source index %d", index)
+	}
+	expected := c.sourceSnapshots[index]
+	current, err := os.Lstat(sourceFilePath(c.FilesToTransfer[index]))
+	if err != nil {
+		return err
+	}
+	if expected == nil || !sourceInfoMatches(c.FilesToTransfer[index], expected, current) {
+		return fmt.Errorf("source changed before transfer: %s", sourceFilePath(c.FilesToTransfer[index]))
+	}
+	return nil
 }
 
 const compressionSampleSize = 256 << 10
@@ -2260,6 +2414,9 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	c.Options.NoCompress = senderInfo.NoCompress
 	c.peerPerFileCompression = supportsFeature(senderInfo.Features, perFileCompressionFeature)
 	c.Options.HashAlgorithm = senderInfo.HashAlgorithm
+	if c.Options.HashAlgorithm == "imohash-v2" && !c.peerProgressiveHash {
+		return true, errors.New("peer sent imohash-v2 without negotiating progressive-file-hash-v1")
+	}
 	c.peerReconnectVersion = senderInfo.ReconnectVersion
 	if c.peerInlineMetadata {
 		c.ExternalIPConnected = preferredPeerIP(c.ExternalIPConnected, senderInfo.ExternalIP)
@@ -2436,6 +2593,7 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 	c.tailcat.peerCapable = supportsFeature(m.Features, tailcatFeature)
 	c.tailcat.peerRequired = supportsFeature(m.Features, tailcatRequiredFeature)
 	c.peerInlineMetadata = supportsFeature(m.Features, inlinePeerMetadataFeature)
+	c.peerProgressiveHash = supportsFeature(m.Features, progressiveFileHashFeature)
 	if c.pakeConfirmationPending || c.Key != nil {
 		return pakeHandshakeError{err: fmt.Errorf("unexpected duplicate PAKE payload")}
 	}
@@ -2735,6 +2893,12 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		return true, err
 	case message.TypeFileInfo:
 		done, err = c.processMessageFileInfo(m)
+	case message.TypeFilePrepared:
+		err = c.processMessageFilePrepared(m)
+	case message.TypeExactHashRequest:
+		err = c.processExactHashRequest(m)
+	case message.TypeExactHashResult:
+		err = c.processExactHashResult(m)
 	case message.TypeRecipientReady:
 		var remoteFile RemoteFileRequest
 		err = json.Unmarshal(m.Bytes, &remoteFile)
@@ -2809,6 +2973,12 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 		if err := c.waitForFilesReady(c.stop.ctx); err != nil {
 			return err
 		}
+		if failure, ok := c.preparationErr.Load().(preparationFailure); ok {
+			return failure.err
+		}
+		if err := c.finalizeHashNegotiation(); err != nil {
+			return err
+		}
 		var b []byte
 		machID, _ := machineid.ID()
 		nextReconnectRoom := ""
@@ -2850,6 +3020,9 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 		}
 
 		c.updateLifecycle(func(state *transferLifecycle) { state.FileInfoTransferred = true })
+		if c.peerProgressiveHash && c.Options.HashAlgorithm == "imohash-v2" {
+			c.startRemainingFilePreparation()
+		}
 	}
 	return
 }
@@ -3090,6 +3263,10 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		if i < c.FilesToTransferCurrentNum {
 			continue
 		}
+		if c.Options.HashAlgorithm == "imohash-v2" && !fileInfo.Prepared {
+			log.Debugf("waiting for file %d preparation", i)
+			return nil
+		}
 		log.Debugf("checking %+v", fileInfo)
 		recipientFileInfo, errRecipientFile := root.Lstat(path.Join(fileInfo.FolderRemote, fileInfo.Name))
 		var errHash error
@@ -3107,8 +3284,26 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			}
 			continue
 		}
+		hashesEqual := bytes.Equal(fileHash, fileInfo.Hash)
+		if hashesEqual && c.Options.HashAlgorithm == "imohash-v2" && errRecipientFile == nil {
+			known, exactMatch, pending := c.exactHashDecision(i)
+			switch {
+			case known:
+				hashesEqual = exactMatch
+				if !exactMatch {
+					fileHash = nil
+				}
+			case pending:
+				return nil
+			default:
+				if err := c.beginExactHash(i, path.Join(fileInfo.FolderRemote, fileInfo.Name)); err != nil {
+					return err
+				}
+				return nil
+			}
+		}
 		log.Debugf("%s %+x %+x %+v", fileInfo.Name, fileHash, fileInfo.Hash, errHash)
-		if !bytes.Equal(fileHash, fileInfo.Hash) {
+		if !hashesEqual {
 			log.Debugf("hashed %s to %x using %s", fileInfo.Name, fileHash, c.Options.HashAlgorithm)
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
 			if errHash == nil && errRecipientFile == nil && !strings.HasPrefix(fileInfo.Name, "croc-stdin-") && !c.Options.SendingText && c.Options.Rename {
@@ -3177,7 +3372,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			// probably can't find, its okay
 			log.Debug(errHash)
 		}
-		if errHash != nil || !bytes.Equal(fileHash, fileInfo.Hash) {
+		if errHash != nil || !hashesEqual {
 			finished = false
 			c.FilesToTransferCurrentNum = i
 			c.numberOfTransferredFiles++
@@ -3249,6 +3444,9 @@ func (c *Client) updateState(attempt *transferAttemptState) (err error) {
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderSource,
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
 		)
+		if err = c.validateSourceUnchanged(c.FilesToTransferCurrentNum); err != nil {
+			return err
+		}
 		c.fread, err = os.Open(pathToFile)
 		c.numfinished = 0
 		if err != nil {
