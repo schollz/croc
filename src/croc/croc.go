@@ -131,8 +131,9 @@ type Options struct {
 	Transport         TransportMode `json:",omitempty"`
 }
 
-// TransportMode controls how croc selects the file-data connection after the
-// PAKE-authenticated control channel is established.
+// TransportMode controls how a sender selects the file-data connection after
+// the PAKE-authenticated control channel is established. Receivers must use
+// TransportAuto and follow the sender's negotiated selection.
 type TransportMode string
 
 const (
@@ -218,6 +219,7 @@ type Client struct {
 	reconnectVersion           int
 	peerReconnectVersion       int
 	peerPerFileCompression     bool
+	peerInlineMetadata         bool
 	tailcat                    tailcatClientState
 	transportSelectionReceived bool
 	selectedDataTransport      atomic.Int32
@@ -283,6 +285,7 @@ type RemoteFileRequest struct {
 	CurrentFileChunkRanges    []int64
 	FilesToTransferCurrentNum int
 	MachineID                 string
+	ExternalIP                string `json:",omitempty"`
 	ReconnectVersion          int
 	Features                  []string `json:",omitempty"`
 }
@@ -293,6 +296,7 @@ type SenderInfo struct {
 	EmptyFoldersToTransfer []FileInfo
 	TotalNumberFolders     int
 	MachineID              string
+	ExternalIP             string `json:",omitempty"`
 	Ask                    bool
 	SendingText            bool
 	NoCompress             bool
@@ -304,6 +308,7 @@ type SenderInfo struct {
 
 const (
 	perFileCompressionFeature = "per-file-compression-v1"
+	inlinePeerMetadataFeature = "inline-peer-metadata-v1"
 	selectedTransportUnset    = 0
 	selectedTransportRelay    = 2
 )
@@ -341,6 +346,9 @@ func newClient(ops Options, transport tailcatDataTransport) (c *Client, err erro
 	c.Options.Transport, err = ParseTransportMode(string(c.Options.Transport))
 	if err != nil {
 		return nil, err
+	}
+	if !c.Options.IsSender && c.Options.Transport != TransportAuto {
+		return nil, errors.New("transport selection is sender-only")
 	}
 	Debug(c.Options.Debug)
 	if c.Options.Transport != TransportAuto && c.Options.OnlyLocal {
@@ -706,6 +714,7 @@ func (c *Client) resetForReconnectAttempt(attempt int) error {
 	c.pakeKeys = pakekey.Keys{}
 	c.pakeConfirmationPending = false
 	c.peerPerFileCompression = false
+	c.peerInlineMetadata = false
 	c.tailcat.peerCapable = false
 	c.tailcat.peerRequired = false
 	c.tailcat.offerReceived = false
@@ -1603,6 +1612,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 	c.TotalNumberFolders = totalNumberFolders
 	c.TotalNumberOfContents = len(filesInfo)
 	c.FilesToTransfer = filesInfo
+	c.tailcat.transferBytes.Store(totalLogicalTransferSize(filesInfo))
 	hashResult := make(chan error, 1)
 	go func() {
 		prepareErr := c.sendCollectFiles(filesInfo)
@@ -1615,9 +1625,6 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 	}
 	if c.Options.RelayPassword != models.DEFAULT_PASSPHRASE {
 		flags.WriteString("--pass " + c.Options.RelayPassword + " ")
-	}
-	if c.Options.Transport != TransportAuto {
-		flags.WriteString("--transport " + string(c.Options.Transport) + " ")
 	}
 	webURL := ""
 	if c.Options.Transport != TransportDERP {
@@ -2326,6 +2333,9 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	c.peerPerFileCompression = supportsFeature(senderInfo.Features, perFileCompressionFeature)
 	c.Options.HashAlgorithm = senderInfo.HashAlgorithm
 	c.peerReconnectVersion = senderInfo.ReconnectVersion
+	if c.peerInlineMetadata {
+		c.ExternalIPConnected = preferredPeerIP(c.ExternalIPConnected, senderInfo.ExternalIP)
+	}
 	c.nextReconnectRoom = senderInfo.NextReconnectRoom
 	c.TotalNumberFolders = senderInfo.TotalNumberFolders
 	c.FilesToTransfer, c.EmptyFoldersToTransfer, err = validateReceiveMetadata(senderInfo.FilesToTransfer, senderInfo.EmptyFoldersToTransfer)
@@ -2496,6 +2506,7 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 	}
 	c.tailcat.peerCapable = supportsFeature(m.Features, tailcatFeature)
 	c.tailcat.peerRequired = supportsFeature(m.Features, tailcatRequiredFeature)
+	c.peerInlineMetadata = supportsFeature(m.Features, inlinePeerMetadataFeature)
 	if c.pakeConfirmationPending || c.Key != nil {
 		return pakeHandshakeError{err: fmt.Errorf("unexpected duplicate PAKE payload")}
 	}
@@ -2675,10 +2686,7 @@ func (c *Client) activateRelayDataChannels(attempt *transferAttemptState) (err e
 	}
 	c.selectedDataTransport.Store(selectedTransportRelay)
 	attempt.finishTailcatSetup()
-	if !c.Options.IsSender {
-		err = c.sendExternalIP()
-	}
-	return
+	return c.finishDataTransportActivation()
 }
 
 type tailcatListenResult struct {
@@ -2691,14 +2699,33 @@ type tailcatDialResult struct {
 	err    error
 }
 
+func (c *Client) advertisedExternalIP() string {
+	localIPs, _ := utils.GetLocalIPs()
+	return preferredPublicIP(c.ExternalIP, localIPs)
+}
+
 func (c *Client) sendExternalIP() error {
 	log.Debug("sending external IP")
-	localIPs, _ := utils.GetLocalIPs()
 	return message.Send(c.connection(0), c.Key, message.Message{
 		Type:    message.TypeExternalIP,
-		Message: preferredPublicIP(c.ExternalIP, localIPs),
+		Message: c.advertisedExternalIP(),
 		Bytes:   c.pakeResponder,
 	})
+}
+
+func (c *Client) finishDataTransportActivation() error {
+	if !c.peerInlineMetadata {
+		if !c.Options.IsSender {
+			return c.sendExternalIP()
+		}
+		return nil
+	}
+	log.Debug("peer endpoint metadata will use existing transfer messages")
+	c.updateLifecycle(func(state *transferLifecycle) { state.ChannelSecured = true })
+	if !c.Options.IsSender {
+		c.setReceiveStatus(receiveStatusWaitingForFileList)
+	}
+	return nil
 }
 
 func (c *Client) processExternalIP(m message.Message) (done bool, err error) {
@@ -2784,6 +2811,9 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		}
 		c.peerReconnectVersion = remoteFile.ReconnectVersion
 		c.peerPerFileCompression = supportsFeature(remoteFile.Features, perFileCompressionFeature)
+		if c.peerInlineMetadata {
+			c.ExternalIPConnected = preferredPeerIP(c.ExternalIPConnected, remoteFile.ExternalIP)
+		}
 		c.FilesToTransferCurrentNum = remoteFile.FilesToTransferCurrentNum
 		c.CurrentFileChunkRanges = remoteFile.CurrentFileChunkRanges
 		c.CurrentFileChunkCount = utils.ChunkRangesCount(
@@ -2850,6 +2880,10 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 		var b []byte
 		machID, _ := machineid.ID()
 		nextReconnectRoom := ""
+		externalIP := ""
+		if c.peerInlineMetadata {
+			externalIP = c.advertisedExternalIP()
+		}
 		if c.reconnectVersion >= ReconnectVersion {
 			nextReconnectRoom, err = generateReconnectRoom()
 			if err != nil {
@@ -2861,6 +2895,7 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 			FilesToTransfer:        c.FilesToTransfer,
 			EmptyFoldersToTransfer: c.EmptyFoldersToTransfer,
 			MachineID:              machID,
+			ExternalIP:             externalIP,
 			Ask:                    c.Options.Ask,
 			TotalNumberFolders:     c.TotalNumberFolders,
 			SendingText:            c.Options.SendingText,
@@ -2982,10 +3017,15 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 	c.CurrentFileIsClosed = false
 	c.receiveMutex.Unlock()
 	machID, _ := machineid.ID()
+	externalIP := ""
+	if c.peerInlineMetadata {
+		externalIP = c.advertisedExternalIP()
+	}
 	bRequest, _ := json.Marshal(RemoteFileRequest{
 		CurrentFileChunkRanges:    c.CurrentFileChunkRanges,
 		FilesToTransferCurrentNum: c.FilesToTransferCurrentNum,
 		MachineID:                 machID,
+		ExternalIP:                externalIP,
 		ReconnectVersion:          c.reconnectVersion,
 		Features:                  []string{perFileCompressionFeature},
 	})

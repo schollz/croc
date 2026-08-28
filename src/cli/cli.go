@@ -70,11 +70,12 @@ func newApp() *cli.App {
 		{
 			Name:        "send",
 			Usage:       "send file(s), or folder (see options with croc send -h)",
-			Description: "send file(s), or folder, over the relay",
+			Description: "send file(s), or folder",
 			ArgsUsage:   "[filename(s) or folder]",
 			Flags: []cli.Flag{
 				&cli.BoolFlag{Name: "zip", Usage: "zip folder before sending"},
 				&cli.StringFlag{Name: "code", Aliases: []string{"c"}, Usage: "codephrase used to connect to relay (at least 6 characters)"},
+				&cli.StringFlag{Name: "transport", Value: string(croc.TransportAuto), Usage: "sender file data transport (auto, derp, relay)"},
 				&cli.StringFlag{Name: "hash", Value: "xxhash", Usage: "hash algorithm (xxhash, imohash, md5, highway)"},
 				&cli.StringFlag{Name: "text", Aliases: []string{"t"}, Usage: "send some text"},
 				&cli.BoolFlag{Name: "no-local", Usage: "disable local relay when sending"},
@@ -145,7 +146,6 @@ func newApp() *cli.App {
 		&cli.BoolFlag{Name: "quiet", Usage: "disable all output"},
 		&cli.BoolFlag{Name: "disable-clipboard", Usage: "disable copy to clipboard"},
 		&cli.BoolFlag{Name: "extended-clipboard", Usage: "copy full command with secret as env variable to clipboard"},
-		&cli.StringFlag{Name: "transport", Value: string(croc.TransportAuto), Usage: "file data transport (auto, derp, relay)"},
 		&cli.StringFlag{Name: "revoke", Usage: "revoke a stored transfer using its local sender receipt"},
 		&cli.StringFlag{Name: "multicast", Value: "239.255.255.250", Usage: "multicast address to use for local discovery"},
 		&cli.StringFlag{Name: "curve", Value: "p256", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
@@ -848,17 +848,7 @@ func receive(c *cli.Context) (err error) {
 
 	comm.Socks5Proxy = c.String("socks5")
 	comm.HttpProxy = c.String("connect")
-	transport, err := croc.ParseTransportMode(c.String("transport"))
-	if err != nil {
-		return err
-	}
-	if c.Bool("local") && transport != croc.TransportAuto {
-		return errors.New("--transport must be auto for local-only transfers")
-	}
 	if storedToken := strings.TrimSpace(os.Getenv("CROC_STORE_TOKEN")); storedToken != "" {
-		if transport != croc.TransportAuto {
-			return errors.New("--transport must be auto for stored transfers")
-		}
 		setDebugLevel(c)
 		return receiveStored(c, storedToken)
 	}
@@ -882,7 +872,7 @@ func receive(c *cli.Context) (err error) {
 		Quiet:             c.Bool("quiet"),
 		DisableClipboard:  c.Bool("disable-clipboard"),
 		ExtendedClipboard: c.Bool("extended-clipboard"),
-		Transport:         transport,
+		Transport:         croc.TransportAuto,
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -902,9 +892,6 @@ func receive(c *cli.Context) (err error) {
 		crocOptions.SharedSecret = strings.Join(phrase, "-")
 	}
 	if storeclient.IsStoredValue(crocOptions.SharedSecret) {
-		if crocOptions.Transport != croc.TransportAuto {
-			return errors.New("--transport must be auto for stored transfers")
-		}
 		setDebugLevel(c)
 		if runtime.GOOS != "windows" && !utils.Exists(getClassicConfigFile(true)) {
 			fmt.Print(`For security, stored-transfer links are not accepted as command-line
@@ -959,9 +946,6 @@ Run croc with no argument and paste the link at the prompt, or use:
 		if !c.IsSet("local") {
 			crocOptions.OnlyLocal = rememberedOptions.OnlyLocal
 		}
-		if !c.IsSet("transport") && rememberedOptions.Transport != "" {
-			crocOptions.Transport = rememberedOptions.Transport
-		}
 		if !c.IsSet("relay") && strings.HasPrefix(rememberedOptions.RelayAddress, "non-default:") {
 			var rememberedAddr = strings.TrimPrefix(rememberedOptions.RelayAddress, "non-default:")
 			rememberedAddr = strings.TrimSpace(rememberedAddr)
@@ -972,9 +956,6 @@ Run croc with no argument and paste the link at the prompt, or use:
 			rememberedAddr = strings.TrimSpace(rememberedAddr)
 			crocOptions.RelayAddress6 = rememberedAddr
 		}
-	}
-	if crocOptions.OnlyLocal && crocOptions.Transport != croc.TransportAuto {
-		return errors.New("--transport must be auto for local-only transfers")
 	}
 	publicRelayMode := usesPublicRelay(c, crocOptions)
 
@@ -997,9 +978,6 @@ Run croc with no argument and paste the link at the prompt, or use:
 		}
 	}
 	if storeclient.IsStoredValue(crocOptions.SharedSecret) {
-		if crocOptions.Transport != croc.TransportAuto {
-			return errors.New("--transport must be auto for stored transfers")
-		}
 		return receiveStored(c, crocOptions.SharedSecret)
 	}
 	if publicRelayMode {

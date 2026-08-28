@@ -118,6 +118,7 @@ func TestTailcatMultiStreamEndToEndFileTransfer(t *testing.T) {
 	}
 	senderOptions := options
 	senderOptions.IsSender = true
+	senderOptions.Transport = TransportDERP
 	sender, err := newClient(senderOptions, provider)
 	if err != nil {
 		t.Fatal(err)

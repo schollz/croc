@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,12 +16,13 @@ import (
 )
 
 const (
-	tailcatFeature           = "experimental-tailcat-v1"
-	tailcatRequiredFeature   = "experimental-tailcat-required-v1"
-	tailcatSetupTimeout      = 30 * time.Second
-	tailcatStatusReady       = "ready"
-	tailcatStatusFallback    = "fallback"
-	selectedTransportTailcat = 1
+	tailcatFeature                  = "experimental-tailcat-v1"
+	tailcatRequiredFeature          = "experimental-tailcat-required-v1"
+	tailcatSetupTimeout             = 30 * time.Second
+	tailcatStatusReady              = "ready"
+	tailcatStatusFallback           = "fallback"
+	selectedTransportTailcat        = 1
+	autoTailcatThresholdBytes int64 = 310 * 1024 * 1024
 )
 
 type tailcatClientState struct {
@@ -28,6 +30,8 @@ type tailcatClientState struct {
 	peerCapable         bool
 	peerRequired        bool
 	offerReceived       bool
+	transferBytes       atomic.Int64
+	autoDecisionOnce    sync.Once
 	transferConnections atomic.Int32
 	terminal            atomic.Bool
 	bundleMu            sync.Mutex
@@ -146,7 +150,7 @@ func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error
 		c.setReceiveStatus(receiveStatusOpeningTransferChannels)
 	}
 	localTailcat := c.localTailcatSupported()
-	if c.peerRequiresTailcat() && !localTailcat {
+	if !c.Options.IsSender && c.peerRequiresTailcat() && !localTailcat {
 		return fmt.Errorf("peer requires Tailcat, but Tailcat is disabled or unavailable locally")
 	}
 	if c.Options.Transport == TransportDERP && !c.tailcat.peerCapable {
@@ -164,22 +168,64 @@ func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error
 }
 
 func (c *Client) pakeFeatures() []string {
+	features := []string{inlinePeerMetadataFeature}
 	if !c.localTailcatSupported() {
-		return nil
+		return features
 	}
-	features := []string{tailcatFeature}
-	if c.Options.Transport == TransportDERP {
+	features = append(features, tailcatFeature)
+	if c.Options.IsSender && c.Options.Transport == TransportDERP {
 		features = append(features, tailcatRequiredFeature)
 	}
 	return features
 }
 
 func (c *Client) localTailcatSupported() bool {
-	return c.Options.Transport != TransportRelay && !c.Options.OnlyLocal && c.dataTransport().Available()
+	if c.Options.Transport == TransportRelay || c.Options.OnlyLocal || !c.dataTransport().Available() {
+		return false
+	}
+	if !c.Options.IsSender || c.Options.Transport == TransportDERP {
+		return true
+	}
+	return c.autoTailcatEligible()
 }
 
 func (c *Client) tailcatFallbackAllowed() bool {
-	return c.Options.Transport == TransportAuto && !c.tailcat.peerRequired
+	if c.Options.IsSender {
+		return c.Options.Transport == TransportAuto
+	}
+	return !c.peerRequiresTailcat()
+}
+
+func (c *Client) autoTailcatEligible() bool {
+	transferBytes := c.tailcat.transferBytes.Load()
+	eligible := transferBytes >= autoTailcatThresholdBytes
+	c.tailcat.autoDecisionOnce.Do(func() {
+		selected := TransportRelay
+		if eligible {
+			selected = TransportDERP
+		}
+		log.Debugf(
+			"auto transport size decision: bytes=%d threshold=%d selected=%s",
+			transferBytes,
+			autoTailcatThresholdBytes,
+			selected,
+		)
+	})
+	return eligible
+}
+
+func totalLogicalTransferSize(files []FileInfo) int64 {
+	var total int64
+	for _, file := range files {
+		if file.Size <= 0 {
+			continue
+		}
+		if file.Size > math.MaxInt64-total {
+			return math.MaxInt64
+		}
+		total += file.Size
+	}
+	return total
 }
 
 func (c *Client) listenTailcatData(ctx context.Context) (tailcatDataListener, error) {
@@ -380,7 +426,10 @@ func (c *Client) activateTailcatSender(attempt *transferAttemptState) error {
 			_ = listener.Close()
 			cancel()
 		}
-		return c.installTailcatBundle(result.bundle, cleanup, attempt)
+		if err := c.installTailcatBundle(result.bundle, cleanup, attempt); err != nil {
+			return err
+		}
+		return c.finishDataTransportActivation()
 	case <-timer.C:
 		_ = listener.Close()
 		cancel()
@@ -575,7 +624,7 @@ func (c *Client) processTransportSelect(m message.Message, attempt *transferAtte
 		if err := c.installTailcatBundle(bundle, cancel, attempt); err != nil {
 			return err
 		}
-		return c.sendExternalIP()
+		return c.finishDataTransportActivation()
 	case TransportRelay:
 		if !c.tailcatFallbackAllowed() {
 			return errors.New("peer selected relay when Tailcat fallback is not allowed")
