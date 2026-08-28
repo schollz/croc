@@ -2,6 +2,7 @@ package message
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/schollz/croc/v11/src/comm"
@@ -11,6 +12,10 @@ import (
 )
 
 const maxDecompressedMessageSize = 64 * 1024 * 1024
+
+// ErrMessageTooLarge indicates that a message would exceed the maximum JSON
+// size accepted by Decode after decompression.
+var ErrMessageTooLarge = errors.New("message too large after decompression")
 
 // Type is a message type
 type Type string
@@ -28,6 +33,9 @@ const (
 	TypeCloseSender      Type = "close-sender"
 	TypeRecipientReady   Type = "recipientready"
 	TypeFileInfo         Type = "fileinfo"
+	TypeFileInfoStart    Type = "fileinfo-start"
+	TypeFileInfoBatch    Type = "fileinfo-batch"
+	TypeFileInfoEnd      Type = "fileinfo-end"
 	TypeFilePrepared     Type = "file-prepared"
 	TypeExactHashRequest Type = "exact-hash-request"
 	TypeExactHashResult  Type = "exact-hash-result"
@@ -63,9 +71,16 @@ func Send(c *comm.Comm, key []byte, m Message) (err error) {
 
 // Encode will convert to bytes
 func Encode(key []byte, m Message) (b []byte, err error) {
+	return encodeWithLimit(key, m, maxDecompressedMessageSize)
+}
+
+func encodeWithLimit(key []byte, m Message, maxJSONSize int) (b []byte, err error) {
 	b, err = json.Marshal(m)
 	if err != nil {
 		return
+	}
+	if len(b) > maxJSONSize {
+		return nil, fmt.Errorf("%w: %d > %d", ErrMessageTooLarge, len(b), maxJSONSize)
 	}
 	b = compress.Compress(b)
 	if key != nil {

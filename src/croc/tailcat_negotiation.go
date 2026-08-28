@@ -189,7 +189,7 @@ func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error
 }
 
 func (c *Client) pakeFeatures() []string {
-	features := []string{inlinePeerMetadataFeature, progressiveFileHashFeature, stagedTransportFeature, implicitTailcatReadyFeature}
+	features := []string{inlinePeerMetadataFeature, progressiveFileHashFeature, chunkedFileInfoFeature, stagedTransportFeature, implicitTailcatReadyFeature}
 	if !c.localTailcatSupported() {
 		return features
 	}

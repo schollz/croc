@@ -243,8 +243,10 @@ type Client struct {
 	peerPerFileCompression     bool
 	peerInlineMetadata         bool
 	peerProgressiveHash        bool
+	peerChunkedFileInfo        bool
 	peerStagedTransport        bool
 	peerImplicitTailcatReady   bool
+	incomingFileManifest       *incomingFileManifest
 	tailcat                    tailcatClientState
 	transportSelectionReceived bool
 	selectedDataTransport      atomic.Int32
@@ -751,8 +753,10 @@ func (c *Client) resetForReconnectAttempt(attempt int) error {
 	c.peerPerFileCompression = false
 	c.peerInlineMetadata = false
 	c.peerProgressiveHash = false
+	c.peerChunkedFileInfo = false
 	c.peerStagedTransport = false
 	c.peerImplicitTailcatReady = false
+	c.clearIncomingFileManifest()
 	c.tailcat.peerCapable = false
 	c.tailcat.peerRequired = false
 	c.tailcat.offerReceived = false
@@ -784,6 +788,7 @@ func (c *Client) resetForReconnectAttempt(attempt int) error {
 }
 
 func (c *Client) transferWithReconnect(connectAttempt func(attempt int) error) error {
+	defer c.clearIncomingFileManifest()
 	var lastErr error
 	var lastDisconnectErr error
 	for attempt := 0; attempt <= maxReconnectAttempts; attempt++ {
@@ -2308,13 +2313,26 @@ func (c *Client) createEmptyFolder(i int) (err error) {
 }
 
 func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error) {
-	c.clearReceiveStatus()
+	if c.Options.IsSender {
+		return true, errors.New("sender received file metadata")
+	}
+	if c.peerChunkedFileInfo {
+		return true, c.rejectIncomingFileManifest(errors.New("peer sent legacy file metadata after negotiating chunked-fileinfo-v1"))
+	}
 	var senderInfo SenderInfo
 	err = json.Unmarshal(m.Bytes, &senderInfo)
 	if err != nil {
 		log.Debug(err)
 		return
 	}
+	return c.processSenderInfo(senderInfo)
+}
+
+func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error) {
+	if c.lifecycleSnapshot().FileInfoTransferred {
+		return true, errors.New("file metadata was already finalized")
+	}
+	c.clearReceiveStatus()
 	c.Options.SendingText = senderInfo.SendingText
 	c.Options.NoCompress = senderInfo.NoCompress
 	c.peerPerFileCompression = supportsFeature(senderInfo.Features, perFileCompressionFeature)
@@ -2499,6 +2517,7 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 	c.tailcat.peerRequired = supportsFeature(m.Features, tailcatRequiredFeature)
 	c.peerInlineMetadata = supportsFeature(m.Features, inlinePeerMetadataFeature)
 	c.peerProgressiveHash = supportsFeature(m.Features, progressiveFileHashFeature)
+	c.peerChunkedFileInfo = supportsFeature(m.Features, chunkedFileInfoFeature)
 	c.peerStagedTransport = supportsFeature(m.Features, stagedTransportFeature)
 	c.peerImplicitTailcatReady = supportsFeature(m.Features, implicitTailcatReadyFeature)
 	if c.pakeConfirmationPending || c.Key != nil {
@@ -2824,6 +2843,12 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		return true, err
 	case message.TypeFileInfo:
 		done, err = c.processMessageFileInfo(m)
+	case message.TypeFileInfoStart:
+		err = c.processMessageFileInfoStart(m)
+	case message.TypeFileInfoBatch:
+		err = c.processMessageFileInfoBatch(m)
+	case message.TypeFileInfoEnd:
+		done, err = c.processMessageFileInfoEnd(m)
 	case message.TypeFilePrepared:
 		err = c.processMessageFilePrepared(m)
 	case message.TypeExactHashRequest:
@@ -2914,7 +2939,6 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 		if err := c.finalizeHashNegotiation(); err != nil {
 			return err
 		}
-		var b []byte
 		machID, _ := machineid.ID()
 		nextReconnectRoom := ""
 		externalIP := ""
@@ -2928,7 +2952,7 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 			}
 			c.nextReconnectRoom = nextReconnectRoom
 		}
-		b, err = json.Marshal(SenderInfo{
+		err = c.sendSenderInfo(SenderInfo{
 			FilesToTransfer:        c.FilesToTransfer,
 			EmptyFoldersToTransfer: c.EmptyFoldersToTransfer,
 			MachineID:              machID,
@@ -2944,13 +2968,6 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 		})
 		if err != nil {
 			log.Error(err)
-			return
-		}
-		err = message.Send(c.connection(0), c.Key, message.Message{
-			Type:  message.TypeFileInfo,
-			Bytes: b,
-		})
-		if err != nil {
 			return
 		}
 

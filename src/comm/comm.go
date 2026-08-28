@@ -25,6 +25,10 @@ var MAGIC_BYTES = []byte("croc")
 
 const maxReadMessageSize = 64 * 1024 * 1024
 
+// ErrMessageTooLarge indicates that a framed message exceeds the allocation
+// limit accepted by croc peers.
+var ErrMessageTooLarge = errors.New("message too large")
+
 // Large resume requests can contain hundreds of thousands of missing chunk
 // ranges. Keep the guard against malformed streams, but give legitimate large
 // control messages enough time to arrive through a relay.
@@ -130,6 +134,13 @@ func (c *Comm) Close() {
 }
 
 func (c *Comm) Write(b []byte) (n int, err error) {
+	return c.writeWithLimit(b, maxReadMessageSize)
+}
+
+func (c *Comm) writeWithLimit(b []byte, maxMessageSize int) (n int, err error) {
+	if err = validateMessageSize(len(b), maxMessageSize); err != nil {
+		return 0, err
+	}
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	var header [8]byte
@@ -147,6 +158,13 @@ func (c *Comm) Write(b []byte) (n int, err error) {
 		return
 	}
 	return
+}
+
+func validateMessageSize(size, maxMessageSize int) error {
+	if size > maxMessageSize {
+		return fmt.Errorf("%w: %d > %d", ErrMessageTooLarge, size, maxMessageSize)
+	}
+	return nil
 }
 
 func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
@@ -183,7 +201,7 @@ func (c *Comm) readWithDeadlineInto(dst []byte, readDeadline time.Time) (buf []b
 
 	numBytesUint32 := binary.LittleEndian.Uint32(header[4:])
 	if numBytesUint32 > uint32(maxReadMessageSize) {
-		err = fmt.Errorf("message too large: %d > %d", numBytesUint32, maxReadMessageSize)
+		err = fmt.Errorf("%w: %d > %d", ErrMessageTooLarge, numBytesUint32, maxReadMessageSize)
 		log.Debug(err.Error())
 		return
 	}

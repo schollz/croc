@@ -106,6 +106,22 @@ func TestReceiveRejectsOversizedMessage(t *testing.T) {
 	assert.Nil(t, <-writeErr)
 }
 
+func TestWriteRejectsOversizedMessage(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	c := New(clientConn)
+	_, err := c.writeWithLimit([]byte("too large"), len("too large")-1)
+	assert.ErrorIs(t, err, ErrMessageTooLarge)
+	assert.Contains(t, err.Error(), "message too large")
+	assert.NoError(t, validateMessageSize(maxReadMessageSize, maxReadMessageSize))
+
+	assert.NoError(t, serverConn.SetReadDeadline(time.Now().Add(20*time.Millisecond)))
+	_, err = serverConn.Read(make([]byte, 1))
+	assertTimeoutError(t, err)
+}
+
 func TestReceiveAllowsLargeMessage(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
 	defer clientConn.Close()
