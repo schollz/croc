@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"tailscale.com/tailcfg"
 )
 
 const (
@@ -23,6 +25,12 @@ var (
 // Config controls the number of parallel TCP streams in a transfer.
 type Config struct {
 	StreamCount int
+}
+
+// Prepared is an opaque, session-independent Tailcat bootstrap selection.
+// It deliberately contains no node identity or transfer key material.
+type Prepared struct {
+	region *tailcfg.DERPRegion
 }
 
 // Validate checks that the configured stream count is supported.

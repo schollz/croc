@@ -17,6 +17,24 @@ import (
 	"github.com/schollz/croc/v11/src/tailcattransport"
 )
 
+type preparingTailcatTransport struct {
+	*fakeTailcatTransport
+	prepareCalls atomic.Int32
+	listenValue  any
+	prepared     any
+	listener     tailcatDataListener
+}
+
+func (f *preparingTailcatTransport) Prepare(context.Context) (any, error) {
+	f.prepareCalls.Add(1)
+	return f.prepared, nil
+}
+
+func (f *preparingTailcatTransport) ListenPrepared(_ context.Context, _ []byte, _ tailcattransport.PathEvent, prepared any) (tailcatDataListener, error) {
+	f.listenValue = prepared
+	return f.listener, nil
+}
+
 func TestTailcatPAKEFeaturesAndCompatibility(t *testing.T) {
 	provider := &fakeTailcatTransport{available: true}
 	receiverAuto := (&Client{Options: Options{Transport: TransportAuto}, tailcat: tailcatClientState{transport: provider}}).pakeFeatures()
@@ -48,6 +66,31 @@ func TestTailcatPAKEFeaturesAndCompatibility(t *testing.T) {
 	}
 	if supportsFeature([]string{"unknown-legacy-transport-v1"}, tailcatFeature) {
 		t.Fatal("an older peer was treated as Tailcat-capable")
+	}
+}
+
+func TestTailcatPreparationIsReusedAfterSessionKeyExists(t *testing.T) {
+	prepared := &struct{ region int }{region: 7}
+	listener := &fakeTailcatListener{offer: "prepared"}
+	provider := &preparingTailcatTransport{
+		fakeTailcatTransport: &fakeTailcatTransport{available: true},
+		prepared:             prepared,
+		listener:             listener,
+	}
+	client := &Client{
+		Options: Options{IsSender: true, Transport: TransportAuto},
+		stop:    newStop(context.Background()),
+		tailcat: tailcatClientState{transport: provider},
+		Key:     []byte("session key exists only after PAKE"),
+	}
+	client.tailcat.transferBytes.Store(128 * 1024 * 1024)
+	client.startTailcatPreparation()
+	got, err := client.listenTailcatData(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != listener || provider.listenValue != prepared || provider.prepareCalls.Load() != 1 {
+		t.Fatalf("prepared listener reuse failed: listener=%v value=%v calls=%d", got, provider.listenValue, provider.prepareCalls.Load())
 	}
 }
 

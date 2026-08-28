@@ -21,6 +21,12 @@ func Listen(context.Context, []byte, Config, PathEvent) (*Listener, error) {
 	return nil, ErrUnsupported
 }
 
+func Prepare(context.Context, Config) (*Prepared, error) { return nil, ErrUnsupported }
+
+func ListenPrepared(context.Context, []byte, Config, PathEvent, *Prepared) (*Listener, error) {
+	return nil, ErrUnsupported
+}
+
 func (l *Listener) Offer() string                           { return "" }
 func (l *Listener) Accept(context.Context) (*Bundle, error) { return nil, ErrUnsupported }
 func (l *Listener) Close() error                            { return nil }

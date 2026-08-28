@@ -36,6 +36,10 @@ type tailcatClientState struct {
 	terminal            atomic.Bool
 	bundleMu            sync.Mutex
 	bundle              *tailcatDataBundle
+	prepareOnce         sync.Once
+	prepareReady        chan struct{}
+	prepared            any
+	prepareErr          error
 }
 
 type tailcatAttemptState struct {
@@ -229,7 +233,42 @@ func totalLogicalTransferSize(files []FileInfo) int64 {
 }
 
 func (c *Client) listenTailcatData(ctx context.Context) (tailcatDataListener, error) {
+	if c.tailcat.prepareReady != nil {
+		select {
+		case <-c.tailcat.prepareReady:
+			if c.tailcat.prepareErr != nil {
+				return nil, c.tailcat.prepareErr
+			}
+			if transport, ok := c.dataTransport().(tailcatPreparingTransport); ok {
+				return transport.ListenPrepared(ctx, c.Key, c.tailcatPathEvent, c.tailcat.prepared)
+			}
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	return c.dataTransport().Listen(ctx, c.Key, c.tailcatPathEvent)
+}
+
+func (c *Client) startTailcatPreparation() {
+	transport, ok := c.dataTransport().(tailcatPreparingTransport)
+	if !ok || !c.dataTransport().Available() || c.Options.Transport == TransportRelay || c.Options.OnlyLocal {
+		return
+	}
+	if c.Options.Transport == TransportAuto && c.tailcat.transferBytes.Load() < 128*1024*1024 {
+		return
+	}
+	c.tailcat.prepareOnce.Do(func() {
+		c.tailcat.prepareReady = make(chan struct{})
+		go func() {
+			defer close(c.tailcat.prepareReady)
+			c.tailcat.prepared, c.tailcat.prepareErr = transport.Prepare(c.stop.ctx)
+			if c.tailcat.prepareErr != nil {
+				log.Debugf("Tailcat preparation failed: %v", c.tailcat.prepareErr)
+				return
+			}
+			log.Debug("Tailcat bootstrap region prepared")
+		}()
+	})
 }
 
 func (c *Client) dialTailcatData(ctx context.Context, offer string) (*tailcatDataBundle, error) {

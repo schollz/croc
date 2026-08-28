@@ -1769,6 +1769,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 	c.TotalNumberOfContents = len(filesInfo)
 	c.FilesToTransfer = filesInfo
 	c.tailcat.transferBytes.Store(totalLogicalTransferSize(filesInfo))
+	c.startTailcatPreparation()
 	hashResult := make(chan error, 1)
 	go func() {
 		prepareErr := c.sendCollectFiles(filesInfo)

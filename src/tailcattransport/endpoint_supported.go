@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/schollz/croc/v11/internal/tailcat"
+	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 	"tailscale.com/wgengine/filter"
 )
@@ -34,6 +35,36 @@ type Listener struct {
 // Listen starts a PAKE-bound Tailcat server and returns its self-contained
 // encrypted-control-channel offer.
 func Listen(ctx context.Context, sessionKey []byte, config Config, events PathEvent) (*Listener, error) {
+	return listen(ctx, sessionKey, config, events, nil)
+}
+
+// Prepare fetches the DERP map and selects a bootstrap region without
+// creating a keyed Tailcat node.
+func Prepare(ctx context.Context, config Config) (*Prepared, error) {
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	info := &tailcat.ConnInfo{RegionID: -1}
+	if err := info.Expand(ctx, tailcat.ExpandForServer); err != nil {
+		return nil, err
+	}
+	if len(info.Region) != 1 || info.Region[0] == nil {
+		return nil, errors.New("Tailcat preparation selected no DERP region")
+	}
+	return &Prepared{region: info.Region[0]}, nil
+}
+
+// ListenPrepared starts a keyed listener using bootstrap work completed by
+// Prepare. A nil result retains the regular Listen behavior.
+func ListenPrepared(ctx context.Context, sessionKey []byte, config Config, events PathEvent, prepared *Prepared) (*Listener, error) {
+	var region *tailcfg.DERPRegion
+	if prepared != nil {
+		region = prepared.region
+	}
+	return listen(ctx, sessionKey, config, events, region)
+}
+
+func listen(ctx context.Context, sessionKey []byte, config Config, events PathEvent, region *tailcfg.DERPRegion) (*Listener, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -59,6 +90,7 @@ func Listen(ctx context.Context, sessionKey []byte, config Config, events PathEv
 	}
 	server := &tailcat.Server{
 		Key:            identities.sender,
+		Region:         region,
 		AllowedClients: []key.NodePublic{identities.receiver.Public()},
 		ServedTCPPorts: ports,
 		Logf:           eventLogger(l.path),
