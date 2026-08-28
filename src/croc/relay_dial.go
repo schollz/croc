@@ -29,6 +29,7 @@ type relayControlResult struct {
 	address    string
 	banner     string
 	externalIP string
+	capability string
 }
 
 type receiverRelayAttempt struct {
@@ -111,7 +112,7 @@ func (c *Client) connectRelayControl(addresses ...string) (relayControlResult, e
 	if err != nil {
 		return relayControlResult{}, err
 	}
-	banner, externalIP, err := tcp.HandshakeTCPServer(connection, c.Options.RelayPassword, c.Options.RoomName)
+	banner, externalIP, capability, err := tcp.HandshakeTCPServerCapability(connection, c.Options.RelayPassword, c.Options.RoomName)
 	if err != nil {
 		connection.Close()
 		return relayControlResult{}, err
@@ -121,6 +122,7 @@ func (c *Client) connectRelayControl(addresses ...string) (relayControlResult, e
 		address:    address,
 		banner:     banner,
 		externalIP: externalIP,
+		capability: capability,
 	}, nil
 }
 

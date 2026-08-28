@@ -1103,6 +1103,10 @@ func relay(c *cli.Context) (err error) {
 	}
 
 	tcpPorts := strings.Join(ports[1:], ",")
+	capabilitySet, capabilityErr := tcp.NewRelayCapabilitySet(min(len(ports)-1, 8))
+	if capabilityErr != nil {
+		return capabilityErr
+	}
 	for i, port := range ports {
 		if i == 0 {
 			continue
@@ -1117,6 +1121,7 @@ func relay(c *cli.Context) (err error) {
 				tcp.WithMaxPendingHandshakes(maxPendingHandshakes),
 				tcp.WithHandshakeTimeout(handshakeTimeout),
 				tcp.WithAdmissionLimits(sourceJoinLimit, roomJoinLimit, joinLimitWindow),
+				tcp.WithFastAdmission(capabilitySet),
 			)
 			if err != nil {
 				panic(err)
@@ -1133,6 +1138,7 @@ func relay(c *cli.Context) (err error) {
 		tcp.WithMaxPendingHandshakes(maxPendingHandshakes),
 		tcp.WithHandshakeTimeout(handshakeTimeout),
 		tcp.WithAdmissionLimits(sourceJoinLimit, roomJoinLimit, joinLimitWindow),
+		tcp.WithFastAdmission(capabilitySet),
 		tcp.WithRoomPairedCallback(roomPaired),
 	)
 }

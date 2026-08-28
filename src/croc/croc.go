@@ -216,6 +216,7 @@ type Client struct {
 	pakeConfirmationPending    bool
 	nextReconnectRoom          string
 	relayControlAddress        string
+	relayCapability            string
 	reconnectRelayAddresses    []string
 	reconnectRelayMu           sync.Mutex
 	reconnectVersion           int
@@ -1859,6 +1860,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 			// Preserve the public relay's observation before a direct route can
 			// switch the sender to its own loopback relay.
 			c.ExternalIP = route.externalIP
+			c.relayCapability = route.capability
 			c.markExternalIPReady()
 			if routeErr = c.senderWaitForHandshake(route.connection); routeErr != nil {
 				errchan <- routeErr
@@ -2052,6 +2054,7 @@ func (c *Client) Receive() (err error) {
 		return
 	}
 	c.ExternalIP = route.externalIP
+	c.relayCapability = route.capability
 	if usingLocal {
 		c.ExternalIPConnected = route.address
 	}
@@ -2791,10 +2794,11 @@ func (c *Client) openRelayDataChannels(attempt *transferAttemptState, indices []
 			defer wg.Done()
 			server := net.JoinHostPort(relayHost, c.Options.RelayPorts[j])
 			log.Debugf("connecting to %s", server)
-			dataConn, _, _, connErr := tcp.ConnectToTCPServer(
+			dataConn, _, _, fast, connErr := tcp.ConnectToTCPServerWithCapability(
 				server,
 				c.Options.RelayPassword,
 				fmt.Sprintf("%s-%d", c.Options.RoomName, j),
+				c.relayCapability,
 			)
 			if connErr != nil {
 				errc <- connErr
@@ -2804,6 +2808,9 @@ func (c *Client) openRelayDataChannels(attempt *transferAttemptState, indices []
 				return
 			}
 			log.Debugf("connected to %s", server)
+			if fast {
+				log.Debugf("used fast relay admission on data port %d", j)
+			}
 			if startReceive && !c.Options.IsSender {
 				go c.receiveData(j, dataConn, attempt)
 			} else if c.Options.IsSender {
