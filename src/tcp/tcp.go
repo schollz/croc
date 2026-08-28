@@ -697,6 +697,15 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		log.Debug(err)
 		return
 	}
+	banner, ipaddr, err = HandshakeTCPServer(c, password, room)
+	return
+}
+
+// HandshakeTCPServer authenticates and joins a room over an already-open TCP
+// connection. Keeping raw dialing separate lets callers race address families
+// without admitting the same client to a relay room more than once.
+func HandshakeTCPServer(c *comm.Comm, password, room string) (banner string, ipaddr string, err error) {
+	defer func() { err = redact.Error(err, password, room) }()
 
 	// get PAKE connection with server to establish strong key to transfer info
 	A, err := pake.InitCurve(weakKey, 0, "siec")
@@ -747,6 +756,24 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 		log.Debug(err)
 		return
 	}
+
+	// The room identifier uses the same relay-session key as the password, so
+	// there is no need to wait for the authentication banner before sending it.
+	// Existing relays read the frames in their original order and simply find
+	// this one already buffered after password verification. This pipelines the
+	// last admission flight without changing the wire format.
+	log.Debug("sending encrypted room identifier")
+	bRoom, err := crypt.Encrypt([]byte(room), strongKeyForEncryption)
+	if err != nil {
+		log.Debug(err)
+		return
+	}
+	err = c.Send(bRoom)
+	if err != nil {
+		log.Debug(err)
+		return
+	}
+
 	log.Debug("waiting for first ok")
 	enc, err := c.Receive()
 	if err != nil {
@@ -769,17 +796,6 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 	}
 	banner = strings.Split(string(data), "|||")[0]
 	ipaddr = strings.Split(string(data), "|||")[1]
-	log.Debug("sending encrypted room identifier")
-	bSend, err = crypt.Encrypt([]byte(room), strongKeyForEncryption)
-	if err != nil {
-		log.Debug(err)
-		return
-	}
-	err = c.Send(bSend)
-	if err != nil {
-		log.Debug(err)
-		return
-	}
 	log.Debug("waiting for room confirmation")
 	enc, err = c.Receive()
 	if err != nil {

@@ -68,6 +68,9 @@ func (c *Client) waitForFilesReady(ctx context.Context) error {
 func (c *Client) finishFilePreparation(err error) {
 	c.filesReadyOnce.Do(func() {
 		c.filesReadyErr = err
+		if err == nil {
+			c.markStartup("file-metadata-ready")
+		}
 		close(c.filesReady)
 	})
 }
@@ -83,13 +86,16 @@ func (c *Client) connection(index int) *comm.Comm {
 
 func (c *Client) setConnection(index int, connection *comm.Comm) {
 	c.connectionsMu.Lock()
-	defer c.connectionsMu.Unlock()
 	if index >= len(c.conn) {
 		connections := make([]*comm.Comm, index+1)
 		copy(connections, c.conn)
 		c.conn = connections
 	}
 	c.conn[index] = connection
+	c.connectionsMu.Unlock()
+	if index == 0 && connection != nil {
+		c.markStartup("relay-control-ready")
+	}
 }
 
 func (c *Client) connectionsSnapshot() []*comm.Comm {

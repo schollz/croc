@@ -171,6 +171,7 @@ type Client struct {
 	Pake                            *pake.Pake
 	Key                             []byte
 	ExternalIP, ExternalIPConnected string
+	startup                         startupTiming
 
 	// steps involved in forming relationship
 	lifecycleMu               sync.RWMutex
@@ -335,6 +336,7 @@ func New(ops Options) (*Client, error) {
 func newClient(ops Options, transport tailcatDataTransport) (c *Client, err error) {
 	defer func() { err = redact.Error(err, ops.SharedSecret) }()
 	c = new(Client)
+	c.startup.start()
 	if transport == nil {
 		transport = defaultTailcatDataTransport()
 	}
@@ -1669,55 +1671,27 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 	if !c.Options.OnlyLocal {
 		go func() {
 			defer c.markExternalIPReady()
-			var ipaddr, banner string
-			var conn *comm.Comm
-			var selectedAddress string
-			var routeErr error
-			durations := []time.Duration{100 * time.Millisecond, 5 * time.Second}
-			for i, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
-				if address == "" {
-					continue
-				}
-				host, port, _ := net.SplitHostPort(address)
-				log.Debugf("host: '%s', port: '%s'", host, port)
-				// Default port to :9009
-				if port == "" {
-					host = address
-					port = models.DEFAULT_PORT
-				}
-				log.Debugf("got host '%v' and port '%v'", host, port)
-				address = net.JoinHostPort(host, port)
-				log.Debugf("trying connection to %s", address)
-				conn, banner, ipaddr, routeErr = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.RoomName, durations[i])
-				if routeErr == nil {
-					selectedAddress = address
-					break
-				}
-				log.Debugf("could not establish '%s'", address)
-			}
-			if conn == nil && routeErr == nil {
-				routeErr = fmt.Errorf("could not connect")
-			}
+			route, routeErr := c.connectRelayControl(c.Options.RelayAddress6, c.Options.RelayAddress)
 			if routeErr != nil {
 				routeErr = fmt.Errorf("%w: could not connect to %s: %v", ErrRelayConnection, c.Options.RelayAddress, routeErr)
 				log.Debug(routeErr)
 				errchan <- routeErr
 				return
 			}
-			log.Debugf("banner: %s", banner)
-			log.Debugf("connection established: %+v", conn)
+			log.Debugf("banner: %s", route.banner)
+			log.Debugf("connection established: %+v", route.connection)
 			// Preserve the public relay's observation before a direct route can
 			// switch the sender to its own loopback relay.
-			c.ExternalIP = ipaddr
+			c.ExternalIP = route.externalIP
 			c.markExternalIPReady()
-			if routeErr = c.senderWaitForHandshake(conn); routeErr != nil {
+			if routeErr = c.senderWaitForHandshake(route.connection); routeErr != nil {
 				errchan <- routeErr
 				return
 			}
 
-			c.setRelayControlAddress(selectedAddress)
-			c.setConnection(0, conn)
-			c.Options.RelayPorts = strings.Split(banner, ",")
+			c.setRelayControlAddress(route.address)
+			c.setConnection(0, route.connection)
+			c.Options.RelayPorts = strings.Split(route.banner, ",")
 			if c.Options.NoMultiplexing {
 				log.Debug("no multiplexing")
 				c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
@@ -1888,74 +1862,28 @@ func (c *Client) Receive() (err error) {
 		isIPset = true
 	}
 
-	if !c.Options.DisableLocal && !isIPset {
-		log.Debug("attempt to discover peers")
-		discoveries := c.discoverReceivePeers()
-
-		if err == nil && len(discoveries) > 0 {
-			log.Debugf("all discoveries: %+v", discoveries)
-			for i := range discoveries {
-				log.Debugf("checking discovery result %d", i)
-				if !bytes.HasPrefix(discoveries[i].Payload, []byte("croc")) {
-					log.Debug("skipping discovery")
-					continue
-				}
-				log.Debug("switching to local")
-				portToUse := string(bytes.TrimPrefix(discoveries[i].Payload, []byte("croc")))
-				if portToUse == "" {
-					portToUse = models.DEFAULT_PORT
-				}
-				address := net.JoinHostPort(discoveries[i].Address, portToUse)
-				errPing := tcp.PingServer(address)
-				if errPing == nil {
-					log.Debugf("successfully pinged '%s'", address)
-					c.Options.RelayAddress = address
-					c.ExternalIPConnected = c.Options.RelayAddress
-					c.Options.RelayAddress6 = ""
-					usingLocal = true
-					break
-				} else {
-					log.Debugf("could not ping: %+v", errPing)
-				}
-			}
-		}
-		log.Debugf("discoveries: %+v", discoveries)
-		log.Debug("establishing connection")
-	}
 	c.setReceiveStatus(receiveStatusConnecting)
-	var banner string
-	durations := []time.Duration{200 * time.Millisecond, 5 * time.Second}
-	err = fmt.Errorf("found no addresses to connect")
-	for i, address := range []string{c.Options.RelayAddress6, c.Options.RelayAddress} {
-		if address == "" {
-			continue
-		}
-		var host, port string
-		host, port, _ = net.SplitHostPort(address)
-		// Default port to :9009
-		if port == "" {
-			host = address
-			port = models.DEFAULT_PORT
-		}
-		log.Debugf("got host '%v' and port '%v'", host, port)
-		address = net.JoinHostPort(host, port)
-		log.Debugf("trying connection to %s", address)
-		var control *comm.Comm
-		control, banner, c.ExternalIP, err = tcp.ConnectToTCPServer(address, c.Options.RelayPassword, c.Options.RoomName, durations[i])
-		if err == nil {
-			c.setConnection(0, control)
-			c.setRelayControlAddress(address)
-			break
-		}
-		log.Debugf("could not establish '%s'", address)
+	var route relayControlResult
+	if !c.Options.DisableLocal && !isIPset {
+		log.Debug("racing peer discovery with the public relay")
+		route, usingLocal, err = c.connectReceiverRelayControl(c.Options.RelayAddress6, c.Options.RelayAddress)
+	} else {
+		route, err = c.connectRelayControl(c.Options.RelayAddress6, c.Options.RelayAddress)
 	}
 	if err != nil {
 		err = fmt.Errorf("could not connect to %s: %w", c.Options.RelayAddress, err)
 		log.Debug(err)
 		return
 	}
+	c.ExternalIP = route.externalIP
+	if usingLocal {
+		c.ExternalIPConnected = route.address
+	}
+	c.setConnection(0, route.connection)
+	c.setRelayControlAddress(route.address)
 	log.Debugf("receiver connection established: %+v", c.connection(0))
-	log.Debugf("banner: %s", banner)
+	log.Debugf("banner: %s", route.banner)
+	banner := route.banner
 
 	if c.Options.TestFlag {
 		log.Debugf("TEST FLAG ENABLED, TESTING LOCAL IPS")
@@ -2483,6 +2411,7 @@ func (c *Client) processMessageFileInfo(m message.Message) (done bool, err error
 	}
 	log.Debug(c.FilesToTransfer)
 	c.updateLifecycle(func(state *transferLifecycle) { state.FileInfoTransferred = true })
+	c.markStartup("file-metadata-ready")
 	return
 }
 
@@ -2637,6 +2566,7 @@ func (c *Client) processMessagePakeConfirm(m message.Message, attempt *transferA
 	c.dataAEAD = dataAEAD
 	c.pakeKeys = pakekey.Keys{}
 	c.pakeConfirmationPending = false
+	c.markStartup("peer-pake-complete")
 	return c.activateSecureChannel(attempt)
 }
 
@@ -2722,6 +2652,7 @@ func (c *Client) finishDataTransportActivation() error {
 	}
 	log.Debug("peer endpoint metadata will use existing transfer messages")
 	c.updateLifecycle(func(state *transferLifecycle) { state.ChannelSecured = true })
+	c.markStartup("transport-ready")
 	if !c.Options.IsSender {
 		c.setReceiveStatus(receiveStatusWaitingForFileList)
 	}
@@ -2746,6 +2677,7 @@ func (c *Client) processExternalIP(m message.Message) (done bool, err error) {
 	c.ExternalIPConnected = preferredPeerIP(c.ExternalIPConnected, m.Message)
 	log.Debug("peer endpoint metadata exchange completed")
 	c.updateLifecycle(func(state *transferLifecycle) { state.ChannelSecured = true })
+	c.markStartup("transport-ready")
 	if !c.Options.IsSender {
 		c.setReceiveStatus(receiveStatusWaitingForFileList)
 	}
@@ -3041,6 +2973,7 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 	}
 
 	log.Debugf("sending recipient ready with %d chunks", c.CurrentFileChunkCount)
+	c.markStartup("recipient-ready")
 	err = message.Send(c.connection(0), c.Key, message.Message{
 		Type:  message.TypeRecipientReady,
 		Bytes: bRequest,
@@ -3398,6 +3331,7 @@ func (c *Client) receiveData(i int, dataConn *comm.Comm, attempt *transferAttemp
 			attempt.report(err)
 			return
 		}
+		c.markStartup("first-decrypted-data-byte")
 		if c.currentFileUsesCompression() {
 			data, err = compress.DecompressTo(decompressedBuffer, data, maxDecompressedChunkSize)
 			if err != nil {
