@@ -1228,11 +1228,11 @@ func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {
 	totalFilesSize := int64(0)
 	requestedAlgorithm := c.Options.HashAlgorithm
 	if requestedAlgorithm == "" {
-		requestedAlgorithm = "imohash"
+		requestedAlgorithm = "xxhash"
 		c.Options.HashAlgorithm = requestedAlgorithm
 	}
 	c.preparedHashAlgorithm = requestedAlgorithm
-	progressiveCandidate := requestedAlgorithm == "imohash" && !c.Options.HashExplicit
+	progressiveCandidate := requestedAlgorithm == "imohash"
 	if progressiveCandidate {
 		c.preparedHashAlgorithm = "imohash-v2"
 	}
@@ -1364,15 +1364,15 @@ func (c *Client) prepareAllFiles(algorithm string, force bool) error {
 func (c *Client) finalizeHashNegotiation() error {
 	requested := c.Options.HashAlgorithm
 	if requested == "" {
-		requested = "imohash"
+		requested = "xxhash"
 	}
 	if c.preparedHashAlgorithm == "imohash-v2" && c.peerProgressiveHash {
 		c.Options.HashAlgorithm = "imohash-v2"
 		return nil
 	}
 	if c.preparedHashAlgorithm == "imohash-v2" {
-		// Default invocations must remain readable by v11.3 and current browser
-		// receivers, which only accept the eager xxhash wire format.
+		// Peers without progressive hash support, including v11.3 and current
+		// browser receivers, only accept the eager xxhash wire format.
 		c.Options.HashAlgorithm = "xxhash"
 		c.preparedHashAlgorithm = "xxhash"
 		return c.prepareAllFiles("xxhash", true)

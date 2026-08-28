@@ -398,15 +398,17 @@ croc --curve p521 <codephrase>
 
 #### Change Hash Algorithm
 
-Native clients now use a versioned, multi-point `imohash` profile by default.
-Files over 8 MiB sample sixteen evenly spaced 256 KiB windows, and a sampled
-match is confirmed with full xxhash on both peers before an existing file is
-skipped. Older native and browser receivers automatically retain eager xxhash.
-To force the legacy full-file algorithm explicitly:
+Native clients use `xxhash` by default for maximum interoperability with native
+and browser receivers. To opt into the faster negotiated `imohash` profile:
 
 ```bash
-croc send --hash xxhash SOMEFILE
+croc send --hash imohash SOMEFILE
 ```
+
+When both native peers support it, files over 8 MiB sample sixteen evenly spaced
+256 KiB windows, and a sampled match is confirmed with full xxhash on both peers
+before an existing file is skipped. Peers without progressive hash support
+automatically fall back to eager xxhash.
 
 #### Clipboard Options
 

@@ -76,7 +76,7 @@ func newApp() *cli.App {
 				&cli.BoolFlag{Name: "zip", Usage: "zip folder before sending"},
 				&cli.StringFlag{Name: "code", Aliases: []string{"c"}, Usage: "codephrase used to connect to relay (at least 6 characters)"},
 				&cli.StringFlag{Name: "transport", Value: string(croc.TransportAuto), Usage: "sender file data transport (auto, derp, relay)"},
-				&cli.StringFlag{Name: "hash", Value: "imohash", Usage: "hash algorithm (imohash, xxhash, md5, highway)"},
+				&cli.StringFlag{Name: "hash", Value: "xxhash", Usage: "hash algorithm (imohash, xxhash, md5, highway)"},
 				&cli.StringFlag{Name: "text", Aliases: []string{"t"}, Usage: "send some text"},
 				&cli.BoolFlag{Name: "no-local", Usage: "disable local relay when sending"},
 				&cli.BoolFlag{Name: "no-multi", Usage: "disable multiplexing"},

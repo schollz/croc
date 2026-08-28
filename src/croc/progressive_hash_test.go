@@ -32,14 +32,38 @@ func progressiveTestFile(t *testing.T, directory, name string, data []byte) File
 
 func progressiveTestClient() *Client {
 	return &Client{
-		Options:          Options{IsSender: true, HashAlgorithm: "imohash", NoCompress: true},
+		Options:          Options{IsSender: true, HashAlgorithm: "imohash", HashExplicit: true, NoCompress: true},
 		stop:             newStop(context.Background()),
 		exactHashPending: -1,
 		exactHashResults: make(map[int]bool),
 	}
 }
 
-func TestDefaultHashFallsBackToXXHashForLegacyPeer(t *testing.T) {
+func TestDefaultHashUsesXXHashWithProgressivePeer(t *testing.T) {
+	directory := t.TempDir()
+	files := []FileInfo{
+		progressiveTestFile(t, directory, "first", bytes.Repeat([]byte("first"), 1024)),
+		progressiveTestFile(t, directory, "second", bytes.Repeat([]byte("second"), 1024)),
+	}
+	client := progressiveTestClient()
+	client.Options.HashAlgorithm = "xxhash"
+	client.Options.HashExplicit = false
+	if err := client.sendCollectFiles(files); err != nil {
+		t.Fatal(err)
+	}
+	if !client.FilesToTransfer[0].Prepared || !client.FilesToTransfer[1].Prepared {
+		t.Fatalf("default xxhash did not eagerly prepare all files: %v, %v", client.FilesToTransfer[0].Prepared, client.FilesToTransfer[1].Prepared)
+	}
+	client.peerProgressiveHash = true
+	if err := client.finalizeHashNegotiation(); err != nil {
+		t.Fatal(err)
+	}
+	if client.Options.HashAlgorithm != "xxhash" {
+		t.Fatalf("wire algorithm = %q", client.Options.HashAlgorithm)
+	}
+}
+
+func TestExplicitIMOHashFallsBackToXXHashForLegacyPeer(t *testing.T) {
 	directory := t.TempDir()
 	file := progressiveTestFile(t, directory, "payload", bytes.Repeat([]byte("legacy"), 1024))
 	client := progressiveTestClient()
@@ -57,11 +81,11 @@ func TestDefaultHashFallsBackToXXHashForLegacyPeer(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(client.FilesToTransfer[0].Hash, want) {
-		t.Fatal("legacy fallback did not eagerly compute xxhash")
+		t.Fatal("legacy fallback did not compute xxhash")
 	}
 }
 
-func TestDefaultHashNegotiatesV2AndPreparesLazily(t *testing.T) {
+func TestExplicitIMOHashNegotiatesV2AndPreparesLazily(t *testing.T) {
 	directory := t.TempDir()
 	files := []FileInfo{
 		progressiveTestFile(t, directory, "first", bytes.Repeat([]byte("first"), 1024)),
