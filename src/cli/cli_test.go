@@ -373,11 +373,12 @@ func TestTransportIsSendOnlyAndDefaultsToAuto(t *testing.T) {
 }
 
 func TestTransportRejectsInvalidValuesAndIncompatibleCLIOptions(t *testing.T) {
-	tests := []struct {
+	type transportErrorTest struct {
 		name string
 		args []string
 		want string
-	}{
+	}
+	tests := []transportErrorTest{
 		{
 			name: "invalid",
 			args: []string{"croc", "--ignore-stdin", "send", "--transport", "magic", "--text", "hello"},
@@ -403,11 +404,15 @@ func TestTransportRejectsInvalidValuesAndIncompatibleCLIOptions(t *testing.T) {
 			args: []string{"croc", "--ignore-stdin", "send", "--transport", "relay", "--store", "unused"},
 			want: "--transport must be auto for stored transfers",
 		},
-		{
+	}
+	if _, downgraded, err := croc.ResolveTransportMode(string(croc.TransportDERP)); err != nil {
+		t.Fatal(err)
+	} else if !downgraded {
+		tests = append(tests, transportErrorTest{
 			name: "qrcode",
 			args: []string{"croc", "--ignore-stdin", "send", "--transport", "derp", "--qrcode", "unused"},
 			want: "--transport derp cannot be combined with --qrcode",
-		},
+		})
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -994,6 +999,27 @@ func TestApplyRememberedSendOptionsTransport(t *testing.T) {
 				return
 			}
 			t.Fatal("send command not found")
+		})
+	}
+}
+
+func TestWriteTailcatRelayFallbackWarning(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		quiet      bool
+		downgraded bool
+		want       string
+	}{
+		{name: "downgraded", downgraded: true, want: tailcatRelayFallbackWarning + "\n"},
+		{name: "quiet", quiet: true, downgraded: true},
+		{name: "unchanged"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var output strings.Builder
+			writeTailcatRelayFallbackWarning(&output, test.quiet, test.downgraded)
+			if got := output.String(); got != test.want {
+				t.Fatalf("warning output = %q; want %q", got, test.want)
+			}
 		})
 	}
 }

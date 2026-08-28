@@ -497,6 +497,20 @@ func applyRememberedSendOptions(c *cli.Context, options *croc.Options, remembere
 	}
 }
 
+const tailcatRelayFallbackWarning = "Tailcat is unavailable in this build; using the croc relay instead."
+
+func resolveSendTransport(options *croc.Options) (downgraded bool, err error) {
+	options.Transport, downgraded, err = croc.ResolveTransportMode(string(options.Transport))
+	return downgraded, err
+}
+
+func writeTailcatRelayFallbackWarning(output io.Writer, quiet, downgraded bool) {
+	if quiet || !downgraded {
+		return
+	}
+	fmt.Fprintln(output, tailcatRelayFallbackWarning)
+}
+
 // parseRelayPorts splits a comma-separated --ports value, trimming whitespace
 // around each entry and dropping empties. This keeps "9009, 9010," working the
 // same as "9009,9010" instead of producing invalid port strings like " 9010".
@@ -523,12 +537,6 @@ func send(c *cli.Context) (err error) {
 	}
 	if c.Bool("store") && transport != croc.TransportAuto {
 		return errors.New("--transport must be auto for stored transfers")
-	}
-	if c.Bool("local") && transport != croc.TransportAuto {
-		return errors.New("--transport must be auto for local-only transfers")
-	}
-	if c.Bool("qrcode") && transport == croc.TransportDERP {
-		return errors.New("--transport derp cannot be combined with --qrcode")
 	}
 	if c.Bool("store") {
 		return sendStored(c)
@@ -610,9 +618,17 @@ func send(c *cli.Context) (err error) {
 		}
 		applyRememberedSendOptions(c, &crocOptions, rememberedOptions)
 	}
+	downgradedTransport, err := resolveSendTransport(&crocOptions)
+	if err != nil {
+		return err
+	}
 	if crocOptions.OnlyLocal && crocOptions.Transport != croc.TransportAuto {
 		return errors.New("--transport must be auto for local-only transfers")
 	}
+	if crocOptions.ShowQrCode && crocOptions.Transport == croc.TransportDERP {
+		return errors.New("--transport derp cannot be combined with --qrcode")
+	}
+	writeTailcatRelayFallbackWarning(os.Stderr, crocOptions.Quiet, downgradedTransport)
 	publicRelayMode := usesPublicRelay(c, crocOptions)
 
 	var fnames []string

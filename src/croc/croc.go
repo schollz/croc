@@ -157,6 +157,25 @@ func ParseTransportMode(value string) (TransportMode, error) {
 	}
 }
 
+func resolveTransportMode(mode TransportMode, tailcatAvailable bool) (effective TransportMode, downgraded bool) {
+	if mode == TransportDERP && !tailcatAvailable {
+		return TransportRelay, true
+	}
+	return mode, false
+}
+
+// ResolveTransportMode validates a transport name and resolves it against the
+// capabilities compiled into this binary. Relay-only builds downgrade strict
+// Tailcat requests to the croc relay and report that choice to the caller.
+func ResolveTransportMode(value string) (effective TransportMode, downgraded bool, err error) {
+	mode, err := ParseTransportMode(value)
+	if err != nil {
+		return "", false, err
+	}
+	effective, downgraded = resolveTransportMode(mode, tailcattransport.Available())
+	return effective, downgraded, nil
+}
+
 type SimpleMessage struct {
 	Bytes   []byte
 	Bytes2  []byte
@@ -380,6 +399,7 @@ func newClient(ops Options, transport tailcatDataTransport) (c *Client, err erro
 	if err != nil {
 		return nil, err
 	}
+	c.Options.Transport, _ = resolveTransportMode(c.Options.Transport, c.dataTransport().Available())
 	if !c.Options.IsSender && c.Options.Transport != TransportAuto {
 		return nil, errors.New("transport selection is sender-only")
 	}
@@ -390,9 +410,6 @@ func newClient(ops Options, transport tailcatDataTransport) (c *Client, err erro
 	if c.Options.Transport == TransportDERP {
 		if c.Options.ShowQrCode {
 			return nil, errors.New("--transport derp cannot be combined with --qrcode")
-		}
-		if !c.dataTransport().Available() {
-			return nil, fmt.Errorf("%w: %w", ErrDERPConnection, tailcattransport.ErrUnsupported)
 		}
 	}
 

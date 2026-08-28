@@ -166,7 +166,33 @@ func TestReceiverCannotSelectTransport(t *testing.T) {
 	}
 }
 
-func TestUnavailableTailcatUsesRelayInAutoAndRejectsStrict(t *testing.T) {
+func TestResolveTransportModeForAvailability(t *testing.T) {
+	tests := []struct {
+		name       string
+		mode       TransportMode
+		available  bool
+		want       TransportMode
+		downgraded bool
+	}{
+		{name: "available auto", mode: TransportAuto, available: true, want: TransportAuto},
+		{name: "unavailable auto", mode: TransportAuto, want: TransportAuto},
+		{name: "available relay", mode: TransportRelay, available: true, want: TransportRelay},
+		{name: "unavailable relay", mode: TransportRelay, want: TransportRelay},
+		{name: "available derp", mode: TransportDERP, available: true, want: TransportDERP},
+		{name: "unavailable derp", mode: TransportDERP, want: TransportRelay, downgraded: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, downgraded := resolveTransportMode(test.mode, test.available)
+			if got != test.want || downgraded != test.downgraded {
+				t.Fatalf("resolveTransportMode(%q, %t) = (%q, %t); want (%q, %t)", test.mode, test.available, got, downgraded, test.want, test.downgraded)
+			}
+		})
+	}
+}
+
+func TestUnavailableTailcatUsesRelayInAutoAndDowngradesStrict(t *testing.T) {
 	provider := &unavailableTestDataTransport{}
 	auto, err := newClient(Options{
 		SharedSecret: "tailcat-unavailable-auto",
@@ -179,14 +205,21 @@ func TestUnavailableTailcatUsesRelayInAutoAndRejectsStrict(t *testing.T) {
 	if features := auto.pakeFeatures(); !supportsFeature(features, inlinePeerMetadataFeature) || supportsFeature(features, tailcatFeature) {
 		t.Fatalf("unavailable auto transport advertised Tailcat: %v", features)
 	}
-	_, err = newClient(Options{
+	strict, err := newClient(Options{
 		SharedSecret: "tailcat-unavailable-strict",
 		IsSender:     true,
 		Transport:    TransportDERP,
 		Curve:        "p256",
+		ShowQrCode:   true,
 	}, provider)
-	if !errors.Is(err, ErrDERPConnection) || !errors.Is(err, tailcattransport.ErrUnsupported) {
-		t.Fatalf("strict unavailable error = %v", err)
+	if err != nil {
+		t.Fatalf("strict unavailable transport rejected: %v", err)
+	}
+	if strict.Options.Transport != TransportRelay {
+		t.Fatalf("strict unavailable transport = %q; want relay", strict.Options.Transport)
+	}
+	if features := strict.pakeFeatures(); supportsFeature(features, tailcatFeature) || supportsFeature(features, tailcatRequiredFeature) {
+		t.Fatalf("downgraded transport advertised Tailcat: %v", features)
 	}
 }
 

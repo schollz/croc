@@ -747,9 +747,13 @@ func TestCrocReadme(t *testing.T) {
 		Curve:         "siec",
 		Overwrite:     true,
 		GitIgnore:     false,
+		Transport:     TransportDERP,
 	})
 	if err != nil {
 		panic(err)
+	}
+	if sender.Options.Transport != TransportRelay {
+		t.Fatalf("unavailable strict transport = %q; want relay", sender.Options.Transport)
 	}
 
 	log.Debug("setting up receiver")
@@ -792,6 +796,17 @@ func TestCrocReadme(t *testing.T) {
 	}()
 
 	wg.Wait()
+	want, err := os.ReadFile("../../README.md")
+	if err != nil {
+		t.Fatalf("read source README: %v", err)
+	}
+	got, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatalf("read received README: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatal("relay-only transfer output differs from source")
+	}
 }
 
 func TestCrocNonASCIIFileName(t *testing.T) {

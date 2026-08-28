@@ -109,10 +109,18 @@ jobs:
         run: |
           go version
           COMMON='-buildvcs=false -trimpath -tags netgo,osusergo'
+          RELAY_ONLY='-buildvcs=false -trimpath -tags netgo,osusergo,croc_no_tailcat'
           SMALL='-s -w -buildid= -extldflags "-static"'
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $COMMON -ldflags "$SMALL" -o croc-linux-amd64
           CGO_ENABLED=0 GOOS=linux GOARCH=386 go build $COMMON -ldflags "$SMALL" -o croc-linux-386
           GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go build $COMMON -ldflags "$SMALL" -o croc-linux-arm5
+          CGO_ENABLED=0 go test -tags croc_no_tailcat ./src/croc ./src/cli ./src/tailcattransport
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $RELAY_ONLY -ldflags "$SMALL" -o croc-linux-amd64-relay-only
+          CGO_ENABLED=0 GOOS=dragonfly GOARCH=amd64 go build $COMMON -ldflags "$SMALL" -o croc-dragonfly-amd64
+          CGO_ENABLED=0 GOOS=netbsd GOARCH=386 go build $COMMON -ldflags "$SMALL" -o croc-netbsd-386
+          CGO_ENABLED=0 GOOS=netbsd GOARCH=amd64 go build $COMMON -ldflags "$SMALL" -o croc-netbsd-amd64
+          CGO_ENABLED=0 GOOS=netbsd GOARCH=arm64 go build $COMMON -ldflags "$SMALL" -o croc-netbsd-arm64
+          CGO_ENABLED=0 GOOS=illumos GOARCH=amd64 go test -c -o /tmp/tailcattransport-illumos-amd64.test ./src/tailcattransport
           CGO_ENABLED=0 GOOS=linux GOARCH=386 go test -c -o /tmp/tailcattransport-linux-386.test ./src/tailcattransport
           GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go test -c -o /tmp/tailcattransport-linux-arm5.test ./src/tailcattransport
           go test -tags croc_tailcat_bench ./src/croc -run '^$'

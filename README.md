@@ -173,6 +173,13 @@ If you prefer, you can [install Go](https://go.dev/dl/) and build from source (r
 go install github.com/schollz/croc/v11@latest
 ```
 
+Packagers can build a relay-only binary without the Tailcat userspace
+WireGuard transport by adding the `croc_no_tailcat` build tag:
+
+```bash
+go build -tags croc_no_tailcat
+```
+
 ### On Android
 
 There are F-Droid apps available:
@@ -379,6 +386,11 @@ connection to a direct UDP path whenever NAT traversal succeeds. The receiver
 advertises Tailcat support and follows the sender's selection; it does not have
 a `--transport` option. Browsers, older clients, local-only transfers, and
 unsupported platforms continue to use the croc relay.
+
+Tailcat is compiled for Linux, Windows, macOS, FreeBSD, and OpenBSD. Other
+platforms and builds made with `croc_no_tailcat` are relay-only. If such a build
+loads or is given an explicit `derp` transport setting, it warns once and uses
+the croc relay instead.
 
 Explicit `croc send --transport relay` always uses the croc relay. The public
 spelling `croc send --transport derp` is retained for strict Tailcat mode; it
