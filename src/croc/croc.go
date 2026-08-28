@@ -264,6 +264,12 @@ type Client struct {
 	exactHashPending         int
 	exactHashLocal           []byte
 	exactHashResults         map[int]bool
+	senderDataMu             sync.Mutex
+	senderChunkQueue         *requestedChunkQueue
+	senderDataAttempt        *transferAttemptState
+	senderDataFile           *os.File
+	senderDataWorkers        map[*comm.Comm]struct{}
+	senderWorkerSequence     int
 
 	// ctx.go for graceful shutdown
 	*stop
@@ -3453,11 +3459,7 @@ func (c *Client) updateState(attempt *transferAttemptState) (err error) {
 		if err != nil {
 			return
 		}
-		connectionCount := c.transferConnectionCount()
-		for i := 0; i < connectionCount; i++ {
-			log.Debugf("starting sending over comm %d", i)
-			go c.sendData(i, connectionCount, c.connection(i+1), c.fread, attempt)
-		}
+		c.startSenderChunkQueue(attempt, c.fread)
 	}
 	return
 }
@@ -3646,45 +3648,95 @@ func (c *Client) receiveData(i int, dataConn *comm.Comm, attempt *transferAttemp
 	}
 }
 
-func (c *Client) sendData(i, connectionCount int, dataConn *comm.Comm, fread *os.File, attempt *transferAttemptState) {
+func (c *Client) startSenderChunkQueue(attempt *transferAttemptState, file *os.File) {
+	queue := newRequestedChunkQueue(
+		c.CurrentFileChunkRanges,
+		c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
+		models.TCP_BUFFER_SIZE/2,
+		func() {
+			log.Debug("closing file")
+			if err := file.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+				log.Errorf("error closing file: %v", err)
+			}
+		},
+	)
+	c.senderDataMu.Lock()
+	c.senderChunkQueue = queue
+	c.senderDataAttempt = attempt
+	c.senderDataFile = file
+	c.senderDataWorkers = make(map[*comm.Comm]struct{})
+	c.senderWorkerSequence = 0
+	c.senderDataMu.Unlock()
+	connections := c.connectionsSnapshot()
+	if len(connections) > 0 {
+		connections = connections[1:]
+	}
+	for i, connection := range connections {
+		if connection != nil {
+			log.Debugf("starting sending over comm %d", i)
+			c.startLateSenderWorker(connection)
+		}
+	}
+}
+
+func (c *Client) startLateSenderWorker(dataConn *comm.Comm) {
+	if dataConn == nil {
+		return
+	}
+	c.senderDataMu.Lock()
+	queue, file, attempt := c.senderChunkQueue, c.senderDataFile, c.senderDataAttempt
+	if queue == nil || file == nil || attempt == nil {
+		c.senderDataMu.Unlock()
+		return
+	}
+	if _, exists := c.senderDataWorkers[dataConn]; exists {
+		c.senderDataMu.Unlock()
+		return
+	}
+	c.senderDataWorkers[dataConn] = struct{}{}
+	workerID := c.senderWorkerSequence
+	c.senderWorkerSequence++
+	c.senderDataMu.Unlock()
+	go c.sendData(workerID, dataConn, file, queue, attempt)
+}
+
+func (c *Client) sendData(i int, dataConn *comm.Comm, fread *os.File, queue *requestedChunkQueue, attempt *transferAttemptState) {
 	defer func() {
 		if r := recover(); r != nil {
 			attempt.report(fmt.Errorf("send data panic: %v", r))
 		}
 		log.Debugf("finished with %d", i)
-		attempt.finishSenderData(connectionCount, fread)
 	}()
 
 	chunkSize := int64(models.TCP_BUFFER_SIZE / 2)
-	connectionCount64 := int64(connectionCount)
-	readingPos := int64(i) * chunkSize
-	pos := uint64(readingPos)
-	stride := chunkSize * connectionCount64
-	fileSize := c.FilesToTransfer[c.FilesToTransferCurrentNum].Size
 	payload := make([]byte, 8+chunkSize)
 	var encryptedBuffer []byte
 	var compressedBuffer []byte
-	for readingPos < fileSize {
+	for {
 		if err := c.ctxErr(); err != nil {
 			log.Tracef("stopping send %d: %v", i, err)
 			return
 		}
-		// Skip disk I/O entirely for chunks the recipient already has.
-		usableChunk := utils.ChunkRangesContain(c.CurrentFileChunkRanges, int64(pos))
-		if !usableChunk {
-			readingPos += stride
-			pos += uint64(stride)
-			continue
+		readingPos, ok := queue.claim()
+		if !ok {
+			return
 		}
 
 		n, errRead := fread.ReadAt(payload[8:], readingPos)
+		if n == 0 {
+			if errRead == nil {
+				errRead = io.ErrUnexpectedEOF
+			}
+			attempt.report(errRead)
+			return
+		}
 		if c.limiter != nil {
 			r := c.limiter.ReserveN(time.Now(), n)
 			log.Debugf("Limiting Upload for %d", r.Delay())
 			time.Sleep(r.Delay())
 		}
 		if n > 0 {
-			binary.LittleEndian.PutUint64(payload[:8], pos)
+			binary.LittleEndian.PutUint64(payload[:8], uint64(readingPos))
 			plain := payload[:8+n]
 			var dataToSend []byte
 			var err error
@@ -3709,9 +3761,8 @@ func (c *Client) sendData(i, connectionCount int, dataConn *comm.Comm, fread *os
 			c.mutex.Lock()
 			c.TotalSent += int64(n)
 			c.mutex.Unlock()
+			queue.complete()
 		}
-		readingPos += stride
-		pos += uint64(stride)
 
 		if errRead != nil {
 			if errRead == io.EOF {
