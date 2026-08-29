@@ -836,6 +836,35 @@ export function App() {
     return () => receiveAbort.current?.abort();
   }, []);
 
+  useEffect(() => {
+    if (sendActivity !== "working" && receiveActivity !== "working") return;
+    let sentinel: WakeLockSentinel | undefined;
+    let cancelled = false;
+
+    async function acquireWakeLock() {
+      if (cancelled || document.visibilityState !== "visible") return;
+      if (sentinel && !sentinel.released) return;
+      try {
+        sentinel = await navigator.wakeLock?.request("screen");
+        sentinel?.addEventListener("release", () => {
+          if (!cancelled) void acquireWakeLock();
+        });
+      } catch {}
+    }
+
+    function onVisibility() {
+      if (document.visibilityState === "visible") void acquireWakeLock();
+    }
+
+    void acquireWakeLock();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisibility);
+      void sentinel?.release().catch(() => {});
+    };
+  }, [sendActivity, receiveActivity]);
+
   useLayoutEffect(() => {
     if (requestedReceiveCode) {
       receivePanel.current?.scrollIntoView({ block: "start" });
