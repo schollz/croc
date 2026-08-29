@@ -136,6 +136,14 @@ export function validateSenderInfo(info: SenderInfoWire): TransferOffer {
     if (files[0].size > maxTextTransferBytes) {
       throw new Error("The text transfer is larger than 1 MiB");
     }
+    if ((info.FilesToTransfer ?? [])[0]?.tf) {
+      throw new Error("A text transfer cannot be an extractable archive");
+    }
+    if (files[0].folder !== "." || !files[0].name.startsWith("croc-stdin-")) {
+      throw new Error(
+        "A text transfer must use a croc-stdin- filename in the receive root",
+      );
+    }
   }
 
   return {

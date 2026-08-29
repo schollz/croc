@@ -362,6 +362,8 @@ const (
 	selectedTransportUnset      = 0
 	selectedTransportRelay      = 2
 	localProbeResponseTimeout   = 500 * time.Millisecond
+	// Keep in sync with web/src/protocol/types.ts maxTextTransferBytes.
+	maxTextTransferBytes = 1 << 20
 )
 
 // ErrRelayConnection marks a failure to establish a relay control or data
@@ -927,6 +929,29 @@ func validateReceiveMetadata(files []FileInfo, emptyFolders []FileInfo) ([]FileI
 	}
 
 	return normalizedFiles, normalizedEmptyFolders, nil
+}
+
+func validateSendingTextOffer(sendingText bool, files, emptyFolders []FileInfo, totalNumberFolders int) error {
+	if !sendingText {
+		return nil
+	}
+	if len(files) != 1 || len(emptyFolders) != 0 || totalNumberFolders != 0 {
+		return errors.New("a text transfer must contain exactly one text payload")
+	}
+	file := files[0]
+	if file.Size <= 0 || file.Size > maxTextTransferBytes {
+		return fmt.Errorf("text transfer size must be between 1 byte and 1 MiB: %d", file.Size)
+	}
+	if file.TempFile {
+		return errors.New("a text transfer cannot be an extractable archive")
+	}
+	if file.Symlink != "" {
+		return errors.New("a text transfer cannot be a symlink")
+	}
+	if file.FolderRemote != "." || !strings.HasPrefix(file.Name, "croc-stdin-") {
+		return errors.New("a text transfer must use a croc-stdin- filename in the receive root")
+	}
+	return nil
 }
 
 func (c *Client) receiveFilesystem() (*receivefs.Root, error) {
@@ -2331,7 +2356,6 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 		return true, errors.New("file metadata was already finalized")
 	}
 	c.clearReceiveStatus()
-	c.Options.SendingText = senderInfo.SendingText
 	c.Options.NoCompress = senderInfo.NoCompress
 	c.peerPerFileCompression = supportsFeature(senderInfo.Features, perFileCompressionFeature)
 	c.Options.HashAlgorithm = senderInfo.HashAlgorithm
@@ -2348,6 +2372,10 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 	if err != nil {
 		return true, err
 	}
+	if err = validateSendingTextOffer(senderInfo.SendingText, c.FilesToTransfer, c.EmptyFoldersToTransfer, c.TotalNumberFolders); err != nil {
+		return true, err
+	}
+	c.Options.SendingText = senderInfo.SendingText
 	c.TotalNumberOfContents = 0
 	if c.FilesToTransfer != nil {
 		c.TotalNumberOfContents += len(c.FilesToTransfer)

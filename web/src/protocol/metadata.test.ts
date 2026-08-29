@@ -130,6 +130,9 @@ describe("incoming croc metadata", () => {
         TotalNumberFolders: 1,
       },
       sender([{ n: "croc-stdin-large", s: 1024 * 1024 + 1, h: "AA==" }]),
+      sender([{ n: ".bashrc", fr: ".", s: 1, h: "AA==" }]),
+      sender([{ n: "croc-stdin-nested", fr: "safe", s: 1, h: "AA==" }]),
+      sender([{ n: "croc-stdin-archive", s: 1, h: "AA==", tf: true }]),
     ]) {
       text.SendingText = true;
       expect(() => validateSenderInfo(text)).toThrow(/text/i);
