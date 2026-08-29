@@ -1462,6 +1462,7 @@ func TestCrocLocal(t *testing.T) {
 		Stdout:        true,
 		NoPrompt:      true,
 		DisableLocal:  false,
+		OnlyLocal:     true,
 		Curve:         "ed25519",
 		Overwrite:     true,
 		GitIgnore:     false,
@@ -1469,14 +1470,13 @@ func TestCrocLocal(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	time.Sleep(1 * time.Second)
-
 	log.Debug("setting up receiver")
 	receiver, err := newTestClient(Options{
 		IsSender:      false,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
 		RelayAddress:  localAddress,
+		IP:            localAddress,
 		RelayPassword: "pass123",
 		Stdout:        true,
 		NoPrompt:      true,
@@ -1488,30 +1488,28 @@ func TestCrocLocal(t *testing.T) {
 		panic(err)
 	}
 
-	var wg sync.WaitGroup
-	os.Create("touched")
-	wg.Add(2)
+	touched, err := os.Create("touched")
+	if err != nil {
+		t.Fatalf("create touched file: %v", err)
+	}
+	if err := touched.Close(); err != nil {
+		t.Fatalf("close touched file: %v", err)
+	}
+	results := make(chan error, 2)
 	go func() {
 		filesInfo, emptyFolders, totalNumberFolders, errGet := GetFilesInfo([]string{"../../LICENSE", "touched"}, false, false, []string{})
 		if errGet != nil {
-			t.Errorf("failed to get minimal info: %v", errGet)
+			results <- fmt.Errorf("get file info: %w", errGet)
+			return
 		}
-		err := sender.Send(filesInfo, emptyFolders, totalNumberFolders)
-		if err != nil {
-			t.Errorf("send failed: %v", err)
-		}
-		wg.Done()
+		results <- sender.Send(filesInfo, emptyFolders, totalNumberFolders)
 	}()
-	time.Sleep(100 * time.Millisecond)
+	waitForRelayPorts(t, localPorts)
 	go func() {
-		err := receiver.Receive()
-		if err != nil {
-			t.Errorf("send failed: %v", err)
-		}
-		wg.Done()
+		results <- receiver.Receive()
 	}()
 
-	wg.Wait()
+	waitForTransferResults(t, results, 2, 20*time.Second, sender, receiver)
 }
 
 func TestSenderAndReceiverPreferLocalRelayOverExternalRelay(t *testing.T) {
