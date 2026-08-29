@@ -856,8 +856,10 @@ func normalizeReceiveFolder(folder string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("filename must be a local path: %w", err)
 	}
-	if strings.Contains(cleanFolder, ".ssh") {
-		return "", fmt.Errorf("invalid path detected: %q", folder)
+	for _, component := range strings.Split(cleanFolder, "/") {
+		if receivefs.CollisionKey(component) == ".ssh" {
+			return "", fmt.Errorf("invalid path detected: %q", folder)
+		}
 	}
 	return cleanFolder, nil
 }
