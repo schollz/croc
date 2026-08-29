@@ -2358,9 +2358,9 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 	c.clearReceiveStatus()
 	c.Options.NoCompress = senderInfo.NoCompress
 	c.peerPerFileCompression = supportsFeature(senderInfo.Features, perFileCompressionFeature)
-	c.Options.HashAlgorithm = senderInfo.HashAlgorithm
-	if c.Options.HashAlgorithm == progressiveHashAlgorithm && !c.peerProgressiveHash {
-		return true, errors.New("peer sent imohash-v2 without negotiating progressive-file-hash-v1")
+	c.Options.HashAlgorithm, err = receiveHashAlgorithm(senderInfo.HashAlgorithm, c.peerProgressiveHash)
+	if err != nil {
+		return true, err
 	}
 	c.peerReconnectVersion = senderInfo.ReconnectVersion
 	if c.peerInlineMetadata {
@@ -2384,9 +2384,6 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 		c.TotalNumberOfContents += len(c.EmptyFoldersToTransfer)
 	}
 
-	if c.Options.HashAlgorithm == "" {
-		c.Options.HashAlgorithm = defaultHashAlgorithm
-	}
 	log.Debugf("using hash algorithm: %s", c.Options.HashAlgorithm)
 	if c.Options.NoCompress {
 		log.Debug("disabling compression")
@@ -3222,6 +3219,56 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	return
 }
 
+var receiveFileHash = utils.HashFile
+var receiveOverwriteInput = utils.GetInput
+
+func askReceiveOverwrite(fileInfo FileInfo, resumable bool) bool {
+	action := "Overwrite"
+	promptDetail := ""
+	promptSpacing := " "
+	if resumable {
+		missingRanges := utils.MissingChunks(
+			path.Join(fileInfo.FolderRemote, fileInfo.Name),
+			fileInfo.Size,
+			models.TCP_BUFFER_SIZE/2,
+		)
+		missingBytes := utils.ChunkRangesBytes(
+			missingRanges,
+			fileInfo.Size,
+			models.TCP_BUFFER_SIZE/2,
+		)
+		percentDone := 100 - float64(missingBytes)/float64(fileInfo.Size)*100
+		if percentDone < 99 {
+			action = "Resume"
+			promptDetail = fmt.Sprintf(" (%2.1f%%)", percentDone)
+			promptSpacing = "   "
+		}
+	}
+
+	log.Debug("asking to overwrite")
+	output, colorEnabled := termui.Output(os.Stderr)
+	styledAction := termui.Warning(action, colorEnabled)
+	styledChoice := termui.PromptChoices("(y/N)", colorEnabled)
+	if action == "Resume" {
+		styledAction = action
+	}
+	destination := path.Join(fileInfo.FolderRemote, fileInfo.Name)
+	fmt.Fprintf(output, "\n%s %s%s? %s%s(use --overwrite to omit) ",
+		styledAction,
+		quotedFilename(destination, colorEnabled),
+		promptDetail,
+		styledChoice,
+		promptSpacing,
+	)
+	choice, _ := receiveOverwriteInput("")
+	choice = strings.ToLower(choice)
+	if choice != "y" && choice != "yes" {
+		fmt.Fprintf(output, "Skipping %s\n", quotedFilename(destination, colorEnabled))
+		return false
+	}
+	return true
+}
+
 func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 	state := c.lifecycleSnapshot()
 	if c.Options.IsSender || !state.FileInfoTransferred || state.RecipientRequested {
@@ -3246,24 +3293,24 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 			return nil
 		}
 		log.Debugf("checking %+v", fileInfo)
-		recipientFileInfo, errRecipientFile := root.Lstat(path.Join(fileInfo.FolderRemote, fileInfo.Name))
-		var errHash error
+		destination := path.Join(fileInfo.FolderRemote, fileInfo.Name)
+		recipientFileInfo, errRecipientFile := root.Lstat(destination)
+		if errRecipientFile != nil && !os.IsNotExist(errRecipientFile) {
+			return errRecipientFile
+		}
+		destinationExists := errRecipientFile == nil
 		var fileHash []byte
-		if errRecipientFile == nil && recipientFileInfo.Size() == fileInfo.Size {
+		if destinationExists && fileInfo.Size > 0 && fileInfo.Symlink == "" && recipientFileInfo.Mode().IsRegular() && recipientFileInfo.Size() == fileInfo.Size {
 			// the file exists, but is same size, so hash it
-			fileHash, errHash = utils.HashFile(path.Join(fileInfo.FolderRemote, fileInfo.Name), c.Options.HashAlgorithm, !c.Options.SendingText)
-		}
-		if fileInfo.Size == 0 || fileInfo.Symlink != "" {
-			err = c.createEmptyFileAndFinish(fileInfo, i)
+			fileHash, err = receiveFileHash(destination, c.Options.HashAlgorithm, !c.Options.SendingText)
 			if err != nil {
-				return
-			} else {
-				c.numberOfTransferredFiles++
+				return fmt.Errorf("hash existing destination %q: %w", destination, err)
 			}
-			continue
 		}
-		hashesEqual := bytes.Equal(fileHash, fileInfo.Hash)
-		if hashesEqual && c.progressiveHashActive() && errRecipientFile == nil {
+		hashesEqual := destinationExists && fileInfo.Size > 0 && fileInfo.Symlink == "" &&
+			recipientFileInfo.Mode().IsRegular() && recipientFileInfo.Size() == fileInfo.Size &&
+			bytes.Equal(fileHash, fileInfo.Hash)
+		if hashesEqual && c.progressiveHashActive() {
 			known, exactMatch, pending := c.exactHashDecision(i)
 			switch {
 			case known:
@@ -3280,59 +3327,32 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 				return nil
 			}
 		}
-		log.Debugf("%s %+x %+x %+v", fileInfo.Name, fileHash, fileInfo.Hash, errHash)
+		log.Debugf("%s %+x %+x", fileInfo.Name, fileHash, fileInfo.Hash)
 		if !hashesEqual {
 			log.Debugf("hashed %s to %x using %s", fileInfo.Name, fileHash, c.Options.HashAlgorithm)
 			log.Debugf("hashes are not equal %x != %x", fileHash, fileInfo.Hash)
-			if errHash == nil && errRecipientFile == nil && !strings.HasPrefix(fileInfo.Name, "croc-stdin-") && !c.Options.SendingText && c.Options.Rename {
+			isStdinName := strings.HasPrefix(path.Base(fileInfo.Name), "croc-stdin-")
+			if destinationExists && !isStdinName && c.Options.Rename {
 				newName := utils.UnusedFilename(fileInfo.FolderRemote, fileInfo.Name)
 				output, colorEnabled := termui.Output(os.Stderr)
 				fmt.Fprintf(output, "Receiving %s as %s\n", quotedFilename(fileInfo.Name, colorEnabled), quotedFilename(newName, colorEnabled))
 				c.FilesToTransfer[i].Name = newName
 				fileInfo.Name = newName
+				destinationExists = false
 			}
-			if errHash == nil && !c.Options.Overwrite && !c.Options.Rename && errRecipientFile == nil && !strings.HasPrefix(fileInfo.Name, "croc-stdin-") && !c.Options.SendingText {
-
-				missingRanges := utils.MissingChunks(
-					path.Join(fileInfo.FolderRemote, fileInfo.Name),
-					fileInfo.Size,
-					models.TCP_BUFFER_SIZE/2,
-				)
-				missingBytes := utils.ChunkRangesBytes(
-					missingRanges,
-					fileInfo.Size,
-					models.TCP_BUFFER_SIZE/2,
-				)
-				percentDone := 100 - float64(missingBytes)/float64(fileInfo.Size)*100
-
-				log.Debug("asking to overwrite")
-				action := "Overwrite"
-				promptDetail := ""
-				promptSpacing := " "
-				if percentDone < 99 {
-					action = "Resume"
-					promptDetail = fmt.Sprintf(" (%2.1f%%)", percentDone)
-					promptSpacing = "   "
-				}
-				output, colorEnabled := termui.Output(os.Stderr)
-				styledAction := termui.Warning(action, colorEnabled)
-				styledChoice := termui.PromptChoices("(y/N)", colorEnabled)
-				if action == "Resume" {
-					styledAction = action
-				}
-				fmt.Fprintf(output, "\n%s %s%s? %s%s(use --overwrite to omit) ",
-					styledAction,
-					quotedFilename(path.Join(fileInfo.FolderRemote, fileInfo.Name), colorEnabled),
-					promptDetail,
-					styledChoice,
-					promptSpacing,
-				)
-				choice, _ := utils.GetInput("")
-				choice = strings.ToLower(choice)
-				if choice != "y" && choice != "yes" {
-					fmt.Fprintf(output, "Skipping %s\n", quotedFilename(path.Join(fileInfo.FolderRemote, fileInfo.Name), colorEnabled))
+			if destinationExists && !c.Options.Overwrite && !c.Options.Rename && !isStdinName {
+				resumable := fileInfo.Size > 0 && fileInfo.Symlink == "" && recipientFileInfo.Mode().IsRegular()
+				if !askReceiveOverwrite(fileInfo, resumable) {
 					continue
 				}
+			}
+			if fileInfo.Size == 0 || fileInfo.Symlink != "" {
+				err = c.createEmptyFileAndFinish(fileInfo, i)
+				if err != nil {
+					return err
+				}
+				c.numberOfTransferredFiles++
+				continue
 			}
 		} else {
 			log.Debugf("hashes are equal %x == %x", fileHash, fileInfo.Hash)
@@ -3346,11 +3366,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 				}
 			}
 		}
-		if errHash != nil {
-			// probably can't find, its okay
-			log.Debug(errHash)
-		}
-		if errHash != nil || !hashesEqual {
+		if !hashesEqual {
 			finished = false
 			c.FilesToTransferCurrentNum = i
 			c.numberOfTransferredFiles++

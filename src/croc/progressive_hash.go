@@ -16,6 +16,23 @@ const (
 	progressiveHashAlgorithm = "imohash-v2"
 )
 
+func receiveHashAlgorithm(requested string, peerProgressiveHash bool) (string, error) {
+	if requested == "" {
+		return defaultHashAlgorithm, nil
+	}
+	switch requested {
+	case defaultHashAlgorithm, "md5", "highway", "imohash":
+		return requested, nil
+	case progressiveHashAlgorithm:
+		if !peerProgressiveHash {
+			return "", errors.New("peer sent imohash-v2 without negotiating progressive-file-hash-v1")
+		}
+		return requested, nil
+	default:
+		return "", fmt.Errorf("unsupported receive hash algorithm %q", requested)
+	}
+}
+
 func (c *Client) progressiveHashActive() bool {
 	return c.peerProgressiveHash && c.Options.HashAlgorithm == progressiveHashAlgorithm
 }
