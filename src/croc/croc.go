@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/url"
 	"os"
@@ -3535,6 +3536,11 @@ func (c *Client) receiveData(i int, dataConn *comm.Comm, attempt *transferAttemp
 
 		// get position
 		position := binary.LittleEndian.Uint64(data[:8])
+		fileSize := c.FilesToTransfer[c.FilesToTransferCurrentNum].Size
+		if err = chunkFits(fileSize, position, len(data)-8); err != nil {
+			attempt.report(fmt.Errorf("invalid data chunk bounds: %w", err))
+			return
+		}
 		positionInt64 := int64(position)
 
 		c.receiveMutex.Lock()
@@ -3633,6 +3639,23 @@ func (c *Client) receiveData(i int, dataConn *comm.Comm, attempt *transferAttemp
 			}
 		}
 	}
+}
+
+func chunkFits(size int64, position uint64, payloadLength int) error {
+	if size < 0 {
+		return fmt.Errorf("negative declared file size: %d", size)
+	}
+	if position > math.MaxInt64 {
+		return fmt.Errorf("chunk position overflows int64: %d", position)
+	}
+	positionInt64 := int64(position)
+	if positionInt64 < 0 || positionInt64 > size {
+		return fmt.Errorf("chunk position %d exceeds declared file size %d", position, size)
+	}
+	if payloadLength < 0 || int64(payloadLength) > size-positionInt64 {
+		return fmt.Errorf("chunk ending at %d exceeds declared file size %d", position+uint64(max(payloadLength, 0)), size)
+	}
+	return nil
 }
 
 func (c *Client) sendData(i int, dataConn *comm.Comm, fread *os.File, queue *requestedChunkQueue, attempt *transferAttemptState) {
