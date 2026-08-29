@@ -298,7 +298,7 @@ type Client struct {
 	relayStandbyReady        bool
 	stagedRelayDelayOverride time.Duration
 	stagedSelectionOverride  time.Duration
-	stagedRelayOpen          func(*transferAttemptState, []int, bool) error
+	relayDataOpen            func(*transferAttemptState, []int, bool) error
 
 	// ctx.go for graceful shutdown
 	*stop
@@ -2684,7 +2684,7 @@ func (c *Client) activateRelayDataChannels(attempt *transferAttemptState) (err e
 	for i := range indices {
 		indices[i] = i
 	}
-	if err := c.openRelayDataChannels(attempt, indices, !c.Options.IsSender); err != nil {
+	if err := c.openRelayChannels(attempt, indices, !c.Options.IsSender); err != nil {
 		return err
 	}
 	c.selectedDataTransport.Store(selectedTransportRelay)

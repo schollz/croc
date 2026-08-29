@@ -20,13 +20,17 @@ import (
 type preparingTailcatTransport struct {
 	*fakeTailcatTransport
 	prepareCalls atomic.Int32
+	prepare      func(context.Context) (any, error)
 	listenValue  any
 	prepared     any
 	listener     tailcatDataListener
 }
 
-func (f *preparingTailcatTransport) Prepare(context.Context) (any, error) {
+func (f *preparingTailcatTransport) Prepare(ctx context.Context) (any, error) {
 	f.prepareCalls.Add(1)
+	if f.prepare != nil {
+		return f.prepare(ctx)
+	}
 	return f.prepared, nil
 }
 
