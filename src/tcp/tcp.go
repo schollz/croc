@@ -585,7 +585,20 @@ func (s *server) clientCommunication(c *comm.Comm, handshake handshakeResult) (r
 	log.Debug("room has second peer")
 	otherConnection := admission.otherConnection
 
-	// second connection is the sender, time to staple connections
+	// Confirm admission before exposing the second peer to frames that the
+	// waiting peer may already have buffered. Starting the pipe first can race
+	// an application frame ahead of this encrypted confirmation, causing the
+	// second client to interpret that frame as a relay response.
+	err = sendAdmission("ok")
+	if err != nil {
+		s.deleteRoom(room)
+		return
+	}
+	if s.roomPaired != nil {
+		s.roomPaired()
+	}
+
+	// Both peers have completed relay admission; staple their connections.
 	var wg sync.WaitGroup
 	wg.Add(1)
 
@@ -596,16 +609,6 @@ func (s *server) clientCommunication(c *comm.Comm, handshake handshakeResult) (r
 		wg.Done()
 		log.Debug("done piping")
 	}(otherConnection, c, &wg)
-
-	// tell the sender everything is ready
-	err = sendAdmission("ok")
-	if err != nil {
-		s.deleteRoom(room)
-		return
-	}
-	if s.roomPaired != nil {
-		s.roomPaired()
-	}
 	wg.Wait()
 
 	// delete room
