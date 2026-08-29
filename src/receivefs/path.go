@@ -43,7 +43,8 @@ var ErrPathCollision = errors.New("receive path collision")
 var foldCase = cases.Fold()
 
 // Normalize converts a portable relative path to NFC slash form. Root may be
-// represented by an empty string or dot only when allowRoot is true.
+// represented by an empty string or dot only when allowRoot is true. Keep the
+// browser twin in web/src/protocol/metadata.ts aligned with these rules.
 func Normalize(name string, allowRoot bool) (string, error) {
 	if !utf8.ValidString(name) {
 		return "", fmt.Errorf("%w: invalid UTF-8", ErrUnsafePath)

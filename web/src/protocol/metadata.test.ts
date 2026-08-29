@@ -27,6 +27,10 @@ describe("incoming croc metadata", () => {
     expect(() => normalizeOutgoingFileName("hidden\u200bmark.txt")).toThrow(
       /non-printable/i,
     );
+    expect(normalizeOutgoingFileName("e\u0301.txt")).toBe("é.txt");
+    for (const name of ["CON.txt", "file.txt:stream", "trailing."]) {
+      expect(() => normalizeOutgoingFileName(name)).toThrow();
+    }
   });
 
   it("normalizes safe nested paths", () => {
@@ -79,10 +83,17 @@ describe("incoming croc metadata", () => {
   it.each([
     ["../escape", "file.txt"],
     ["/absolute", "file.txt"],
+    ["C:\\absolute", "file.txt"],
+    ["\\\\server\\share", "file.txt"],
     [".ssh", "authorized_keys"],
-	[".SSH", "authorized_keys"],
-	[".git/hooks", "post-checkout"],
-	[".", ".gnupg"],
+    [".SSH", "authorized_keys"],
+    [".Ssh", "authorized_keys"],
+    ["safe/.GIT/hooks", "post-checkout"],
+    [".", ".gnupg"],
+    [".", "CON.txt"],
+    [".", "COM¹.log"],
+    [".", "file.txt:stream"],
+    [".", "trailing."],
     [".", "../file.txt"],
   ])("rejects unsafe path %s/%s", (folder, name) => {
     expect(() =>
@@ -90,20 +101,47 @@ describe("incoming croc metadata", () => {
     ).toThrow();
   });
 
-	it("allows names that only contain sensitive substrings", () => {
-		expect(() =>
-			validateSenderInfo(
-				sender([{ n: "my.git", fr: ".ssh-backup", s: 1, h: "AA==" }]),
-			),
-		).not.toThrow();
-	});
+  it("allows names that only contain sensitive substrings", () => {
+    expect(() =>
+      validateSenderInfo(
+        sender([{ n: "my.git", fr: ".ssh-backup", s: 1, h: "AA==" }]),
+      ),
+    ).not.toThrow();
+  });
 
-  it("rejects duplicate destinations", () => {
+  it("rejects portable destination collisions", () => {
+    for (const files of [
+      [
+        { n: "same.txt", fr: "./", s: 1, h: "AA==" },
+        { n: "same.txt", fr: ".", s: 1, h: "AA==" },
+      ],
+      [
+        { n: "README", fr: ".", s: 1, h: "AA==" },
+        { n: "readme", fr: ".", s: 1, h: "AA==" },
+      ],
+      [
+        { n: "é.txt", fr: ".", s: 1, h: "AA==" },
+        { n: "e\u0301.txt", fr: ".", s: 1, h: "AA==" },
+      ],
+    ]) {
+      expect(() => validateSenderInfo(sender(files))).toThrow(/duplicate/i);
+    }
+  });
+
+  it("rejects destinations beneath files and file-directory collisions", () => {
     expect(() =>
       validateSenderInfo(
         sender([
-          { n: "same.txt", fr: "./", s: 1, h: "AA==" },
-          { n: "same.txt", fr: ".", s: 1, h: "AA==" },
+          { n: "parent", fr: ".", s: 1, h: "AA==" },
+          { n: "child", fr: "parent", s: 1, h: "AA==" },
+        ]),
+      ),
+    ).toThrow(/non-directory/i);
+
+    expect(() =>
+      validateSenderInfo(
+        sender([{ n: "parent", fr: ".", s: 1, h: "AA==" }], [
+          { fr: "parent" },
         ]),
       ),
     ).toThrow(/duplicate/i);
