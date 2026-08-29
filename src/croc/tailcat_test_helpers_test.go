@@ -9,6 +9,7 @@ import (
 
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/tailcattransport"
+	"github.com/schollz/croc/v11/src/tcp"
 )
 
 type fakeTailcatTransport struct {
@@ -110,5 +111,12 @@ func (*unavailableTestDataTransport) ValidateOffer(string, []byte) error {
 }
 
 func newTestClient(ops Options) (*Client, error) {
-	return newClient(ops, &unavailableTestDataTransport{})
+	client, err := newClient(ops, &unavailableTestDataTransport{})
+	if err != nil {
+		return nil, err
+	}
+	client.stop.run = func(debugLevel, host, port, password string, banner ...string) error {
+		return tcp.RunCtx(client.stop.ctx, debugLevel, host, port, password, banner...)
+	}
+	return client, nil
 }

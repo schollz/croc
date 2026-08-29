@@ -26,20 +26,9 @@ import (
 	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/pakekey"
 	"github.com/schollz/croc/v11/src/tcp"
-	"github.com/schollz/croc/v11/src/utils"
 	"github.com/schollz/peerdiscovery"
 	"github.com/stretchr/testify/assert"
 )
-
-func init() {
-	log.SetLevel("trace")
-	go tcp.Run("debug", "127.0.0.1", "8281", "pass123", "8282,8283,8284,8285")
-	go tcp.Run("debug", "127.0.0.1", "8282", "pass123")
-	go tcp.Run("debug", "127.0.0.1", "8283", "pass123")
-	go tcp.Run("debug", "127.0.0.1", "8284", "pass123")
-	go tcp.Run("debug", "127.0.0.1", "8285", "pass123")
-	time.Sleep(1 * time.Second)
-}
 
 func TestReceiveControlFrameSkipsRelayKeepalives(t *testing.T) {
 	clientConn, serverConn := net.Pipe()
@@ -760,6 +749,7 @@ func TestHostileExistingSymlinkParentRejected(t *testing.T) {
 }
 
 func TestCrocReadme(t *testing.T) {
+	relay := startTestRelay(t, 4)
 	defer os.Remove("README.md")
 	const secret = "acid-acorn-acre"
 
@@ -768,8 +758,8 @@ func TestCrocReadme(t *testing.T) {
 		IsSender:      true,
 		SharedSecret:  secret,
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8281",
-		RelayPorts:    []string{"8281"},
+		RelayAddress:  relay.address,
+		RelayPorts:    append([]string(nil), relay.allPorts...),
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -791,7 +781,7 @@ func TestCrocReadme(t *testing.T) {
 		IsSender:      false,
 		SharedSecret:  secret,
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8281",
+		RelayAddress:  relay.address,
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -840,6 +830,7 @@ func TestCrocReadme(t *testing.T) {
 }
 
 func TestCrocNonASCIIFileName(t *testing.T) {
+	relay := startTestRelay(t, 4)
 	testDir := t.TempDir()
 	sourceDir := filepath.Join(testDir, "source")
 	receiveDir := filepath.Join(testDir, "receive")
@@ -892,8 +883,8 @@ func TestCrocNonASCIIFileName(t *testing.T) {
 	sender, err := newTestClient(Options{
 		IsSender:      true,
 		SharedSecret:  secret,
-		RelayAddress:  "127.0.0.1:8281",
-		RelayPorts:    []string{"8281"},
+		RelayAddress:  relay.address,
+		RelayPorts:    append([]string(nil), relay.allPorts...),
 		RelayPassword: "pass123",
 		NoPrompt:      true,
 		DisableLocal:  true,
@@ -907,7 +898,7 @@ func TestCrocNonASCIIFileName(t *testing.T) {
 	receiver, err := newTestClient(Options{
 		IsSender:      false,
 		SharedSecret:  secret,
-		RelayAddress:  "127.0.0.1:8281",
+		RelayAddress:  relay.address,
 		RelayPassword: "pass123",
 		NoPrompt:      true,
 		DisableLocal:  true,
@@ -977,6 +968,7 @@ func TestCrocNonASCIIFileName(t *testing.T) {
 }
 
 func TestCrocRenameExistingFile(t *testing.T) {
+	relay := startTestRelay(t, 4)
 	testDir := t.TempDir()
 	sourceDir := filepath.Join(testDir, "source")
 	receiveDir := filepath.Join(testDir, "receive")
@@ -1020,8 +1012,8 @@ func TestCrocRenameExistingFile(t *testing.T) {
 	sender, err := newTestClient(Options{
 		IsSender:      true,
 		SharedSecret:  secret,
-		RelayAddress:  "127.0.0.1:8281",
-		RelayPorts:    []string{"8281"},
+		RelayAddress:  relay.address,
+		RelayPorts:    append([]string(nil), relay.allPorts...),
 		RelayPassword: "pass123",
 		NoPrompt:      true,
 		DisableLocal:  true,
@@ -1034,7 +1026,7 @@ func TestCrocRenameExistingFile(t *testing.T) {
 	receiver, err := newTestClient(Options{
 		IsSender:      false,
 		SharedSecret:  secret,
-		RelayAddress:  "127.0.0.1:8281",
+		RelayAddress:  relay.address,
 		RelayPassword: "pass123",
 		NoPrompt:      true,
 		DisableLocal:  true,
@@ -1076,6 +1068,7 @@ func TestCrocRenameExistingFile(t *testing.T) {
 }
 
 func TestCrocEmptyFolder(t *testing.T) {
+	relay := startTestRelay(t, 4)
 	pathName := "../../testEmpty"
 	defer os.RemoveAll(pathName)
 	defer os.RemoveAll("./testEmpty")
@@ -1086,8 +1079,8 @@ func TestCrocEmptyFolder(t *testing.T) {
 		IsSender:      true,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8281",
-		RelayPorts:    []string{"8281"},
+		RelayAddress:  relay.address,
+		RelayPorts:    append([]string(nil), relay.allPorts...),
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -1104,7 +1097,7 @@ func TestCrocEmptyFolder(t *testing.T) {
 		IsSender:      false,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8281",
+		RelayAddress:  relay.address,
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -1142,6 +1135,7 @@ func TestCrocEmptyFolder(t *testing.T) {
 }
 
 func TestCrocSymlink(t *testing.T) {
+	relay := startTestRelay(t, 4)
 	pathName := "../link-in-folder"
 	defer os.RemoveAll(pathName)
 	defer os.RemoveAll("./link-in-folder")
@@ -1158,8 +1152,8 @@ func TestCrocSymlink(t *testing.T) {
 		IsSender:      true,
 		SharedSecret:  "8124-testingthecroc",
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8281",
-		RelayPorts:    []string{"8281"},
+		RelayAddress:  relay.address,
+		RelayPorts:    append([]string(nil), relay.allPorts...),
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -1177,7 +1171,7 @@ func TestCrocSymlink(t *testing.T) {
 		IsSender:      false,
 		SharedSecret:  "8124-testingthecroc",
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8281",
+		RelayAddress:  relay.address,
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -1454,15 +1448,16 @@ func TestCrocLocal(t *testing.T) {
 	log.SetLevel("trace")
 	defer os.Remove("LICENSE")
 	defer os.Remove("touched")
-	time.Sleep(300 * time.Millisecond)
+	localPorts := freeConsecutiveTestPorts(t, 2)
+	localAddress := net.JoinHostPort("127.0.0.1", localPorts[0])
 
 	log.Debug("setting up sender")
 	sender, err := newTestClient(Options{
 		IsSender:      true,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8181",
-		RelayPorts:    []string{"8181", "8182"},
+		RelayAddress:  localAddress,
+		RelayPorts:    append([]string(nil), localPorts...),
 		RelayPassword: "pass123",
 		Stdout:        true,
 		NoPrompt:      true,
@@ -1481,7 +1476,7 @@ func TestCrocLocal(t *testing.T) {
 		IsSender:      false,
 		SharedSecret:  "8123-testingthecroc",
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8181",
+		RelayAddress:  localAddress,
 		RelayPassword: "pass123",
 		Stdout:        true,
 		NoPrompt:      true,
@@ -1521,17 +1516,7 @@ func TestCrocLocal(t *testing.T) {
 
 func TestSenderAndReceiverPreferLocalRelayOverExternalRelay(t *testing.T) {
 	log.SetLevel("warn")
-	localIPs, err := utils.GetLocalIPs()
-	if err != nil || len(localIPs) == 0 {
-		t.Skipf("local relay regression requires a non-loopback local IP: %v", err)
-	}
-	externalPorts := freeConsecutiveTestPorts(t, 5)
-	ctx := t.Context()
-	go tcp.RunCtx(ctx, "warn", "127.0.0.1", externalPorts[0], "pass123", strings.Join(externalPorts[1:], ","))
-	for _, port := range externalPorts[1:] {
-		go tcp.RunCtx(ctx, "warn", "127.0.0.1", port, "pass123")
-	}
-	time.Sleep(250 * time.Millisecond)
+	externalRelay := startTestRelay(t, 4)
 
 	tempFile, cleanup := createTestFile(t, 64)
 	defer cleanup()
@@ -1543,8 +1528,8 @@ func TestSenderAndReceiverPreferLocalRelayOverExternalRelay(t *testing.T) {
 		IsSender:      true,
 		SharedSecret:  secret,
 		Debug:         true,
-		RelayAddress:  net.JoinHostPort("127.0.0.1", externalPorts[0]),
-		RelayPorts:    append([]string(nil), externalPorts...),
+		RelayAddress:  externalRelay.address,
+		RelayPorts:    append([]string(nil), externalRelay.allPorts...),
 		RelayPassword: "pass123",
 		NoPrompt:      true,
 		DisableLocal:  false,
@@ -1556,6 +1541,9 @@ func TestSenderAndReceiverPreferLocalRelayOverExternalRelay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create sender: %v", err)
 	}
+	sender.localIPLookup = func() ([]string, error) {
+		return []string{"127.0.0.1"}, nil
+	}
 	filesInfo, emptyFolders, totalNumberFolders, err := GetFilesInfo([]string{tempFile}, false, false, []string{})
 	if err != nil {
 		t.Fatalf("GetFilesInfo: %v", err)
@@ -1564,7 +1552,7 @@ func TestSenderAndReceiverPreferLocalRelayOverExternalRelay(t *testing.T) {
 		IsSender:      false,
 		SharedSecret:  secret,
 		Debug:         true,
-		RelayAddress:  net.JoinHostPort("127.0.0.1", externalPorts[0]),
+		RelayAddress:  externalRelay.address,
 		RelayPassword: "pass123",
 		NoPrompt:      true,
 		DisableLocal:  false,
@@ -1585,11 +1573,7 @@ func TestSenderAndReceiverPreferLocalRelayOverExternalRelay(t *testing.T) {
 		errc <- receiver.Receive()
 	}()
 
-	for range 2 {
-		if err := <-errc; err != nil {
-			t.Fatalf("transfer failed: %v", err)
-		}
-	}
+	waitForTransferResults(t, errc, 2, 20*time.Second, sender, receiver)
 
 	localControlAddress := net.JoinHostPort("127.0.0.1", sender.localRelayPort)
 	senderAddress, _ := sender.currentRelayControlRoute()
@@ -1598,7 +1582,7 @@ func TestSenderAndReceiverPreferLocalRelayOverExternalRelay(t *testing.T) {
 	_, receiverPort, err := net.SplitHostPort(receiverAddress)
 	assert.NoError(t, err)
 	assert.Equal(t, sender.localRelayPort, receiverPort)
-	assert.NotEqual(t, externalPorts[0], receiverPort)
+	assert.NotEqual(t, externalRelay.controlPort, receiverPort)
 }
 
 func TestSenderLocalProbeDoesNotCorruptExternalRoute(t *testing.T) {
@@ -1668,6 +1652,8 @@ func TestSenderLocalProbeDoesNotCorruptExternalRoute(t *testing.T) {
 		errc <- sender.Send(filesInfo, emptyFolders, totalNumberFolders)
 	}()
 	if err := waitHashed(sender); err != nil {
+		cancelClients(sender)
+		<-errc
 		t.Fatal(err)
 	}
 	time.Sleep(800 * time.Millisecond)
@@ -1675,16 +1661,7 @@ func TestSenderLocalProbeDoesNotCorruptExternalRoute(t *testing.T) {
 		errc <- receiver.Receive()
 	}()
 
-	for range 2 {
-		select {
-		case err := <-errc:
-			if err != nil {
-				t.Fatalf("transfer failed: %v", err)
-			}
-		case <-time.After(20 * time.Second):
-			t.Fatal("transfer timed out")
-		}
-	}
+	waitForTransferResults(t, errc, 2, 20*time.Second, sender, receiver)
 	assert.Equal(t, externalAddress, sender.Options.RelayAddress)
 	info, err := os.Stat(receivedFile)
 	if err != nil {
@@ -1883,15 +1860,157 @@ func freeConsecutiveTestPortsForHost(t *testing.T, host string, count int) []str
 	return nil
 }
 
+type testRelay struct {
+	address     string
+	controlPort string
+	dataPorts   []string
+	allPorts    []string
+}
+
+func startTestRelay(t *testing.T, dataPorts int) testRelay {
+	t.Helper()
+	ctx, cancel := context.WithCancel(t.Context())
+	relay := startTestRelayWithContext(t, ctx, dataPorts)
+	t.Cleanup(cancel)
+	return relay
+}
+
+func startTestRelayWithContext(t *testing.T, ctx context.Context, dataPortCount int) testRelay {
+	t.Helper()
+	ports := freeConsecutiveTestPorts(t, dataPortCount+1)
+	controlPort := ports[0]
+	dataPorts := append([]string(nil), ports[1:]...)
+	var relayWG sync.WaitGroup
+	start := func(port string, banner ...string) {
+		relayWG.Add(1)
+		go func() {
+			defer relayWG.Done()
+			_ = tcp.RunCtx(ctx, "warn", "127.0.0.1", port, "pass123", banner...)
+		}()
+	}
+	start(controlPort, strings.Join(dataPorts, ","))
+	for _, port := range dataPorts {
+		start(port)
+	}
+	t.Cleanup(func() {
+		done := make(chan struct{})
+		go func() {
+			relayWG.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Error("test relay goroutines did not stop")
+		}
+	})
+	waitForRelayPorts(t, ports)
+	return testRelay{
+		address:     net.JoinHostPort("127.0.0.1", controlPort),
+		controlPort: controlPort,
+		dataPorts:   dataPorts,
+		allPorts:    append([]string(nil), ports...),
+	}
+}
+
+func waitForRelayPorts(t *testing.T, ports []string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for _, port := range ports {
+		address := net.JoinHostPort("127.0.0.1", port)
+		for {
+			conn, err := net.DialTimeout("tcp", address, 50*time.Millisecond)
+			if err == nil {
+				_ = conn.Close()
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("relay port %s did not become ready: %v", address, err)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+func cancelClients(clients ...*Client) {
+	for _, client := range clients {
+		if client != nil && client.stop != nil {
+			client.stop.Cancel()
+		}
+	}
+}
+
+func waitForTransferResults(t *testing.T, results <-chan error, count int, timeout time.Duration, clients ...*Client) {
+	t.Helper()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	var firstErr error
+	completed := 0
+	for completed < count {
+		select {
+		case err := <-results:
+			completed++
+			if err != nil && firstErr == nil {
+				firstErr = err
+				cancelClients(clients...)
+			}
+		case <-timer.C:
+			cancelClients(clients...)
+			cleanupTimer := time.NewTimer(5 * time.Second)
+			for completed < count {
+				select {
+				case err := <-results:
+					completed++
+					if err != nil && firstErr == nil {
+						firstErr = err
+					}
+				case <-cleanupTimer.C:
+					t.Fatalf("transfer timed out and %d goroutines did not stop", count-completed)
+				}
+			}
+			cleanupTimer.Stop()
+			t.Fatalf("transfer timed out after %s", timeout)
+		}
+	}
+	if firstErr != nil {
+		t.Fatalf("transfer failed: %v", firstErr)
+	}
+}
+
+func cancelWhenTransferReady(sender, receiver *Client, cancel context.CancelFunc) func() {
+	ctx, stop := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(time.Millisecond)
+		defer ticker.Stop()
+		timer := time.NewTimer(3 * time.Second)
+		defer timer.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+				return
+			case <-ticker.C:
+				if transferSetupComplete(sender, receiver) {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+	return func() {
+		stop()
+		<-done
+	}
+}
+
 func startReconnectRelay(t *testing.T) (controlPort string, cancel func()) {
 	t.Helper()
-	controlPort = freeTestPort(t)
-	dataPort := freeTestPort(t)
 	ctx, stop := context.WithCancel(context.Background())
-	go tcp.RunCtx(ctx, "warn", "127.0.0.1", controlPort, "pass123", dataPort)
-	go tcp.RunCtx(ctx, "warn", "127.0.0.1", dataPort, "pass123")
-	time.Sleep(250 * time.Millisecond)
-	return controlPort, stop
+	relay := startTestRelayWithContext(t, ctx, 1)
+	return relay.controlPort, stop
 }
 
 func waitForReconnectCondition(timeout time.Duration, condition func() bool) bool {
@@ -2130,15 +2249,10 @@ func TestReconnectFallsBackToRememberedRelay(t *testing.T) {
 }
 
 func TestSenderWaitsPastAlternateRouteTimeoutAfterRouteIsReady(t *testing.T) {
-	oldTimeout := alternateSenderRouteTimeout
-	defer func() {
-		alternateSenderRouteTimeout = oldTimeout
-	}()
-	alternateSenderRouteTimeout = 30 * time.Millisecond
-
 	c := &Client{
-		stop:             newStop(context.Background()),
-		senderRouteReady: make(chan struct{}),
+		stop:                    newStop(context.Background()),
+		senderRouteReady:        make(chan struct{}),
+		senderRouteWaitOverride: 30 * time.Millisecond,
 	}
 	errchan := make(chan error, 1)
 	originalErr := fmt.Errorf("losing route EOF")
@@ -2179,10 +2293,7 @@ func TestBase(t *testing.T) {
 	receivedFile := filepath.Base(tempFile)
 	defer os.Remove(receivedFile)
 
-	go tcp.Run("debug", "127.0.0.1", "8286", "pass123", "8287")
-	time.Sleep(200 * time.Millisecond)
-	go tcp.Run("debug", "127.0.0.1", "8287", "pass123")
-	time.Sleep(200 * time.Millisecond)
+	relay := startTestRelay(t, 1)
 
 	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
 
@@ -2190,7 +2301,7 @@ func TestBase(t *testing.T) {
 		IsSender:      true,
 		SharedSecret:  uniqueSecret,
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8286",
+		RelayAddress:  relay.address,
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -2212,7 +2323,7 @@ func TestBase(t *testing.T) {
 		IsSender:      false,
 		SharedSecret:  uniqueSecret,
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8286",
+		RelayAddress:  relay.address,
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -2258,15 +2369,6 @@ func TestBase(t *testing.T) {
 		}
 	}()
 
-	go func() {
-		for range 3000 {
-			if transferSetupComplete(sender, receiver) {
-				return
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}()
-
 	done := make(chan bool, 1)
 	go func() {
 		wg.Wait()
@@ -2275,9 +2377,18 @@ func TestBase(t *testing.T) {
 
 	select {
 	case err := <-fatalErr:
+		cancelClients(sender, receiver)
+		wg.Wait()
 		t.Fatal(err)
 	case <-done:
+		select {
+		case err := <-fatalErr:
+			t.Fatal(err)
+		default:
+		}
 	case <-time.After(5 * time.Second):
+		cancelClients(sender, receiver)
+		wg.Wait()
 		t.Fatal("Test timeout after 5 seconds")
 	}
 }
@@ -2291,10 +2402,7 @@ func TestCtx(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
-	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8288", "pass123", "8289")
-	time.Sleep(200 * time.Millisecond)
-	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8289", "pass123")
-	time.Sleep(200 * time.Millisecond)
+	relay := startTestRelayWithContext(t, ctx, 1)
 
 	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
 
@@ -2302,7 +2410,7 @@ func TestCtx(t *testing.T) {
 		IsSender:      true,
 		SharedSecret:  uniqueSecret,
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8288",
+		RelayAddress:  relay.address,
 		RelayPassword: "pass123",
 		Transport:     TransportRelay,
 		Stdout:        false,
@@ -2325,7 +2433,7 @@ func TestCtx(t *testing.T) {
 		IsSender:      false,
 		SharedSecret:  uniqueSecret,
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8288",
+		RelayAddress:  relay.address,
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -2371,15 +2479,6 @@ func TestCtx(t *testing.T) {
 		}
 	}()
 
-	go func() {
-		for range 3000 {
-			if transferSetupComplete(sender, receiver) {
-				return
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}()
-
 	done := make(chan bool, 1)
 	go func() {
 		wg.Wait()
@@ -2388,9 +2487,18 @@ func TestCtx(t *testing.T) {
 
 	select {
 	case err := <-fatalErr:
+		cancel()
+		wg.Wait()
 		t.Fatal(err)
 	case <-done:
+		select {
+		case err := <-fatalErr:
+			t.Fatal(err)
+		default:
+		}
 	case <-time.After(5 * time.Second):
+		cancel()
+		wg.Wait()
 		t.Fatal("Test timeout after 5 seconds")
 	}
 }
@@ -2427,10 +2535,7 @@ func TestAllCtx(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 
-	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8290", "pass123", "8291")
-	time.Sleep(200 * time.Millisecond)
-	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8291", "pass123")
-	time.Sleep(200 * time.Millisecond)
+	relay := startTestRelayWithContext(t, ctx, 1)
 
 	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
 
@@ -2438,7 +2543,7 @@ func TestAllCtx(t *testing.T) {
 		IsSender:       true,
 		SharedSecret:   uniqueSecret,
 		Debug:          true,
-		RelayAddress:   "127.0.0.1:8290",
+		RelayAddress:   relay.address,
 		RelayPassword:  "pass123",
 		Transport:      TransportRelay,
 		Stdout:         false,
@@ -2462,7 +2567,7 @@ func TestAllCtx(t *testing.T) {
 		IsSender:      false,
 		SharedSecret:  uniqueSecret,
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8290",
+		RelayAddress:  relay.address,
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -2508,15 +2613,8 @@ func TestAllCtx(t *testing.T) {
 		}
 	}()
 
-	go func() {
-		for range 3000 {
-			if transferSetupComplete(sender, receiver) {
-				cancel()
-				return
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}()
+	stopSetupMonitor := cancelWhenTransferReady(sender, receiver, cancel)
+	defer stopSetupMonitor()
 
 	done := make(chan bool, 1)
 	go func() {
@@ -2526,10 +2624,19 @@ func TestAllCtx(t *testing.T) {
 
 	select {
 	case err := <-fatalErr:
+		cancel()
+		wg.Wait()
 		result(t, err)
 	case <-done:
-		t.Error("Transfer should have been interrupted by context cancellation")
+		select {
+		case err := <-fatalErr:
+			result(t, err)
+		default:
+			t.Error("Transfer should have been interrupted by context cancellation")
+		}
 	case <-time.After(5 * time.Second):
+		cancel()
+		wg.Wait()
 		t.Fatal("Test timeout after 5 seconds")
 	}
 }
@@ -2546,10 +2653,7 @@ func TestSendCtx(t *testing.T) {
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	defer cancel2()
 
-	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8292", "pass123", "8293")
-	time.Sleep(200 * time.Millisecond)
-	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8293", "pass123")
-	time.Sleep(200 * time.Millisecond)
+	relay := startTestRelayWithContext(t, ctx, 1)
 
 	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
 
@@ -2557,7 +2661,7 @@ func TestSendCtx(t *testing.T) {
 		IsSender:       true,
 		SharedSecret:   uniqueSecret,
 		Debug:          true,
-		RelayAddress:   "127.0.0.1:8292",
+		RelayAddress:   relay.address,
 		RelayPassword:  "pass123",
 		Transport:      TransportRelay,
 		Stdout:         false,
@@ -2581,7 +2685,7 @@ func TestSendCtx(t *testing.T) {
 		IsSender:      false,
 		SharedSecret:  uniqueSecret,
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8292",
+		RelayAddress:  relay.address,
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -2627,15 +2731,8 @@ func TestSendCtx(t *testing.T) {
 		}
 	}()
 
-	go func() {
-		for range 3000 {
-			if transferSetupComplete(sender, receiver) {
-				cancel2()
-				return
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}()
+	stopSetupMonitor := cancelWhenTransferReady(sender, receiver, cancel2)
+	defer stopSetupMonitor()
 
 	done := make(chan bool, 1)
 	go func() {
@@ -2645,10 +2742,21 @@ func TestSendCtx(t *testing.T) {
 
 	select {
 	case err := <-fatalErr:
+		cancel()
+		cancel2()
+		wg.Wait()
 		result(t, err)
 	case <-done:
-		t.Error("Transfer should have been interrupted by context cancellation")
+		select {
+		case err := <-fatalErr:
+			result(t, err)
+		default:
+			t.Error("Transfer should have been interrupted by context cancellation")
+		}
 	case <-time.After(5 * time.Second):
+		cancel()
+		cancel2()
+		wg.Wait()
 		t.Fatal("Test timeout after 5 seconds")
 	}
 }
@@ -2665,10 +2773,7 @@ func TestReceiveCtx(t *testing.T) {
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	defer cancel2()
 
-	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8294", "pass123", "8295")
-	time.Sleep(200 * time.Millisecond)
-	go tcp.RunCtx(ctx, "debug", "127.0.0.1", "8295", "pass123")
-	time.Sleep(200 * time.Millisecond)
+	relay := startTestRelayWithContext(t, ctx, 1)
 
 	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
 
@@ -2676,7 +2781,7 @@ func TestReceiveCtx(t *testing.T) {
 		IsSender:       true,
 		SharedSecret:   uniqueSecret,
 		Debug:          true,
-		RelayAddress:   "127.0.0.1:8294",
+		RelayAddress:   relay.address,
 		RelayPassword:  "pass123",
 		Transport:      TransportRelay,
 		Stdout:         false,
@@ -2700,7 +2805,7 @@ func TestReceiveCtx(t *testing.T) {
 		IsSender:      false,
 		SharedSecret:  uniqueSecret,
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8294",
+		RelayAddress:  relay.address,
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -2746,15 +2851,8 @@ func TestReceiveCtx(t *testing.T) {
 		}
 	}()
 
-	go func() {
-		for range 3000 {
-			if transferSetupComplete(sender, receiver) {
-				cancel2()
-				return
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}()
+	stopSetupMonitor := cancelWhenTransferReady(sender, receiver, cancel2)
+	defer stopSetupMonitor()
 
 	done := make(chan bool, 1)
 	go func() {
@@ -2764,10 +2862,21 @@ func TestReceiveCtx(t *testing.T) {
 
 	select {
 	case err := <-fatalErr:
+		cancel()
+		cancel2()
+		wg.Wait()
 		result(t, err)
 	case <-done:
-		t.Error("Transfer should have been interrupted by context cancellation")
+		select {
+		case err := <-fatalErr:
+			result(t, err)
+		default:
+			t.Error("Transfer should have been interrupted by context cancellation")
+		}
 	case <-time.After(5 * time.Second):
+		cancel()
+		cancel2()
+		wg.Wait()
 		t.Fatal("Test timeout after 5 seconds")
 	}
 }
@@ -2784,10 +2893,7 @@ func TestRunCtx(t *testing.T) {
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	defer cancel2()
 
-	go tcp.RunCtx(ctx2, "debug", "127.0.0.1", "8296", "pass123", "8297")
-	time.Sleep(200 * time.Millisecond)
-	go tcp.RunCtx(ctx2, "debug", "127.0.0.1", "8297", "pass123")
-	time.Sleep(200 * time.Millisecond)
+	relay := startTestRelayWithContext(t, ctx2, 1)
 
 	uniqueSecret := fmt.Sprintf("test-%d-%d", time.Now().UnixNano(), rand.Intn(10000))
 
@@ -2795,7 +2901,7 @@ func TestRunCtx(t *testing.T) {
 		IsSender:       true,
 		SharedSecret:   uniqueSecret,
 		Debug:          true,
-		RelayAddress:   "127.0.0.1:8296",
+		RelayAddress:   relay.address,
 		RelayPassword:  "pass123",
 		Transport:      TransportRelay,
 		Stdout:         false,
@@ -2819,7 +2925,7 @@ func TestRunCtx(t *testing.T) {
 		IsSender:      false,
 		SharedSecret:  uniqueSecret,
 		Debug:         true,
-		RelayAddress:  "127.0.0.1:8296",
+		RelayAddress:  relay.address,
 		RelayPassword: "pass123",
 		Stdout:        false,
 		NoPrompt:      true,
@@ -2865,15 +2971,8 @@ func TestRunCtx(t *testing.T) {
 		}
 	}()
 
-	go func() {
-		for range 3000 {
-			if transferSetupComplete(sender, receiver) {
-				cancel2()
-				return
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}()
+	stopSetupMonitor := cancelWhenTransferReady(sender, receiver, cancel2)
+	defer stopSetupMonitor()
 
 	done := make(chan bool, 1)
 	go func() {
@@ -2883,10 +2982,21 @@ func TestRunCtx(t *testing.T) {
 
 	select {
 	case err := <-fatalErr:
+		cancel()
+		cancel2()
+		wg.Wait()
 		result(t, err)
 	case <-done:
-		t.Error("Transfer should have been interrupted by context cancellation")
+		select {
+		case err := <-fatalErr:
+			result(t, err)
+		default:
+			t.Error("Transfer should have been interrupted by context cancellation")
+		}
 	case <-time.After(5 * time.Second):
+		cancel()
+		cancel2()
+		wg.Wait()
 		t.Fatal("Test timeout after 5 seconds")
 	}
 }

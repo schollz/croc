@@ -54,9 +54,9 @@ import (
 var (
 	ipRequest        = []byte("ips?")
 	handshakeRequest = []byte("handshake")
-
-	alternateSenderRouteTimeout = 10 * time.Second
 )
+
+const defaultAlternateSenderRouteTimeout = 10 * time.Second
 
 func encryptLocalProbePayload(key, plaintext []byte) ([]byte, error) {
 	if len(key) == 0 {
@@ -298,6 +298,8 @@ type Client struct {
 	relayStandbyReady        bool
 	stagedRelayDelayOverride time.Duration
 	stagedSelectionOverride  time.Duration
+	senderRouteWaitOverride  time.Duration
+	localIPLookup            func() ([]string, error)
 	relayDataOpen            func(*transferAttemptState, []int, bool) error
 
 	// ctx.go for graceful shutdown
@@ -1495,7 +1497,7 @@ func (c *Client) senderWaitForHandshake(conn *comm.Comm) error {
 			var ips []string
 			if !c.Options.DisableLocal {
 				var err error
-				ips, err = utils.GetLocalIPs()
+				ips, err = c.lookupLocalIPs()
 				if err != nil {
 					log.Tracef("error getting local ips: %v", err)
 				}
@@ -1609,7 +1611,11 @@ func isFatalSenderRouteError(err error) bool {
 }
 
 func (c *Client) waitForAlternateSenderRoute(errchan <-chan error, originalErr error) error {
-	timeout := time.NewTimer(alternateSenderRouteTimeout)
+	wait := c.senderRouteWaitOverride
+	if wait <= 0 {
+		wait = defaultAlternateSenderRouteTimeout
+	}
+	timeout := time.NewTimer(wait)
 	defer timeout.Stop()
 
 	select {
@@ -1628,6 +1634,13 @@ func (c *Client) waitForAlternateSenderRoute(errchan <-chan error, originalErr e
 	case <-c.stop.ctx.Done():
 		return c.stop.ctx.Err()
 	}
+}
+
+func (c *Client) lookupLocalIPs() ([]string, error) {
+	if c.localIPLookup != nil {
+		return c.localIPLookup()
+	}
+	return utils.GetLocalIPs()
 }
 
 func (c *Client) reconnectRelayAttempt(handshake func(*comm.Comm) error) error {
