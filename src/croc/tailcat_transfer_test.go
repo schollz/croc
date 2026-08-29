@@ -53,6 +53,7 @@ func TestTailcatDataEOFBeforeAndAfterTerminalState(t *testing.T) {
 
 func TestTailcatMultiStreamEndToEndFileTransfer(t *testing.T) {
 	const streams = 3
+	relay := startTestRelay(t, 4)
 	listener := &fakeTailcatListener{offer: "paired-tailcat-offer"}
 	bundles := make(chan *tailcatDataBundle, 1)
 	listener.accept = func(ctx context.Context) (*tailcatDataBundle, error) {
@@ -106,8 +107,8 @@ func TestTailcatMultiStreamEndToEndFileTransfer(t *testing.T) {
 
 	options := Options{
 		SharedSecret:     "tailcat-full-file-transfer",
-		RelayAddress:     "127.0.0.1:8281",
-		RelayPorts:       []string{"8282", "8283", "8284", "8285"},
+		RelayAddress:     relay.address,
+		RelayPorts:       append([]string(nil), relay.dataPorts...),
 		RelayPassword:    "pass123",
 		NoPrompt:         true,
 		DisableLocal:     true,
@@ -138,16 +139,7 @@ func TestTailcatMultiStreamEndToEndFileTransfer(t *testing.T) {
 	go func() { errCh <- sender.Send(files, folders, folderCount) }()
 	time.Sleep(100 * time.Millisecond)
 	go func() { errCh <- receiver.Receive() }()
-	for range 2 {
-		select {
-		case transferErr := <-errCh:
-			if transferErr != nil {
-				t.Fatalf("Tailcat transfer: %v", transferErr)
-			}
-		case <-time.After(20 * time.Second):
-			t.Fatal("Tailcat transfer timed out")
-		}
-	}
+	waitForTransferResults(t, errCh, 2, 20*time.Second, sender, receiver)
 	received, err := os.ReadFile(filepath.Join(receiveDir, filepath.Base(sourcePath)))
 	if err != nil {
 		t.Fatal(err)

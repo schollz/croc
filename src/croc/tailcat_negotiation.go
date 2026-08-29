@@ -38,7 +38,9 @@ type tailcatClientState struct {
 	bundleMu         sync.Mutex
 	bundle           *tailcatDataBundle
 	prepareOnce      sync.Once
+	prepareMu        sync.Mutex
 	prepareReady     chan struct{}
+	prepareCancel    context.CancelFunc
 	prepared         any
 	prepareErr       error
 }
@@ -55,9 +57,12 @@ type tailcatAttemptState struct {
 	pendingCancel context.CancelFunc
 	pendingReady  chan struct{}
 	pendingOnce   sync.Once
+	pendingClosed bool
 	statusOnce    sync.Once
 	statusErr     error
 }
+
+var errTailcatSetupFinished = errors.New("Tailcat setup finished after transport selection")
 
 func (a *transferAttemptState) beginTailcatSetup(parent context.Context) (context.Context, context.CancelFunc, time.Time) {
 	if a == nil {
@@ -85,6 +90,13 @@ func (a *transferAttemptState) setTailcatPending(bundle *tailcatDataBundle, canc
 	}
 	a.tailcat.pendingMu.Lock()
 	defer a.tailcat.pendingMu.Unlock()
+	if a.tailcat.pendingClosed {
+		_ = bundle.Close()
+		if cancel != nil {
+			cancel()
+		}
+		return errTailcatSetupFinished
+	}
 	if a.tailcat.pending != nil {
 		_ = bundle.Close()
 		if cancel != nil {
@@ -121,7 +133,15 @@ func (a *transferAttemptState) takeTailcatPending() (*tailcatDataBundle, context
 }
 
 func (a *transferAttemptState) closeTailcatPending() {
-	bundle, cancel := a.takeTailcatPending()
+	if a == nil {
+		return
+	}
+	a.tailcat.pendingMu.Lock()
+	bundle, cancel := a.tailcat.pending, a.tailcat.pendingCancel
+	a.tailcat.pending = nil
+	a.tailcat.pendingCancel = nil
+	a.tailcat.pendingClosed = true
+	a.tailcat.pendingMu.Unlock()
 	if bundle != nil {
 		_ = bundle.Close()
 	}
@@ -276,10 +296,14 @@ func (c *Client) startTailcatPreparation() {
 		return
 	}
 	c.tailcat.prepareOnce.Do(func() {
+		prepareCtx, prepareCancel := context.WithCancel(c.stop.ctx)
+		c.tailcat.prepareMu.Lock()
+		c.tailcat.prepareCancel = prepareCancel
+		c.tailcat.prepareMu.Unlock()
 		c.tailcat.prepareReady = make(chan struct{})
 		go func() {
 			defer close(c.tailcat.prepareReady)
-			c.tailcat.prepared, c.tailcat.prepareErr = transport.Prepare(c.stop.ctx)
+			c.tailcat.prepared, c.tailcat.prepareErr = transport.Prepare(prepareCtx)
 			if c.tailcat.prepareErr != nil {
 				log.Debugf("Tailcat preparation failed: %v", c.tailcat.prepareErr)
 				return
@@ -287,6 +311,15 @@ func (c *Client) startTailcatPreparation() {
 			log.Debug("Tailcat bootstrap region prepared")
 		}()
 	})
+}
+
+func (c *Client) cancelTailcatPreparation() {
+	c.tailcat.prepareMu.Lock()
+	cancel := c.tailcat.prepareCancel
+	c.tailcat.prepareMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 }
 
 func (c *Client) dialTailcatData(ctx context.Context, offer string) (*tailcatDataBundle, error) {
@@ -515,6 +548,7 @@ func (c *Client) selectRelayAfterTailcatFailure(stage string, setupErr error, to
 		return tailcatErr
 	}
 	log.Debugf("Tailcat setup failed; falling back to croc relay: %v", tailcatErr)
+	c.cancelTailcatPreparation()
 	attempt.closeTailcatPending()
 	attempt.cancelTailcatSetup()
 	if err := message.Send(c.connection(0), c.Key, message.Message{
@@ -569,6 +603,9 @@ func (c *Client) watchTailcatSelection(attempt *transferAttemptState) {
 
 func (c *Client) finishTailcatReceiverDial(bundle *tailcatDataBundle, cancel context.CancelFunc, tokenValue string, attempt *transferAttemptState) error {
 	if err := attempt.setTailcatPending(bundle, cancel); err != nil {
+		if errors.Is(err, errTailcatSetupFinished) {
+			return nil
+		}
 		return c.tailcatError("peer connection", err, tokenValue)
 	}
 	if c.peerImplicitTailcatReady && c.peerStagedTransport && !c.peerRequiresTailcat() {
@@ -714,7 +751,7 @@ func (c *Client) processTransportSelect(m message.Message, attempt *transferAtte
 			return errors.New("peer selected relay when Tailcat fallback is not allowed")
 		}
 		log.Debug("selected croc relay data transport after Tailcat fallback")
-		if c.peerStagedTransport {
+		if c.peerStagedTransport && c.relayStandbyIsReady() {
 			return c.commitStagedRelayReceiver(attempt)
 		}
 		attempt.closeTailcatPending()
