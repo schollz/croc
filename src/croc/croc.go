@@ -852,14 +852,10 @@ func isEmptyFolder(folderPath string) (bool, error) {
 }
 
 func normalizeReceiveFolder(folder string) (string, error) {
+	// receivefs.Normalize centrally rejects sensitive path components.
 	cleanFolder, err := receivefs.Normalize(folder, true)
 	if err != nil {
 		return "", fmt.Errorf("filename must be a local path: %w", err)
-	}
-	for _, component := range strings.Split(cleanFolder, "/") {
-		if receivefs.CollisionKey(component) == ".ssh" {
-			return "", fmt.Errorf("invalid path detected: %q", folder)
-		}
 	}
 	return cleanFolder, nil
 }

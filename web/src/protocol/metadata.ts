@@ -26,21 +26,32 @@ function cleanSegments(value: string) {
   return segments;
 }
 
+const forbiddenComponents = new Set([".ssh", ".git", ".gnupg"]);
+
+function rejectSensitiveSegments(segments: string[], value: string) {
+  if (
+    segments.some((segment) =>
+      forbiddenComponents.has(segment.normalize("NFC").toLowerCase()),
+    )
+  ) {
+    throw new Error(`Remote path is not allowed: ${value}`);
+  }
+}
+
 export function normalizeFolder(value = ".") {
   if (/^(?:[a-zA-Z]:|\/)/.test(value)) {
     throw new Error(`Remote path must be relative: ${value}`);
   }
-  const segments = cleanSegments(value);
-  const normalized = segments.join("/") || ".";
-  if (normalized.includes(".ssh")) {
-    throw new Error(`Remote path is not allowed: ${value}`);
-  }
-  return normalized;
+	const segments = cleanSegments(value);
+	rejectSensitiveSegments(segments, value);
+	const normalized = segments.join("/") || ".";
+	return normalized;
 }
 
 export function normalizeFilePath(folderValue: string, nameValue: string) {
-  const folder = normalizeFolder(folderValue);
-  const nameSegments = cleanSegments(nameValue);
+	const folder = normalizeFolder(folderValue);
+	const nameSegments = cleanSegments(nameValue);
+	rejectSensitiveSegments(nameSegments, nameValue);
   if (
     nameSegments.length !== 1 ||
     nameSegments[0] !== nameValue.replaceAll("\\", "/")

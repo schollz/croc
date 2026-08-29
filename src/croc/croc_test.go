@@ -549,6 +549,33 @@ func TestMarkedArchiveRequiresCompleteValidationBeforeExtraction(t *testing.T) {
 	}
 }
 
+func TestMarkedArchiveRejectsSensitivePathBeforeExtraction(t *testing.T) {
+	receiveDirectory := t.TempDir()
+	t.Chdir(receiveDirectory)
+	archivePath := filepath.Join(receiveDirectory, "candidate.zip")
+	writeTestZip(t, archivePath, map[string]string{
+		".ssh/authorized_keys": "attacker-key",
+	})
+	if err := os.Mkdir(".ssh", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	client := &Client{FilesToTransfer: []FileInfo{{
+		Name: "candidate.zip", FolderRemote: ".", TempFile: true,
+	}}}
+	defer client.closeReceiveFilesystem()
+
+	err := client.extractReceivedArchives()
+	if err == nil || err.Error() != "received archive failed validation or extraction" {
+		t.Fatalf("extraction error = %v", err)
+	}
+	if _, statErr := os.Stat(archivePath); statErr != nil {
+		t.Fatalf("rejected archive was not retained: %v", statErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(receiveDirectory, ".ssh", "authorized_keys")); !os.IsNotExist(statErr) {
+		t.Fatalf("sensitive archive member was created: %v", statErr)
+	}
+}
+
 func TestMarkedValidatedArchiveExtractsThenCleansUp(t *testing.T) {
 	receiveDirectory := t.TempDir()
 	t.Chdir(receiveDirectory)

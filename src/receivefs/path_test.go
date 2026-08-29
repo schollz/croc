@@ -36,6 +36,31 @@ func TestNormalizeProducesPortableNFCPaths(t *testing.T) {
 	}
 }
 
+func TestNormalizeRejectsSensitiveComponents(t *testing.T) {
+	rejected := []string{
+		".ssh",
+		".SSH/authorized_keys",
+		"safe/.git/hooks/post-checkout",
+		"safe/.GnUpG/private-keys-v1.d/key",
+	}
+	for _, value := range rejected {
+		t.Run(value, func(t *testing.T) {
+			if _, err := Normalize(value, false); !errors.Is(err, ErrSensitivePath) {
+				t.Fatalf("Normalize(%q) error = %v, want ErrSensitivePath", value, err)
+			}
+		})
+	}
+
+	allowed := []string{".ssh-backup", "my.ssh", "safe/ssh", ".git-backup", "my.git"}
+	for _, value := range allowed {
+		t.Run("allowed/"+value, func(t *testing.T) {
+			if _, err := Normalize(value, false); err != nil {
+				t.Fatalf("Normalize(%q) error = %v", value, err)
+			}
+		})
+	}
+}
+
 func TestValidateEntriesRejectsPortableCollisions(t *testing.T) {
 	tests := [][]Entry{
 		{{Path: "README", Kind: KindFile}, {Path: "readme", Kind: KindFile}},

@@ -2,7 +2,7 @@ package croc
 
 import "testing"
 
-func TestNormalizeReceiveFolderRejectsCaseFoldedSSHComponents(t *testing.T) {
+func TestNormalizeReceiveFolderRejectsCaseFoldedSensitiveComponents(t *testing.T) {
 	tests := []string{
 		".ssh",
 		".SSH",
@@ -10,6 +10,9 @@ func TestNormalizeReceiveFolderRejectsCaseFoldedSSHComponents(t *testing.T) {
 		".sSh",
 		"safe/.SSH/files",
 		`safe\.SsH\files`,
+		".git",
+		"safe/.GIT/hooks",
+		"safe/.GnUpG/keys",
 	}
 	for _, folder := range tests {
 		t.Run(folder, func(t *testing.T) {
@@ -25,6 +28,8 @@ func TestNormalizeReceiveFolderAllowsSSHSubstrings(t *testing.T) {
 		".ssh-backup": ".ssh-backup",
 		"my.ssh":      "my.ssh",
 		"safe/ssh":    "safe/ssh",
+		".git-backup": ".git-backup",
+		"my.git":      "my.git",
 	}
 	for folder, want := range tests {
 		t.Run(folder, func(t *testing.T) {

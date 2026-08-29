@@ -32,6 +32,10 @@ type Entry struct {
 // ErrUnsafePath marks a path that is not safe to create portably.
 var ErrUnsafePath = errors.New("unsafe receive path")
 
+// ErrSensitivePath marks a path containing a component that receivers must
+// never create from untrusted transfer metadata.
+var ErrSensitivePath = errors.New("sensitive receive path")
+
 // ErrPathCollision marks destinations that are ambiguous on a supported
 // filesystem or conflict as file and directory paths.
 var ErrPathCollision = errors.New("receive path collision")
@@ -68,6 +72,9 @@ func Normalize(name string, allowRoot bool) (string, error) {
 		if err := validateComponent(component); err != nil {
 			return "", fmt.Errorf("%w in %q: %v", ErrUnsafePath, name, err)
 		}
+		if ForbiddenComponent(component) {
+			return "", fmt.Errorf("%w: %q in %q", ErrSensitivePath, component, name)
+		}
 		normalized = append(normalized, component)
 	}
 	if len(normalized) == 0 {
@@ -77,6 +84,18 @@ func Normalize(name string, allowRoot bool) (string, error) {
 		return "", fmt.Errorf("%w: empty destination", ErrUnsafePath)
 	}
 	return strings.Join(normalized, "/"), nil
+}
+
+// ForbiddenComponent reports whether a normalized path component names a
+// sensitive receiver-owned directory. Matching uses the same portable Unicode
+// collision key as manifest duplicate detection.
+func ForbiddenComponent(component string) bool {
+	switch CollisionKey(component) {
+	case ".ssh", ".git", ".gnupg":
+		return true
+	default:
+		return false
+	}
 }
 
 func hasWindowsVolume(name string) bool {

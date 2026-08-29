@@ -80,12 +80,23 @@ describe("incoming croc metadata", () => {
     ["../escape", "file.txt"],
     ["/absolute", "file.txt"],
     [".ssh", "authorized_keys"],
+	[".SSH", "authorized_keys"],
+	[".git/hooks", "post-checkout"],
+	[".", ".gnupg"],
     [".", "../file.txt"],
   ])("rejects unsafe path %s/%s", (folder, name) => {
     expect(() =>
       validateSenderInfo(sender([{ n: name, fr: folder, s: 1, h: "AA==" }])),
     ).toThrow();
   });
+
+	it("allows names that only contain sensitive substrings", () => {
+		expect(() =>
+			validateSenderInfo(
+				sender([{ n: "my.git", fr: ".ssh-backup", s: 1, h: "AA==" }]),
+			),
+		).not.toThrow();
+	});
 
   it("rejects duplicate destinations", () => {
     expect(() =>

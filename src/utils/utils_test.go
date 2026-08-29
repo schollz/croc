@@ -740,6 +740,9 @@ func TestUnzipDirectoryRejectsPortablePathHazards(t *testing.T) {
 		{name: "control", entries: []zipTestEntry{{name: "escape\x1b.txt", content: "x"}}},
 		{name: "device", entries: []zipTestEntry{{name: "NUL.txt", content: "x"}}},
 		{name: "alternate data stream", entries: []zipTestEntry{{name: "file.txt:stream", content: "x"}}},
+		{name: "ssh directory", entries: []zipTestEntry{{name: ".ssh/authorized_keys", content: "x"}}},
+		{name: "case folded ssh directory", entries: []zipTestEntry{{name: ".SSH/authorized_keys", content: "x"}}},
+		{name: "git hooks directory", entries: []zipTestEntry{{name: ".git/hooks/post-checkout", content: "x"}}},
 		{name: "case fold collision", entries: []zipTestEntry{
 			{name: "README", content: "a"}, {name: "readme", content: "b"},
 		}},
