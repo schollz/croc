@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"time"
 
 	"github.com/schollz/croc/v11/src/comm"
@@ -46,13 +47,7 @@ func raceRelayTCP(ctx context.Context, addresses []string, timeout, stagger time
 		if address == "" {
 			continue
 		}
-		seen := false
-		for _, existing := range unique {
-			if existing == address {
-				seen = true
-				break
-			}
-		}
+		seen := slices.Contains(unique, address)
 		if !seen {
 			unique = append(unique, address)
 		}

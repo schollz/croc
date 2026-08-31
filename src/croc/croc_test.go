@@ -1880,11 +1880,9 @@ func startTestRelayWithContext(t *testing.T, ctx context.Context, dataPortCount 
 	dataPorts := append([]string(nil), ports[1:]...)
 	var relayWG sync.WaitGroup
 	start := func(port string, banner ...string) {
-		relayWG.Add(1)
-		go func() {
-			defer relayWG.Done()
+		relayWG.Go(func() {
 			_ = tcp.RunCtx(ctx, "warn", "127.0.0.1", port, "pass123", banner...)
-		}()
+		})
 	}
 	start(controlPort, strings.Join(dataPorts, ","))
 	for _, port := range dataPorts {

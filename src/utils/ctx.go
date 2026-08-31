@@ -211,10 +211,7 @@ func imoHashV2Reader(sr *io.SectionReader, bar *progressbar.ProgressBar) ([]byte
 	}
 	buffer := make([]byte, windowSize)
 	for _, offset := range imoHashV2Offsets(size) {
-		length := min(windowSize, size-offset)
-		if length < 0 {
-			length = 0
-		}
+		length := max(min(windowSize, size-offset), 0)
 		binary.LittleEndian.PutUint64(encoded[:], uint64(offset))
 		_, _ = h.Write(encoded[:])
 		binary.LittleEndian.PutUint64(encoded[:], uint64(length))

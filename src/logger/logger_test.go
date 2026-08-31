@@ -12,12 +12,12 @@ func TestConcurrentConfigurationAndLogging(t *testing.T) {
 	SetOutput(io.Discard)
 
 	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
 			levels := []string{"trace", "debug", "info", "warn", "error"}
-			for j := 0; j < 100; j++ {
+			for j := range 100 {
 				SetLevel(levels[(i+j)%len(levels)])
 				Debugf("worker %d iteration %d", i, j)
 			}

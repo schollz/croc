@@ -55,8 +55,8 @@ func TestWireFieldNames(t *testing.T) {
 		reflect.TypeFor[wireRegion](),
 		reflect.TypeFor[wireNode](),
 	} {
-		for i := range typ.NumField() {
-			f := typ.Field(i)
+		for f := range typ.Fields() {
+			f := f
 			short, _, _ := strings.Cut(f.Tag.Get("cbor"), ",")
 			if short == "" {
 				t.Errorf("%v.%s: missing cbor field name", typ, f.Name)

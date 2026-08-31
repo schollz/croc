@@ -29,11 +29,9 @@ func TestRequestedChunkQueueLateWorkersClaimExactlyOnce(t *testing.T) {
 	}
 
 	var workers sync.WaitGroup
-	workers.Add(1)
-	go func() { defer workers.Done(); worker() }()
+	workers.Go(func() { ; worker() })
 	for range 7 {
-		workers.Add(1)
-		go func() { defer workers.Done(); worker() }()
+		workers.Go(func() { ; worker() })
 	}
 	workers.Wait()
 	if len(seen) != 101 {
