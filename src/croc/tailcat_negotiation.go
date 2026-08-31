@@ -540,8 +540,7 @@ func (c *Client) receiveTailcatStatus(deadline time.Time) (string, error) {
 
 func (c *Client) selectRelayAfterTailcatFailure(stage string, setupErr error, tokenValue string, attempt *transferAttemptState) error {
 	tailcatErr := c.tailcatError(stage, setupErr, tokenValue)
-	var protocolErr tailcatProtocolError
-	if errors.As(setupErr, &protocolErr) {
+	if _, ok := errors.AsType[tailcatProtocolError](setupErr); ok {
 		return tailcatErr
 	}
 	if !c.tailcatFallbackAllowed() {

@@ -2,7 +2,6 @@ package tcp
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"net"
 	"strconv"
@@ -166,8 +165,7 @@ func waitForRelayPort(t *testing.T, address string) {
 
 func TestFastRelayAdmissionAndLegacyFallback(t *testing.T) {
 	controlPort, dataPort := freeTCPPort(t), freeTCPPort(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	set, err := NewRelayCapabilitySet(1)
 	if err != nil {
 		t.Fatal(err)
