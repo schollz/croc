@@ -13,7 +13,9 @@
 Supporting organizations:
 </p>
 <p align="center">
+<a href="https://sx.org/c/CROC">
 <img width="728" height="90" alt="CROC_728х90" src="https://github.com/user-attachments/assets/04553f49-3e4e-467b-91c3-e869750118a2" />
+</a>
 </p>
 
 
@@ -123,14 +125,6 @@ Install with `pacman`:
 
 ```bash
 pacman -S croc
-```
-
-### On Fedora
-
-Install with `dnf`:
-
-```bash
-dnf install croc
 ```
 
 ### On Termux
