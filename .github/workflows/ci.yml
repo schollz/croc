@@ -105,6 +105,11 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: '^1.27.0'
+
+      - name: Check go fix
+        run: |
+          go fix ./...
+          git diff --exit-code
       
       - name: Display Go version
         run: go version
