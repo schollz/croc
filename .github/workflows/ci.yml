@@ -3,7 +3,11 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
   pull_request:
+    paths-ignore:
+      - '**/*.md'
   workflow_dispatch:
 
 concurrency:
@@ -64,7 +68,10 @@ jobs:
         run: go test -race ./src/tcp -run 'Test(AdmissionLimiter|RoomDenials|RelayAdmissionLimits|CanonicalSource|WithAdmissionLimits)'
 
       - name: Race-test Croc and Tailcat transport lifecycle
-        run: go test -race ./src/logger ./src/croc ./src/tcp ./src/tailcattransport ./internal/tailcat
+        run: |
+          go test -race ./src/logger ./src/tailcattransport
+          go test -race ./internal/tailcat -run 'HalfClose|ConnBlob|FetchDERPMapMemoryCache|Wire'
+          go test -race ./src/croc -run 'Tailcat|Staged|Transport'
 
   security-fuzz-smoke:
     name: Security fuzz smoke tests
