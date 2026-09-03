@@ -76,6 +76,31 @@ func TestSSHPAKEAndAuthorizationRoundTrip(t *testing.T) {
 	require.NoError(t, <-hostErr)
 }
 
+func TestGuestPAKEAdvertisesSSHRendezvous(t *testing.T) {
+	components, err := codephrase.ParseSSH("acid-acorn-acre-acts-ahead-alien")
+	require.NoError(t, err)
+	hostConn, guestConn := net.Pipe()
+	host := comm.New(hostConn)
+	guest := comm.New(guestConn)
+	t.Cleanup(host.Close)
+	t.Cleanup(guest.Close)
+
+	guestDone := make(chan error, 1)
+	go func() {
+		_, _, pakeErr := guestPAKE(guest, components, "p256")
+		guestDone <- pakeErr
+	}()
+
+	payload, err := host.ReceiveWithDeadline(time.Now().Add(time.Second))
+	require.NoError(t, err)
+	request, err := message.Decode(nil, payload)
+	require.NoError(t, err)
+	require.Equal(t, message.TypePAKE, request.Type)
+	require.Contains(t, request.Features, message.FeatureSSHRendezvous)
+	host.Close()
+	require.Error(t, <-guestDone)
+}
+
 func TestReceiveMessageIgnoresRelayKeepalive(t *testing.T) {
 	hostConn, guestConn := net.Pipe()
 	host := comm.New(hostConn)

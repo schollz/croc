@@ -145,15 +145,16 @@ croc-web --bind 127.0.0.1:9014 getcroc.com
 ```
 
 Successful browser transfers emit the custom events `send-direct`,
-`send-with-storage`, and `receive`. When Umami is not configured, event
-tracking is disabled and transfers behave identically. When configured, the
-server injects Umami's deferred script directly into every page's `<head>`.
-Umami records its normal pageviews, and custom transfer events remove query
-strings and fragments from the reported URL. The server also emits the
-`installer-curl` event after successfully serving the installer script for a
-curl `GET /`; wget downloads and HEAD requests are not counted. This
-server-side event reports only the site hostname, `/` path, event name, and
-croc version.
+`send-with-storage`, and `receive`; a successfully connected browser SSH
+session emits `ssh-browser-session` once, excluding automatic reconnections.
+When Umami is not configured, event tracking is disabled and transfers and SSH
+sessions behave identically. When configured, the server injects Umami's
+deferred script directly into every page's `<head>`. Umami records its normal
+pageviews, and custom activity events remove query strings and fragments from
+the reported URL. The server also emits the `installer-curl` event after
+successfully serving the installer script for a curl `GET /`; wget downloads
+and HEAD requests are not counted. This server-side event reports only the site
+hostname, `/` path, event name, and croc version.
 
 Proxy the complete origin—including WebSocket upgrades—to
 `127.0.0.1:9014`, preserving the original `Host` header. The server returns the

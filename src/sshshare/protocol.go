@@ -112,6 +112,7 @@ func guestPAKE(c *comm.Comm, components codephrase.SSHComponents, curve string) 
 	if err = sendMessageUntil(c, nil, message.Message{
 		Type: message.TypePAKE, Version: pakekey.ProtocolVersion,
 		Bytes: initiatorBytes, Bytes2: []byte(curve),
+		Features: []string{message.FeatureSSHRendezvous},
 	}, deadline); err != nil {
 		return nil, time.Time{}, err
 	}
@@ -201,6 +202,7 @@ func hostPAKE(c *comm.Comm, components codephrase.SSHComponents) ([]byte, time.T
 	if err = sendMessageUntil(c, nil, message.Message{
 		Type: message.TypePAKE, Version: pakekey.ProtocolVersion,
 		Bytes: responderBytes, Bytes2: salt,
+		Features: []string{message.FeatureSSHRendezvous},
 	}, deadline); err != nil {
 		return nil, time.Time{}, err
 	}

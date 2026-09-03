@@ -9,6 +9,15 @@ import (
 // TODO: maybe export from logger library?
 var availableLogLevels = []string{"info", "error", "warn", "debug", "trace"}
 
+// RoomProtocol identifies an application protocol that a relay can recognize
+// from fixed metadata without inspecting encrypted application data.
+type RoomProtocol string
+
+const (
+	// RoomProtocolSSH is croc's shared SSH terminal rendezvous protocol.
+	RoomProtocolSSH RoomProtocol = "ssh"
+)
+
 type serverOptsFunc func(s *server) error
 
 func WithBanner(banner ...string) serverOptsFunc {
@@ -91,6 +100,15 @@ func WithAdmissionLimits(sourceLimit, roomLimit int, window time.Duration) serve
 func WithRoomPairedCallback(callback func()) serverOptsFunc {
 	return func(s *server) error {
 		s.roomPaired = callback
+		return nil
+	}
+}
+
+// WithRoomProtocolCallback sets a callback invoked once when a paired room
+// advertises a recognized application protocol. The callback must not block.
+func WithRoomProtocolCallback(callback func(RoomProtocol)) serverOptsFunc {
+	return func(s *server) error {
+		s.roomProtocol = callback
 		return nil
 	}
 }

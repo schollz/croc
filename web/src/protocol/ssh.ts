@@ -12,6 +12,7 @@ import { SSHWasmClient, type SSHWorkerEvent } from "../wasm/ssh-client";
 
 const PAKE_PROTOCOL_VERSION = 2;
 const SSH_PROTOCOL_VERSION = 2;
+const SSH_RENDEZVOUS_FEATURE = "ssh-rendezvous-v1";
 const PAKE_PURPOSE_SSH = "peer-ssh";
 const PAKE_CURVE = "p256";
 const PAKE_SALT_SIZE = 32;
@@ -145,6 +146,7 @@ async function authorize(
       v: PAKE_PROTOCOL_VERSION,
       b: initiator.bytes,
       b2: textEncoder.encode(PAKE_CURVE),
+      f: [SSH_RENDEZVOUS_FEATURE],
     });
     const response = await receiveControl(socket, undefined, MAX_CONTROL_SIZE);
     validatePakeMessage(response, "pake");

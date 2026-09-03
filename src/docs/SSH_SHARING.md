@@ -67,6 +67,12 @@ For self-hosting, `croc-web` must use the same ordered relay pool and relay
 password as the `croc ssh` host. The invitation stays in page memory only while
 it is needed for the initial connection or reconnection; it is never placed in
 a URL, browser storage, QR code, log, error report, or analytics event.
+SSH clients include a fixed `ssh-rendezvous-v1` feature in the unencrypted PAKE
+envelope. An analytics-enabled relay may use only that marker to emit an
+aggregate `ssh-rendezvous` event, and an analytics-enabled web client emits
+`ssh-browser-session` after its SSH handshake succeeds. Neither event includes
+the invitation, derived room, access role, relay settings, commands, or
+terminal data.
 
 ## Reconnection
 
@@ -143,8 +149,9 @@ port forwarding, or arbitrary destination ports.
 
 - The croc relay cannot read the invitation secret, Tailcat authorization, SSH
   host key, or terminal stream. It can observe connection timing, the opaque
-  rendezvous room, and—when used as the data fallback—the volume and timing of
-  SSH ciphertext. A DERP fallback can likewise observe metadata and ciphertext.
+  rendezvous room, the fixed SSH protocol marker, and—when used as the data
+  fallback—the volume and timing of SSH ciphertext. A DERP fallback can
+  likewise observe metadata and ciphertext.
 - The SSH host key is delivered inside the PAKE-authenticated offer and compared
   byte-for-byte during SSH setup; there is no trust-on-first-use prompt.
 - The SSH client proves possession of a fresh credential delivered inside the

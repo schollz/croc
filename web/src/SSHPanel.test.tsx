@@ -92,6 +92,8 @@ describe("SSH homepage mode", () => {
         disconnect() {}
       },
     );
+    const track = vi.fn();
+    window.umami = { track };
     render(<Harness />);
     expect(screen.getByText("File transfer workspace")).toBeVisible();
     fireEvent.click(screen.getByRole("tab", { name: "SSH" }));
@@ -106,10 +108,14 @@ describe("SSH homepage mode", () => {
     act(() => {
       mocks.callbacks?.onRole?.("read-only");
       mocks.callbacks?.onConnected?.(true);
+      mocks.callbacks?.onConnected?.(false);
+      mocks.callbacks?.onConnected?.(true);
     });
     await waitFor(() => expect(mocks.options?.disableStdin).toBe(true));
+    expect(track).toHaveBeenCalledOnce();
     act(() => mocks.onData?.("whoami\r"));
     expect(mocks.sendInput).not.toHaveBeenCalled();
     expect(screen.getByText("Read-only")).toBeVisible();
+    delete window.umami;
   });
 });

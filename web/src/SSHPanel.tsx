@@ -3,6 +3,7 @@ import { Eye, EyeOff, LogIn, ShieldAlert, SquareTerminal, X } from "lucide-react
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
+import { sshEvents, trackSSHEvent } from "./analytics";
 import { errorMessage, textEncoder } from "./protocol/bytes";
 import {
   SSHJoinSession,
@@ -150,6 +151,8 @@ export default function SSHPanel({ settings, theme, onActiveChange }: Props) {
     terminal.current?.reset();
     onActiveChange(true);
 
+    let sessionTracked = false;
+
     const active = new SSHJoinSession({
       code: invitation,
       settings,
@@ -161,7 +164,14 @@ export default function SSHPanel({ settings, theme, onActiveChange }: Props) {
           setRole(nextRole);
           if (nextRole) setCode("");
         },
-        onConnected: (value) => mounted.current && setConnected(value),
+        onConnected: (value) => {
+          if (!mounted.current) return;
+          if (value && !sessionTracked) {
+            sessionTracked = true;
+            trackSSHEvent(sshEvents.browserSession);
+          }
+          setConnected(value);
+        },
         onOutput: writeOutput,
         onReconnect: () => terminal.current?.reset(),
       },

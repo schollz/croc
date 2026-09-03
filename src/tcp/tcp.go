@@ -3,10 +3,12 @@ package tcp
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -16,18 +18,20 @@ import (
 
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/crypt"
+	"github.com/schollz/croc/v11/src/message"
 	"github.com/schollz/croc/v11/src/redact"
 )
 
 type server struct {
-	host       string
-	port       string
-	debugLevel string
-	banner     string
-	password   string
-	roomPaired func()
-	rooms      roomMap
-	started    chan struct{}
+	host         string
+	port         string
+	debugLevel   string
+	banner       string
+	password     string
+	roomPaired   func()
+	roomProtocol func(RoomProtocol)
+	rooms        roomMap
+	started      chan struct{}
 
 	maxPendingHandshakes int
 	handshakeTimeout     time.Duration
@@ -605,7 +609,7 @@ func (s *server) clientCommunication(c *comm.Comm, handshake handshakeResult) (r
 	// start piping
 	go func(com1, com2 *comm.Comm, wg *sync.WaitGroup) {
 		log.Debug("starting pipes")
-		pipe(com1.Connection(), com2.Connection())
+		pipeWithProtocol(com1.Connection(), com2.Connection(), s.roomProtocol)
 		wg.Done()
 		log.Debug("done piping")
 	}(otherConnection, c, &wg)
@@ -636,9 +640,119 @@ func (s *server) deleteRoom(room string) {
 // pipe creates a full-duplex pipe between the two sockets and
 // transfers data from one to the other.
 func pipe(conn1 net.Conn, conn2 net.Conn) {
+	pipeWithProtocol(conn1, conn2, nil)
+}
+
+const relayProtocolMessageLimit = 64 * 1024
+
+type firstFrameObserver struct {
+	buffer   []byte
+	expected int
+	done     bool
+	onFrame  func([]byte)
+}
+
+func (o *firstFrameObserver) Write(p []byte) (int, error) {
+	written := len(p)
+	if o.done || len(p) == 0 {
+		return written, nil
+	}
+
+	for len(p) > 0 && !o.done {
+		if o.expected == 0 {
+			needed := 8 - len(o.buffer)
+			if needed > len(p) {
+				needed = len(p)
+			}
+			o.buffer = append(o.buffer, p[:needed]...)
+			p = p[needed:]
+			if len(o.buffer) < 8 {
+				continue
+			}
+			if !bytes.Equal(o.buffer[:4], comm.MAGIC_BYTES) {
+				o.done = true
+				break
+			}
+			bodySize := binary.LittleEndian.Uint32(o.buffer[4:8])
+			if bodySize > relayProtocolMessageLimit {
+				o.done = true
+				break
+			}
+			o.expected = 8 + int(bodySize)
+		}
+
+		needed := o.expected - len(o.buffer)
+		if needed > len(p) {
+			needed = len(p)
+		}
+		o.buffer = append(o.buffer, p[:needed]...)
+		p = p[needed:]
+		if len(o.buffer) == o.expected {
+			o.done = true
+			if o.onFrame != nil {
+				o.onFrame(o.buffer[8:])
+			}
+		}
+	}
+	return written, nil
+}
+
+func observedRoomProtocol(payload []byte) (RoomProtocol, bool) {
+	m, err := message.DecodeWithLimit(nil, payload, relayProtocolMessageLimit)
+	if err != nil || m.Type != message.TypePAKE ||
+		!slices.Contains(m.Features, message.FeatureSSHRendezvous) {
+		return "", false
+	}
+	return RoomProtocolSSH, true
+}
+
+func copyWithProtocolObservation(dst, src net.Conn, onFrame func([]byte)) error {
+	observer := &firstFrameObserver{onFrame: onFrame}
+	buffer := make([]byte, 32*1024)
+	for !observer.done {
+		n, readErr := src.Read(buffer)
+		if n > 0 {
+			_, _ = observer.Write(buffer[:n])
+			remaining := buffer[:n]
+			for len(remaining) > 0 {
+				written, writeErr := dst.Write(remaining)
+				if writeErr != nil {
+					return writeErr
+				}
+				if written == 0 {
+					return io.ErrShortWrite
+				}
+				remaining = remaining[written:]
+			}
+		}
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				return nil
+			}
+			return readErr
+		}
+	}
+	// Resume the normal net.Conn copy path after the first frame so long-lived
+	// transfers can still use the platform's optimized socket forwarding.
+	_, err := io.Copy(dst, src)
+	return err
+}
+
+func pipeWithProtocol(conn1 net.Conn, conn2 net.Conn, callback func(RoomProtocol)) {
 	copyDone := make(chan error, 2)
+	var reportOnce sync.Once
 	copyDirection := func(dst, src net.Conn) {
-		_, err := io.Copy(dst, src)
+		var err error
+		if callback == nil {
+			_, err = io.Copy(dst, src)
+		} else {
+			err = copyWithProtocolObservation(dst, src, func(payload []byte) {
+				protocol, ok := observedRoomProtocol(payload)
+				if ok {
+					reportOnce.Do(func() { callback(protocol) })
+				}
+			})
+		}
 		copyDone <- err
 	}
 	go copyDirection(conn2, conn1)
