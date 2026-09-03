@@ -209,6 +209,42 @@ croc code-phrase
 
 The code phrase is used to establish password-authenticated key agreement ([PAKE](https://en.wikipedia.org/wiki/Password-authenticated_key_agreement)) which generates a secret key for the sender and recipient to use for end-to-end encryption.
 
+### Share a terminal with `croc ssh`
+
+On Linux, macOS, FreeBSD, or OpenBSD, start a shared terminal with:
+
+```bash
+croc ssh
+```
+
+The host receives separate six-word invitations for read/write and read-only
+participants. On Unix, a participant keeps the invitation out of the process
+list by joining with the command croc prints:
+
+```bash
+CROC_SECRET='six-word-invitation' croc ssh
+```
+
+Everyone sees one persistent terminal. Multiple read/write participants may
+type; read-only participants receive the same output but their input is
+discarded. Press `Ctrl-]` to detach without stopping the shared shell. Guests
+automatically reauthenticate and reconnect after transient network loss. Use
+`--headless` to host without attaching locally, `--duration` to set the session
+lifetime, and `--dir` to choose its working directory. Guests use
+`--transport auto` by default; `--transport relay` forces the ordinary croc
+relay path when direct/DERP networking is unsuitable.
+
+This does not expose an SSH daemon or require an account, public IP, inbound
+port, or SSH key setup. The invitation authenticates an ephemeral Tailcat
+WireGuard path and pins an ephemeral SSH host key. Tailcat uses DERP when it
+cannot establish a direct path; if Tailcat itself is unavailable, the client
+reauthenticates and carries the pinned SSH stream over the ordinary croc relay.
+Remote commands, forwarding, and SFTP are disabled. Anyone who receives an
+invitation has the role printed beside it until the host stops, so treat both
+invitations as secrets. See the
+[SSH sharing design and security guide](src/docs/SSH_SHARING.md) for protocol,
+reconnection, platform, relay, and threat-model details.
+
 ### Customizations & Options
 
 #### Encrypted temporary storage

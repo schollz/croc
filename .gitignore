@@ -39,3 +39,4 @@ tmp/
 # Generated only when building the standalone croc-web binary.
 /src/webassets/dist/*
 !/src/webassets/dist/.gitkeep
+croc2

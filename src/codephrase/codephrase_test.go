@@ -59,6 +59,42 @@ func TestGenerate(t *testing.T) {
 	}
 }
 
+func TestGenerateAndParseSSH(t *testing.T) {
+	code, err := generateWords(zeroReader{}, SSHCodeWordCount)
+	require.NoError(t, err)
+	assert.Equal(t, "acid-acid-acid-acid-acid-acid", code)
+
+	components, err := ParseSSH(code)
+	require.NoError(t, err)
+	assert.Equal(t, sshRoomName("acid-acid"), components.RoomName)
+	assert.Equal(t, "acid-acid-acid-acid", components.PAKEPassphrase)
+
+	randomCode, err := GenerateSSH()
+	require.NoError(t, err)
+	words, ok := effWordSequence(randomCode, SSHCodeWordCount)
+	require.True(t, ok)
+	assert.Len(t, words, SSHCodeWordCount)
+}
+
+func TestParseSSHSupportsHyphenatedWords(t *testing.T) {
+	components, err := ParseSSH("yo-yo-acid-acorn-acre-acts-ahead")
+	require.NoError(t, err)
+	assert.Equal(t, sshRoomName("yo-yo-acid"), components.RoomName)
+	assert.Equal(t, "acorn-acre-acts-ahead", components.PAKEPassphrase)
+}
+
+func TestParseSSHRejectsOtherCodeShapes(t *testing.T) {
+	for _, code := range []string{
+		"acid-acorn-acre",
+		"acid-acorn-acre-acts-ahead",
+		"acid-acorn-acre-acts-ahead-alien-extra",
+		"acid-acorn-acre-acts-ahead-NOT",
+	} {
+		_, err := ParseSSH(code)
+		assert.Error(t, err, code)
+	}
+}
+
 func TestThreeEFFWordsSupportsHyphenatedWord(t *testing.T) {
 	tests := []string{
 		"yo-yo-acid-acorn",
@@ -243,5 +279,10 @@ func TestParseRejectsShortCode(t *testing.T) {
 
 func roomName(selector string) string {
 	digest := sha256.Sum256([]byte(selector + "croc"))
+	return hex.EncodeToString(digest[:])
+}
+
+func sshRoomName(selector string) string {
+	digest := sha256.Sum256([]byte(selector + "croc-ssh-v1"))
 	return hex.EncodeToString(digest[:])
 }

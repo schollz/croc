@@ -41,6 +41,8 @@ const (
 	TypeExactHashResult  Type = "exact-hash-result"
 	TypeRelayStandby     Type = "relay-standby"
 	TypeRelayRamp        Type = "relay-ramp"
+	TypeSSHAuthorize     Type = "ssh-authorize"
+	TypeSSHOffer         Type = "ssh-offer"
 )
 
 // Message is the possible payload for messaging

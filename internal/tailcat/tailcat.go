@@ -15,9 +15,6 @@
 //
 // Once connected, the two sides exchange arbitrary TCP traffic over the
 // WireGuard tunnel with no Tailscale account or coordination server required.
-// Optionally, the server can run an auth-free SSH server on port 22, providing
-// remote shell access over the tunnel.
-//
 // The name "tailcat" is a nod to the classic "netcat" tool, but with
 // Tailscale's WireGuard encryption + NAT traversal.
 //
@@ -588,6 +585,21 @@ func (s *Server) AddAllowedClient(k key.NodePublic) {
 	s.lb.mu.Lock()
 	defer s.lb.mu.Unlock()
 	mak.Set(&s.lb.allowedClients, k, true)
+}
+
+// RemoveAllowedClient revokes a client previously admitted with
+// AddAllowedClient or AllowedClients. Existing transport connections are not
+// forcibly closed, but the key can no longer establish a new Tailcat peer.
+func (s *Server) RemoveAllowedClient(k key.NodePublic) {
+	if s.lb == nil {
+		s.AllowedClients = slices.DeleteFunc(s.AllowedClients, func(candidate key.NodePublic) bool {
+			return candidate == k
+		})
+		return
+	}
+	s.lb.mu.Lock()
+	defer s.lb.mu.Unlock()
+	delete(s.lb.allowedClients, k)
 }
 
 // ConnBlob returns the token that clients use to connect to this

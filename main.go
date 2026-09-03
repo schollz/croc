@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/schollz/croc/v11/src/cli"
 	"github.com/schollz/croc/v11/src/utils"
@@ -28,24 +30,28 @@ func main() {
 	// 	}
 	// }()
 
-	// Create a channel to receive OS signals
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	errCh := make(chan error, 1)
 	go func() {
-		if err := cli.Run(); err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-		// Exit the program gracefully
-		utils.RemoveMarkedFiles()
-		os.Exit(0)
+		errCh <- cli.RunContext(ctx)
 	}()
 
-	// Wait for a termination signal
-	<-sigs
+	var err error
+	select {
+	case err = <-errCh:
+	case <-ctx.Done():
+		// Context-aware commands (including croc ssh) get a chance to restore
+		// terminal state, revoke access, and stop their child process. Older
+		// commands still retain the prompt exit behavior after this grace period.
+		select {
+		case err = <-errCh:
+		case <-time.After(2 * time.Second):
+		}
+	}
 	utils.RemoveMarkedFiles()
-
-	// Exit the program gracefully
-	os.Exit(0)
+	if err != nil && err != context.Canceled {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
