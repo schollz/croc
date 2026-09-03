@@ -3,6 +3,7 @@ package tcp
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -10,8 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/schollz/croc/v11/src/comm"
 	log "github.com/schollz/croc/v11/src/logger"
+	"github.com/schollz/croc/v11/src/message"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMaxRoomsOpenOption(t *testing.T) {
@@ -24,6 +28,84 @@ func TestMaxRoomsOpenOption(t *testing.T) {
 	assert.Error(t, WithMaxRoomsOpen(0)(s))
 	assert.Error(t, WithMaxRoomsOpen(-1)(s))
 	assert.Equal(t, 7, s.maxRoomsOpen)
+}
+
+func TestRelayReportsSSHRendezvousWithoutChangingForwardedMessage(t *testing.T) {
+	protocols := make(chan RoomProtocol, 1)
+	_, address, stopServer := startConfiguredTestServer(t,
+		WithRoomProtocolCallback(func(protocol RoomProtocol) { protocols <- protocol }),
+	)
+	defer stopServer()
+
+	first, _, _, err := ConnectToTCPServer(address, "pass123", "ssh-room")
+	require.NoError(t, err)
+	defer first.Close()
+	second, _, _, err := ConnectToTCPServer(address, "pass123", "ssh-room")
+	require.NoError(t, err)
+	defer second.Close()
+
+	want := message.Message{
+		Type:     message.TypePAKE,
+		Version:  2,
+		Bytes:    []byte("public-pake-value"),
+		Features: []string{message.FeatureSSHRendezvous},
+	}
+	require.NoError(t, message.Send(second, nil, want))
+	for {
+		payload, receiveErr := first.Receive()
+		require.NoError(t, receiveErr)
+		if bytes.Equal(payload, []byte{1}) {
+			continue
+		}
+		got, decodeErr := message.Decode(nil, payload)
+		require.NoError(t, decodeErr)
+		assert.Equal(t, want, got)
+		break
+	}
+
+	select {
+	case got := <-protocols:
+		assert.Equal(t, RoomProtocolSSH, got)
+	case <-time.After(time.Second):
+		t.Fatal("relay did not report the SSH rendezvous")
+	}
+}
+
+func TestRelayProtocolObserverHandlesFragmentedFrame(t *testing.T) {
+	payload, err := message.Encode(nil, message.Message{
+		Type: message.TypePAKE, Features: []string{message.FeatureSSHRendezvous},
+	})
+	require.NoError(t, err)
+	frame := make([]byte, 8+len(payload))
+	copy(frame, comm.MAGIC_BYTES)
+	binary.LittleEndian.PutUint32(frame[4:8], uint32(len(payload)))
+	copy(frame[8:], payload)
+
+	var observed []byte
+	observer := &firstFrameObserver{onFrame: func(body []byte) {
+		observed = append([]byte(nil), body...)
+	}}
+	for _, fragment := range [][]byte{frame[:2], frame[2:9], frame[9:]} {
+		written, writeErr := observer.Write(fragment)
+		require.NoError(t, writeErr)
+		assert.Equal(t, len(fragment), written)
+	}
+	assert.Equal(t, payload, observed)
+	protocol, ok := observedRoomProtocol(observed)
+	assert.True(t, ok)
+	assert.Equal(t, RoomProtocolSSH, protocol)
+}
+
+func TestRelayProtocolObserverRejectsUnmarkedAndMalformedFrames(t *testing.T) {
+	transfer, err := message.Encode(nil, message.Message{
+		Type: message.TypePAKE, Features: []string{"transfer-feature"},
+	})
+	assert.NoError(t, err)
+	_, ok := observedRoomProtocol(transfer)
+	assert.False(t, ok)
+
+	_, ok = observedRoomProtocol([]byte("not a croc message"))
+	assert.False(t, ok)
 }
 
 func BenchmarkRelayForwarding(b *testing.B) {

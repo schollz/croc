@@ -29,17 +29,46 @@
   },
   "posts": [
     {
+      "slug": "croc-v11-4-release-update",
+      "title": "croc v11.4 shares the terminal",
+      "seoTitle": "croc v11.4: Secure Terminal Sharing from CLI and Browser",
+      "description": "croc v11.4 adds secure collaborative terminals, separate read/write and read-only invitations, automatic reconnection, and browser joining.",
+      "kind": "update",
+      "category": "Release notes",
+      "publishedAt": "2026-09-03",
+      "modifiedAt": "2026-09-03",
+      "wordCount": 896,
+      "readingMinutes": 5,
+      "relatedSlugs": [
+        "share-terminal-with-croc-ssh",
+        "croc-v11-3-release-update"
+      ],
+      "keywords": [
+        "croc v11.4",
+        "croc release notes",
+        "croc ssh",
+        "shared terminal",
+        "collaborative terminal",
+        "browser SSH client",
+        "read-only terminal sharing",
+        "remote pair programming"
+      ],
+      "image": "/blog/images/croc-v11-4-release-update.webp",
+      "socialImage": "/blog/images/croc-v11-4-release-update.jpg",
+      "imageAlt": "Three black-and-white panels show native terminal hosting, browser joining, and separate read/write and read-only roles in croc v11.4."
+    },
+    {
       "slug": "share-terminal-with-croc-ssh",
       "title": "Share a terminal with croc ssh",
       "seoTitle": "croc v11.4 SSH: Share a Terminal with a Six-Word Code",
-      "description": "Introduced in croc v11.4, croc ssh turns a six-word invitation into one shared terminal with separate read/write and read-only access.",
+      "description": "croc ssh turns a six-word invitation into one shared terminal with read/write or read-only access from the CLI or browser.",
       "category": "Remote terminals",
       "publishedAt": "2026-09-03",
       "modifiedAt": "2026-09-03",
-      "wordCount": 1101,
+      "wordCount": 1138,
       "readingMinutes": 6,
       "relatedSlugs": [
-        "croc-v11-3-release-update",
+        "croc-v11-4-release-update",
         "pake-step-by-step"
       ],
       "keywords": [
@@ -50,6 +79,7 @@
         "tmate alternative",
         "remote pair programming",
         "read-only terminal sharing",
+        "browser SSH client",
         "Tailcat",
         "PAKE"
       ],

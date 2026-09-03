@@ -6,9 +6,9 @@ import (
 	"context"
 	"os"
 
-	gossh "golang.org/x/crypto/ssh"
+	internalssh "github.com/schollz/croc/v11/internal/sshclient"
 )
 
-func watchWindowChanges(context.Context, *os.File, *gossh.Session) func() {
-	return func() {}
+func watchWindowChanges(context.Context, *os.File) (<-chan internalssh.WindowSize, func()) {
+	return nil, func() {}
 }

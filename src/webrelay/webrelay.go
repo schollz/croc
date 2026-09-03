@@ -581,7 +581,7 @@ func (h *staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write(page)
 		}
 		return
-	} else if requested == "croc-download-sw.js" || requested == "croc-worker.js" {
+	} else if requested == "croc-download-sw.js" || requested == "croc-worker.js" || requested == "croc-ssh-worker.js" {
 		w.Header().Set("Cache-Control", "no-cache")
 	} else if strings.HasPrefix(requested, "assets/") {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")

@@ -1,7 +1,8 @@
 # croc web
 
-The croc web client is a React/Vite app that sends and receives files, plus
-short direct text messages, with ordinary `croc` CLI peers. Its production build and WebAssembly runtime are embedded in
+The croc web client is a React/Vite app that sends and receives files, joins
+shared `croc ssh` terminals, and exchanges short direct text messages with
+ordinary `croc` CLI peers. Its production build and WebAssembly runtime are embedded in
 the separate `croc-web` binary. `croc-web` serves the website, runtime
 configuration, health check, and opaque WebSocket-to-TCP bridge from one HTTP
 address. File metadata and contents remain encrypted between the browser and
@@ -33,6 +34,13 @@ Go packages into WebAssembly:
 - xxhash verification
 - EFF three-word code generation and compatibility parsing
 - SHA-256 code-to-relay routing shared with the native client
+
+SSH mode accepts a pasted six-word invitation and joins through the ordinary
+croc relay fallback. PAKE and the pinned SSH client run in browser WASM, while
+the terminal uses xterm.js. The SSH UI, xterm.js, and the separate
+`croc-ssh.wasm` module are loaded only after SSH mode is selected. Invitations
+remain in memory and are not added to URLs, browser storage, QR codes, logs, or
+analytics.
 
 Active sends and receives show total and per-file progress, measured bytes per
 second, and an ETA calculated with `arrival-time`.
@@ -78,8 +86,8 @@ it only in `croc-web`. The generated files are not committed. A deployed
 
 The Playwright suite builds real `croc` and `croc-web` binaries, starts an
 isolated local croc relay and unified embedded server on temporary ports, then
-verifies CLI → Web, Web → CLI, Web → Web, CLI stored → Web, and Web stored →
-CLI transfers byte-for-byte. Install its browser once with
+verifies file transfers byte-for-byte and a real CLI-hosted SSH session through
+the browser. Install its browser once with
 `npx playwright install chromium`. Test processes use an isolated
 `CROC_CONFIG_DIR` and storage directory and do not read or change remembered
 croc settings.
@@ -137,15 +145,16 @@ croc-web --bind 127.0.0.1:9014 getcroc.com
 ```
 
 Successful browser transfers emit the custom events `send-direct`,
-`send-with-storage`, and `receive`. When Umami is not configured, event
-tracking is disabled and transfers behave identically. When configured, the
-server injects Umami's deferred script directly into every page's `<head>`.
-Umami records its normal pageviews, and custom transfer events remove query
-strings and fragments from the reported URL. The server also emits the
-`installer-curl` event after successfully serving the installer script for a
-curl `GET /`; wget downloads and HEAD requests are not counted. This
-server-side event reports only the site hostname, `/` path, event name, and
-croc version.
+`send-with-storage`, and `receive`; a successfully connected browser SSH
+session emits `ssh-browser-session` once, excluding automatic reconnections.
+When Umami is not configured, event tracking is disabled and transfers and SSH
+sessions behave identically. When configured, the server injects Umami's
+deferred script directly into every page's `<head>`. Umami records its normal
+pageviews, and custom activity events remove query strings and fragments from
+the reported URL. The server also emits the `installer-curl` event after
+successfully serving the installer script for a curl `GET /`; wget downloads
+and HEAD requests are not counted. This server-side event reports only the site
+hostname, `/` path, event name, and croc version.
 
 Proxy the complete origin—including WebSocket upgrades—to
 `127.0.0.1:9014`, preserving the original `Host` header. The server returns the
@@ -192,4 +201,6 @@ there unless `--bind` is explicitly provided.
 - Stored uploads accept regular files only. CLI stored downloads can resume
   completed chunks; browser stored downloads stream when supported and do not
   resume after the tab closes.
+- Browser SSH is join-only and relay-only. It cannot host a shell or connect to
+  an arbitrary SSH server; mobile terminal interaction is best-effort.
 - Current evergreen desktop browsers are targeted.

@@ -86,8 +86,8 @@ type HostEvent struct {
 }
 
 // HostConfig configures a shared SSH terminal host. AuthorizationTTL limits
-// the time between a successful PAKE exchange and the first SSH connection; a
-// zero value uses the secure default.
+// the time between a successful PAKE exchange and the first authenticated SSH
+// connection; a zero value uses the secure default.
 type HostConfig struct {
 	ReadWriteCode    string
 	ReadOnlyCode     string

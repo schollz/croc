@@ -20,6 +20,8 @@ import (
 
 type sshConnServer interface {
 	HandleConn(net.Conn)
+	AddClientAuth([]byte, time.Time) error
+	RevokeClientAuth([]byte)
 	Close() error
 }
 

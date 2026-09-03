@@ -53,6 +53,27 @@ Windows accepts that spelling directly. Hosting requires a PTY-capable platform
 (Linux, macOS, FreeBSD, or OpenBSD). Those platforms and Windows can join.
 Relay-only builds and other targets report that SSH sharing is unsupported.
 
+### Join from a browser
+
+The `croc-web` homepage has a top-level **Files / SSH** switch. SSH mode accepts
+either printed invitation, reports the authenticated role, and opens the shared
+PTY in an xterm.js terminal. `Ctrl-C` is sent to the shared shell normally;
+**Disconnect** or `Ctrl-]` leaves the session. Browser input is disabled for a
+read-only invitation in addition to the host-side enforcement.
+
+The browser is join-only. It uses the ordinary croc relay path rather than
+Tailcat, cannot host a terminal, and cannot connect to an arbitrary SSH server.
+For self-hosting, `croc-web` must use the same ordered relay pool and relay
+password as the `croc ssh` host. The invitation stays in page memory only while
+it is needed for the initial connection or reconnection; it is never placed in
+a URL, browser storage, QR code, log, error report, or analytics event.
+SSH clients include a fixed `ssh-rendezvous-v1` feature in the unencrypted PAKE
+envelope. An analytics-enabled relay may use only that marker to emit an
+aggregate `ssh-rendezvous` event, and an analytics-enabled web client emits
+`ssh-browser-session` after its SSH handshake succeeds. Neither event includes
+the invitation, derived room, access role, relay settings, commands, or
+terminal data.
+
 ## Reconnection
 
 After a participant has attached successfully, a transport failure causes the
@@ -80,6 +101,10 @@ output is retained in memory and replayed on attachment. If older output was
 trimmed, the client receives a warning and a terminal reset before the retained
 transcript.
 
+The browser follows the same two-minute reconnect policy over the relay. It
+reruns PAKE, revalidates the role and pinned host key, and resets its terminal
+emulator before the host replays retained output.
+
 ## Protocol and trust model
 
 Each invitation contains six EFF words. The first two derive an opaque relay
@@ -88,8 +113,9 @@ purpose- and room-bound PAKE with mutual key confirmation over a normal croc
 relay room. Relay keepalives are transport frames and are ignored by this
 exchange.
 
-After PAKE, the guest sends a fresh Tailcat node public key through the encrypted
-control channel. The host returns an authenticated offer containing:
+After PAKE, the guest sends a fresh Tailcat node public key and a random,
+single-use SSH client credential through the encrypted control channel. The host
+returns an authenticated offer containing:
 
 - the persistent session's Tailcat connection blob;
 - the exact ephemeral SSH host public key;
@@ -98,8 +124,9 @@ control channel. The host returns an authenticated offer containing:
 For the primary path, the host allows that Tailcat key and binds its
 deterministic tunnel source address to exactly one role. Read/write and
 read-only traffic use separate filtered ports, and the role is checked again at
-connection dispatch. A grant is consumed by one SSH connection and its Tailcat
-key is revoked when that connection closes. Reconnection therefore cannot
+connection dispatch. The embedded SSH server also requires the single-use
+credential before attaching either transport to the terminal. Both grants are
+short-lived and consumed by one SSH connection. Reconnection therefore cannot
 bypass PAKE.
 
 Tailcat supplies an accountless userspace WireGuard network. It begins through
@@ -122,10 +149,14 @@ port forwarding, or arbitrary destination ports.
 
 - The croc relay cannot read the invitation secret, Tailcat authorization, SSH
   host key, or terminal stream. It can observe connection timing, the opaque
-  rendezvous room, and—when used as the data fallback—the volume and timing of
-  SSH ciphertext. A DERP fallback can likewise observe metadata and ciphertext.
+  rendezvous room, the fixed SSH protocol marker, and—when used as the data
+  fallback—the volume and timing of SSH ciphertext. A DERP fallback can
+  likewise observe metadata and ciphertext.
 - The SSH host key is delivered inside the PAKE-authenticated offer and compared
   byte-for-byte during SSH setup; there is no trust-on-first-use prompt.
+- The SSH client proves possession of a fresh credential delivered inside the
+  PAKE-encrypted authorization, so an active relay cannot replace the
+  invitation holder at the raw-SSH handoff.
 - Read-only is enforced before input reaches the shared PTY, not by terminal UI
   convention. A read-only Tailcat source cannot switch to the read/write port.
 - Invitation holders have the printed role for the lifetime of the hosting

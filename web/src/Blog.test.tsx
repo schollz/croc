@@ -11,7 +11,7 @@ describe("Blog", () => {
     expect(
       screen.getByRole("heading", { name: "Notes from inside the transfer." }),
     ).toBeVisible();
-    expect(screen.getAllByRole("article")).toHaveLength(13);
+    expect(screen.getAllByRole("article")).toHaveLength(14);
     const categories = screen.getByRole("navigation", {
       name: "Blog post categories",
     });
@@ -61,6 +61,10 @@ describe("Blog", () => {
     ).toBeVisible();
     expect(screen.getByText("FIELD NOTE 11")).toBeVisible();
     expect(screen.getByRole("heading", { name: "The tmate-shaped hole" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "The browser can play, too" }),
+    ).toBeVisible();
+    expect(screen.getByText(/PAKE, pinned-host-key verification/)).toBeVisible();
     for (const link of screen.getAllByRole("link", { name: "Upterm" })) {
       expect(link).toHaveAttribute("href", "https://github.com/owenthereal/upterm");
     }

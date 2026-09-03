@@ -138,6 +138,8 @@ func TestAttachRelaySSHUsesPinnedHostKey(t *testing.T) {
 	t.Cleanup(func() { _ = hub.Close() })
 	signer := newTestSigner(t)
 	server := newSharedSSHServer(hub, signer, RoleReadOnly, nil)
+	clientAuth := []byte("01234567890123456789012345678901")
+	require.NoError(t, server.AddClientAuth(clientAuth, time.Now().Add(time.Minute)))
 	t.Cleanup(func() { _ = server.Close() })
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -160,7 +162,8 @@ func TestAttachRelaySSHUsesPinnedHostKey(t *testing.T) {
 			Input: input, Output: io.Discard, ErrorOutput: io.Discard,
 			OnEvent: func(event JoinEvent) { events <- event },
 		},
-		input: newInputBroker(input),
+		input:      newInputBroker(input),
+		clientAuth: clientAuth,
 	}, sshOffer{
 		SSHHostKey: signer.PublicKey().Marshal(),
 		Port:       readOnlyPort,
@@ -186,8 +189,9 @@ func TestRunSSHSessionCancellationInterruptsHandshake(t *testing.T) {
 	input := bytes.NewReader(nil)
 	started := time.Now()
 	connected, err := runSSHSession(ctx, clientSessionConfig{
-		config: ClientConfig{Input: input, Output: io.Discard, ErrorOutput: io.Discard},
-		input:  newInputBroker(input),
+		config:     ClientConfig{Input: input, Output: io.Discard, ErrorOutput: io.Discard},
+		input:      newInputBroker(input),
+		clientAuth: make([]byte, sshClientAuthSize),
 	}, sshOffer{}, clientConn, signer.PublicKey())
 	require.False(t, connected)
 	require.ErrorIs(t, err, context.DeadlineExceeded)

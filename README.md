@@ -234,6 +234,10 @@ lifetime, and `--dir` to choose its working directory. Guests use
 `--transport auto` by default; `--transport relay` forces the ordinary croc
 relay path when direct/DERP networking is unsuitable.
 
+The `croc-web` homepage can also join either invitation from its **SSH** mode.
+The browser client is join-only and uses the ordinary croc relay path; it keeps
+the invitation in memory and runs both PAKE and the pinned SSH client in WASM.
+
 This does not expose an SSH daemon or require an account, public IP, inbound
 port, or SSH key setup. The invitation authenticates an ephemeral Tailcat
 WireGuard path and pins an ephemeral SSH host key. Tailcat uses DERP when it
@@ -497,8 +501,8 @@ docker run -d -p 9010-9011:9010-9011 -e CROC_PORTS='9010,9011' -e CROC_PASS='YOU
 
 #### Web client
 
-The React/Vite client in [`web/`](web/) can send and receive multiple files
-with normal croc CLI peers. The production client and its WebAssembly protocol
+The React/Vite client in [`web/`](web/) can send and receive multiple files and
+join `croc ssh` sessions hosted by normal CLI peers. The production client and its WebAssembly protocol
 runtime are bundled only in the standalone `croc-web` server, keeping generated
 assets and web-server code out of the cross-platform `croc` binary. Linux
 amd64 builds of `croc-web` are published separately with each release. It

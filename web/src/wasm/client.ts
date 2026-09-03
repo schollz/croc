@@ -20,6 +20,11 @@ export interface CodeComponents {
   format: "legacy" | "three-word" | "four-word";
 }
 
+export interface SSHCodeComponents {
+  room: string;
+  passphrase: string;
+}
+
 type Pending = {
   resolve(value: unknown): void;
   reject(reason: Error): void;
@@ -227,6 +232,10 @@ export class CrocWasm {
 
   codeComponents(secret: string) {
     return this.call<CodeComponents>("codeComponents", [secret]);
+  }
+
+  sshCodeComponents(secret: string) {
+    return this.call<SSHCodeComponents>("sshCodeComponents", [secret]);
   }
 
   relayIndex(secret: string, relayCount: number) {

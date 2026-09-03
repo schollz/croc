@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { trackTransferEvent, transferEvents } from "./analytics";
+import {
+  sshEvents,
+  trackSSHEvent,
+  trackTransferEvent,
+  transferEvents,
+} from "./analytics";
 
-describe("transfer analytics", () => {
+describe("activity analytics", () => {
   beforeEach(() => {
     window.history.replaceState({}, "", "/");
   });
@@ -34,6 +39,23 @@ describe("transfer analytics", () => {
 
   it("does nothing when Umami is disabled", () => {
     expect(() => trackTransferEvent(transferEvents.receive)).not.toThrow();
+    expect(() => trackSSHEvent(sshEvents.browserSession)).not.toThrow();
+  });
+
+  it("tracks successful browser SSH sessions without URL secrets", () => {
+    const track = vi.fn();
+    window.umami = { track };
+    window.history.replaceState({}, "", "/?code=secret#key");
+
+    trackSSHEvent(sshEvents.browserSession);
+
+    const transform = track.mock.calls[0][0] as (
+      properties: Record<string, unknown>,
+    ) => Record<string, unknown>;
+    expect(transform({ url: "/?code=secret#key" })).toEqual({
+      name: "ssh-browser-session",
+      url: "/",
+    });
   });
 
   it("does not let tracker failures interrupt a transfer", () => {

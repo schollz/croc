@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -12,6 +20,7 @@ import {
   MessageSquareText,
   Moon,
   Settings2,
+  SquareTerminal,
   Sun,
   Upload,
   X,
@@ -100,6 +109,46 @@ type Theme = "dark" | "light";
 type CopyState = "idle" | "copied" | "error";
 type MobileTransferPanel = "send" | "receive";
 type SendContent = "files" | "text";
+type WorkspaceMode = "files" | "ssh";
+
+const SSHPanel = lazy(() => import("./SSHPanel"));
+
+export function WorkspaceSwitch({
+  mode,
+  disabled,
+  onChange,
+}: {
+  mode: WorkspaceMode;
+  disabled: boolean;
+  onChange(mode: WorkspaceMode): void;
+}) {
+  return (
+    <div
+      className="workspace-switch"
+      role="tablist"
+      aria-label="Choose croc tool"
+    >
+      <button
+        type="button"
+        role="tab"
+        aria-selected={mode === "files"}
+        disabled={disabled}
+        onClick={() => onChange("files")}
+      >
+        <Upload aria-hidden="true" /> Files
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={mode === "ssh"}
+        disabled={disabled}
+        onClick={() => onChange("ssh")}
+      >
+        <SquareTerminal aria-hidden="true" /> SSH
+      </button>
+    </div>
+  );
+}
 
 function sendHashAlgorithm(mode: SendMode): FileHashAlgorithm {
   return mode === "stored" ? "sha256" : "xxhash";
@@ -696,6 +745,8 @@ export function App() {
   );
   const [mobileTransferPanel, setMobileTransferPanel] =
     useState<MobileTransferPanel>(receiveOnly ? "receive" : "send");
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("files");
+  const [sshActive, setSSHActive] = useState(false);
   const [sendCode, setSendCode] = useState("");
   const [sendDetailsVisible, setSendDetailsVisible] = useState(false);
   const [sendActivity, setSendActivity] = useState<Activity>("idle");
@@ -1387,7 +1438,9 @@ export function App() {
           <h1>
             {receiveOnly
               ? "Receive files, secured end-to-end."
-              : "Send files, secured end-to-end."}
+              : workspaceMode === "ssh"
+                ? "Join a terminal, secured end-to-end."
+                : "Send files, secured end-to-end."}
           </h1>
         </div>
         <div className="header-actions">
@@ -1431,11 +1484,20 @@ export function App() {
         </div>
       </header>
 
-      <section
-        ref={transferGrid}
-        className={`transfer-grid${receiveOnly ? " receive-only" : ""}`}
-        aria-label="File transfer controls"
-      >
+      {!receiveOnly && (
+        <WorkspaceSwitch
+          mode={workspaceMode}
+          disabled={sendBusy || receiveBusy || sshActive}
+          onChange={setWorkspaceMode}
+        />
+      )}
+
+      {(receiveOnly || workspaceMode === "files") && (
+        <section
+          ref={transferGrid}
+          className={`transfer-grid${receiveOnly ? " receive-only" : ""}`}
+          aria-label="File transfer controls"
+        >
         {!receiveOnly && (
           <div
             className="mobile-transfer-switch"
@@ -2034,7 +2096,26 @@ export function App() {
               </button>
             ))}
         </form>
-      </section>
+        </section>
+      )}
+
+      {!receiveOnly && workspaceMode === "ssh" && (
+        <Suspense
+          fallback={
+            <section className="ssh-workspace" aria-live="polite">
+              <article className="panel ssh-loading">
+                Loading secure terminal…
+              </article>
+            </section>
+          }
+        >
+          <SSHPanel
+            settings={settings}
+            theme={theme}
+            onActiveChange={setSSHActive}
+          />
+        </Suspense>
+      )}
 
       <details className="settings" data-tour="settings">
         <summary>
@@ -2052,7 +2133,7 @@ export function App() {
             <span>WebSocket gateway</span>
             <input
               value={settings.gatewayURL}
-              disabled={sendBusy || receiveBusy}
+              disabled={sendBusy || receiveBusy || sshActive}
               spellCheck={false}
               onChange={(event) =>
                 setSettings((current) => ({
@@ -2077,7 +2158,7 @@ export function App() {
               name="relay-password"
               autoComplete="off"
               value={settings.relayPassword}
-              disabled={sendBusy || receiveBusy}
+              disabled={sendBusy || receiveBusy || sshActive}
               onChange={(event) =>
                 setSettings((current) => ({
                   ...current,

@@ -198,6 +198,44 @@ h1 {
   align-items: center;
 }
 
+.workspace-switch {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 16px;
+  border: 1px solid var(--foreground);
+  background: var(--background);
+}
+
+.workspace-switch button {
+  display: inline-flex;
+  min-width: 116px;
+  min-height: 42px;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 9px 16px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.workspace-switch button + button {
+  border-left: 1px solid var(--foreground);
+}
+
+.workspace-switch button[aria-selected="true"] {
+  color: var(--background);
+  background: var(--foreground);
+}
+
+.workspace-switch svg {
+  width: 16px;
+  height: 16px;
+}
+
 .transfer-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -263,6 +301,172 @@ h1 {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.55;
+}
+
+.panel-heading code {
+  color: var(--foreground);
+}
+
+.ssh-workspace {
+  border-top: 1px solid var(--foreground);
+  border-left: 1px solid var(--foreground);
+}
+
+.ssh-panel {
+  min-height: 650px;
+}
+
+.ssh-loading {
+  min-height: 180px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ssh-heading {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.ssh-role {
+  align-self: center;
+  border: 1px solid var(--soft-border);
+  padding: 6px 9px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ssh-role.read-write {
+  color: var(--background);
+  border-color: var(--foreground);
+  background: var(--foreground);
+}
+
+.ssh-join-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.ssh-invitation-field {
+  min-width: 0;
+}
+
+.ssh-invitation-field > label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ssh-join-form > .primary-button {
+  width: auto;
+  min-height: 42px;
+  margin-top: 0;
+  white-space: nowrap;
+}
+
+.ssh-code-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+}
+
+.ssh-code-input input {
+  border-right: 0;
+}
+
+.ssh-code-input button {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid var(--subtle);
+  padding: 0;
+  color: var(--foreground);
+  background: var(--background);
+  cursor: pointer;
+}
+
+.ssh-code-input button:hover:not(:disabled) {
+  color: var(--background);
+  border-color: var(--foreground);
+  background: var(--foreground);
+}
+
+.ssh-code-input svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ssh-status-row {
+  display: flex;
+  min-height: 24px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border: 1px solid var(--subtle);
+  background: transparent;
+}
+
+.status-dot.connected {
+  border-color: var(--foreground);
+  background: var(--foreground);
+}
+
+.ssh-terminal {
+  min-height: 360px;
+  height: clamp(360px, 54vh, 560px);
+  overflow: hidden;
+  border: 1px solid var(--soft-border);
+  padding: 10px;
+  background: var(--panel-tint);
+}
+
+.ssh-terminal .xterm {
+  height: 100%;
+}
+
+.ssh-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.ssh-actions .primary-button {
+  margin-top: 0;
+}
+
+.ssh-actions p {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.ssh-actions p svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
 }
 
 .drop-zone {
@@ -2465,7 +2669,8 @@ a.cli-download-primary:hover {
 
 .release-visual,
 .derp-visual,
-.ssh-visual {
+.ssh-visual,
+.ssh-release-visual {
   display: grid;
   width: min(100%, 650px);
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2476,7 +2681,8 @@ a.cli-download-primary:hover {
 
 .release-visual > span,
 .derp-visual > span,
-.ssh-visual > span {
+.ssh-visual > span,
+.ssh-release-visual > span {
   display: grid;
   min-height: 150px;
   gap: 9px;
@@ -2490,21 +2696,24 @@ a.cli-download-primary:hover {
 
 .release-visual > span:nth-child(2),
 .derp-visual > span:nth-child(2),
-.ssh-visual > span:nth-child(2) {
+.ssh-visual > span:nth-child(2),
+.ssh-release-visual > span:nth-child(2) {
   color: var(--background);
   background: var(--foreground);
 }
 
 .release-visual svg,
 .derp-visual svg,
-.ssh-visual svg {
+.ssh-visual svg,
+.ssh-release-visual svg {
   width: 28px;
   height: 28px;
 }
 
 .release-visual small,
 .derp-visual small,
-.ssh-visual small {
+.ssh-visual small,
+.ssh-release-visual small {
   color: var(--muted);
   font-size: 8px;
   text-transform: uppercase;
@@ -2512,13 +2721,15 @@ a.cli-download-primary:hover {
 
 .release-visual > span:nth-child(2) small,
 .derp-visual > span:nth-child(2) small,
-.ssh-visual > span:nth-child(2) small {
+.ssh-visual > span:nth-child(2) small,
+.ssh-release-visual > span:nth-child(2) small {
   color: inherit;
 }
 
 .release-visual strong,
 .derp-visual strong,
-.ssh-visual strong {
+.ssh-visual strong,
+.ssh-release-visual strong {
   font-size: 13px;
   letter-spacing: -0.04em;
   text-transform: uppercase;
@@ -2526,7 +2737,8 @@ a.cli-download-primary:hover {
 
 .release-visual > i,
 .derp-visual > i,
-.ssh-visual > i {
+.ssh-visual > i,
+.ssh-release-visual > i {
   display: grid;
   min-height: 44px;
   grid-column: 1 / -1;
@@ -3507,6 +3719,15 @@ a.cli-download-primary:hover {
     line-height: 1.02;
   }
 
+  .workspace-switch {
+    display: grid;
+    width: 100%;
+  }
+
+  .workspace-switch button {
+    min-height: 48px;
+  }
+
   .transfer-grid {
     grid-template-columns: 1fr;
   }
@@ -3577,6 +3798,34 @@ a.cli-download-primary:hover {
 
   .panel-heading p {
     font-size: 12px;
+  }
+
+  .ssh-panel {
+    padding: 16px;
+  }
+
+  .ssh-heading {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .ssh-role {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .ssh-join-form,
+  .ssh-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .ssh-join-form > .primary-button {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .ssh-terminal {
+    min-height: 300px;
+    height: 52vh;
   }
 
   .drop-zone {

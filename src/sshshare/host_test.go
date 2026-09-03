@@ -176,6 +176,10 @@ func (s *blockingSSHServer) HandleConn(net.Conn) {
 	close(s.released)
 }
 
+func (s *blockingSSHServer) AddClientAuth([]byte, time.Time) error { return nil }
+
+func (s *blockingSSHServer) RevokeClientAuth([]byte) {}
+
 func (s *blockingSSHServer) Close() error {
 	s.closeOnce.Do(func() { close(s.closed) })
 	return s.closeErr

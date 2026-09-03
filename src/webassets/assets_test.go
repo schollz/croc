@@ -57,12 +57,41 @@ func TestEmbeddedClientContainsEntryPointAndWasm(t *testing.T) {
 	if shareImage.Size() < 50_000 {
 		t.Fatalf("embedded PAKE share image is unexpectedly small: %d", shareImage.Size())
 	}
+	v114Update, err := fs.ReadFile(files, "blog/croc-v11-4-release-update/index.html")
+	if err != nil {
+		t.Fatalf("read embedded v11.4 update: %v", err)
+	}
+	for _, fragment := range [][]byte{
+		[]byte(`<title>croc v11.4: Secure Terminal Sharing from CLI and Browser</title>`),
+		[]byte(`rel="canonical" href="https://getcroc.com/blog/croc-v11-4-release-update"`),
+		[]byte(`property="og:image" content="https://getcroc.com/blog/images/croc-v11-4-release-update.jpg"`),
+		[]byte(`"articleSection":"Updates"`),
+		[]byte(`https://getcroc.com/blog/share-terminal-with-croc-ssh`),
+	} {
+		if !bytes.Contains(v114Update, fragment) {
+			t.Fatalf("embedded v11.4 update does not contain metadata %q", fragment)
+		}
+	}
+	v114Image, err := fs.Stat(files, "blog/images/croc-v11-4-release-update.jpg")
+	if err != nil {
+		t.Fatalf("stat embedded v11.4 share image: %v", err)
+	}
+	if v114Image.Size() < 50_000 {
+		t.Fatalf("embedded v11.4 share image is unexpectedly small: %d", v114Image.Size())
+	}
 	wasm, err := fs.Stat(files, "croc.wasm")
 	if err != nil {
 		t.Fatalf("stat embedded WASM: %v", err)
 	}
 	if wasm.Size() == 0 {
 		t.Fatal("embedded WASM is empty")
+	}
+	sshWasm, err := fs.Stat(files, "croc-ssh.wasm")
+	if err != nil {
+		t.Fatalf("stat embedded SSH WASM: %v", err)
+	}
+	if sshWasm.Size() == 0 {
+		t.Fatal("embedded SSH WASM is empty")
 	}
 	installer, err := fs.ReadFile(files, "default.txt")
 	if err != nil {

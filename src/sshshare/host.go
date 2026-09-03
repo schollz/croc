@@ -304,10 +304,15 @@ func (h *Host) authorizeParticipant(connection *comm.Comm, invite *invitation) (
 		Transport:      request.transport,
 	}
 	if request.transport == TransportRelay {
+		if err = invite.sshServer.AddClientAuth(request.clientAuth, h.now().Add(h.config.AuthorizationTTL)); err != nil {
+			return false, err
+		}
 		if err = sendOffer(connection, encryptionKey, offer, deadline); err != nil {
+			invite.sshServer.RevokeClientAuth(request.clientAuth)
 			return false, err
 		}
 		if err = connection.Connection().SetDeadline(time.Time{}); err != nil {
+			invite.sshServer.RevokeClientAuth(request.clientAuth)
 			return false, fmt.Errorf("clear SSH relay deadline: %w", err)
 		}
 		h.serveRelaySSH(connection, invite)
@@ -316,11 +321,16 @@ func (h *Host) authorizeParticipant(connection *comm.Comm, invite *invitation) (
 
 	clientKey := request.clientKey
 	address := tailcat.AddrForNodeKey(clientKey)
+	expiresAt := h.now().Add(h.config.AuthorizationTTL)
+	if err = invite.sshServer.AddClientAuth(request.clientAuth, expiresAt); err != nil {
+		return false, err
+	}
 	if !h.addGrant(address, roleGrant{
 		clientKey: clientKey,
 		role:      invite.role,
-		expiresAt: h.now().Add(h.config.AuthorizationTTL),
+		expiresAt: expiresAt,
 	}) {
+		invite.sshServer.RevokeClientAuth(request.clientAuth)
 		if err := h.ctx.Err(); err != nil {
 			return false, err
 		}
@@ -328,6 +338,7 @@ func (h *Host) authorizeParticipant(connection *comm.Comm, invite *invitation) (
 	}
 	if err = sendOffer(connection, encryptionKey, offer, deadline); err != nil {
 		h.revokeGrant(address, clientKey)
+		invite.sshServer.RevokeClientAuth(request.clientAuth)
 	}
 	return false, err
 }

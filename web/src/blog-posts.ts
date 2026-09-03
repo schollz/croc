@@ -10,6 +10,7 @@ export type BlogVisual =
   | "stored"
   | "derp"
   | "ssh"
+  | "ssh-release"
   | "release";
 
 export type BlogKind = "note" | "update";
@@ -26,30 +27,30 @@ export type BlogBlock =
   | { type: "code"; label: string; lines: string[] }
   | { type: "details"; summary: string; lines: string[] }
   | {
-      type: "aside";
-      eyebrow: string;
-      title: string;
-      text: string;
-      links?: BlogTextLink[];
-    }
+    type: "aside";
+    eyebrow: string;
+    title: string;
+    text: string;
+    links?: BlogTextLink[];
+  }
   | {
-      type: "table";
-      caption: string;
-      headers: string[];
-      indicatorColumns?: number[];
-      indicatorLegend?: {
-        full: string;
-        partial: string;
-        empty: string;
-        terms?: Array<{ term: string; definition: string }>;
-      };
-      rowOrder?: string[];
-      rows: Array<{
-        cells: string[];
-        href: string;
-        highlight?: boolean;
-      }>;
+    type: "table";
+    caption: string;
+    headers: string[];
+    indicatorColumns?: number[];
+    indicatorLegend?: {
+      full: string;
+      partial: string;
+      empty: string;
+      terms?: Array<{ term: string; definition: string }>;
     };
+    rowOrder?: string[];
+    rows: Array<{
+      cells: string[];
+      href: string;
+      highlight?: boolean;
+    }>;
+  };
 
 export type BlogPost = {
   slug: string;
@@ -139,14 +140,14 @@ export function blogWordCount(blocks: BlogBlock[]) {
         ...block.headers,
         ...(block.indicatorLegend
           ? [
-              block.indicatorLegend.full,
-              block.indicatorLegend.partial,
-              block.indicatorLegend.empty,
-              ...(block.indicatorLegend.terms?.flatMap(({ term, definition }) => [
-                term,
-                definition,
-              ]) ?? []),
-            ]
+            block.indicatorLegend.full,
+            block.indicatorLegend.partial,
+            block.indicatorLegend.empty,
+            ...(block.indicatorLegend.terms?.flatMap(({ term, definition }) => [
+              term,
+              definition,
+            ]) ?? []),
+          ]
           : []),
         ...block.rows.flatMap((row) => row.cells),
       ];
@@ -161,26 +162,154 @@ export function readingMinutes(blocks: BlogBlock[]) {
 
 const drafts: DraftBlogPost[] = [
   {
+    slug: "croc-v11-4-release-update",
+    number: "03",
+    title: "croc v11.4 shares the terminal",
+    description:
+      "croc v11.4 adds secure collaborative terminals, separate read/write and read-only invitations, automatic reconnection, and browser joining.",
+    kind: "update",
+    category: "Release notes",
+    publishedAt: "2026-09-03",
+    publishedLabel: "September 3, 2026",
+    author: "schollz",
+    visual: "ssh-release",
+    takeaway:
+      "v11.4 adds croc ssh: host one persistent terminal from the CLI, invite read/write or read-only participants, and let them join from croc or getcroc.com.",
+    blocks: [
+      {
+        type: "paragraph",
+        text: "croc has spent most of its life moving files. In v11.4 it can share something that is a little harder to put in a folder: the terminal where you are already working. Run one command, send somebody a six-word invitation, and both of you are looking at the same shell.",
+      },
+      {
+        type: "paragraph",
+        text: "The new command is croc ssh. It does not turn on the computer's normal SSH server or ask you to arrange accounts and keys. It starts one temporary collaborative session beside the existing file-transfer commands. croc send still behaves as before; v11.4 just gives croc one more useful thing to introduce between two computers.",
+      },
+      { type: "heading", text: "The short version" },
+      {
+        type: "list",
+        items: [
+          "croc ssh hosts one persistent shell on Linux, macOS, FreeBSD, or OpenBSD; those systems and Windows can join from the CLI.",
+          "The host prints independent six-word invitations for read/write and read-only access.",
+          "Guests can detach without ending the shell and automatically reauthenticate after a temporary network loss.",
+          "getcroc.com now has an SSH mode that can join either invitation directly from an evergreen desktop browser.",
+          "Native guests try a direct Tailcat WireGuard route, use DERP when direct networking is blocked, and can fall back to the ordinary croc relay; browsers use the relay path.",
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "This update is the release overview. I wrote a separate field note, Share a terminal with croc ssh, with the tmate background, alternatives, protocol details, trust model, and the sharper edges of sharing a real shell.",
+        links: [
+          {
+            label: "Share a terminal with croc ssh",
+            href: "https://getcroc.com/blog/share-terminal-with-croc-ssh",
+          },
+        ],
+      },
+      { type: "heading", text: "One command opens two doors" },
+      {
+        type: "code",
+        label: "Host a shared terminal",
+        lines: [
+          "$ croc ssh",
+          "Shared SSH terminal is ready",
+          "  Read/write: CROC_SECRET='...' croc ssh",
+          "  Read-only:  CROC_SECRET='...' croc ssh",
+          "  Expires:    12h0m0s",
+          "  Stop:       Ctrl-C",
+          "  Detach:     Ctrl-] (the shared shell keeps running)",
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "Both invitations enter the same PTY and receive its existing output. A read/write participant can type alongside the attached host. A read-only participant sees the same screen, but the host discards that participant's input before it reaches the shell. The codes are generated independently, so sharing the viewing code does not reveal the typing code.",
+      },
+      {
+        type: "paragraph",
+        text: "The host is attached by default, which makes pair debugging feel like pulling another chair up to the terminal. --headless leaves the session running without occupying the host's terminal, --dir chooses the starting directory, and --duration replaces the twelve-hour default lifetime. Any number of people may attach, within the relay and host's practical limits.",
+      },
+      { type: "heading", text: "The browser can join, too" },
+      {
+        type: "paragraph",
+        text: "The getcroc.com homepage now has a Files / SSH switch. Choose SSH, paste either invitation, and the page becomes a terminal with its authenticated role shown above it. Read/write guests can type normally. Read-only input is disabled in the page and independently rejected by the host. Ctrl-C still reaches the shared program; Disconnect or Ctrl-] leaves the session.",
+      },
+      {
+        type: "paragraph",
+        text: "This is intentionally a croc SSH joiner rather than a general browser SSH client. It cannot host a terminal or connect to an arbitrary server. It uses the ordinary croc relay path and runs PAKE, host-key verification, and the SSH client in WebAssembly. The terminal interface and separate SSH module load only after SSH mode is selected, and the invitation stays in memory instead of being copied into a URL, browser storage, QR code, log, or analytics event.",
+      },
+
+      { type: "heading", text: "It is still croc underneath" },
+      {
+        type: "paragraph",
+        text: "Each role gets a six-word invitation. The first two words derive an opaque rendezvous room and the remaining four are the PAKE secret. Host and guest prove that they know the same invitation and confirm the resulting key without placing the secret on the relay. The authenticated reply also carries the exact ephemeral SSH host key, so the client pins it without a trust-on-first-use prompt.",
+      },
+      {
+        type: "paragraph",
+        text: "A native guest then uses Tailcat to make a small accountless userspace WireGuard network. It starts through DERP and promotes the session to direct UDP when the networks cooperate. If Tailcat cannot establish the SSH connection, both sides authenticate again and carry the pinned SSH stream over the selected croc relay. There is no Tailscale account, daemon, public IP, port-forwarding rule, or normal SSH service to configure.",
+        links: [
+          { label: "Tailcat", href: "https://github.com/tailscale/tailcat" },
+        ],
+      },
+      {
+        type: "table",
+        caption: "What v11.4 adds",
+        headers: ["Part", "New behavior", "Boundary"],
+        rows: [
+          {
+            cells: ["Native CLI", "Host or join one shared terminal", "Hosting needs a PTY-capable Unix platform"],
+            href: "https://github.com/schollz/croc/blob/main/src/docs/SSH_SHARING.md",
+          },
+          {
+            cells: ["Browser", "Join read/write or read-only from getcroc.com", "Join-only and croc-relay-only"],
+            href: "https://getcroc.com/",
+          },
+          {
+            cells: ["Invitations", "Independent six-word codes for two roles", "Anyone holding a code has its role"],
+            href: "https://getcroc.com/blog/share-terminal-with-croc-ssh",
+          },
+          {
+            cells: ["Session", "Detach, reconnect, and replay recent output", "One shared shell, not separate logins"],
+            href: "https://github.com/schollz/croc/blob/main/src/docs/SSH_SHARING.md#reconnection",
+          },
+        ],
+      },
+      { type: "heading", text: "Try v11.4" },
+      {
+        type: "code",
+        label: "Install and start sharing",
+        lines: [
+          "$ curl https://getcroc.com | bash",
+          "$ croc --version",
+          "croc version 11.4.0",
+          "$ croc ssh",
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "Then send the appropriate invitation to somebody with croc or a desktop browser. File transfer was the reason croc learned how to introduce two computers securely. v11.4 reuses that introduction for a terminal, and I like that the result still begins with one small command.",
+      },
+    ],
+  },
+  {
     slug: "share-terminal-with-croc-ssh",
     number: "11",
     title: "Share a terminal with croc ssh",
     description:
-      "Introduced in croc v11.4, croc ssh turns a six-word invitation into one shared terminal with separate read/write and read-only access.",
+      "croc ssh turns a six-word invitation into one shared terminal with read/write or read-only access from the CLI or browser.",
     category: "Remote terminals",
     publishedAt: "2026-09-03",
     publishedLabel: "September 3, 2026",
     author: "schollz",
     visual: "ssh",
     takeaway:
-      "Starting in croc v11.4, run croc ssh, share the appropriate six-word invitation, and another person can join the same persistent shell without an account, inbound port, or Tailscale setup.",
+      "Run croc ssh, share the appropriate six-word invitation, and another person can join the persistent shell from the CLI or browser without an account, inbound port, or Tailscale setup.",
     blocks: [
       {
         type: "paragraph",
-        text: "Sometimes I am already staring at the terminal where a problem lives, and I want another person to look over my shoulder. Screen sharing is too much screen. Copying commands into a chat is too little context. Ordinary SSH is excellent, but it usually starts with an account, a public key, a reachable port, or a VPN. I wanted the croc version: print a short code and let the other computer find its way in.",
+        text: "Sometimes I am on a Zoom with someone sharing their terminal and it is impossible to see their terminal and it is becoming tedious sharing commands from their terminal to mine. The solution is to share the SSH session with each other, so my terminal is rendering exactly what theirs is. Ordinary SSH is excellent, but it is complicated by needing an account, a public key, a reachable port, or a VPN. I wanted the croc version: print a short code and let the other computer find its way in.",
       },
       {
         type: "paragraph",
-        text: "croc v11.4 introduces croc ssh. It creates one persistent shell on the host and gives it two doors. The read/write invitation is for somebody who should type with you. The read-only invitation is for somebody who should watch. Both arrive in the same terminal, including the output that appeared before they joined.",
+        text: "croc v11.4 introduces croc ssh. It creates one persistent shell on the host and gives it two doors: 1) a read/write invitation for somebody who can type with you, and 2) a read-only invitation is for somebody who can just watch over your shoulder. Both arrive in the same terminal, including the output that appeared before they joined.",
       },
       {
         type: "code",
@@ -197,12 +326,21 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "Those example invitations have expired, but that is the entire ceremony. Send one line to the person joining. On Unix, CROC_SECRET keeps the six words out of the process list; running croc ssh and pasting the code at its prompt works too. Windows can use croc ssh followed by the code directly.",
+        text: "Choose which door, and then send one line to the person joining. On Unix, CROC_SECRET keeps the six words out of the process list; running croc ssh and pasting the code at its prompt works too. Windows can use croc ssh followed by the code directly.",
+      },
+      { type: "heading", text: "The browser can play, too" },
+      {
+        type: "paragraph",
+        text: "The web client now has a Files / SSH switch, so even if you don't have a terminal handy you can Open SSH at getcroc.com, paste either six-word invitation, and the page becomes a full-width terminal showing its authenticated read/write or read-only role. Ctrl-C behaves normally; Disconnect or Ctrl-] leaves. This is a croc-specific joiner, not a general SSH client: it uses the ordinary croc relay path, while PAKE, pinned-host-key verification, and SSH stay in browser WASM, so croc-web forwards ciphertext rather than terminal text.",
+      },
+      {
+        type: "paragraph",
+        text: "The terminal code loads only when SSH is selected, and the invitation stays in memory rather than URLs or storage. A self-hosted web client must use the host's relay pool and password. Read-only input is disabled in the page and still rejected by the host.",
       },
       { type: "heading", text: "The tmate-shaped hole" },
       {
         type: "paragraph",
-        text: "tmate was the wonderfully simple answer to this problem for years: run one command and get an SSH address that another person can open. In July 2025, its maintainer said the public servers were closing permanently. The source is still available and the server can be self-hosted, but the useful zero-setup meeting place is gone.",
+        text: "tmate was the wonderfully simple answer to this problem for years: run one command and get an SSH address that another person can open. In July 2025, its maintainer said the public servers were closing permanently. The source is still available and the server can be self-hosted, but the useful zero-setup meeting place is gone. There are altneratives, but they are not as simple or as widely known. croc ssh is a new option that is designed to be easy to use and easy to self-host.",
         links: [
           {
             label: "said the public servers were closing permanently",
@@ -215,21 +353,12 @@ const drafts: DraftBlogPost[] = [
         ],
       },
       {
-        type: "paragraph",
-        text: "There are good successors, although each chooses a different shape. Upterm makes a reverse SSH tunnel and lets guests join with an ordinary SSH client. sshx puts a collaborative terminal in the browser, complete with cursors and a large shared canvas. SSH plus tmux remains the sturdy do-it-yourself option when accounts, keys, and networking are already arranged.",
-        links: [
-          { label: "Upterm", href: "https://github.com/owenthereal/upterm" },
-          { label: "sshx", href: "https://github.com/ekzhang/sshx" },
-          { label: "tmux", href: "https://github.com/tmux/tmux" },
-        ],
-      },
-      {
         type: "table",
         caption: "Several ways to put another person in a terminal",
         headers: ["Tool", "Guest uses", "Meeting point", "Useful distinction"],
         rows: [
           {
-            cells: ["croc ssh", "croc", "croc relay, then direct/DERP when possible", "Six-word read/write and read-only invitations"],
+            cells: ["croc ssh", "croc or browser", "croc relay; CLI can use direct/DERP", "Six-word read/write and read-only invitations"],
             href: "https://github.com/schollz/croc/blob/5595b7507a27f513e3ea460fdd561ee639642d57/src/docs/SSH_SHARING.md",
             highlight: true,
           },
@@ -251,11 +380,7 @@ const drafts: DraftBlogPost[] = [
           },
         ],
       },
-      {
-        type: "paragraph",
-        text: "I did not want croc ssh to pretend those projects do not exist. I wanted another choice for people who already have croc, like its short invitations, and do not want to make the host's normal SSH service public. Basically, the rendezvous machinery used to move a file can also introduce two ends of a terminal.",
-      },
-      { type: "heading", text: "How six words become a shell" },
+      { type: "heading", text: "How it works" },
       {
         type: "paragraph",
         text: "Each invitation has six EFF words. The first two derive an opaque room name on the selected croc relay. The remaining four are the PAKE secret. Host and guest meet in that room, prove that they know the same secret, and confirm the resulting key without sending the secret itself. The read/write and read-only codes are generated independently, so knowing one does not reveal the other.",
@@ -279,14 +404,14 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "aside",
-        eyebrow: "WHAT THE RELAYS CAN SEE",
+        eyebrow: "SECURITY",
         title: "The invitation and terminal remain end-to-end encrypted",
         text: "A croc relay sees an opaque room plus connection timing. When it carries the fallback stream, it can also see the volume and timing of SSH ciphertext. A DERP relay can see similar transport metadata. Neither receives the invitation secret, terminal contents, Tailcat authorization, or SSH host key.",
       },
-      { type: "heading", text: "One terminal, not a remote account" },
+      { type: "heading", text: "Pulling up a chair" },
       {
         type: "paragraph",
-        text: "This is intentionally closer to pulling another chair up to one terminal than provisioning a login. Everybody sees the same PTY. Read/write guests and the attached host may type into it; input from a read-only guest is discarded before it reaches the shell. Up to 8 MiB of recent output stays in memory and is replayed when somebody attaches, so a late arrival does not begin with a mysteriously blank screen.",
+        text: "The croc ssh feature is intentionally closer to pulling another chair up to one terminal than provisioning a login. Everybody sees the same PTY. Read/write guests and the attached host may type into it; input from a read-only guest is discarded before it reaches the shell. Up to 8 MiB of recent output stays in memory and is replayed when somebody attaches, so a late arrival does not begin with a mysteriously blank screen.",
       },
       {
         type: "paragraph",
@@ -301,15 +426,9 @@ const drafts: DraftBlogPost[] = [
           "",
           "# Start in a project and expire after thirty minutes",
           "$ croc ssh --dir /path/to/project --duration 30m",
-          "",
-          "# Let a guest try reconnecting for ten minutes",
-          "$ CROC_SECRET='six-word-invitation-goes-here-now' croc ssh --reconnect-window 10m",
-          "",
-          "# Require the ordinary croc relay transport",
-          "$ CROC_SECRET='six-word-invitation-goes-here-now' croc ssh --transport relay",
         ],
       },
-      { type: "heading", text: "The important limits" },
+      { type: "heading", text: "Limitations" },
       {
         type: "paragraph",
         text: "The embedded SSH server accepts an interactive terminal, not remote commands, SFTP, agent forwarding, port forwarding, or arbitrary channels. That smaller surface is deliberate. It is a shared session, not a replacement for administering a machine over SSH.",
@@ -320,7 +439,7 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "croc ssh arrives in v11.4. Hosting works on Linux, macOS, FreeBSD, and OpenBSD. Those systems and Windows can join. The complete protocol and trust model are in the SSH sharing documentation. I am curious whether this feels useful for pair debugging, support, demos, and the occasional broken server at an inconvenient hour. Try it with a terminal you can afford to share, and let me know what feels awkward.",
+        text: "croc ssh arrives in v11.4. Hosting works on Linux, macOS, FreeBSD, and OpenBSD. Those systems, Windows, and evergreen desktop browsers can join. The complete protocol and trust model are in the SSH sharing documentation. I am curious whether this feels useful for pair debugging, support, demos, and the occasional broken server at an inconvenient hour. Try it with a terminal you can afford to share, and let me know what you think!",
         links: [
           {
             label: "SSH sharing documentation",

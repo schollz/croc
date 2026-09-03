@@ -1125,6 +1125,7 @@ func relay(c *cli.Context) (err error) {
 	}
 
 	var roomPaired func()
+	var roomProtocol func(tcp.RoomProtocol)
 	umamiURL := strings.TrimSpace(os.Getenv("UMAMI_URL"))
 	umamiWebsiteID := strings.TrimSpace(os.Getenv("UMAMI_WEBSITE_ID"))
 	umamiSrc := strings.TrimSpace(os.Getenv("UMAMI_SRC"))
@@ -1135,12 +1136,19 @@ func relay(c *cli.Context) (err error) {
 			log.Warnf("relay analytics disabled: %v", reporterErr)
 		} else {
 			defer reporter.Close()
-			roomPaired = func() {
-				event := "relay-session"
+			eventName := func(event string) string {
 				if umamiSrc != "" {
-					event += "-" + umamiSrc
+					return event + "-" + umamiSrc
 				}
-				reporter.Track(event)
+				return event
+			}
+			roomPaired = func() {
+				reporter.Track(eventName("relay-session"))
+			}
+			roomProtocol = func(protocol tcp.RoomProtocol) {
+				if protocol == tcp.RoomProtocolSSH {
+					reporter.Track(eventName("ssh-rendezvous"))
+				}
 			}
 		}
 	}
@@ -1183,5 +1191,6 @@ func relay(c *cli.Context) (err error) {
 		tcp.WithAdmissionLimits(sourceJoinLimit, roomJoinLimit, joinLimitWindow),
 		tcp.WithFastAdmission(capabilitySet),
 		tcp.WithRoomPairedCallback(roomPaired),
+		tcp.WithRoomProtocolCallback(roomProtocol),
 	)
 }

@@ -3,6 +3,7 @@
 package sshshare
 
 import (
+	"bytes"
 	"io"
 	"net"
 	"strings"
@@ -28,6 +29,7 @@ func TestSSHPAKEAndAuthorizationRoundTrip(t *testing.T) {
 	t.Cleanup(guest.Close)
 
 	clientKey := key.NewNode()
+	clientAuth := []byte("01234567890123456789012345678901")
 	wantOffer := sshOffer{
 		TailcatAddress: "tc-test-address",
 		SSHHostKey:     []byte("ssh-host-key"),
@@ -49,6 +51,9 @@ func TestSSHPAKEAndAuthorizationRoundTrip(t *testing.T) {
 		if err == nil && request.transport != TransportRelay {
 			err = &testError{"transport mismatch"}
 		}
+		if err == nil && !bytes.Equal(request.clientAuth, clientAuth) {
+			err = &testError{"client authentication mismatch"}
+		}
 		if err == nil {
 			err = sendOffer(host, encryptionKey, wantOffer, deadline)
 		}
@@ -60,7 +65,7 @@ func TestSSHPAKEAndAuthorizationRoundTrip(t *testing.T) {
 
 	encryptionKey, deadline, err := guestPAKE(guest, components, "p256")
 	require.NoError(t, err)
-	require.NoError(t, sendAuthorizationRequest(guest, encryptionKey, clientKey.Public(), TransportRelay, deadline))
+	require.NoError(t, sendAuthorizationRequest(guest, encryptionKey, clientKey.Public(), clientAuth, TransportRelay, deadline))
 	gotOffer, err := receiveOffer(guest, encryptionKey, deadline)
 	require.NoError(t, err)
 	require.Equal(t, wantOffer, gotOffer)
@@ -69,6 +74,31 @@ func TestSSHPAKEAndAuthorizationRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "raw-relay-stream", string(raw))
 	require.NoError(t, <-hostErr)
+}
+
+func TestGuestPAKEAdvertisesSSHRendezvous(t *testing.T) {
+	components, err := codephrase.ParseSSH("acid-acorn-acre-acts-ahead-alien")
+	require.NoError(t, err)
+	hostConn, guestConn := net.Pipe()
+	host := comm.New(hostConn)
+	guest := comm.New(guestConn)
+	t.Cleanup(host.Close)
+	t.Cleanup(guest.Close)
+
+	guestDone := make(chan error, 1)
+	go func() {
+		_, _, pakeErr := guestPAKE(guest, components, "p256")
+		guestDone <- pakeErr
+	}()
+
+	payload, err := host.ReceiveWithDeadline(time.Now().Add(time.Second))
+	require.NoError(t, err)
+	request, err := message.Decode(nil, payload)
+	require.NoError(t, err)
+	require.Equal(t, message.TypePAKE, request.Type)
+	require.Contains(t, request.Features, message.FeatureSSHRendezvous)
+	host.Close()
+	require.Error(t, <-guestDone)
 }
 
 func TestReceiveMessageIgnoresRelayKeepalive(t *testing.T) {
@@ -197,6 +227,16 @@ func TestHostPAKERejectsOversizedWireValue(t *testing.T) {
 }
 
 func TestAuthorizationRejectsZeroClientKey(t *testing.T) {
-	err := sendAuthorizationRequest(nil, nil, key.NodePublic{}, TransportTailcat, time.Now().Add(time.Second))
+	err := sendAuthorizationRequest(nil, nil, key.NodePublic{}, make([]byte, sshClientAuthSize), TransportTailcat, time.Now().Add(time.Second))
 	require.ErrorContains(t, err, "client key is required")
+}
+
+func TestAuthorizationRejectsMissingClientAuthentication(t *testing.T) {
+	err := sendAuthorizationRequest(nil, nil, key.NewNode().Public(), nil, TransportRelay, time.Now().Add(time.Second))
+	require.ErrorContains(t, err, "client authentication length")
+}
+
+func TestAuthorizationRejectsZeroClientAuthentication(t *testing.T) {
+	err := sendAuthorizationRequest(nil, nil, key.NewNode().Public(), make([]byte, sshClientAuthSize), TransportRelay, time.Now().Add(time.Second))
+	require.ErrorContains(t, err, "client authentication is required")
 }

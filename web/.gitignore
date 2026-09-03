@@ -11,5 +11,6 @@ test-fixtures/
 !.env.example
 npm-debug.log*
 public/croc.wasm
+public/croc-ssh.wasm
 public/wasm_exec.js
 *.tsbuildinfo

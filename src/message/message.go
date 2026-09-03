@@ -45,6 +45,11 @@ const (
 	TypeSSHOffer         Type = "ssh-offer"
 )
 
+// FeatureSSHRendezvous marks the unencrypted PAKE negotiation for a shared
+// SSH terminal. Relays may use this fixed marker for aggregate telemetry; it
+// contains no invitation, room, role, or terminal data.
+const FeatureSSHRendezvous = "ssh-rendezvous-v1"
+
 // Message is the possible payload for messaging
 type Message struct {
 	Type     Type     `json:"t,omitempty"`

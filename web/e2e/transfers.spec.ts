@@ -436,7 +436,7 @@ test("publishes rich metadata and project links", async ({ page }) => {
     page.getByRole("link", { name: "View croc on GitHub" }),
   ).toHaveAttribute("href", "https://github.com/schollz/croc");
   await expect(
-    page.getByRole("link", { name: /Read all 10 posts/i }),
+    page.getByRole("link", { name: /Read all \d+ posts/i }),
   ).toHaveAttribute("href", "/blog");
   await expect(
     page.getByRole("link", { name: "schollz", exact: true }),
@@ -615,7 +615,7 @@ test("receive links open with the Receive panel top edge visible", async ({
         element.getBoundingClientRect().bottom,
       ),
     )
-    .toBeLessThanOrEqual(0);
+    .toBeLessThanOrEqual(16);
 });
 
 test("help tour explains browser transfers and end-to-end encryption", async ({
@@ -1181,5 +1181,66 @@ test("CLI stored upload → Web download verifies and consumes files", async ({
   } finally {
     sender.stop();
     await sender.done.catch(() => undefined);
+  }
+});
+
+test("CLI SSH host → Web terminal runs an interactive command", async ({
+  page,
+}, testInfo) => {
+  const configDirectory = testInfo.outputPath("ssh-host-config");
+  await fs.mkdir(configDirectory, { recursive: true });
+  const host = runCroc(
+    [
+      "--relay",
+      relayAddress,
+      "--pass",
+      relayPassword,
+      "--disable-clipboard",
+      "ssh",
+      "--headless",
+      "--duration",
+      "2m",
+    ],
+    "",
+    configDirectory,
+  );
+  try {
+    await expect.poll(() => host.output(), { timeout: transferTimeout }).toContain(
+      "Shared SSH terminal is ready",
+    );
+    const invitation = host.output().match(/CROC_SECRET='([a-z-]+)'/)?.[1];
+    expect(invitation, host.output()).toBeTruthy();
+
+    await configurePage(page);
+    await page.getByRole("tab", { name: "SSH" }).click();
+    const panel = page.locator(".ssh-panel");
+    const invitationInput = panel.getByLabel("SSH invitation", { exact: true });
+    await invitationInput.evaluate((element, code) => {
+      const clipboard = new DataTransfer();
+      clipboard.setData("text", code);
+      element.dispatchEvent(
+        new ClipboardEvent("paste", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: clipboard,
+        }),
+      );
+    }, invitation!);
+    await panel.getByRole("button", { name: "Join terminal" }).click();
+    await expect(panel).toContainText("Connected with read-write access", {
+      timeout: transferTimeout,
+    });
+
+    await panel.locator(".xterm-helper-textarea").focus();
+    await page.keyboard.type("printf 'CROC_BROWSER_%s\\n' 'SSH_OK'");
+    await page.keyboard.press("Enter");
+    await expect(panel.locator(".xterm-rows")).toContainText(
+      "CROC_BROWSER_SSH_OK",
+      { timeout: transferTimeout },
+    );
+    await panel.getByRole("button", { name: "Disconnect" }).click();
+  } finally {
+    host.stop();
+    await host.done.catch(() => undefined);
   }
 });

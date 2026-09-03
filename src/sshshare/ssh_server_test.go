@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/base64"
 	"io"
 	"net"
 	"sync"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	ssh "github.com/tailscale/gliderssh"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -50,8 +50,12 @@ func newTestSigner(t *testing.T) gossh.Signer {
 	return signer
 }
 
-func connectTestSSH(t *testing.T, server *ssh.Server, signer gossh.Signer) *sshTestClient {
+func connectTestSSH(t *testing.T, server *sharedSSHServer, signer gossh.Signer) *sshTestClient {
 	t.Helper()
+	clientAuth := make([]byte, sshClientAuthSize)
+	_, err := rand.Read(clientAuth)
+	require.NoError(t, err)
+	require.NoError(t, server.AddClientAuth(clientAuth, time.Now().Add(time.Minute)))
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	accepted := make(chan struct{})
@@ -68,6 +72,7 @@ func connectTestSSH(t *testing.T, server *ssh.Server, signer gossh.Signer) *sshT
 	require.NoError(t, listener.Close())
 	config := &gossh.ClientConfig{
 		User: "test",
+		Auth: []gossh.AuthMethod{gossh.Password(base64.RawStdEncoding.EncodeToString(clientAuth))},
 		HostKeyCallback: func(_ string, _ net.Addr, key gossh.PublicKey) error {
 			require.Equal(t, signer.PublicKey().Marshal(), key.Marshal())
 			return nil
@@ -92,6 +97,74 @@ func connectTestSSH(t *testing.T, server *ssh.Server, signer gossh.Signer) *sshT
 		_ = result.client.Close()
 	})
 	return result
+}
+
+func testSSHHandshake(t *testing.T, server *sharedSSHServer, signer gossh.Signer, auth []gossh.AuthMethod) error {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	done := make(chan error, 1)
+	accepted := make(chan struct{})
+	go func() {
+		serverConn, acceptErr := listener.Accept()
+		close(accepted)
+		if acceptErr != nil {
+			done <- acceptErr
+			return
+		}
+		server.HandleConn(serverConn)
+		done <- nil
+	}()
+	clientConn, err := net.Dial("tcp", listener.Addr().String())
+	require.NoError(t, err)
+	<-accepted
+	require.NoError(t, listener.Close())
+	config := &gossh.ClientConfig{
+		User:            "test",
+		Auth:            auth,
+		HostKeyCallback: gossh.FixedHostKey(signer.PublicKey()),
+	}
+	connection, _, _, err := gossh.NewClientConn(clientConn, "test", config)
+	if err == nil {
+		_ = connection.Close()
+	}
+	_ = clientConn.Close()
+	require.NoError(t, <-done)
+	return err
+}
+
+func TestSharedSSHRequiresOneTimePAKEClientAuthentication(t *testing.T) {
+	pty := newMemoryPTY()
+	hub := newTerminalHub(t.Context(), pty, nil, nil)
+	t.Cleanup(func() { _ = hub.Close() })
+	signer := newTestSigner(t)
+	server := newSharedSSHServer(hub, signer, RoleReadWrite, nil)
+	t.Cleanup(func() { _ = server.Close() })
+
+	clientAuth := []byte("01234567890123456789012345678901")
+	require.NoError(t, server.AddClientAuth(clientAuth, time.Now().Add(time.Minute)))
+	require.Nil(t, server.server.NoClientAuthHandler)
+	require.NotNil(t, server.server.PasswordHandler)
+	require.Error(t, testSSHHandshake(t, server, signer, nil))
+	require.Error(t, testSSHHandshake(t, server, signer, []gossh.AuthMethod{gossh.Password("wrong")}))
+
+	password := base64.RawStdEncoding.EncodeToString(clientAuth)
+	require.NoError(t, testSSHHandshake(t, server, signer, []gossh.AuthMethod{gossh.Password(password)}))
+	require.Error(t, testSSHHandshake(t, server, signer, []gossh.AuthMethod{gossh.Password(password)}))
+}
+
+func TestSharedSSHRejectsExpiredClientAuthentication(t *testing.T) {
+	pty := newMemoryPTY()
+	hub := newTerminalHub(t.Context(), pty, nil, nil)
+	t.Cleanup(func() { _ = hub.Close() })
+	server := newSharedSSHServer(hub, newTestSigner(t), RoleReadOnly, nil)
+	clientAuth := []byte("01234567890123456789012345678901")
+	now := time.Unix(100, 0)
+	server.now = func() time.Time { return now }
+	require.NoError(t, server.AddClientAuth(clientAuth, now.Add(time.Second)))
+	now = now.Add(time.Second)
+	require.False(t, server.authenticate(nil, base64.RawStdEncoding.EncodeToString(clientAuth)))
+	require.Empty(t, server.grants)
 }
 
 func TestSharedSSHIsMultiUserReadOnlyAndReconnectable(t *testing.T) {
