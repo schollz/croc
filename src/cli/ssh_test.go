@@ -52,6 +52,20 @@ func TestFormatSSHJoinCommandIncludesCustomRelay(t *testing.T) {
 	}
 }
 
+func TestFormatSSHBrowserLinks(t *testing.T) {
+	links := formatSSHBrowserLinks(
+		"acid-acorn-acre-acts-ahead-alien",
+		"badge-baker-basin-beach-beard-beast",
+	)
+	require.Equal(t, `  Browser read/write: https://getcroc.com/#ssh?code=acid-acorn-acre-acts-ahead-alien
+  Browser read-only:  https://getcroc.com/#ssh?code=badge-baker-basin-beach-beard-beast
+`, links)
+	require.Equal(t,
+		"https://getcroc.com/#ssh?code=word%2Fword+%3F%26",
+		sshBrowserURL("word/word ?&"),
+	)
+}
+
 func TestFormatShellAssignmentEscapesApostrophes(t *testing.T) {
 	require.Equal(t, `CROC_PASS='don'\''t'\''panic'`, formatShellAssignment("CROC_PASS", "don't'panic", false))
 }

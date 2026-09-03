@@ -18,6 +18,8 @@ The host prints two independently generated invitations:
 ```text
 Read/write: CROC_SECRET='...' croc ssh
 Read-only:  CROC_SECRET='...' croc ssh
+Browser read/write: https://getcroc.com/#ssh?code=...
+Browser read-only:  https://getcroc.com/#ssh?code=...
 ```
 
 Both roles see the same PTY and its existing transcript. Read/write clients and
@@ -64,9 +66,11 @@ read-only invitation in addition to the host-side enforcement.
 The browser is join-only. It uses the ordinary croc relay path rather than
 Tailcat, cannot host a terminal, and cannot connect to an arbitrary SSH server.
 For self-hosting, `croc-web` must use the same ordered relay pool and relay
-password as the `croc ssh` host. The invitation stays in page memory only while
-it is needed for the initial connection or reconnection; it is never placed in
-a URL, browser storage, QR code, log, error report, or analytics event.
+password as the `croc ssh` host. Role-specific browser links carry the
+invitation after the URL's `#`, so it is not sent to the web server. The page
+reads the fragment, removes the invitation from the address bar, and keeps it
+in memory only while it is needed for the initial connection or reconnection.
+It is not placed in browser storage, logs, error reports, or analytics events.
 SSH clients include a fixed `ssh-rendezvous-v1` feature in the unencrypted PAKE
 envelope. An analytics-enabled relay may use only that marker to emit an
 aggregate `ssh-rendezvous` event, and an analytics-enabled web client emits

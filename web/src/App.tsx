@@ -111,6 +111,68 @@ type MobileTransferPanel = "send" | "receive";
 type SendContent = "files" | "text";
 type WorkspaceMode = "files" | "ssh";
 
+const sshWorkspaceHash = "#ssh";
+
+export function workspaceModeFromHash(
+  hash = window.location.hash,
+): WorkspaceMode {
+  return hash.split("?", 1)[0] === sshWorkspaceHash ? "ssh" : "files";
+}
+
+export function sshInvitationFromHash(hash = window.location.hash) {
+  if (workspaceModeFromHash(hash) !== "ssh") return "";
+  const queryAt = hash.indexOf("?");
+  if (queryAt < 0) return "";
+  return new URLSearchParams(hash.slice(queryAt + 1)).get("code")?.trim() ?? "";
+}
+
+function scrubSSHInvitationFromURL() {
+  if (!sshInvitationFromHash()) return;
+  const url = new URL(window.location.href);
+  url.hash = sshWorkspaceHash;
+  window.history.replaceState(window.history.state, "", url);
+}
+
+export function useWorkspaceMode() {
+  const [mode, setMode] = useState<WorkspaceMode>(() => workspaceModeFromHash());
+  const [sshInvitation, setSSHInvitation] = useState(() =>
+    sshInvitationFromHash(),
+  );
+
+  useEffect(() => {
+    const syncModeFromURL = () => {
+      setMode(workspaceModeFromHash());
+      setSSHInvitation(sshInvitationFromHash());
+      scrubSSHInvitationFromURL();
+    };
+    window.addEventListener("hashchange", syncModeFromURL);
+    scrubSSHInvitationFromURL();
+    return () => {
+      window.removeEventListener("hashchange", syncModeFromURL);
+    };
+  }, []);
+
+  function changeMode(nextMode: WorkspaceMode) {
+    setMode(nextMode);
+    setSSHInvitation("");
+
+    const url = new URL(window.location.href);
+    if (nextMode === "ssh") {
+      url.hash = sshWorkspaceHash;
+    } else if (url.hash === sshWorkspaceHash) {
+      url.hash = "";
+    } else {
+      return;
+    }
+
+    if (url.href !== window.location.href) {
+      window.history.pushState(null, "", url);
+    }
+  }
+
+  return [mode, changeMode, sshInvitation] as const;
+}
+
 const SSHPanel = lazy(() => import("./SSHPanel"));
 
 export function WorkspaceSwitch({
@@ -745,7 +807,7 @@ export function App() {
   );
   const [mobileTransferPanel, setMobileTransferPanel] =
     useState<MobileTransferPanel>(receiveOnly ? "receive" : "send");
-  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("files");
+  const [workspaceMode, setWorkspaceMode, sshInvitation] = useWorkspaceMode();
   const [sshActive, setSSHActive] = useState(false);
   const [sendCode, setSendCode] = useState("");
   const [sendDetailsVisible, setSendDetailsVisible] = useState(false);
@@ -2110,6 +2172,8 @@ export function App() {
           }
         >
           <SSHPanel
+            key={sshInvitation}
+            initialCode={sshInvitation}
             settings={settings}
             theme={theme}
             onActiveChange={setSSHActive}

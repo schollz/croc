@@ -1,7 +1,14 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
-import { WorkspaceSwitch } from "./App";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { useWorkspaceMode, WorkspaceSwitch } from "./App";
 import SSHPanel from "./SSHPanel";
 import type { SSHJoinCallbacks } from "./protocol/ssh";
 
@@ -9,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   callbacks: undefined as SSHJoinCallbacks | undefined,
   onData: undefined as ((data: string) => void) | undefined,
   options: undefined as { disableStdin: boolean } | undefined,
+  joinCode: undefined as string | undefined,
   sendInput: vi.fn(),
   disconnect: vi.fn(),
 }));
@@ -53,14 +61,20 @@ vi.mock("./protocol/ssh", () => ({
     disconnect = mocks.disconnect;
     resize() {}
 
-    constructor(options: { callbacks?: SSHJoinCallbacks }) {
+    constructor(options: { code: string; callbacks?: SSHJoinCallbacks }) {
+      mocks.joinCode = options.code;
       mocks.callbacks = options.callbacks;
     }
   },
 }));
 
+afterEach(() => {
+  cleanup();
+  delete window.umami;
+});
+
 function Harness() {
-  const [mode, setMode] = useState<"files" | "ssh">("files");
+  const [mode, setMode, initialCode] = useWorkspaceMode();
   const [active, setActive] = useState(false);
   return (
     <>
@@ -69,6 +83,8 @@ function Harness() {
         <div>File transfer workspace</div>
       ) : (
         <SSHPanel
+          key={initialCode}
+          initialCode={initialCode}
           settings={{
             gatewayURL: "/ws",
             relayAddresses: ["relay.example:9009"],
@@ -85,6 +101,7 @@ function Harness() {
 
 describe("SSH homepage mode", () => {
   it("switches from files and suppresses local input for read-only access", async () => {
+    window.history.replaceState({}, "", "/");
     vi.stubGlobal(
       "ResizeObserver",
       class {
@@ -97,6 +114,7 @@ describe("SSH homepage mode", () => {
     render(<Harness />);
     expect(screen.getByText("File transfer workspace")).toBeVisible();
     fireEvent.click(screen.getByRole("tab", { name: "SSH" }));
+    expect(window.location.hash).toBe("#ssh");
     expect(await screen.findByText("Join a shared terminal")).toBeVisible();
 
     fireEvent.paste(screen.getByLabelText("SSH invitation"), {
@@ -116,6 +134,48 @@ describe("SSH homepage mode", () => {
     act(() => mocks.onData?.("whoami\r"));
     expect(mocks.sendInput).not.toHaveBeenCalled();
     expect(screen.getByText("Read-only")).toBeVisible();
-    delete window.umami;
+  });
+
+  it("opens shared SSH URLs directly and clears its hash when returning to files", () => {
+    window.history.replaceState({}, "", "/#ssh");
+    render(<Harness />);
+
+    expect(screen.getByText("Join a shared terminal")).toBeVisible();
+    expect(screen.getByRole("tab", { name: "SSH" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Files" }));
+
+    expect(window.location.hash).toBe("");
+    expect(screen.getByText("File transfer workspace")).toBeVisible();
+  });
+
+  it("auto-joins invitation links and removes the secret from the address bar", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/#ssh?code=acid-acorn-acre-acts-ahead-alien",
+    );
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(mocks.joinCode).toBe("acid-acorn-acre-acts-ahead-alien");
+      expect(screen.getByRole("tab", { name: "Files" })).toBeDisabled();
+    });
+    expect(window.location.hash).toBe("#ssh");
+  });
+
+  it("follows browser navigation between file and SSH URLs", () => {
+    window.history.replaceState({}, "", "/");
+    render(<Harness />);
+
+    act(() => {
+      window.history.replaceState({}, "", "/#ssh");
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+
+    expect(screen.getByText("Join a shared terminal")).toBeVisible();
   });
 });

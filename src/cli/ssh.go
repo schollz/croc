@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"runtime"
 	"strings"
@@ -119,6 +120,7 @@ func hostSSHSession(c *cli.Context) error {
 	fmt.Fprintln(output, termui.Emphasis("Shared SSH terminal is ready", colorEnabled))
 	fmt.Fprintf(output, "  Read/write: %s\n", formatSSHJoinCommand(host.Code(sshshare.RoleReadWrite), relay, relayPassword, colorEnabled))
 	fmt.Fprintf(output, "  Read-only:  %s\n", formatSSHJoinCommand(host.Code(sshshare.RoleReadOnly), relay, relayPassword, colorEnabled))
+	fmt.Fprint(output, formatSSHBrowserLinks(host.Code(sshshare.RoleReadWrite), host.Code(sshshare.RoleReadOnly)))
 	fmt.Fprintf(output, "  Expires:    %s\n", duration)
 	fmt.Fprintln(output, "  Stop:       Ctrl-C")
 	if c.Bool("headless") {
@@ -133,6 +135,18 @@ func hostSSHSession(c *cli.Context) error {
 		return host.Wait()
 	}
 	return err
+}
+
+func formatSSHBrowserLinks(readWriteSecret, readOnlySecret string) string {
+	return fmt.Sprintf(
+		"  Browser read/write: %s\n  Browser read-only:  %s\n",
+		sshBrowserURL(readWriteSecret),
+		sshBrowserURL(readOnlySecret),
+	)
+}
+
+func sshBrowserURL(secret string) string {
+	return "https://getcroc.com/#ssh?code=" + url.QueryEscape(secret)
 }
 
 func formatSSHJoinCommand(secret, relay, relayPassword string, colorEnabled bool) string {

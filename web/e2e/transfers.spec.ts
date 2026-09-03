@@ -1208,25 +1208,18 @@ test("CLI SSH host → Web terminal runs an interactive command", async ({
     await expect.poll(() => host.output(), { timeout: transferTimeout }).toContain(
       "Shared SSH terminal is ready",
     );
-    const invitation = host.output().match(/CROC_SECRET='([a-z-]+)'/)?.[1];
-    expect(invitation, host.output()).toBeTruthy();
+    const browserURL = host
+      .output()
+      .match(/Browser read\/write:\s+(https:\/\/\S+)/)?.[1];
+    expect(browserURL, host.output()).toBeTruthy();
 
     await configurePage(page);
-    await page.getByRole("tab", { name: "SSH" }).click();
+    const localBrowserURL = new URL(browserURL!);
+    const configuredURL = new URL(page.url());
+    localBrowserURL.protocol = configuredURL.protocol;
+    localBrowserURL.host = configuredURL.host;
+    await page.goto(localBrowserURL.href);
     const panel = page.locator(".ssh-panel");
-    const invitationInput = panel.getByLabel("SSH invitation", { exact: true });
-    await invitationInput.evaluate((element, code) => {
-      const clipboard = new DataTransfer();
-      clipboard.setData("text", code);
-      element.dispatchEvent(
-        new ClipboardEvent("paste", {
-          bubbles: true,
-          cancelable: true,
-          clipboardData: clipboard,
-        }),
-      );
-    }, invitation!);
-    await panel.getByRole("button", { name: "Join terminal" }).click();
     await expect(panel).toContainText("Connected with read-write access", {
       timeout: transferTimeout,
     });

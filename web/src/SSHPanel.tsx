@@ -13,6 +13,7 @@ import {
 import type { TransferSettings } from "./protocol/types";
 
 type Props = {
+  initialCode?: string;
   settings: TransferSettings;
   theme: "dark" | "light";
   onActiveChange(active: boolean): void;
@@ -40,8 +41,13 @@ function roleLabel(role: SSHRole) {
   return role === "read-write" ? "Read/write" : "Read-only";
 }
 
-export default function SSHPanel({ settings, theme, onActiveChange }: Props) {
-  const [code, setCode] = useState("");
+export default function SSHPanel({
+  initialCode = "",
+  settings,
+  theme,
+  onActiveChange,
+}: Props) {
+  const [code, setCode] = useState(initialCode);
   const [showCode, setShowCode] = useState(false);
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -54,6 +60,7 @@ export default function SSHPanel({ settings, theme, onActiveChange }: Props) {
   const session = useRef<SSHJoinSession>(null);
   const activeRole = useRef<SSHRole | undefined>(undefined);
   const intentionalDisconnect = useRef(false);
+  const automaticJoinStarted = useRef(false);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -140,8 +147,8 @@ export default function SSHPanel({ settings, theme, onActiveChange }: Props) {
     };
   }
 
-  async function join() {
-    const invitation = code.trim();
+  async function join(providedCode = code) {
+    const invitation = providedCode.trim();
     if (!invitation || busy) return;
     intentionalDisconnect.current = false;
     setBusy(true);
@@ -195,6 +202,16 @@ export default function SSHPanel({ settings, theme, onActiveChange }: Props) {
       }
     }
   }
+
+  useEffect(() => {
+    if (!initialCode || automaticJoinStarted.current) return;
+    const start = window.setTimeout(() => {
+      if (automaticJoinStarted.current) return;
+      automaticJoinStarted.current = true;
+      void join(initialCode);
+    });
+    return () => window.clearTimeout(start);
+  }, [initialCode]);
 
   function disconnect() {
     intentionalDisconnect.current = true;

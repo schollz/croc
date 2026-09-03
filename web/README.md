@@ -38,8 +38,10 @@ Go packages into WebAssembly:
 SSH mode accepts a pasted six-word invitation and joins through the ordinary
 croc relay fallback. PAKE and the pinned SSH client run in browser WASM, while
 the terminal uses xterm.js. The SSH UI, xterm.js, and the separate
-`croc-ssh.wasm` module are loaded only after SSH mode is selected. Invitations
-remain in memory and are not added to URLs, browser storage, QR codes, logs, or
+`croc-ssh.wasm` module are loaded only after SSH mode is selected. A host's
+role-specific browser links carry the invitation in the URL fragment, which is
+not sent to the server; the page removes it from the address bar after reading
+it and otherwise keeps it only in memory, not browser storage, logs, or
 analytics.
 
 Active sends and receives show total and per-file progress, measured bytes per
