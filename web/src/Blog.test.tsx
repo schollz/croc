@@ -11,7 +11,7 @@ describe("Blog", () => {
     expect(
       screen.getByRole("heading", { name: "Notes from inside the transfer." }),
     ).toBeVisible();
-    expect(screen.getAllByRole("article")).toHaveLength(13);
+    expect(screen.getAllByRole("article")).toHaveLength(14);
     const categories = screen.getByRole("navigation", {
       name: "Blog post categories",
     });
@@ -62,7 +62,7 @@ describe("Blog", () => {
     expect(screen.getByText("FIELD NOTE 11")).toBeVisible();
     expect(screen.getByRole("heading", { name: "The tmate-shaped hole" })).toBeVisible();
     expect(
-      screen.getByRole("heading", { name: "The browser can pull up a chair" }),
+      screen.getByRole("heading", { name: "The browser can play, too" }),
     ).toBeVisible();
     expect(screen.getByText(/PAKE, pinned-host-key verification/)).toBeVisible();
     for (const link of screen.getAllByRole("link", { name: "Upterm" })) {
@@ -80,6 +80,36 @@ describe("Blog", () => {
     expect(document.querySelector('meta[property="og:image"]')).toHaveAttribute(
       "content",
       "https://getcroc.com/blog/images/share-terminal-with-croc-ssh.jpg",
+    );
+  });
+
+  it("renders the v11.4 terminal-sharing update", () => {
+    render(<Blog slug="croc-v11-4-release-update" />);
+
+    expect(
+      screen.getByRole("heading", { name: "croc v11.4 shares the terminal" }),
+    ).toBeVisible();
+    expect(screen.getByText("UPDATE 03")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "The browser can join now" })).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Share a terminal with croc ssh" }),
+    ).toHaveAttribute(
+      "href",
+      "https://getcroc.com/blog/share-terminal-with-croc-ssh",
+    );
+    expect(screen.getByRole("cell", { name: "Join read/write or read-only from getcroc.com" })).toBeVisible();
+    expect(
+      screen.getByRole("img", {
+        name: /native terminal hosting, browser joining, and separate read\/write and read-only roles/i,
+      }),
+    ).toHaveClass("blog-article-visual-cover");
+    expect(document.querySelector('meta[property="article:section"]')).toHaveAttribute(
+      "content",
+      "Updates",
+    );
+    expect(document.querySelector('meta[property="og:image"]')).toHaveAttribute(
+      "content",
+      "https://getcroc.com/blog/images/croc-v11-4-release-update.jpg",
     );
   });
 

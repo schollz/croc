@@ -628,6 +628,29 @@ function SSHVisual() {
   );
 }
 
+function SSHReleaseVisual() {
+  return (
+    <div className="ssh-release-visual">
+      <span>
+        <Terminal />
+        <small>native CLI</small>
+        <strong>host + join</strong>
+      </span>
+      <span>
+        <Laptop />
+        <small>getcroc.com</small>
+        <strong>browser join</strong>
+      </span>
+      <span>
+        <Users />
+        <small>separate invites</small>
+        <strong>two roles</strong>
+      </span>
+      <i>croc v11.4 · one terminal · more ways to join</i>
+    </div>
+  );
+}
+
 function BlogVisualCard({ visual, large = false }: { visual: BlogVisual; large?: boolean }) {
   return (
     <div className={`blog-visual blog-visual-${visual}${large ? " large" : ""}`} aria-hidden="true">
@@ -640,13 +663,19 @@ function BlogVisualCard({ visual, large = false }: { visual: BlogVisual; large?:
       {visual === "stored" ? <StoredVisual /> : null}
       {visual === "derp" ? <DERPVisual /> : null}
       {visual === "ssh" ? <SSHVisual /> : null}
+      {visual === "ssh-release" ? <SSHReleaseVisual /> : null}
       {visual === "release" ? <ReleaseVisual /> : null}
     </div>
   );
 }
 
 function BlogCoverImage({ post }: { post: BlogPost }) {
-  if (post.visual === "release" || post.visual === "derp" || post.visual === "ssh") {
+  if (
+    post.visual === "release" ||
+    post.visual === "derp" ||
+    post.visual === "ssh" ||
+    post.visual === "ssh-release"
+  ) {
     return (
       <figure
         className="blog-article-cover blog-article-visual-cover"

@@ -2669,7 +2669,8 @@ a.cli-download-primary:hover {
 
 .release-visual,
 .derp-visual,
-.ssh-visual {
+.ssh-visual,
+.ssh-release-visual {
   display: grid;
   width: min(100%, 650px);
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2680,7 +2681,8 @@ a.cli-download-primary:hover {
 
 .release-visual > span,
 .derp-visual > span,
-.ssh-visual > span {
+.ssh-visual > span,
+.ssh-release-visual > span {
   display: grid;
   min-height: 150px;
   gap: 9px;
@@ -2694,21 +2696,24 @@ a.cli-download-primary:hover {
 
 .release-visual > span:nth-child(2),
 .derp-visual > span:nth-child(2),
-.ssh-visual > span:nth-child(2) {
+.ssh-visual > span:nth-child(2),
+.ssh-release-visual > span:nth-child(2) {
   color: var(--background);
   background: var(--foreground);
 }
 
 .release-visual svg,
 .derp-visual svg,
-.ssh-visual svg {
+.ssh-visual svg,
+.ssh-release-visual svg {
   width: 28px;
   height: 28px;
 }
 
 .release-visual small,
 .derp-visual small,
-.ssh-visual small {
+.ssh-visual small,
+.ssh-release-visual small {
   color: var(--muted);
   font-size: 8px;
   text-transform: uppercase;
@@ -2716,13 +2721,15 @@ a.cli-download-primary:hover {
 
 .release-visual > span:nth-child(2) small,
 .derp-visual > span:nth-child(2) small,
-.ssh-visual > span:nth-child(2) small {
+.ssh-visual > span:nth-child(2) small,
+.ssh-release-visual > span:nth-child(2) small {
   color: inherit;
 }
 
 .release-visual strong,
 .derp-visual strong,
-.ssh-visual strong {
+.ssh-visual strong,
+.ssh-release-visual strong {
   font-size: 13px;
   letter-spacing: -0.04em;
   text-transform: uppercase;
@@ -2730,7 +2737,8 @@ a.cli-download-primary:hover {
 
 .release-visual > i,
 .derp-visual > i,
-.ssh-visual > i {
+.ssh-visual > i,
+.ssh-release-visual > i {
   display: grid;
   min-height: 44px;
   grid-column: 1 / -1;

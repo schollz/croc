@@ -10,6 +10,7 @@ export type BlogVisual =
   | "stored"
   | "derp"
   | "ssh"
+  | "ssh-release"
   | "release";
 
 export type BlogKind = "note" | "update";
@@ -160,6 +161,142 @@ export function readingMinutes(blocks: BlogBlock[]) {
 }
 
 const drafts: DraftBlogPost[] = [
+  {
+    slug: "croc-v11-4-release-update",
+    number: "03",
+    title: "croc v11.4 shares the terminal",
+    description:
+      "croc v11.4 adds secure collaborative terminals, separate read/write and read-only invitations, automatic reconnection, and browser joining.",
+    kind: "update",
+    category: "Release notes",
+    publishedAt: "2026-09-03",
+    publishedLabel: "September 3, 2026",
+    author: "schollz",
+    visual: "ssh-release",
+    takeaway:
+      "v11.4 adds croc ssh: host one persistent terminal from the CLI, invite read/write or read-only participants, and let them join from croc or getcroc.com.",
+    blocks: [
+      {
+        type: "paragraph",
+        text: "croc has spent most of its life moving files. In v11.4 it can share something that is a little harder to put in a folder: the terminal where you are already working. Run one command, send somebody a six-word invitation, and both of you are looking at the same shell.",
+      },
+      {
+        type: "paragraph",
+        text: "The new command is croc ssh. It does not turn on the computer's normal SSH server or ask you to arrange accounts and keys. It starts one temporary collaborative session beside the existing file-transfer commands. croc send still behaves as before; v11.4 just gives croc one more useful thing to introduce between two computers.",
+      },
+      { type: "heading", text: "The short version" },
+      {
+        type: "list",
+        items: [
+          "croc ssh hosts one persistent shell on Linux, macOS, FreeBSD, or OpenBSD; those systems and Windows can join from the CLI.",
+          "The host prints independent six-word invitations for read/write and read-only access.",
+          "Guests can detach without ending the shell and automatically reauthenticate after a temporary network loss.",
+          "getcroc.com now has an SSH mode that can join either invitation directly from an evergreen desktop browser.",
+          "Native guests try a direct Tailcat WireGuard route, use DERP when direct networking is blocked, and can fall back to the ordinary croc relay; browsers use the relay path.",
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "This update is the release overview. I wrote a separate field note, Share a terminal with croc ssh, with the tmate background, alternatives, protocol details, trust model, and the sharper edges of sharing a real shell.",
+        links: [
+          {
+            label: "Share a terminal with croc ssh",
+            href: "https://getcroc.com/blog/share-terminal-with-croc-ssh",
+          },
+        ],
+      },
+      { type: "heading", text: "One command opens two doors" },
+      {
+        type: "code",
+        label: "Host a shared terminal",
+        lines: [
+          "$ croc ssh",
+          "Shared SSH terminal is ready",
+          "  Read/write: CROC_SECRET='...' croc ssh",
+          "  Read-only:  CROC_SECRET='...' croc ssh",
+          "  Expires:    12h0m0s",
+          "  Stop:       Ctrl-C",
+          "  Detach:     Ctrl-] (the shared shell keeps running)",
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "Both invitations enter the same PTY and receive its existing output. A read/write participant can type alongside the attached host. A read-only participant sees the same screen, but the host discards that participant's input before it reaches the shell. The codes are generated independently, so sharing the viewing code does not reveal the typing code.",
+      },
+      {
+        type: "paragraph",
+        text: "The host is attached by default, which makes pair debugging feel like pulling another chair up to the terminal. --headless leaves the session running without occupying the host's terminal, --dir chooses the starting directory, and --duration replaces the twelve-hour default lifetime. Any number of people may attach, within the relay and host's practical limits.",
+      },
+      { type: "heading", text: "The browser can join now" },
+      {
+        type: "paragraph",
+        text: "The getcroc.com homepage now has a Files / SSH switch. Choose SSH, paste either invitation, and the page becomes a terminal with its authenticated role shown above it. Read/write guests can type normally. Read-only input is disabled in the page and independently rejected by the host. Ctrl-C still reaches the shared program; Disconnect or Ctrl-] leaves the session.",
+      },
+      {
+        type: "paragraph",
+        text: "This is intentionally a croc SSH joiner rather than a general browser SSH client. It cannot host a terminal or connect to an arbitrary server. It uses the ordinary croc relay path and runs PAKE, host-key verification, and the SSH client in WebAssembly. The terminal interface and separate SSH module load only after SSH mode is selected, and the invitation stays in memory instead of being copied into a URL, browser storage, QR code, log, or analytics event.",
+      },
+      { type: "heading", text: "A session can outlive one connection" },
+      {
+        type: "paragraph",
+        text: "Ctrl-] detaches a host or guest without killing the shell. When a guest loses the network unexpectedly, croc reruns PAKE, checks the role and SSH host key again, and tries to reattach for up to two minutes by default. The browser follows the same reconnection window over the relay. This is a new authenticated connection to the old shell, not a blind resumption of an abandoned stream.",
+      },
+      {
+        type: "paragraph",
+        text: "The host keeps up to 8 MiB of recent PTY output in memory and replays it when somebody attaches. That makes reconnecting—and joining a few minutes late—much less mysterious. If the oldest output had to be trimmed, croc warns the guest and resets the terminal before replaying what remains.",
+      },
+      { type: "heading", text: "It is still croc underneath" },
+      {
+        type: "paragraph",
+        text: "Each role gets a six-word invitation. The first two words derive an opaque rendezvous room and the remaining four are the PAKE secret. Host and guest prove that they know the same invitation and confirm the resulting key without placing the secret on the relay. The authenticated reply also carries the exact ephemeral SSH host key, so the client pins it without a trust-on-first-use prompt.",
+      },
+      {
+        type: "paragraph",
+        text: "A native guest then uses Tailcat to make a small accountless userspace WireGuard network. It starts through DERP and promotes the session to direct UDP when the networks cooperate. If Tailcat cannot establish the SSH connection, both sides authenticate again and carry the pinned SSH stream over the selected croc relay. There is no Tailscale account, daemon, public IP, port-forwarding rule, or normal SSH service to configure.",
+        links: [
+          { label: "Tailcat", href: "https://github.com/tailscale/tailcat" },
+        ],
+      },
+      {
+        type: "table",
+        caption: "What v11.4 adds",
+        headers: ["Part", "New behavior", "Boundary"],
+        rows: [
+          {
+            cells: ["Native CLI", "Host or join one shared terminal", "Hosting needs a PTY-capable Unix platform"],
+            href: "https://github.com/schollz/croc/blob/main/src/docs/SSH_SHARING.md",
+          },
+          {
+            cells: ["Browser", "Join read/write or read-only from getcroc.com", "Join-only and croc-relay-only"],
+            href: "https://getcroc.com/",
+          },
+          {
+            cells: ["Invitations", "Independent six-word codes for two roles", "Anyone holding a code has its role"],
+            href: "https://getcroc.com/blog/share-terminal-with-croc-ssh",
+          },
+          {
+            cells: ["Session", "Detach, reconnect, and replay recent output", "One shared shell, not separate logins"],
+            href: "https://github.com/schollz/croc/blob/main/src/docs/SSH_SHARING.md#reconnection",
+          },
+        ],
+      },
+      { type: "heading", text: "Try v11.4" },
+      {
+        type: "code",
+        label: "Install and start sharing",
+        lines: [
+          "$ curl https://getcroc.com | bash",
+          "$ croc --version",
+          "croc version 11.4.0",
+          "$ croc ssh",
+        ],
+      },
+      {
+        type: "paragraph",
+        text: "Then send the appropriate invitation to somebody with croc or a desktop browser. File transfer was the reason croc learned how to introduce two computers securely. v11.4 reuses that introduction for a terminal, and I like that the result still begins with one small command.",
+      },
+    ],
+  },
   {
     slug: "share-terminal-with-croc-ssh",
     number: "11",
