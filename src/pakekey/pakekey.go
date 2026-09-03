@@ -21,6 +21,7 @@ const (
 
 	PurposeTransfer   = "peer-transfer"
 	PurposeLocalProbe = "local-ip-probe"
+	PurposeSSH        = "peer-ssh"
 
 	identityDomain   = "croc/spake2/participant/v2"
 	transcriptDomain = "croc/spake2/channel/v2"
@@ -48,7 +49,7 @@ type Keys struct {
 // Identities returns the ordered, implicit participant identities for a croc
 // PAKE exchange. Party A is always the receiver and party B is the sender.
 func Identities(purpose, room string) (idA, idB []byte, err error) {
-	if purpose != PurposeTransfer && purpose != PurposeLocalProbe {
+	if purpose != PurposeTransfer && purpose != PurposeLocalProbe && purpose != PurposeSSH {
 		return nil, nil, fmt.Errorf("unsupported PAKE purpose %q", purpose)
 	}
 	if room == "" {

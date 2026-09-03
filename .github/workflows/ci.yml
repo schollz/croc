@@ -41,7 +41,13 @@ jobs:
         run: go test ./src/storecrypto ./src/storeclient -run 'Test(ValidateManifest|Stored|Receive)'
 
       - name: Test relay admission regressions
-        run: go test ./src/tcp -run 'Test(AdmissionLimiter|RoomDenials|RelayAdmissionLimits|CanonicalSource|WithAdmissionLimits)'
+        run: go test ./src/tcp -run 'Test(AdmissionLimiter|RoomDenials|RelayAdmissionLimits|CanonicalSource|WithAdmissionLimits|ConnectToTCPServerControlContext)'
+
+      - name: Test SSH sharing protocol and lifecycle regressions
+        run: |
+          go test ./src/sshshare
+          go test ./src/comm -run 'Test(ReceiveWithDeadlineLimit|NewConnectionContext)'
+          go test ./src/message -run 'TestDecodeWithLimit'
 
       - name: Test malicious peer and historical protocol regressions
         run: go test ./src/croc -run 'Test(HostilePortable|MarkedArchive|UnmarkedArchive|LocalIPExchange|FailedPakeConfirmation|ClientErrorsRedact)'
@@ -65,7 +71,13 @@ jobs:
         run: go test -race ./src/utils -run 'Test(UnzipDirectory|RemoveMarkedFiles)'
 
       - name: Race-test relay admission
-        run: go test -race ./src/tcp -run 'Test(AdmissionLimiter|RoomDenials|RelayAdmissionLimits|CanonicalSource|WithAdmissionLimits)'
+        run: go test -race ./src/tcp -run 'Test(AdmissionLimiter|RoomDenials|RelayAdmissionLimits|CanonicalSource|WithAdmissionLimits|ConnectToTCPServerControlContext)'
+
+      - name: Race-test SSH sharing protocol and lifecycle
+        run: |
+          go test -race ./src/sshshare
+          go test -race ./src/comm -run 'Test(ReceiveWithDeadlineLimit|NewConnectionContext)'
+          go test -race ./src/message -run 'TestDecodeWithLimit'
 
       - name: Race-test Croc and Tailcat transport lifecycle
         run: |
@@ -126,7 +138,7 @@ jobs:
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $COMMON -ldflags "$SMALL" -o croc-linux-amd64
           CGO_ENABLED=0 GOOS=linux GOARCH=386 go build $COMMON -ldflags "$SMALL" -o croc-linux-386
           GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go build $COMMON -ldflags "$SMALL" -o croc-linux-arm5
-          CGO_ENABLED=0 go test -tags croc_no_tailcat ./src/croc ./src/cli ./src/tailcattransport
+          CGO_ENABLED=0 go test -tags croc_no_tailcat ./src/croc ./src/cli ./src/sshshare ./src/tailcattransport
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $RELAY_ONLY -ldflags "$SMALL" -o croc-linux-amd64-relay-only
           CGO_ENABLED=0 GOOS=dragonfly GOARCH=amd64 go build $COMMON -ldflags "$SMALL" -o croc-dragonfly-amd64
           CGO_ENABLED=0 GOOS=netbsd GOARCH=386 go build $COMMON -ldflags "$SMALL" -o croc-netbsd-386

@@ -2,6 +2,7 @@ package comm
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"io"
@@ -104,6 +105,32 @@ func TestReceiveRejectsOversizedMessage(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "message too large")
 	assert.Nil(t, <-writeErr)
+}
+
+func TestReceiveWithDeadlineLimitRejectsCallerLimit(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+	c := New(clientConn)
+
+	writeErr := make(chan error, 1)
+	go func() {
+		var header [8]byte
+		copy(header[:4], MAGIC_BYTES)
+		binary.LittleEndian.PutUint32(header[4:], 9)
+		_, err := serverConn.Write(header[:])
+		writeErr <- err
+	}()
+	_, err := c.ReceiveWithDeadlineLimit(time.Now().Add(time.Second), 8)
+	assert.ErrorIs(t, err, ErrMessageTooLarge)
+	assert.NoError(t, <-writeErr)
+}
+
+func TestNewConnectionContextHonorsCanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := NewConnectionContext(ctx, "127.0.0.1:1")
+	assert.ErrorIs(t, err, context.Canceled)
 }
 
 func TestWriteRejectsOversizedMessage(t *testing.T) {

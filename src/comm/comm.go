@@ -2,6 +2,7 @@ package comm
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -42,18 +43,34 @@ type Comm struct {
 
 // NewConnection gets a new comm to a tcp address
 func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err error) {
+	return NewConnectionContext(context.Background(), address, timelimit...)
+}
+
+// NewConnectionContext gets a new comm to a TCP address and makes direct and
+// proxy dials return promptly when ctx is canceled.
+func NewConnectionContext(ctx context.Context, address string, timelimit ...time.Duration) (c *Comm, err error) {
+	if ctx == nil {
+		return nil, errors.New("comm connection context is required")
+	}
 	tlimit := 30 * time.Second
 	if len(timelimit) > 0 {
 		tlimit = timelimit[0]
 	}
+	dialCtx := ctx
+	cancel := func() {}
+	if tlimit > 0 {
+		dialCtx, cancel = context.WithTimeout(ctx, tlimit)
+	}
+	defer cancel()
 	var connection net.Conn
 	if Socks5Proxy != "" && !utils.IsLocalIP(address) {
 		var dialer proxy.Dialer
+		proxyAddress := Socks5Proxy
 		// prepend schema if no schema is given
-		if !strings.Contains(Socks5Proxy, `://`) {
-			Socks5Proxy = `socks5://` + Socks5Proxy
+		if !strings.Contains(proxyAddress, `://`) {
+			proxyAddress = `socks5://` + proxyAddress
 		}
-		socks5ProxyURL, urlParseError := url.Parse(Socks5Proxy)
+		socks5ProxyURL, urlParseError := url.Parse(proxyAddress)
 		if urlParseError != nil {
 			err = fmt.Errorf("unable to parse socks proxy url: %s", urlParseError)
 			log.Debug(err)
@@ -66,14 +83,15 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 			return
 		}
 		log.Debug("dialing with dialer.Dial")
-		connection, err = dialer.Dial("tcp", address)
+		connection, err = dialProxyContext(dialCtx, dialer, "tcp", address)
 	} else if HttpProxy != "" && !utils.IsLocalIP(address) {
 		var dialer proxy.Dialer
+		proxyAddress := HttpProxy
 		// prepend schema if no schema is given
-		if !strings.Contains(HttpProxy, `://`) {
-			HttpProxy = `http://` + HttpProxy
+		if !strings.Contains(proxyAddress, `://`) {
+			proxyAddress = `http://` + proxyAddress
 		}
-		HttpProxyURL, urlParseError := url.Parse(HttpProxy)
+		HttpProxyURL, urlParseError := url.Parse(proxyAddress)
 		if urlParseError != nil {
 			err = fmt.Errorf("unable to parse http proxy url: %s", urlParseError)
 			log.Debug(err)
@@ -86,11 +104,11 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 			return
 		}
 		log.Debug("dialing with dialer.Dial")
-		connection, err = dialer.Dial("tcp", address)
+		connection, err = dialProxyContext(dialCtx, dialer, "tcp", address)
 
 	} else {
 		log.Debugf("dialing to %s with timelimit %s", address, tlimit)
-		connection, err = net.DialTimeout("tcp", address, tlimit)
+		connection, err = (&net.Dialer{}).DialContext(dialCtx, "tcp", address)
 	}
 	if err != nil {
 		err = fmt.Errorf("comm.NewConnection failed: %w", err)
@@ -100,6 +118,47 @@ func NewConnection(address string, timelimit ...time.Duration) (c *Comm, err err
 	c = New(connection)
 	log.Debugf("connected to '%s'", address)
 	return
+}
+
+type dialResult struct {
+	connection net.Conn
+	err        error
+}
+
+func dialProxyContext(ctx context.Context, dialer proxy.Dialer, network, address string) (net.Conn, error) {
+	if contextDialer, ok := dialer.(proxy.ContextDialer); ok {
+		connection, err := contextDialer.DialContext(ctx, network, address)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			if connection != nil {
+				_ = connection.Close()
+			}
+			return nil, ctxErr
+		}
+		return connection, err
+	}
+	result := make(chan dialResult)
+	go func() {
+		connection, err := dialer.Dial(network, address)
+		select {
+		case result <- dialResult{connection: connection, err: err}:
+		case <-ctx.Done():
+			if connection != nil {
+				_ = connection.Close()
+			}
+		}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case dialed := <-result:
+		if err := ctx.Err(); err != nil {
+			if dialed.connection != nil {
+				_ = dialed.connection.Close()
+			}
+			return nil, err
+		}
+		return dialed.connection, dialed.err
+	}
 }
 
 // New returns a new comm
@@ -168,14 +227,17 @@ func validateMessageSize(size, maxMessageSize int) error {
 }
 
 func (c *Comm) Read() (buf []byte, numBytes int, bs []byte, err error) {
-	return c.readWithDeadlineInto(nil, time.Now().Add(3*time.Hour))
+	return c.readWithDeadlineInto(nil, time.Now().Add(3*time.Hour), maxReadMessageSize)
 }
 
 func (c *Comm) readWithDeadline(readDeadline time.Time) (buf []byte, numBytes int, bs []byte, err error) {
-	return c.readWithDeadlineInto(nil, readDeadline)
+	return c.readWithDeadlineInto(nil, readDeadline, maxReadMessageSize)
 }
 
-func (c *Comm) readWithDeadlineInto(dst []byte, readDeadline time.Time) (buf []byte, numBytes int, bs []byte, err error) {
+func (c *Comm) readWithDeadlineInto(dst []byte, readDeadline time.Time, maxMessageSize int) (buf []byte, numBytes int, bs []byte, err error) {
+	if maxMessageSize < 0 || uint64(maxMessageSize) > uint64(^uint32(0)) {
+		return nil, 0, nil, fmt.Errorf("invalid maximum message size %d", maxMessageSize)
+	}
 	// Clear stale connection deadlines before applying the deadline for this
 	// read. The previous ordering cleared the read deadline immediately after
 	// setting it, leaving header reads unbounded.
@@ -200,8 +262,8 @@ func (c *Comm) readWithDeadlineInto(dst []byte, readDeadline time.Time) (buf []b
 	}
 
 	numBytesUint32 := binary.LittleEndian.Uint32(header[4:])
-	if numBytesUint32 > uint32(maxReadMessageSize) {
-		err = fmt.Errorf("%w: %d > %d", ErrMessageTooLarge, numBytesUint32, maxReadMessageSize)
+	if numBytesUint32 > uint32(maxMessageSize) {
+		err = fmt.Errorf("%w: %d > %d", ErrMessageTooLarge, numBytesUint32, maxMessageSize)
 		log.Debug(err.Error())
 		return
 	}
@@ -245,7 +307,7 @@ func (c *Comm) Receive() (b []byte, err error) {
 // ReceiveInto receives a framed message, reusing dst when it has enough
 // capacity. Callers must finish using the returned bytes before the next call.
 func (c *Comm) ReceiveInto(dst []byte) (b []byte, err error) {
-	b, _, _, err = c.readWithDeadlineInto(dst, time.Now().Add(3*time.Hour))
+	b, _, _, err = c.readWithDeadlineInto(dst, time.Now().Add(3*time.Hour), maxReadMessageSize)
 	return
 }
 
@@ -253,5 +315,13 @@ func (c *Comm) ReceiveInto(dst []byte) (b []byte, err error) {
 // of the read to extend beyond the supplied absolute deadline.
 func (c *Comm) ReceiveWithDeadline(deadline time.Time) (b []byte, err error) {
 	b, _, _, err = c.readWithDeadline(deadline)
+	return
+}
+
+// ReceiveWithDeadlineLimit receives one framed message without allowing any
+// part of the read to extend beyond deadline or allocating more than maxSize
+// bytes for the message body.
+func (c *Comm) ReceiveWithDeadlineLimit(deadline time.Time, maxSize int) (b []byte, err error) {
+	b, _, _, err = c.readWithDeadlineInto(nil, deadline, maxSize)
 	return
 }

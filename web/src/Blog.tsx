@@ -6,6 +6,7 @@ import {
   Check,
   Circle,
   Clock3,
+  Eye,
   FileText,
   KeyRound,
   Laptop,
@@ -604,6 +605,29 @@ function DERPVisual() {
   );
 }
 
+function SSHVisual() {
+  return (
+    <div className="ssh-visual">
+      <span>
+        <Terminal />
+        <small>host machine</small>
+        <strong>one shell</strong>
+      </span>
+      <span>
+        <Users />
+        <small>six-word invites</small>
+        <strong>shared PTY</strong>
+      </span>
+      <span>
+        <Eye />
+        <small>separate codes</small>
+        <strong>two roles</strong>
+      </span>
+      <i>read/write or read-only · detach and reconnect</i>
+    </div>
+  );
+}
+
 function BlogVisualCard({ visual, large = false }: { visual: BlogVisual; large?: boolean }) {
   return (
     <div className={`blog-visual blog-visual-${visual}${large ? " large" : ""}`} aria-hidden="true">
@@ -615,13 +639,14 @@ function BlogVisualCard({ visual, large = false }: { visual: BlogVisual; large?:
       {visual === "bridge" ? <BridgeVisual /> : null}
       {visual === "stored" ? <StoredVisual /> : null}
       {visual === "derp" ? <DERPVisual /> : null}
+      {visual === "ssh" ? <SSHVisual /> : null}
       {visual === "release" ? <ReleaseVisual /> : null}
     </div>
   );
 }
 
 function BlogCoverImage({ post }: { post: BlogPost }) {
-  if (post.visual === "release" || post.visual === "derp") {
+  if (post.visual === "release" || post.visual === "derp" || post.visual === "ssh") {
     return (
       <figure
         className="blog-article-cover blog-article-visual-cover"

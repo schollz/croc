@@ -34,10 +34,16 @@ var Version = buildversion.Value
 
 // Run will run the command line program
 func Run() (err error) {
+	return RunContext(context.Background())
+}
+
+// RunContext runs the command line program and propagates cancellation to
+// context-aware commands such as croc ssh.
+func RunContext(ctx context.Context) (err error) {
 	// use all of the processors
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	return newApp().Run(os.Args)
+	return newApp().RunContext(ctx, os.Args)
 }
 
 func newApp() *cli.App {
@@ -45,7 +51,7 @@ func newApp() *cli.App {
 	app.Name = "croc"
 	app.Version = Version
 	app.Compiled = time.Now()
-	app.Usage = "easily and securely transfer stuff from one computer to another"
+	app.Usage = "securely transfer files or share a terminal"
 	app.UsageText = `croc [GLOBAL OPTIONS] [COMMAND] [COMMAND OPTIONS] [filename(s) or folder]
 
    USAGE EXAMPLES:
@@ -65,7 +71,13 @@ func newApp() *cli.App {
       croc send --code secret-code file.txt
 
    Receive a file using code:
-      croc secret-code`
+      croc secret-code
+
+   Share a terminal:
+      croc ssh
+
+   Join a shared terminal:
+      CROC_SECRET=six-word-invitation croc ssh`
 	app.Commands = []*cli.Command{
 		{
 			Name:        "send",
@@ -95,6 +107,22 @@ func newApp() *cli.App {
 			},
 			HelpName: "croc send",
 			Action:   send,
+		},
+		{
+			Name:        "ssh",
+			Usage:       "share or join a secure, collaborative terminal",
+			Description: "start without a code to host; provide a six-word code to join",
+			ArgsUsage:   "[six-word-code]",
+			Flags: []cli.Flag{
+				&cli.BoolFlag{Name: "headless", Usage: "host without attaching the local terminal"},
+				&cli.DurationFlag{Name: "duration", Value: 12 * time.Hour, Usage: "maximum hosted session lifetime"},
+				&cli.DurationFlag{Name: "reconnect-window", Value: 2 * time.Minute, Usage: "how long a guest retries after a connection loss"},
+				&cli.BoolFlag{Name: "no-reconnect", Usage: "disable automatic guest reconnection"},
+				&cli.StringFlag{Name: "transport", Value: "auto", Usage: "guest transport (auto, tailcat, relay)"},
+				&cli.StringFlag{Name: "dir", Value: ".", Usage: "working directory for a hosted shell"},
+			},
+			HelpName: "croc ssh",
+			Action:   sshSession,
 		},
 		{
 			Name:        "relay",

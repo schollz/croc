@@ -35,6 +35,28 @@ func mkLogger(t testing.TB, name string) logger.Logf {
 	}
 }
 
+func TestRemoveAllowedClient(t *testing.T) {
+	first := key.NewNode().Public()
+	second := key.NewNode().Public()
+	s := new(Server)
+	s.AddAllowedClient(first)
+	s.AddAllowedClient(second)
+	s.RemoveAllowedClient(first)
+	if len(s.AllowedClients) != 1 || s.AllowedClients[0] != second {
+		t.Fatalf("pre-start allowlist = %v; want only %v", s.AllowedClients, second)
+	}
+
+	s.lb = newLocoBackend(key.NewNode())
+	s.AddAllowedClient(first)
+	s.RemoveAllowedClient(first)
+	s.lb.mu.Lock()
+	_, exists := s.lb.allowedClients[first]
+	s.lb.mu.Unlock()
+	if exists {
+		t.Fatal("runtime allowlist still contains revoked client")
+	}
+}
+
 func TestTailcat(t *testing.T) {
 	t.Parallel()
 

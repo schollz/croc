@@ -664,35 +664,10 @@ func MeasureServerLatency(address string, timeout time.Duration) (duration time.
 func MeasureServerLatencyContext(ctx context.Context, address string, timeout time.Duration) (duration time.Duration, err error) {
 	log.Debugf("pinging %s", address)
 	started := time.Now()
-	type connectionResult struct {
-		connection *comm.Comm
-		err        error
-	}
-	connected := make(chan connectionResult, 1)
-	go func() {
-		c, connectErr := comm.NewConnection(address, timeout)
-		connected <- connectionResult{connection: c, err: connectErr}
-	}()
-
-	var c *comm.Comm
-	select {
-	case <-ctx.Done():
-		// The dial may finish at the same instant as cancellation. Drain its
-		// result asynchronously so a successfully opened connection is still
-		// closed even when cancellation wins this select.
-		go func() {
-			result := <-connected
-			if result.connection != nil {
-				result.connection.Close()
-			}
-		}()
-		return 0, ctx.Err()
-	case result := <-connected:
-		if result.err != nil {
-			log.Debug(result.err)
-			return 0, result.err
-		}
-		c = result.connection
+	c, err := comm.NewConnectionContext(ctx, address, timeout)
+	if err != nil {
+		log.Debug(err)
+		return 0, err
 	}
 	defer c.Close()
 	stopCancel := context.AfterFunc(ctx, func() { c.Close() })
@@ -736,17 +711,29 @@ func ConnectToTCPServer(address, password, room string, timelimit ...time.Durati
 // ConnectToTCPServerControl joins a control room and returns an optional fast
 // data-admission capability advertised by an upgraded relay.
 func ConnectToTCPServerControl(address, password, room string, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, capability string, err error) {
+	return ConnectToTCPServerControlContext(context.Background(), address, password, room, timelimit...)
+}
+
+// ConnectToTCPServerControlContext joins a control room and closes the
+// connection if the caller cancels during dialing or relay authentication.
+func ConnectToTCPServerControlContext(ctx context.Context, address, password, room string, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, capability string, err error) {
 	defer func() { err = redact.Error(err, password, room) }()
-	if len(timelimit) > 0 {
-		c, err = comm.NewConnection(address, timelimit[0])
-	} else {
-		c, err = comm.NewConnection(address)
-	}
+	c, err = comm.NewConnectionContext(ctx, address, timelimit...)
 	if err != nil {
 		log.Debug(err)
 		return
 	}
+	stopClose := context.AfterFunc(ctx, c.Close)
+	defer stopClose()
 	banner, ipaddr, capability, err = HandshakeTCPServerCapability(c, password, room)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		err = ctxErr
+	}
+	if err != nil {
+		c.Close()
+		c = nil
+		log.Debug(err)
+	}
 	return
 }
 
