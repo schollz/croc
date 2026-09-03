@@ -26,30 +26,30 @@ export type BlogBlock =
   | { type: "code"; label: string; lines: string[] }
   | { type: "details"; summary: string; lines: string[] }
   | {
-      type: "aside";
-      eyebrow: string;
-      title: string;
-      text: string;
-      links?: BlogTextLink[];
-    }
+    type: "aside";
+    eyebrow: string;
+    title: string;
+    text: string;
+    links?: BlogTextLink[];
+  }
   | {
-      type: "table";
-      caption: string;
-      headers: string[];
-      indicatorColumns?: number[];
-      indicatorLegend?: {
-        full: string;
-        partial: string;
-        empty: string;
-        terms?: Array<{ term: string; definition: string }>;
-      };
-      rowOrder?: string[];
-      rows: Array<{
-        cells: string[];
-        href: string;
-        highlight?: boolean;
-      }>;
+    type: "table";
+    caption: string;
+    headers: string[];
+    indicatorColumns?: number[];
+    indicatorLegend?: {
+      full: string;
+      partial: string;
+      empty: string;
+      terms?: Array<{ term: string; definition: string }>;
     };
+    rowOrder?: string[];
+    rows: Array<{
+      cells: string[];
+      href: string;
+      highlight?: boolean;
+    }>;
+  };
 
 export type BlogPost = {
   slug: string;
@@ -139,14 +139,14 @@ export function blogWordCount(blocks: BlogBlock[]) {
         ...block.headers,
         ...(block.indicatorLegend
           ? [
-              block.indicatorLegend.full,
-              block.indicatorLegend.partial,
-              block.indicatorLegend.empty,
-              ...(block.indicatorLegend.terms?.flatMap(({ term, definition }) => [
-                term,
-                definition,
-              ]) ?? []),
-            ]
+            block.indicatorLegend.full,
+            block.indicatorLegend.partial,
+            block.indicatorLegend.empty,
+            ...(block.indicatorLegend.terms?.flatMap(({ term, definition }) => [
+              term,
+              definition,
+            ]) ?? []),
+          ]
           : []),
         ...block.rows.flatMap((row) => row.cells),
       ];
@@ -176,11 +176,11 @@ const drafts: DraftBlogPost[] = [
     blocks: [
       {
         type: "paragraph",
-        text: "Sometimes I am already staring at the terminal where a problem lives, and I want another person to look over my shoulder. Screen sharing is too much screen. Copying commands into a chat is too little context. Ordinary SSH is excellent, but it usually starts with an account, a public key, a reachable port, or a VPN. I wanted the croc version: print a short code and let the other computer find its way in.",
+        text: "Sometimes I am on a Zoom with someone sharing their terminal and it is impossible to see their terminal and it is becoming tedious sharing commands from their terminal to mine. The solution is to share the SSH session with each other, so my terminal is rendering exactly what theirs is. Ordinary SSH is excellent, but it is complicated by needing an account, a public key, a reachable port, or a VPN. I wanted the croc version: print a short code and let the other computer find its way in.",
       },
       {
         type: "paragraph",
-        text: "croc v11.4 introduces croc ssh. It creates one persistent shell on the host and gives it two doors. The read/write invitation is for somebody who should type with you. The read-only invitation is for somebody who should watch. Both arrive in the same terminal, including the output that appeared before they joined.",
+        text: "croc v11.4 introduces croc ssh. It creates one persistent shell on the host and gives it two doors: 1) a read/write invitation for somebody who can type with you, and 2) a read-only invitation is for somebody who can just watch over your shoulder. Both arrive in the same terminal, including the output that appeared before they joined.",
       },
       {
         type: "code",
@@ -197,12 +197,12 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "Those example invitations have expired, but that is the entire ceremony. Send one line to the person joining. On Unix, CROC_SECRET keeps the six words out of the process list; running croc ssh and pasting the code at its prompt works too. Windows can use croc ssh followed by the code directly.",
+        text: "Choose which door, and then send one line to the person joining. On Unix, CROC_SECRET keeps the six words out of the process list; running croc ssh and pasting the code at its prompt works too. Windows can use croc ssh followed by the code directly.",
       },
-      { type: "heading", text: "The browser can pull up a chair" },
+      { type: "heading", text: "The browser can play, too" },
       {
         type: "paragraph",
-        text: "The web client now has a Files / SSH switch. Open SSH at getcroc.com, paste either six-word invitation, and the page becomes a full-width terminal showing its authenticated read/write or read-only role. Ctrl-C behaves normally; Disconnect or Ctrl-] leaves. This is a croc-specific joiner, not a general SSH client: it uses the ordinary croc relay path, while PAKE, pinned-host-key verification, and SSH stay in browser WASM, so croc-web forwards ciphertext rather than terminal text.",
+        text: "The web client now has a Files / SSH switch, so even if you don't have a terminal handy you can Open SSH at getcroc.com, paste either six-word invitation, and the page becomes a full-width terminal showing its authenticated read/write or read-only role. Ctrl-C behaves normally; Disconnect or Ctrl-] leaves. This is a croc-specific joiner, not a general SSH client: it uses the ordinary croc relay path, while PAKE, pinned-host-key verification, and SSH stay in browser WASM, so croc-web forwards ciphertext rather than terminal text.",
       },
       {
         type: "paragraph",
@@ -211,7 +211,7 @@ const drafts: DraftBlogPost[] = [
       { type: "heading", text: "The tmate-shaped hole" },
       {
         type: "paragraph",
-        text: "tmate was the wonderfully simple answer to this problem for years: run one command and get an SSH address that another person can open. In July 2025, its maintainer said the public servers were closing permanently. The source is still available and the server can be self-hosted, but the useful zero-setup meeting place is gone.",
+        text: "tmate was the wonderfully simple answer to this problem for years: run one command and get an SSH address that another person can open. In July 2025, its maintainer said the public servers were closing permanently. The source is still available and the server can be self-hosted, but the useful zero-setup meeting place is gone. There are altneratives, but they are not as simple or as widely known. croc ssh is a new option that is designed to be easy to use and easy to self-host.",
         links: [
           {
             label: "said the public servers were closing permanently",
@@ -251,7 +251,7 @@ const drafts: DraftBlogPost[] = [
           },
         ],
       },
-      { type: "heading", text: "How six words become a shell" },
+      { type: "heading", text: "How it works" },
       {
         type: "paragraph",
         text: "Each invitation has six EFF words. The first two derive an opaque room name on the selected croc relay. The remaining four are the PAKE secret. Host and guest meet in that room, prove that they know the same secret, and confirm the resulting key without sending the secret itself. The read/write and read-only codes are generated independently, so knowing one does not reveal the other.",
@@ -275,14 +275,14 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "aside",
-        eyebrow: "WHAT THE RELAYS CAN SEE",
+        eyebrow: "SECURITY",
         title: "The invitation and terminal remain end-to-end encrypted",
         text: "A croc relay sees an opaque room plus connection timing. When it carries the fallback stream, it can also see the volume and timing of SSH ciphertext. A DERP relay can see similar transport metadata. Neither receives the invitation secret, terminal contents, Tailcat authorization, or SSH host key.",
       },
-      { type: "heading", text: "One terminal, not a remote account" },
+      { type: "heading", text: "Pulling up a chair" },
       {
         type: "paragraph",
-        text: "This is intentionally closer to pulling another chair up to one terminal than provisioning a login. Everybody sees the same PTY. Read/write guests and the attached host may type into it; input from a read-only guest is discarded before it reaches the shell. Up to 8 MiB of recent output stays in memory and is replayed when somebody attaches, so a late arrival does not begin with a mysteriously blank screen.",
+        text: "The croc ssh feature is intentionally closer to pulling another chair up to one terminal than provisioning a login. Everybody sees the same PTY. Read/write guests and the attached host may type into it; input from a read-only guest is discarded before it reaches the shell. Up to 8 MiB of recent output stays in memory and is replayed when somebody attaches, so a late arrival does not begin with a mysteriously blank screen.",
       },
       {
         type: "paragraph",
@@ -299,7 +299,7 @@ const drafts: DraftBlogPost[] = [
           "$ croc ssh --dir /path/to/project --duration 30m",
         ],
       },
-      { type: "heading", text: "The important limits" },
+      { type: "heading", text: "Limitations" },
       {
         type: "paragraph",
         text: "The embedded SSH server accepts an interactive terminal, not remote commands, SFTP, agent forwarding, port forwarding, or arbitrary channels. That smaller surface is deliberate. It is a shared session, not a replacement for administering a machine over SSH.",
@@ -310,7 +310,7 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "croc ssh arrives in v11.4. Hosting works on Linux, macOS, FreeBSD, and OpenBSD. Those systems, Windows, and evergreen desktop browsers can join. The complete protocol and trust model are in the SSH sharing documentation. I am curious whether this feels useful for pair debugging, support, demos, and the occasional broken server at an inconvenient hour. Try it with a terminal you can afford to share, and let me know what feels awkward.",
+        text: "croc ssh arrives in v11.4. Hosting works on Linux, macOS, FreeBSD, and OpenBSD. Those systems, Windows, and evergreen desktop browsers can join. The complete protocol and trust model are in the SSH sharing documentation. I am curious whether this feels useful for pair debugging, support, demos, and the occasional broken server at an inconvenient hour. Try it with a terminal you can afford to share, and let me know what you think!",
         links: [
           {
             label: "SSH sharing documentation",
