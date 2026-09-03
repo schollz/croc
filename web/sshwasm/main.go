@@ -97,8 +97,8 @@ func bytesToJS(bytes []byte) js.Value {
 }
 
 func (b *bridge) start(args []js.Value) (any, error) {
-	if len(args) != 3 {
-		return nil, errors.New("start expects a host key, width, and height")
+	if len(args) != 4 {
+		return nil, errors.New("start expects a host key, client authentication, width, and height")
 	}
 	hostKeyBytes, err := bytesFromJS(args[0])
 	if err != nil {
@@ -108,7 +108,14 @@ func (b *bridge) start(args []js.Value) (any, error) {
 	if err != nil {
 		return nil, errors.New("host sent an invalid SSH host key")
 	}
-	width, height := args[1].Int(), args[2].Int()
+	clientAuth, err := bytesFromJS(args[1])
+	if err != nil {
+		return nil, err
+	}
+	if len(clientAuth) != 32 {
+		return nil, errors.New("SSH client authentication is required")
+	}
+	width, height := args[2].Int(), args[3].Int()
 	if width <= 0 || height <= 0 {
 		return nil, errors.New("terminal size must be positive")
 	}
@@ -130,8 +137,10 @@ func (b *bridge) start(args []js.Value) (any, error) {
 	b.mu.Unlock()
 
 	go func() {
+		defer clear(clientAuth)
 		connected, runErr := internalssh.Run(ctx, session.conn, internalssh.Config{
 			ExpectedHostKey: hostKey,
+			ClientAuth:      clientAuth,
 			TerminalName:    "xterm-256color",
 			InitialSize:     internalssh.WindowSize{Width: width, Height: height},
 			Input:           session.input,

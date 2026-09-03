@@ -7,7 +7,7 @@ describe("browser SSH negotiation", () => {
   it("validates relay offers and preserves raw SSH bytes at handoff", () => {
     const valid: CrocMessage = {
       t: "ssh-offer",
-      v: 1,
+      v: 2,
       m: "tailcat-address",
       b: new Uint8Array([1, 2, 3]),
       n: 22,
@@ -19,7 +19,7 @@ describe("browser SSH negotiation", () => {
     });
 
     const malformed: Array<[string, CrocMessage]> = [
-      ["version", { ...valid, v: 2 }],
+      ["version", { ...valid, v: 1 }],
       ["role", { ...valid, f: ["owner", "relay"] }],
       ["transport", { ...valid, f: ["read-write", "tailcat"] }],
       ["port", { ...valid, n: 23 }],

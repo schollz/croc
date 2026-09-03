@@ -11,7 +11,7 @@ import { wasm } from "../wasm/client";
 import { SSHWasmClient, type SSHWorkerEvent } from "../wasm/ssh-client";
 
 const PAKE_PROTOCOL_VERSION = 2;
-const SSH_PROTOCOL_VERSION = 1;
+const SSH_PROTOCOL_VERSION = 2;
 const PAKE_PURPOSE_SSH = "peer-ssh";
 const PAKE_CURVE = "p256";
 const PAKE_SALT_SIZE = 32;
@@ -131,6 +131,7 @@ async function authorize(
   );
   const socket = relay.socket;
   let trafficKey: Uint8Array | undefined;
+  let clientAuth: Uint8Array | undefined;
   try {
     const initiator = await engine.pakeInitWithIdentities(
       textEncoder.encode(components.passphrase),
@@ -178,6 +179,8 @@ async function authorize(
 
     const compatibilityKey = randomBytes(32);
     if (compatibilityKey.every((byte) => byte === 0)) compatibilityKey[0] = 1;
+    clientAuth = randomBytes(32);
+    if (clientAuth.every((byte) => byte === 0)) clientAuth[0] = 1;
     socket.prepareRawHandoff();
     await sendControl(
       socket,
@@ -185,6 +188,7 @@ async function authorize(
         t: "ssh-authorize",
         v: SSH_PROTOCOL_VERSION,
         b: compatibilityKey,
+        b2: clientAuth,
         f: ["relay"],
       },
       trafficKey,
@@ -193,8 +197,9 @@ async function authorize(
     const offer = validateSSHOffer(
       await receiveControl(socket, trafficKey, MAX_CONTROL_SIZE),
     );
-    return { socket, offer };
+    return { socket, offer, clientAuth };
   } catch (error) {
+    clientAuth?.fill(0);
     socket.close();
     throw error;
   } finally {
@@ -301,6 +306,7 @@ export class SSHJoinSession {
     let worker: SSHWasmClient | undefined;
     let handle: number | undefined;
     let role: SSHRole | undefined;
+    let clientAuth: Uint8Array | undefined;
     let connected = false;
     let networkFailure: unknown;
     let closeSession!: (value: WorkerClose) => void;
@@ -316,6 +322,7 @@ export class SSHJoinSession {
         authController.signal,
       );
       socket = authorization.socket;
+      clientAuth = authorization.clientAuth;
       role = authorization.offer.role;
       this.options.callbacks?.onRole?.(role);
       this.options.callbacks?.onStatus?.("Starting encrypted SSH session…");
@@ -342,6 +349,7 @@ export class SSHJoinSession {
       worker = new SSHWasmClient(onWorkerEvent);
       handle = await worker.start(
         authorization.offer.hostKey,
+        authorization.clientAuth,
         this.size.width,
         this.size.height,
       );
@@ -373,6 +381,7 @@ export class SSHJoinSession {
       window.clearTimeout(authTimer);
       this.controller.signal.removeEventListener("abort", abortAuth);
       socket?.close();
+      clientAuth?.fill(0);
       if (worker) {
         if (handle !== undefined) await worker.stop(handle);
         worker.dispose();

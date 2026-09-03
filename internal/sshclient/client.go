@@ -6,6 +6,7 @@ package sshclient
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -24,6 +25,7 @@ type WindowSize struct {
 
 type Config struct {
 	ExpectedHostKey  gossh.PublicKey
+	ClientAuth       []byte
 	TerminalName     string
 	InitialSize      WindowSize
 	Input            io.Reader
@@ -48,6 +50,9 @@ func Run(ctx context.Context, connection net.Conn, config Config) (bool, error) 
 	}
 	if config.ExpectedHostKey == nil {
 		return false, errors.New("SSH host key is required")
+	}
+	if len(config.ClientAuth) != 32 {
+		return false, errors.New("SSH client authentication is required")
 	}
 	if (config.Input == nil && config.PrepareInput == nil) || config.Output == nil || config.ErrorOutput == nil {
 		return false, errors.New("SSH terminal streams are required")
@@ -74,6 +79,7 @@ func Run(ctx context.Context, connection net.Conn, config Config) (bool, error) 
 
 	sshConfig := &gossh.ClientConfig{
 		User:              "croc",
+		Auth:              []gossh.AuthMethod{gossh.Password(base64.RawStdEncoding.EncodeToString(config.ClientAuth))},
 		HostKeyAlgorithms: []string{config.ExpectedHostKey.Type()},
 		HostKeyCallback: func(_ string, _ net.Addr, actual gossh.PublicKey) error {
 			if !bytes.Equal(actual.Marshal(), config.ExpectedHostKey.Marshal()) {

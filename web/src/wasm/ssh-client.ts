@@ -134,8 +134,18 @@ export class SSHWasmClient {
       .catch((error) => this.fail(error));
   }
 
-  async start(hostKey: Uint8Array, width: number, height: number) {
-    const handle = await this.call<number>("start", [hostKey, width, height]);
+  async start(
+    hostKey: Uint8Array,
+    clientAuth: Uint8Array,
+    width: number,
+    height: number,
+  ) {
+    const handle = await this.call<number>("start", [
+      hostKey,
+      clientAuth,
+      width,
+      height,
+    ]);
     this.handles.add(handle);
     return handle;
   }

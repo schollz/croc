@@ -3,6 +3,7 @@
 package sshshare
 
 import (
+	"bytes"
 	"io"
 	"net"
 	"strings"
@@ -28,6 +29,7 @@ func TestSSHPAKEAndAuthorizationRoundTrip(t *testing.T) {
 	t.Cleanup(guest.Close)
 
 	clientKey := key.NewNode()
+	clientAuth := []byte("01234567890123456789012345678901")
 	wantOffer := sshOffer{
 		TailcatAddress: "tc-test-address",
 		SSHHostKey:     []byte("ssh-host-key"),
@@ -49,6 +51,9 @@ func TestSSHPAKEAndAuthorizationRoundTrip(t *testing.T) {
 		if err == nil && request.transport != TransportRelay {
 			err = &testError{"transport mismatch"}
 		}
+		if err == nil && !bytes.Equal(request.clientAuth, clientAuth) {
+			err = &testError{"client authentication mismatch"}
+		}
 		if err == nil {
 			err = sendOffer(host, encryptionKey, wantOffer, deadline)
 		}
@@ -60,7 +65,7 @@ func TestSSHPAKEAndAuthorizationRoundTrip(t *testing.T) {
 
 	encryptionKey, deadline, err := guestPAKE(guest, components, "p256")
 	require.NoError(t, err)
-	require.NoError(t, sendAuthorizationRequest(guest, encryptionKey, clientKey.Public(), TransportRelay, deadline))
+	require.NoError(t, sendAuthorizationRequest(guest, encryptionKey, clientKey.Public(), clientAuth, TransportRelay, deadline))
 	gotOffer, err := receiveOffer(guest, encryptionKey, deadline)
 	require.NoError(t, err)
 	require.Equal(t, wantOffer, gotOffer)
@@ -197,6 +202,16 @@ func TestHostPAKERejectsOversizedWireValue(t *testing.T) {
 }
 
 func TestAuthorizationRejectsZeroClientKey(t *testing.T) {
-	err := sendAuthorizationRequest(nil, nil, key.NodePublic{}, TransportTailcat, time.Now().Add(time.Second))
+	err := sendAuthorizationRequest(nil, nil, key.NodePublic{}, make([]byte, sshClientAuthSize), TransportTailcat, time.Now().Add(time.Second))
 	require.ErrorContains(t, err, "client key is required")
+}
+
+func TestAuthorizationRejectsMissingClientAuthentication(t *testing.T) {
+	err := sendAuthorizationRequest(nil, nil, key.NewNode().Public(), nil, TransportRelay, time.Now().Add(time.Second))
+	require.ErrorContains(t, err, "client authentication length")
+}
+
+func TestAuthorizationRejectsZeroClientAuthentication(t *testing.T) {
+	err := sendAuthorizationRequest(nil, nil, key.NewNode().Public(), make([]byte, sshClientAuthSize), TransportRelay, time.Now().Add(time.Second))
+	require.ErrorContains(t, err, "client authentication is required")
 }

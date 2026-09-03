@@ -19,13 +19,14 @@ import (
 )
 
 const (
-	protocolVersion      = 1
+	protocolVersion      = 2
 	authTimeout          = 30 * time.Second
 	rendezvousLease      = 5 * time.Minute
 	maxSSHControlMessage = 1 << 20
 	maxPAKEPayload       = 4 << 10
 	maxSSHHostKey        = 16 << 10
 	maxTailcatAddress    = 512 << 10
+	sshClientAuthSize    = 32
 	readWritePort        = uint16(22)
 	readOnlyPort         = uint16(23)
 )
@@ -42,8 +43,9 @@ type sshOffer struct {
 }
 
 type authorizationRequest struct {
-	clientKey key.NodePublic
-	transport Transport
+	clientKey  key.NodePublic
+	clientAuth []byte
+	transport  Transport
 }
 
 func (r Role) port() (uint16, error) {
@@ -69,6 +71,20 @@ func validateTransport(transport Transport) error {
 	default:
 		return fmt.Errorf("unsupported SSH transport %q", transport)
 	}
+}
+
+func validateSSHClientAuth(clientAuth []byte) error {
+	if len(clientAuth) != sshClientAuthSize {
+		return fmt.Errorf("invalid SSH client authentication length %d", len(clientAuth))
+	}
+	var nonzero byte
+	for _, value := range clientAuth {
+		nonzero |= value
+	}
+	if nonzero == 0 {
+		return errors.New("SSH client authentication is required")
+	}
+	return nil
 }
 
 func validateRendezvous(c *comm.Comm) error {
@@ -253,17 +269,21 @@ func sendMessageUntil(c *comm.Comm, encryptionKey []byte, outgoing message.Messa
 	return message.Send(c, encryptionKey, outgoing)
 }
 
-func sendAuthorizationRequest(c *comm.Comm, encryptionKey []byte, client key.NodePublic, transport Transport, deadline time.Time) error {
+func sendAuthorizationRequest(c *comm.Comm, encryptionKey []byte, client key.NodePublic, clientAuth []byte, transport Transport, deadline time.Time) error {
 	if err := validateTransport(transport); err != nil {
 		return err
 	}
 	if client.IsZero() {
 		return errors.New("SSH client key is required")
 	}
+	if err := validateSSHClientAuth(clientAuth); err != nil {
+		return err
+	}
 	return sendMessageUntil(c, encryptionKey, message.Message{
 		Type:    message.TypeSSHAuthorize,
 		Version: protocolVersion,
 		Bytes:   client.AppendTo(nil),
+		Bytes2:  append([]byte(nil), clientAuth...),
 		Features: []string{
 			string(transport),
 		},
@@ -281,9 +301,13 @@ func receiveAuthorizationRequest(c *comm.Comm, encryptionKey []byte, deadline ti
 	if len(m.Bytes) != 32 {
 		return authorizationRequest{}, fmt.Errorf("invalid SSH client key length %d", len(m.Bytes))
 	}
+	if err := validateSSHClientAuth(m.Bytes2); err != nil {
+		return authorizationRequest{}, err
+	}
 	request := authorizationRequest{
-		clientKey: key.NodePublicFromRaw32(go4mem.B(m.Bytes)),
-		transport: Transport(m.Features[0]),
+		clientKey:  key.NodePublicFromRaw32(go4mem.B(m.Bytes)),
+		clientAuth: append([]byte(nil), m.Bytes2...),
+		transport:  Transport(m.Features[0]),
 	}
 	if request.clientKey.IsZero() {
 		return authorizationRequest{}, errors.New("SSH client key is required")

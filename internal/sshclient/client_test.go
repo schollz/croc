@@ -18,19 +18,19 @@ import (
 
 type testBuffer struct {
 	mu sync.Mutex
-	bytes.Buffer
+	b  bytes.Buffer
 }
 
 func (b *testBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.Buffer.Write(p)
+	return b.b.Write(p)
 }
 
 func (b *testBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.Buffer.String()
+	return b.b.String()
 }
 
 func testSigner(t *testing.T) gossh.Signer {
@@ -54,7 +54,14 @@ type testServerEvents struct {
 }
 
 func serveTestSSH(connection net.Conn, signer gossh.Signer, events testServerEvents) error {
-	config := &gossh.ServerConfig{NoClientAuth: true}
+	config := &gossh.ServerConfig{
+		PasswordCallback: func(_ gossh.ConnMetadata, password []byte) (*gossh.Permissions, error) {
+			if !bytes.Equal(password, []byte("QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI")) {
+				return nil, errors.New("permission denied")
+			}
+			return nil, nil
+		},
+	}
 	config.AddHostKey(signer)
 	server, channels, requests, err := gossh.NewServerConn(connection, config)
 	if err != nil {
@@ -156,6 +163,7 @@ func TestRunPinnedInteractiveSession(t *testing.T) {
 	go func() {
 		attached, err := Run(ctx, clientConnection, Config{
 			ExpectedHostKey: signer.PublicKey(),
+			ClientAuth:      bytes.Repeat([]byte{0x42}, 32),
 			InitialSize:     WindowSize{Width: 80, Height: 24},
 			Input:           inputReader,
 			Output:          output,
@@ -216,7 +224,7 @@ func TestRunPinnedInteractiveSession(t *testing.T) {
 	}
 	wrongClient, _ := startTestSSH(t, signer, wrongEvents)
 	attached, err := Run(t.Context(), wrongClient, Config{
-		ExpectedHostKey: wrongSigner.PublicKey(), Input: bytes.NewReader(nil),
+		ExpectedHostKey: wrongSigner.PublicKey(), ClientAuth: bytes.Repeat([]byte{0x42}, 32), Input: bytes.NewReader(nil),
 		Output: io.Discard, ErrorOutput: io.Discard,
 	})
 	if attached || err == nil || !strings.Contains(err.Error(), "does not match") {

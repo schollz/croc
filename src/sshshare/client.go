@@ -5,6 +5,7 @@ package sshshare
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -31,11 +32,14 @@ const (
 )
 
 type authorization struct {
-	offer   sshOffer
-	control *comm.Comm
+	offer      sshOffer
+	control    *comm.Comm
+	clientAuth []byte
 }
 
 func (a *authorization) close() {
+	clear(a.clientAuth)
+	a.clientAuth = nil
 	if a.control != nil {
 		a.control.Close()
 		a.control = nil
@@ -43,8 +47,9 @@ func (a *authorization) close() {
 }
 
 type clientSessionConfig struct {
-	config ClientConfig
-	input  *inputBroker
+	config     ClientConfig
+	input      *inputBroker
+	clientAuth []byte
 }
 
 type clientDeps struct {
@@ -254,7 +259,7 @@ func (c *joinClient) runTransport(transport Transport) joinAttemptResult {
 	if c.input == nil {
 		c.input = newInputBroker(c.config.Input)
 	}
-	sessionConfig := clientSessionConfig{config: c.config, input: c.input}
+	sessionConfig := clientSessionConfig{config: c.config, input: c.input, clientAuth: auth.clientAuth}
 	if transport == TransportRelay {
 		if auth.control == nil || auth.control.Connection() == nil {
 			result.err = errors.New("host did not provide a croc relay connection")
@@ -309,20 +314,28 @@ func requestOffer(
 		connection.Close()
 		return authorization{}, err
 	}
-	if err = sendAuthorizationRequest(connection, encryptionKey, clientKey.Public(), transport, deadline); err != nil {
+	clientAuth := make([]byte, sshClientAuthSize)
+	if _, err = rand.Read(clientAuth); err != nil {
+		connection.Close()
+		return authorization{}, fmt.Errorf("generate SSH client authentication: %w", err)
+	}
+	if err = sendAuthorizationRequest(connection, encryptionKey, clientKey.Public(), clientAuth, transport, deadline); err != nil {
+		clear(clientAuth)
 		connection.Close()
 		return authorization{}, err
 	}
 	offer, err := receiveOffer(connection, encryptionKey, deadline)
 	if err != nil {
+		clear(clientAuth)
 		connection.Close()
 		return authorization{}, err
 	}
 	if offer.Transport != transport {
+		clear(clientAuth)
 		connection.Close()
 		return authorization{}, errors.New("host selected an unexpected SSH transport")
 	}
-	return authorization{offer: offer, control: connection}, nil
+	return authorization{offer: offer, control: connection, clientAuth: clientAuth}, nil
 }
 
 func attachSSH(ctx context.Context, config clientSessionConfig, offer sshOffer, clientKey key.NodePrivate) (bool, error) {
@@ -381,6 +394,7 @@ func runSSHSession(ctx context.Context, config clientSessionConfig, offer sshOff
 
 	connected, err := internalssh.Run(ctx, connection, internalssh.Config{
 		ExpectedHostKey: expectedHostKey,
+		ClientAuth:      config.clientAuth,
 		TerminalName:    terminalName,
 		InitialSize:     internalssh.WindowSize{Width: size.Width, Height: size.Height},
 		PrepareInput: func() (io.Reader, func(), error) {

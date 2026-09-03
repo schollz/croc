@@ -107,8 +107,9 @@ purpose- and room-bound PAKE with mutual key confirmation over a normal croc
 relay room. Relay keepalives are transport frames and are ignored by this
 exchange.
 
-After PAKE, the guest sends a fresh Tailcat node public key through the encrypted
-control channel. The host returns an authenticated offer containing:
+After PAKE, the guest sends a fresh Tailcat node public key and a random,
+single-use SSH client credential through the encrypted control channel. The host
+returns an authenticated offer containing:
 
 - the persistent session's Tailcat connection blob;
 - the exact ephemeral SSH host public key;
@@ -117,8 +118,9 @@ control channel. The host returns an authenticated offer containing:
 For the primary path, the host allows that Tailcat key and binds its
 deterministic tunnel source address to exactly one role. Read/write and
 read-only traffic use separate filtered ports, and the role is checked again at
-connection dispatch. A grant is consumed by one SSH connection and its Tailcat
-key is revoked when that connection closes. Reconnection therefore cannot
+connection dispatch. The embedded SSH server also requires the single-use
+credential before attaching either transport to the terminal. Both grants are
+short-lived and consumed by one SSH connection. Reconnection therefore cannot
 bypass PAKE.
 
 Tailcat supplies an accountless userspace WireGuard network. It begins through
@@ -145,6 +147,9 @@ port forwarding, or arbitrary destination ports.
   SSH ciphertext. A DERP fallback can likewise observe metadata and ciphertext.
 - The SSH host key is delivered inside the PAKE-authenticated offer and compared
   byte-for-byte during SSH setup; there is no trust-on-first-use prompt.
+- The SSH client proves possession of a fresh credential delivered inside the
+  PAKE-encrypted authorization, so an active relay cannot replace the
+  invitation holder at the raw-SSH handoff.
 - Read-only is enforced before input reaches the shared PTY, not by terminal UI
   convention. A read-only Tailcat source cannot switch to the read/write port.
 - Invitation holders have the printed role for the lifetime of the hosting
