@@ -227,7 +227,7 @@ const drafts: DraftBlogPost[] = [
         type: "paragraph",
         text: "The host is attached by default, which makes pair debugging feel like pulling another chair up to the terminal. --headless leaves the session running without occupying the host's terminal, --dir chooses the starting directory, and --duration replaces the twelve-hour default lifetime. Any number of people may attach, within the relay and host's practical limits.",
       },
-      { type: "heading", text: "The browser can join now" },
+      { type: "heading", text: "The browser can join, too" },
       {
         type: "paragraph",
         text: "The getcroc.com homepage now has a Files / SSH switch. Choose SSH, paste either invitation, and the page becomes a terminal with its authenticated role shown above it. Read/write guests can type normally. Read-only input is disabled in the page and independently rejected by the host. Ctrl-C still reaches the shared program; Disconnect or Ctrl-] leaves the session.",
@@ -236,15 +236,7 @@ const drafts: DraftBlogPost[] = [
         type: "paragraph",
         text: "This is intentionally a croc SSH joiner rather than a general browser SSH client. It cannot host a terminal or connect to an arbitrary server. It uses the ordinary croc relay path and runs PAKE, host-key verification, and the SSH client in WebAssembly. The terminal interface and separate SSH module load only after SSH mode is selected, and the invitation stays in memory instead of being copied into a URL, browser storage, QR code, log, or analytics event.",
       },
-      { type: "heading", text: "A session can outlive one connection" },
-      {
-        type: "paragraph",
-        text: "Ctrl-] detaches a host or guest without killing the shell. When a guest loses the network unexpectedly, croc reruns PAKE, checks the role and SSH host key again, and tries to reattach for up to two minutes by default. The browser follows the same reconnection window over the relay. This is a new authenticated connection to the old shell, not a blind resumption of an abandoned stream.",
-      },
-      {
-        type: "paragraph",
-        text: "The host keeps up to 8 MiB of recent PTY output in memory and replays it when somebody attaches. That makes reconnecting—and joining a few minutes late—much less mysterious. If the oldest output had to be trimmed, croc warns the guest and resets the terminal before replaying what remains.",
-      },
+
       { type: "heading", text: "It is still croc underneath" },
       {
         type: "paragraph",
