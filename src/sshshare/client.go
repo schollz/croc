@@ -368,8 +368,10 @@ func runSSHSession(ctx context.Context, config clientSessionConfig, offer sshOff
 	stopClose := context.AfterFunc(ctx, func() { _ = connection.Close() })
 	defer stopClose()
 	handshakeDeadline := time.Now().Add(sshHandshakeTimeout)
+	var contextHandshakeDeadline time.Time
 	if deadline, ok := ctx.Deadline(); ok && deadline.Before(handshakeDeadline) {
 		handshakeDeadline = deadline
+		contextHandshakeDeadline = deadline
 	}
 	if err := connection.SetDeadline(handshakeDeadline); err != nil {
 		return false, fmt.Errorf("set SSH handshake deadline: %w", err)
@@ -386,10 +388,7 @@ func runSSHSession(ctx context.Context, config clientSessionConfig, offer sshOff
 	}
 	clientConnection, channels, requests, err := gossh.NewClientConn(connection, "croc-ssh", sshConfig)
 	if err != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return false, ctxErr
-		}
-		return false, fmt.Errorf("SSH handshake: %w", err)
+		return false, sshHandshakeError(ctx, contextHandshakeDeadline, err)
 	}
 	client := gossh.NewClient(clientConnection, channels, requests)
 	defer client.Close()
@@ -455,6 +454,19 @@ func runSSHSession(ctx context.Context, config clientSessionConfig, offer sshOff
 	case <-ctx.Done():
 		return true, ctx.Err()
 	}
+}
+
+func sshHandshakeError(ctx context.Context, contextDeadline time.Time, err error) error {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
+	}
+	// The connection and context use the same limiting deadline. On some
+	// platforms the network poller can report its timeout just before the
+	// context timer publishes DeadlineExceeded.
+	if !contextDeadline.IsZero() && !time.Now().Before(contextDeadline) {
+		return context.DeadlineExceeded
+	}
+	return fmt.Errorf("SSH handshake: %w", err)
 }
 
 type detachReader struct {

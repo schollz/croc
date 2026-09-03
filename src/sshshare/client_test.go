@@ -194,6 +194,14 @@ func TestRunSSHSessionCancellationInterruptsHandshake(t *testing.T) {
 	require.Less(t, time.Since(started), time.Second)
 }
 
+func TestSSHHandshakeErrorMapsExpiredContextDeadline(t *testing.T) {
+	underlying := errors.New("network timeout")
+	require.ErrorIs(t, sshHandshakeError(
+		context.Background(), time.Now().Add(-time.Millisecond), underlying,
+	), context.DeadlineExceeded)
+	require.ErrorIs(t, sshHandshakeError(context.Background(), time.Time{}, underlying), underlying)
+}
+
 func newTestControl(t *testing.T) *comm.Comm {
 	t.Helper()
 	client, peer := net.Pipe()
