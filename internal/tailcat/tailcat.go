@@ -587,21 +587,6 @@ func (s *Server) AddAllowedClient(k key.NodePublic) {
 	mak.Set(&s.lb.allowedClients, k, true)
 }
 
-// RemoveAllowedClient revokes a client previously admitted with
-// AddAllowedClient or AllowedClients. Existing transport connections are not
-// forcibly closed, but the key can no longer establish a new Tailcat peer.
-func (s *Server) RemoveAllowedClient(k key.NodePublic) {
-	if s.lb == nil {
-		s.AllowedClients = slices.DeleteFunc(s.AllowedClients, func(candidate key.NodePublic) bool {
-			return candidate == k
-		})
-		return
-	}
-	s.lb.mu.Lock()
-	defer s.lb.mu.Unlock()
-	delete(s.lb.allowedClients, k)
-}
-
 // ConnBlob returns the token that clients use to connect to this
 // server. It embeds the full DERP region, so clients don't need to
 // fetch the DERP map from the network. It must only be called after

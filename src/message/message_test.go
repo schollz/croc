@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/schollz/croc/v11/src/comm"
+	"github.com/schollz/croc/v11/src/compress"
 	"github.com/schollz/croc/v11/src/crypt"
 	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/stretchr/testify/assert"
@@ -58,6 +59,13 @@ func TestEncodeRejectsOversizedDecompressedMessage(t *testing.T) {
 
 	_, err = encodeWithLimit(nil, Message{Type: TypeMessage}, len(`{"t":"message"}`))
 	assert.NoError(t, err)
+}
+
+func TestDecodeWithLimitRejectsCompressedExpansion(t *testing.T) {
+	encoded, err := Encode(nil, Message{Type: TypeMessage, Message: "too large"})
+	assert.NoError(t, err)
+	_, err = DecodeWithLimit(nil, encoded, 8)
+	assert.ErrorIs(t, err, compress.ErrDecompressedSizeExceeded)
 }
 
 func TestPakeVersionAndConfirmationRoundTrip(t *testing.T) {

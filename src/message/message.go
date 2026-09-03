@@ -96,13 +96,18 @@ func encodeWithLimit(key []byte, m Message, maxJSONSize int) (b []byte, err erro
 
 // Decode will convert from bytes
 func Decode(key []byte, b []byte) (m Message, err error) {
+	return DecodeWithLimit(key, b, maxDecompressedMessageSize)
+}
+
+// DecodeWithLimit decodes a message while bounding its decompressed JSON size.
+func DecodeWithLimit(key []byte, b []byte, maxJSONSize int64) (m Message, err error) {
 	if key != nil {
 		b, err = crypt.Decrypt(b, key)
 		if err != nil {
 			return
 		}
 	}
-	b, err = compress.Decompress(b, maxDecompressedMessageSize)
+	b, err = compress.Decompress(b, maxJSONSize)
 	if err != nil {
 		err = fmt.Errorf("decompress message: %w", err)
 		return

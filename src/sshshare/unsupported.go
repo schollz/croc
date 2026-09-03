@@ -10,58 +10,9 @@ import (
 	"errors"
 	"io"
 	"os"
-	"time"
 )
 
 var errUnsupported = errors.New("croc ssh is not supported in this build")
-
-var ErrDetached = errors.New("detached from shared SSH terminal")
-
-type Role string
-
-const (
-	RoleReadWrite Role = "read-write"
-	RoleReadOnly  Role = "read-only"
-)
-
-type Transport string
-
-const (
-	TransportTailcat Transport = "tailcat"
-	TransportRelay   Transport = "relay"
-)
-
-type TransportMode string
-
-const (
-	TransportModeAuto    TransportMode = "auto"
-	TransportModeTailcat TransportMode = "tailcat"
-	TransportModeRelay   TransportMode = "relay"
-)
-
-type WindowSize struct {
-	Width  int
-	Height int
-}
-
-type HostEvent struct {
-	Role      Role
-	Connected bool
-	Clients   int
-}
-
-type HostConfig struct {
-	ReadWriteCode string
-	ReadOnlyCode  string
-	RelayAddress  string
-	RelayPassword string
-	Command       []string
-	Directory     string
-	InitialSize   WindowSize
-	AccessTTL     time.Duration
-	OnEvent       func(HostEvent)
-	Logf          func(string, ...any)
-}
 
 type Host struct{}
 
@@ -75,30 +26,5 @@ func (*Host) AttachLocalTerminal(context.Context, *os.File, io.Writer) error { r
 func (*Host) Done() <-chan struct{}                                          { return nil }
 func (*Host) Wait() error                                                    { return errUnsupported }
 func (*Host) Close() error                                                   { return nil }
-
-type JoinEvent struct {
-	State     string
-	Role      Role
-	Transport Transport
-	Attempt   int
-	Err       error
-}
-
-type ClientConfig struct {
-	Code            string
-	RelayAddress    string
-	RelayPassword   string
-	Curve           string
-	Input           io.Reader
-	Output          io.Writer
-	ErrorOutput     io.Writer
-	Terminal        *os.File
-	InitialSize     WindowSize
-	Reconnect       bool
-	ReconnectWindow time.Duration
-	TransportMode   TransportMode
-	OnEvent         func(JoinEvent)
-	Logf            func(string, ...any)
-}
 
 func Join(context.Context, ClientConfig) error { return errUnsupported }

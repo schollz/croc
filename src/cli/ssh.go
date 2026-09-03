@@ -78,13 +78,13 @@ func joinSSHSession(c *cli.Context) error {
 		TransportMode:   sshshare.TransportMode(c.String("transport")),
 		OnEvent: func(event sshshare.JoinEvent) {
 			switch event.State {
-			case "connected":
+			case sshshare.JoinStateConnected:
 				path := ""
 				if event.Transport == sshshare.TransportRelay {
 					path = " via the croc relay"
 				}
 				fmt.Fprintf(os.Stderr, "Connected with %s access%s. Press Ctrl-] to detach.\r\n", event.Role, path)
-			case "reconnecting":
+			case sshshare.JoinStateReconnecting:
 				fmt.Fprintf(os.Stderr, "\r\nConnection lost; reconnecting…\r\n")
 			}
 		},
@@ -108,7 +108,6 @@ func hostSSHSession(c *cli.Context) error {
 		RelayAddress:  relay,
 		RelayPassword: relayPassword,
 		Directory:     c.String("dir"),
-		AccessTTL:     duration,
 		Logf:          func(format string, args ...any) { log.Debugf(format, args...) },
 	})
 	if err != nil {

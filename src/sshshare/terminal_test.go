@@ -4,7 +4,6 @@ package sshshare
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"sync"
 	"testing"
@@ -52,8 +51,7 @@ func (p *memoryPTY) written() string {
 }
 
 func TestTerminalHubReadOnlyAndReplay(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	pty := newMemoryPTY()
 	hub := newTerminalHub(ctx, pty, nil, nil)
 	t.Cleanup(func() { _ = hub.Close() })
@@ -87,8 +85,7 @@ func TestTerminalHubReadOnlyAndReplay(t *testing.T) {
 }
 
 func TestTerminalHubUsesSmallestAttachedWindow(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	pty := newMemoryPTY()
 	var mu sync.Mutex
 	var sizes []WindowSize
@@ -102,8 +99,8 @@ func TestTerminalHubUsesSmallestAttachedWindow(t *testing.T) {
 
 	r1, w1 := io.Pipe()
 	r2, w2 := io.Pipe()
-	go hub.Attach(ctx, r1, io.Discard, false, WindowSize{120, 40}, nil)
-	go hub.Attach(ctx, r2, io.Discard, false, WindowSize{80, 24}, nil)
+	go hub.Attach(ctx, r1, io.Discard, true, WindowSize{120, 40}, nil)
+	go hub.Attach(ctx, r2, io.Discard, true, WindowSize{80, 24}, nil)
 	require.Eventually(t, func() bool {
 		mu.Lock()
 		defer mu.Unlock()
@@ -111,4 +108,56 @@ func TestTerminalHubUsesSmallestAttachedWindow(t *testing.T) {
 	}, time.Second, time.Millisecond)
 	require.NoError(t, w1.Close())
 	require.NoError(t, w2.Close())
+}
+
+func TestTerminalHubIgnoresReadOnlyWindowChanges(t *testing.T) {
+	ctx := t.Context()
+	pty := newMemoryPTY()
+	var mu sync.Mutex
+	var sizes []WindowSize
+	hub := newTerminalHub(ctx, pty, func(size WindowSize) error {
+		mu.Lock()
+		sizes = append(sizes, size)
+		mu.Unlock()
+		return nil
+	}, nil)
+	t.Cleanup(func() { _ = hub.Close() })
+
+	rwR, rwW := io.Pipe()
+	roR, roW := io.Pipe()
+	resizes := make(chan WindowSize, 1)
+	go hub.Attach(ctx, rwR, io.Discard, true, WindowSize{120, 40}, nil)
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(sizes) > 0 && sizes[len(sizes)-1] == (WindowSize{120, 40})
+	}, time.Second, time.Millisecond)
+	go hub.Attach(ctx, roR, io.Discard, false, WindowSize{20, 5}, resizes)
+	resizes <- WindowSize{10, 2}
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(sizes) >= 3 && sizes[len(sizes)-1] == (WindowSize{120, 40})
+	}, time.Second, time.Millisecond)
+	require.NoError(t, rwW.Close())
+	require.NoError(t, roW.Close())
+}
+
+func TestByteRingKeepsNewestBytesInOrder(t *testing.T) {
+	ring := newByteRing(8)
+	ring.Write([]byte("abc"))
+	require.Equal(t, "abc", string(ring.Bytes()))
+	require.False(t, ring.Truncated())
+
+	ring.Write([]byte("defghi"))
+	require.Equal(t, "bcdefghi", string(ring.Bytes()))
+	require.True(t, ring.Truncated())
+
+	ring.Write([]byte("0123456789"))
+	require.Equal(t, "23456789", string(ring.Bytes()))
+}
+
+func TestNormalizeWindowSizeBoundsPTYDimensions(t *testing.T) {
+	require.Equal(t, WindowSize{Width: 80, Height: 24}, normalizeWindowSize(WindowSize{}))
+	require.Equal(t, WindowSize{Width: 65535, Height: 65535}, normalizeWindowSize(WindowSize{Width: 1 << 20, Height: 1 << 20}))
 }

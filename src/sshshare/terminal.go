@@ -14,12 +14,6 @@ const (
 	attachmentQueueChunks = 128
 )
 
-// WindowSize is a terminal size in character cells.
-type WindowSize struct {
-	Width  int
-	Height int
-}
-
 type attachment struct {
 	id       uint64
 	output   io.Writer
@@ -27,6 +21,7 @@ type attachment struct {
 	done     chan struct{}
 	doneOnce sync.Once
 	size     WindowSize
+	writable bool
 }
 
 func (a *attachment) stop() {
@@ -41,14 +36,15 @@ type terminalHub struct {
 	cancel context.CancelFunc
 
 	mu          sync.Mutex
+	resizeMu    sync.Mutex
 	pty         io.ReadWriteCloser
 	attachments map[uint64]*attachment
 	nextID      uint64
-	transcript  []byte
-	truncated   bool
+	transcript  byteRing
 	done        chan struct{}
 	doneOnce    sync.Once
 	closeOnce   sync.Once
+	closeErr    error
 	err         error
 
 	resizePTY func(WindowSize) error
@@ -67,6 +63,7 @@ func newTerminalHub(
 		cancel:      cancel,
 		pty:         pty,
 		attachments: make(map[uint64]*attachment),
+		transcript:  newByteRing(transcriptLimit),
 		done:        make(chan struct{}),
 		resizePTY:   resize,
 		stopPTY:     stop,
@@ -87,7 +84,9 @@ func (h *terminalHub) readOutput() {
 			h.broadcast(buffer[:n])
 		}
 		if err != nil {
-			h.finish(normalizePTYReadError(err))
+			if normalized := normalizePTYReadError(err); normalized != nil {
+				h.finish(normalized)
+			}
 			return
 		}
 	}
@@ -96,17 +95,7 @@ func (h *terminalHub) readOutput() {
 func (h *terminalHub) broadcast(data []byte) {
 	chunk := append([]byte(nil), data...)
 	h.mu.Lock()
-	if len(chunk) >= transcriptLimit {
-		h.transcript = append(h.transcript[:0], chunk[len(chunk)-transcriptLimit:]...)
-		h.truncated = true
-	} else {
-		if excess := len(h.transcript) + len(chunk) - transcriptLimit; excess > 0 {
-			copy(h.transcript, h.transcript[excess:])
-			h.transcript = h.transcript[:len(h.transcript)-excess]
-			h.truncated = true
-		}
-		h.transcript = append(h.transcript, chunk...)
-	}
+	h.transcript.Write(chunk)
 	for _, client := range h.attachments {
 		select {
 		case client.queue <- chunk:
@@ -147,10 +136,11 @@ func (h *terminalHub) Attach(
 		return errors.New("terminal attachment requires input and output")
 	}
 	client := &attachment{
-		output: output,
-		queue:  make(chan []byte, attachmentQueueChunks),
-		done:   make(chan struct{}),
-		size:   normalizeWindowSize(initial),
+		output:   output,
+		queue:    make(chan []byte, attachmentQueueChunks),
+		done:     make(chan struct{}),
+		size:     normalizeWindowSize(initial),
+		writable: writable,
 	}
 	h.mu.Lock()
 	select {
@@ -163,11 +153,10 @@ func (h *terminalHub) Attach(
 	h.nextID++
 	client.id = h.nextID
 	h.attachments[client.id] = client
-	replay := append([]byte(nil), h.transcript...)
-	truncated := h.truncated
-	newSize := h.sharedWindowSizeLocked()
+	replay := h.transcript.Bytes()
+	truncated := h.transcript.Truncated()
 	h.mu.Unlock()
-	h.applyWindowSize(newSize)
+	h.applyWindowSize()
 
 	writeDone := make(chan error, 1)
 	go func() {
@@ -244,20 +233,19 @@ func (h *terminalHub) Attach(
 	client.stop()
 	h.mu.Lock()
 	delete(h.attachments, client.id)
-	newSize = h.sharedWindowSizeLocked()
 	h.mu.Unlock()
-	h.applyWindowSize(newSize)
+	h.applyWindowSize()
 	return err
 }
 
 func (h *terminalHub) updateWindowSize(id uint64, size WindowSize) {
 	h.mu.Lock()
-	if client := h.attachments[id]; client != nil {
+	client := h.attachments[id]
+	if client != nil && client.writable {
 		client.size = normalizeWindowSize(size)
 	}
-	shared := h.sharedWindowSizeLocked()
 	h.mu.Unlock()
-	h.applyWindowSize(shared)
+	h.applyWindowSize()
 }
 
 func normalizeWindowSize(size WindowSize) WindowSize {
@@ -267,12 +255,21 @@ func normalizeWindowSize(size WindowSize) WindowSize {
 	if size.Height <= 0 {
 		size.Height = 24
 	}
+	if size.Width > 65535 {
+		size.Width = 65535
+	}
+	if size.Height > 65535 {
+		size.Height = 65535
+	}
 	return size
 }
 
 func (h *terminalHub) sharedWindowSizeLocked() WindowSize {
 	result := WindowSize{}
 	for _, client := range h.attachments {
+		if !client.writable {
+			continue
+		}
 		size := normalizeWindowSize(client.size)
 		if result.Width == 0 || size.Width < result.Width {
 			result.Width = size.Width
@@ -284,9 +281,71 @@ func (h *terminalHub) sharedWindowSizeLocked() WindowSize {
 	return normalizeWindowSize(result)
 }
 
-func (h *terminalHub) applyWindowSize(size WindowSize) {
+// byteRing retains the newest bytes without copying the retained transcript
+// on every append. Bytes materializes one ordered snapshot only when a client
+// attaches.
+type byteRing struct {
+	buffer    []byte
+	start     int
+	length    int
+	truncated bool
+}
+
+func newByteRing(capacity int) byteRing {
+	if capacity < 0 {
+		capacity = 0
+	}
+	return byteRing{buffer: make([]byte, capacity)}
+}
+
+func (r *byteRing) Write(data []byte) {
+	capacity := len(r.buffer)
+	if capacity == 0 {
+		r.truncated = r.truncated || len(data) > 0
+		return
+	}
+	if len(data) >= capacity {
+		r.truncated = r.truncated || r.length > 0 || len(data) > capacity
+		copy(r.buffer, data[len(data)-capacity:])
+		r.start = 0
+		r.length = capacity
+		return
+	}
+	if overflow := r.length + len(data) - capacity; overflow > 0 {
+		r.start = (r.start + overflow) % capacity
+		r.length -= overflow
+		r.truncated = true
+	}
+	end := (r.start + r.length) % capacity
+	first := min(len(data), capacity-end)
+	copy(r.buffer[end:], data[:first])
+	copy(r.buffer, data[first:])
+	r.length += len(data)
+}
+
+func (r *byteRing) Bytes() []byte {
+	result := make([]byte, r.length)
+	if r.length == 0 {
+		return result
+	}
+	first := min(r.length, len(r.buffer)-r.start)
+	copy(result, r.buffer[r.start:r.start+first])
+	copy(result[first:], r.buffer[:r.length-first])
+	return result
+}
+
+func (r *byteRing) Truncated() bool { return r.truncated }
+
+func (h *terminalHub) applyWindowSize() {
 	if h.resizePTY != nil {
-		_ = h.resizePTY(normalizeWindowSize(size))
+		// Recompute under a separate serialization lock so concurrent attach,
+		// resize, and detach calls cannot apply an older size last.
+		h.resizeMu.Lock()
+		defer h.resizeMu.Unlock()
+		h.mu.Lock()
+		size := h.sharedWindowSizeLocked()
+		h.mu.Unlock()
+		_ = h.resizePTY(size)
 	}
 }
 
@@ -299,15 +358,12 @@ func (h *terminalHub) Err() error {
 }
 
 func (h *terminalHub) Close() error {
-	var err error
 	h.closeOnce.Do(func() {
 		if h.stopPTY != nil {
-			err = h.stopPTY()
+			h.closeErr = errors.Join(h.closeErr, h.stopPTY())
 		}
-		if closeErr := h.pty.Close(); err == nil {
-			err = closeErr
-		}
-		h.finish(err)
+		h.closeErr = errors.Join(h.closeErr, h.pty.Close())
+		h.finish(h.closeErr)
 	})
-	return err
+	return h.closeErr
 }

@@ -13,10 +13,6 @@ import (
 	"golang.org/x/term"
 )
 
-// ErrDetached indicates that the local user pressed Ctrl-] and detached while
-// leaving the shared shell and remote participants running.
-var ErrDetached = errors.New("detached from shared SSH terminal")
-
 // AttachLocalTerminal attaches a real local terminal to the host session,
 // maintaining raw mode and propagating window-size changes.
 func (h *Host) AttachLocalTerminal(ctx context.Context, input *os.File, output io.Writer) error {

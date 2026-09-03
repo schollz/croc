@@ -70,8 +70,8 @@ func (b *inputBroker) pump() {
 		n, err := b.source.Read(buffer)
 		if n > 0 {
 			data := buffer[:n]
-			if index := bytes.IndexByte(data, 0x1d); index >= 0 { // Ctrl-]
-				b.deliver(data[:index])
+			if before, _, ok := bytes.Cut(data, []byte{0x1d}); ok { // Ctrl-]
+				b.deliver(before)
 				b.finish(true)
 				return
 			}

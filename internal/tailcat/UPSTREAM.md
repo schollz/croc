@@ -26,17 +26,18 @@ wire protocol.
 - `tailcat.go`: `Server.StartContext` is a minimal variant of `Server.Start`
   that lets croc's coordinated 30-second setup deadline cancel DERP-map
   discovery. `Start` retains upstream behavior by calling it with a background
-  context. It also adds `Server.RemoveAllowedClient`, paired with upstream's
-  runtime add method, so one-time SSH-share client keys can be revoked.
+  context. Its package overview omits the standalone Tailcat SSH-server claim,
+  because croc does not import that CLI integration.
 - `croc_authorization.go`: exposes the deterministic Tailcat address for a node
-  key so croc can bind an authenticated invitation role to its tunnel source.
+  key so croc can bind an authenticated invitation role to its tunnel source,
+  and adds `Server.RemoveAllowedClient` so one-time client keys can be revoked.
 - `croc_status.go`: adds a client status accessor for direct/DERP path
   transitions and final byte reporting.
 
 All other imported source and test files are unchanged. `SOURCE_HASHES.sha256`
 records SHA-256 hashes of the exact upstream files before the local patch.
 The resulting croc-patched `tailcat.go` has SHA-256
-`f009ffd7902970749d05546cd5e8d28e0c71e003d925c9fa4db6afed429437d9`.
+`897b2a9a03be97cbd5a55009b158b4a54cd161cc0552438574dbc52e277718bd`.
 
 Croc deliberately uses stable `tailscale.com v1.102.3` instead of Tailcat's
 pre-release Tailscale pseudo-version. The complete imported upstream test suite
@@ -49,8 +50,7 @@ passes with that stable release. The gVisor version remains Tailcat's pinned
 2. Download the source archive and verify its commit identity.
 3. Re-copy only the files listed above, preserving `LICENSE`.
 4. Regenerate `SOURCE_HASHES.sha256` from the unmodified upstream files.
-5. Reapply and review the documented `Server.StartContext` and allowlist
-   revocation changes, and keep
-   croc-only additions in `croc_*.go` where possible.
+5. Reapply and review the documented `Server.StartContext` and package-comment
+   changes, and keep croc-only additions in `croc_*.go` where possible.
 6. Run `go test ./internal/tailcat ./src/tailcattransport`, the focused race
    tests, `go test ./...`, and croc's release cross-build matrix.

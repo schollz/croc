@@ -5,10 +5,13 @@ package sshshare
 import (
 	"io"
 	"net"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/schollz/croc/v11/src/codephrase"
 	"github.com/schollz/croc/v11/src/comm"
+	"github.com/schollz/croc/v11/src/compress"
 	"github.com/schollz/croc/v11/src/message"
 	"github.com/schollz/croc/v11/src/pakekey"
 	"github.com/stretchr/testify/require"
@@ -25,7 +28,7 @@ func TestSSHPAKEAndAuthorizationRoundTrip(t *testing.T) {
 	t.Cleanup(guest.Close)
 
 	clientKey := key.NewNode()
-	wantOffer := Offer{
+	wantOffer := sshOffer{
 		TailcatAddress: "tc-test-address",
 		SSHHostKey:     []byte("ssh-host-key"),
 		Port:           23,
@@ -34,12 +37,12 @@ func TestSSHPAKEAndAuthorizationRoundTrip(t *testing.T) {
 	}
 	hostErr := make(chan error, 1)
 	go func() {
-		encryptionKey, err := hostPAKE(host, components)
+		encryptionKey, deadline, err := hostPAKE(host, components)
 		if err != nil {
 			hostErr <- err
 			return
 		}
-		request, err := receiveAuthorizationRequest(host, encryptionKey)
+		request, err := receiveAuthorizationRequest(host, encryptionKey, deadline)
 		if err == nil && request.clientKey != clientKey.Public() {
 			err = errClientKeyMismatch
 		}
@@ -47,7 +50,7 @@ func TestSSHPAKEAndAuthorizationRoundTrip(t *testing.T) {
 			err = &testError{"transport mismatch"}
 		}
 		if err == nil {
-			err = sendOffer(host, encryptionKey, wantOffer)
+			err = sendOffer(host, encryptionKey, wantOffer, deadline)
 		}
 		if err == nil {
 			_, err = host.Connection().Write([]byte("raw-relay-stream"))
@@ -55,10 +58,10 @@ func TestSSHPAKEAndAuthorizationRoundTrip(t *testing.T) {
 		hostErr <- err
 	}()
 
-	encryptionKey, err := guestPAKE(guest, components, "p256")
+	encryptionKey, deadline, err := guestPAKE(guest, components, "p256")
 	require.NoError(t, err)
-	require.NoError(t, sendAuthorizationRequest(guest, encryptionKey, clientKey.Public(), TransportRelay))
-	gotOffer, err := receiveOffer(guest, encryptionKey)
+	require.NoError(t, sendAuthorizationRequest(guest, encryptionKey, clientKey.Public(), TransportRelay, deadline))
+	gotOffer, err := receiveOffer(guest, encryptionKey, deadline)
 	require.NoError(t, err)
 	require.Equal(t, wantOffer, gotOffer)
 	raw := make([]byte, len("raw-relay-stream"))
@@ -86,7 +89,7 @@ func TestReceiveMessageIgnoresRelayKeepalive(t *testing.T) {
 		})
 	}()
 
-	got, err := receiveMessage(host, nil)
+	got, err := receiveMessageUntil(host, nil, time.Now().Add(time.Second))
 	require.NoError(t, err)
 	require.Equal(t, message.TypePAKE, got.Type)
 	require.NoError(t, <-sendErr)
@@ -112,10 +115,10 @@ func TestSSHPAKERejectsWrongCode(t *testing.T) {
 	hostErr := make(chan error, 1)
 	go func() {
 		defer host.Close()
-		_, hostPAKEErr := hostPAKE(host, hostComponents)
+		_, _, hostPAKEErr := hostPAKE(host, hostComponents)
 		hostErr <- hostPAKEErr
 	}()
-	_, guestErr := guestPAKE(guest, guestComponents, "p256")
+	_, _, guestErr := guestPAKE(guest, guestComponents, "p256")
 	require.Error(t, guestErr)
 	require.Error(t, <-hostErr)
 }
@@ -127,12 +130,73 @@ func TestOfferRejectsRolePortEscalation(t *testing.T) {
 	t.Cleanup(func() { _ = guestConn.Close() })
 	keyBytes := []byte("01234567890123456789012345678901")
 
-	err := sendOffer(host, keyBytes, Offer{
+	err := sendOffer(host, keyBytes, sshOffer{
 		TailcatAddress: "tc-test",
 		SSHHostKey:     []byte("key"),
 		Port:           22,
 		Role:           RoleReadOnly,
 		Transport:      TransportTailcat,
-	})
+	}, time.Now().Add(time.Second))
 	require.Error(t, err)
+}
+
+func TestReceiveMessageKeepalivesDoNotExtendDeadline(t *testing.T) {
+	hostConn, guestConn := net.Pipe()
+	host := comm.New(hostConn)
+	guest := comm.New(guestConn)
+	t.Cleanup(host.Close)
+	t.Cleanup(guest.Close)
+
+	go func() {
+		for guest.Send([]byte{1}) == nil {
+		}
+	}()
+	started := time.Now()
+	_, err := receiveMessageUntil(host, nil, time.Now().Add(50*time.Millisecond))
+	var networkError net.Error
+	require.ErrorAs(t, err, &networkError)
+	require.True(t, networkError.Timeout())
+	require.Less(t, time.Since(started), time.Second)
+}
+
+func TestReceiveMessageBoundsDecompressedControlPayload(t *testing.T) {
+	hostConn, guestConn := net.Pipe()
+	host := comm.New(hostConn)
+	guest := comm.New(guestConn)
+	t.Cleanup(host.Close)
+	t.Cleanup(guest.Close)
+
+	encoded, err := message.Encode(nil, message.Message{
+		Type:    message.TypeSSHOffer,
+		Message: strings.Repeat("a", maxSSHControlMessage+1),
+	})
+	require.NoError(t, err)
+	require.Less(t, len(encoded), maxSSHControlMessage)
+	go func() { _ = guest.Send(encoded) }()
+	_, err = receiveMessageUntil(host, nil, time.Now().Add(time.Second))
+	require.ErrorIs(t, err, compress.ErrDecompressedSizeExceeded)
+}
+
+func TestHostPAKERejectsOversizedWireValue(t *testing.T) {
+	components, err := codephrase.ParseSSH("acid-acorn-acre-acts-ahead-alien")
+	require.NoError(t, err)
+	hostConn, guestConn := net.Pipe()
+	host := comm.New(hostConn)
+	guest := comm.New(guestConn)
+	t.Cleanup(host.Close)
+	t.Cleanup(guest.Close)
+
+	go func() {
+		_ = message.Send(guest, nil, message.Message{
+			Type: message.TypePAKE, Version: pakekey.ProtocolVersion,
+			Bytes: make([]byte, maxPAKEPayload+1), Bytes2: []byte("p256"),
+		})
+	}()
+	_, _, err = hostPAKE(host, components)
+	require.ErrorContains(t, err, "PAKE request length")
+}
+
+func TestAuthorizationRejectsZeroClientKey(t *testing.T) {
+	err := sendAuthorizationRequest(nil, nil, key.NodePublic{}, TransportTailcat, time.Now().Add(time.Second))
+	require.ErrorContains(t, err, "client key is required")
 }

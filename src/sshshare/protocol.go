@@ -1,9 +1,5 @@
 //go:build !croc_no_tailcat && (linux || windows || darwin || freebsd || openbsd)
 
-// Package sshshare implements croc's authenticated, reconnectable SSH sharing
-// protocol. A croc relay provides rendezvous and PAKE; the authenticated SSH
-// stream then uses Tailcat's direct-or-DERP path, with that same ordinary croc
-// relay available as the data fallback.
 package sshshare
 
 import (
@@ -23,30 +19,21 @@ import (
 )
 
 const (
-	protocolVersion = 1
-	authTimeout     = 30 * time.Second
+	protocolVersion      = 1
+	authTimeout          = 30 * time.Second
+	rendezvousLease      = 5 * time.Minute
+	maxSSHControlMessage = 1 << 20
+	maxPAKEPayload       = 4 << 10
+	maxSSHHostKey        = 16 << 10
+	maxTailcatAddress    = 512 << 10
+	readWritePort        = uint16(22)
+	readOnlyPort         = uint16(23)
 )
 
-// Role is the authority granted by an SSH invitation.
-type Role string
-
-const (
-	RoleReadWrite Role = "read-write"
-	RoleReadOnly  Role = "read-only"
-)
-
-// Transport identifies the terminal data path selected after PAKE.
-type Transport string
-
-const (
-	TransportTailcat Transport = "tailcat"
-	TransportRelay   Transport = "relay"
-)
-
-// Offer is returned to an authenticated guest. The Tailcat address and SSH
+// sshOffer is returned to an authenticated guest. The Tailcat address and SSH
 // host key are authenticated by the PAKE channel, so the embedded SSH client
 // can pin both without a trust-on-first-use prompt.
-type Offer struct {
+type sshOffer struct {
 	TailcatAddress string
 	SSHHostKey     []byte
 	Port           uint16
@@ -62,9 +49,9 @@ type authorizationRequest struct {
 func (r Role) port() (uint16, error) {
 	switch r {
 	case RoleReadWrite:
-		return 22, nil
+		return readWritePort, nil
 	case RoleReadOnly:
-		return 23, nil
+		return readOnlyPort, nil
 	default:
 		return 0, fmt.Errorf("unsupported SSH access role %q", r)
 	}
@@ -93,74 +80,85 @@ func validateRendezvous(c *comm.Comm) error {
 
 // guestPAKE authenticates a guest as PAKE party A and returns a transcript-
 // bound traffic key after mutual key confirmation.
-func guestPAKE(c *comm.Comm, components codephrase.SSHComponents, curve string) ([]byte, error) {
+func guestPAKE(c *comm.Comm, components codephrase.SSHComponents, curve string) ([]byte, time.Time, error) {
 	if err := validateRendezvous(c); err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
+	deadline := time.Now().Add(authTimeout)
 	initiator, err := pakekey.Init(
 		[]byte(components.PAKEPassphrase), 0, curve,
 		pakekey.PurposeSSH, components.RoomName,
 	)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
 	initiatorBytes := append([]byte(nil), initiator.Bytes()...)
-	if err = message.Send(c, nil, message.Message{
+	if err = sendMessageUntil(c, nil, message.Message{
 		Type: message.TypePAKE, Version: pakekey.ProtocolVersion,
 		Bytes: initiatorBytes, Bytes2: []byte(curve),
-	}); err != nil {
-		return nil, err
+	}, deadline); err != nil {
+		return nil, time.Time{}, err
 	}
 
-	response, err := receiveMessage(c, nil)
+	response, err := receiveMessageUntil(c, nil, deadline)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
 	if response.Type != message.TypePAKE || response.Version != pakekey.ProtocolVersion {
-		return nil, errors.New("invalid SSH PAKE response")
+		return nil, time.Time{}, errors.New("invalid SSH PAKE response")
+	}
+	if len(response.Bytes) == 0 || len(response.Bytes) > maxPAKEPayload {
+		return nil, time.Time{}, fmt.Errorf("invalid SSH PAKE response length %d", len(response.Bytes))
 	}
 	if len(response.Bytes2) != pakekey.SaltSize {
-		return nil, fmt.Errorf("invalid SSH PAKE salt length %d", len(response.Bytes2))
+		return nil, time.Time{}, fmt.Errorf("invalid SSH PAKE salt length %d", len(response.Bytes2))
 	}
 	if err = initiator.Update(response.Bytes); err != nil {
-		return nil, fmt.Errorf("SSH PAKE response: %w", err)
+		return nil, time.Time{}, fmt.Errorf("SSH PAKE response: %w", err)
 	}
 	keys, err := deriveSSHKeys(
 		initiator, components, curve, initiatorBytes, response.Bytes, response.Bytes2,
 	)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
-	if err = message.Send(c, nil, message.Message{
+	if err = sendMessageUntil(c, nil, message.Message{
 		Type: message.TypePAKEConfirm, Version: pakekey.ProtocolVersion,
 		Bytes: keys.ConfirmationA,
-	}); err != nil {
-		return nil, err
+	}, deadline); err != nil {
+		return nil, time.Time{}, err
 	}
-	confirmation, err := receiveMessage(c, nil)
+	confirmation, err := receiveMessageUntil(c, nil, deadline)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
 	if confirmation.Type != message.TypePAKEConfirm ||
 		confirmation.Version != pakekey.ProtocolVersion ||
 		!pakekey.Confirm(keys.ConfirmationB, confirmation.Bytes) {
-		return nil, errors.New("SSH host failed PAKE key confirmation")
+		return nil, time.Time{}, errors.New("SSH host failed PAKE key confirmation")
 	}
-	return keys.EncryptionKey, nil
+	return keys.EncryptionKey, deadline, nil
 }
 
 // hostPAKE authenticates the host as PAKE party B and returns a transcript-
 // bound traffic key after mutual key confirmation.
-func hostPAKE(c *comm.Comm, components codephrase.SSHComponents) ([]byte, error) {
+func hostPAKE(c *comm.Comm, components codephrase.SSHComponents) ([]byte, time.Time, error) {
 	if err := validateRendezvous(c); err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
-	request, err := receiveMessage(c, nil)
+	request, err := receiveMessageUntil(c, nil, time.Now().Add(rendezvousLease))
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
+	deadline := time.Now().Add(authTimeout)
 	if request.Type != message.TypePAKE || request.Version != pakekey.ProtocolVersion {
-		return nil, errors.New("invalid SSH PAKE request")
+		return nil, time.Time{}, errors.New("invalid SSH PAKE request")
+	}
+	if len(request.Bytes) == 0 || len(request.Bytes) > maxPAKEPayload {
+		return nil, time.Time{}, fmt.Errorf("invalid SSH PAKE request length %d", len(request.Bytes))
+	}
+	if len(request.Bytes2) == 0 || len(request.Bytes2) > 64 {
+		return nil, time.Time{}, errors.New("invalid SSH PAKE curve")
 	}
 	curve := string(request.Bytes2)
 	responder, err := pakekey.Init(
@@ -168,44 +166,44 @@ func hostPAKE(c *comm.Comm, components codephrase.SSHComponents) ([]byte, error)
 		pakekey.PurposeSSH, components.RoomName,
 	)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
 	if err = responder.Update(request.Bytes); err != nil {
-		return nil, fmt.Errorf("SSH PAKE request: %w", err)
+		return nil, time.Time{}, fmt.Errorf("SSH PAKE request: %w", err)
 	}
 	responderBytes := append([]byte(nil), responder.Bytes()...)
 	salt := make([]byte, pakekey.SaltSize)
 	if _, err = rand.Read(salt); err != nil {
-		return nil, fmt.Errorf("generate SSH PAKE salt: %w", err)
+		return nil, time.Time{}, fmt.Errorf("generate SSH PAKE salt: %w", err)
 	}
 	keys, err := deriveSSHKeys(
 		responder, components, curve, request.Bytes, responderBytes, salt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
-	if err = message.Send(c, nil, message.Message{
+	if err = sendMessageUntil(c, nil, message.Message{
 		Type: message.TypePAKE, Version: pakekey.ProtocolVersion,
 		Bytes: responderBytes, Bytes2: salt,
-	}); err != nil {
-		return nil, err
+	}, deadline); err != nil {
+		return nil, time.Time{}, err
 	}
-	confirmation, err := receiveMessage(c, nil)
+	confirmation, err := receiveMessageUntil(c, nil, deadline)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
 	if confirmation.Type != message.TypePAKEConfirm ||
 		confirmation.Version != pakekey.ProtocolVersion ||
 		!pakekey.Confirm(keys.ConfirmationA, confirmation.Bytes) {
-		return nil, errors.New("SSH guest failed PAKE key confirmation")
+		return nil, time.Time{}, errors.New("SSH guest failed PAKE key confirmation")
 	}
-	if err = message.Send(c, nil, message.Message{
+	if err = sendMessageUntil(c, nil, message.Message{
 		Type: message.TypePAKEConfirm, Version: pakekey.ProtocolVersion,
 		Bytes: keys.ConfirmationB,
-	}); err != nil {
-		return nil, err
+	}, deadline); err != nil {
+		return nil, time.Time{}, err
 	}
-	return keys.EncryptionKey, nil
+	return keys.EncryptionKey, deadline, nil
 }
 
 func deriveSSHKeys(
@@ -228,13 +226,9 @@ func deriveSSHKeys(
 	})
 }
 
-func receiveMessage(c *comm.Comm, encryptionKey []byte) (message.Message, error) {
+func receiveMessageUntil(c *comm.Comm, encryptionKey []byte, deadline time.Time) (message.Message, error) {
 	for {
-		// The deadline rolls forward on relay keepalives while this side is
-		// waiting alone in a room. Once a peer joins and keepalives stop, an
-		// incomplete or malicious authentication cannot occupy the listener
-		// indefinitely.
-		b, err := c.ReceiveWithDeadline(time.Now().Add(authTimeout))
+		b, err := c.ReceiveWithDeadlineLimit(deadline, maxSSHControlMessage)
 		if err != nil {
 			return message.Message{}, err
 		}
@@ -244,7 +238,7 @@ func receiveMessage(c *comm.Comm, encryptionKey []byte) (message.Message, error)
 		if bytes.Equal(b, []byte{1}) {
 			continue
 		}
-		m, err := message.Decode(encryptionKey, b)
+		m, err := message.DecodeWithLimit(encryptionKey, b, maxSSHControlMessage)
 		if err != nil {
 			return message.Message{}, err
 		}
@@ -252,22 +246,32 @@ func receiveMessage(c *comm.Comm, encryptionKey []byte) (message.Message, error)
 	}
 }
 
-func sendAuthorizationRequest(c *comm.Comm, encryptionKey []byte, client key.NodePublic, transport Transport) error {
+func sendMessageUntil(c *comm.Comm, encryptionKey []byte, outgoing message.Message, deadline time.Time) error {
+	if err := c.Connection().SetWriteDeadline(deadline); err != nil {
+		return fmt.Errorf("set SSH control write deadline: %w", err)
+	}
+	return message.Send(c, encryptionKey, outgoing)
+}
+
+func sendAuthorizationRequest(c *comm.Comm, encryptionKey []byte, client key.NodePublic, transport Transport, deadline time.Time) error {
 	if err := validateTransport(transport); err != nil {
 		return err
 	}
-	return message.Send(c, encryptionKey, message.Message{
+	if client.IsZero() {
+		return errors.New("SSH client key is required")
+	}
+	return sendMessageUntil(c, encryptionKey, message.Message{
 		Type:    message.TypeSSHAuthorize,
 		Version: protocolVersion,
 		Bytes:   client.AppendTo(nil),
 		Features: []string{
 			string(transport),
 		},
-	})
+	}, deadline)
 }
 
-func receiveAuthorizationRequest(c *comm.Comm, encryptionKey []byte) (authorizationRequest, error) {
-	m, err := receiveMessage(c, encryptionKey)
+func receiveAuthorizationRequest(c *comm.Comm, encryptionKey []byte, deadline time.Time) (authorizationRequest, error) {
+	m, err := receiveMessageUntil(c, encryptionKey, deadline)
 	if err != nil {
 		return authorizationRequest{}, err
 	}
@@ -281,13 +285,16 @@ func receiveAuthorizationRequest(c *comm.Comm, encryptionKey []byte) (authorizat
 		clientKey: key.NodePublicFromRaw32(go4mem.B(m.Bytes)),
 		transport: Transport(m.Features[0]),
 	}
+	if request.clientKey.IsZero() {
+		return authorizationRequest{}, errors.New("SSH client key is required")
+	}
 	if err := validateTransport(request.transport); err != nil {
 		return authorizationRequest{}, err
 	}
 	return request, nil
 }
 
-func sendOffer(c *comm.Comm, encryptionKey []byte, offer Offer) error {
+func sendOffer(c *comm.Comm, encryptionKey []byte, offer sshOffer, deadline time.Time) error {
 	if err := validateRole(offer.Role); err != nil {
 		return err
 	}
@@ -295,34 +302,35 @@ func sendOffer(c *comm.Comm, encryptionKey []byte, offer Offer) error {
 		return err
 	}
 	wantPort, _ := offer.Role.port()
-	if offer.TailcatAddress == "" || len(offer.SSHHostKey) == 0 || offer.Port == 0 {
+	if offer.TailcatAddress == "" || len(offer.TailcatAddress) > maxTailcatAddress ||
+		len(offer.SSHHostKey) == 0 || len(offer.SSHHostKey) > maxSSHHostKey || offer.Port == 0 {
 		return errors.New("SSH offer is incomplete")
 	}
 	if offer.Port != wantPort {
 		return errors.New("SSH offer role and port are inconsistent")
 	}
-	return message.Send(c, encryptionKey, message.Message{
+	return sendMessageUntil(c, encryptionKey, message.Message{
 		Type:     message.TypeSSHOffer,
 		Version:  protocolVersion,
 		Message:  offer.TailcatAddress,
 		Bytes:    offer.SSHHostKey,
 		Num:      int(offer.Port),
 		Features: []string{string(offer.Role), string(offer.Transport)},
-	})
+	}, deadline)
 }
 
-func receiveOffer(c *comm.Comm, encryptionKey []byte) (Offer, error) {
-	m, err := receiveMessage(c, encryptionKey)
+func receiveOffer(c *comm.Comm, encryptionKey []byte, deadline time.Time) (sshOffer, error) {
+	m, err := receiveMessageUntil(c, encryptionKey, deadline)
 	if err != nil {
-		return Offer{}, err
+		return sshOffer{}, err
 	}
 	if m.Type != message.TypeSSHOffer || m.Version != protocolVersion || len(m.Features) != 2 {
-		return Offer{}, errors.New("invalid SSH offer")
+		return sshOffer{}, errors.New("invalid SSH offer")
 	}
 	if m.Num <= 0 || m.Num > 65535 {
-		return Offer{}, fmt.Errorf("invalid SSH offer port %d", m.Num)
+		return sshOffer{}, fmt.Errorf("invalid SSH offer port %d", m.Num)
 	}
-	offer := Offer{
+	offer := sshOffer{
 		TailcatAddress: m.Message,
 		SSHHostKey:     append([]byte(nil), m.Bytes...),
 		Port:           uint16(m.Num),
@@ -330,14 +338,15 @@ func receiveOffer(c *comm.Comm, encryptionKey []byte) (Offer, error) {
 		Transport:      Transport(m.Features[1]),
 	}
 	if err := validateRole(offer.Role); err != nil {
-		return Offer{}, err
+		return sshOffer{}, err
 	}
 	if err := validateTransport(offer.Transport); err != nil {
-		return Offer{}, err
+		return sshOffer{}, err
 	}
 	wantPort, _ := offer.Role.port()
-	if offer.TailcatAddress == "" || len(offer.SSHHostKey) == 0 || offer.Port != wantPort {
-		return Offer{}, errors.New("SSH offer is incomplete or inconsistent")
+	if offer.TailcatAddress == "" || len(offer.TailcatAddress) > maxTailcatAddress ||
+		len(offer.SSHHostKey) == 0 || len(offer.SSHHostKey) > maxSSHHostKey || offer.Port != wantPort {
+		return sshOffer{}, errors.New("SSH offer is incomplete or inconsistent")
 	}
 	return offer, nil
 }

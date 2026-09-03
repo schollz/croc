@@ -11,13 +11,14 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 )
 
-func newSharedSSHServer(hub *terminalHub, signer gossh.Signer, role Role, onAttach func(Role, bool)) *ssh.Server {
+func newSharedSSHServer(hub *terminalHub, signer gossh.Signer, role Role, beginAttachment func(Role) func()) *ssh.Server {
 	writable := role == RoleReadWrite
 	server := &ssh.Server{
 		NoClientAuthHandler: func(ssh.Context) error { return nil },
 		ChannelHandlers:     map[string]ssh.ChannelHandler{"session": ssh.DefaultSessionHandler},
 		RequestHandlers:     map[string]ssh.RequestHandler{},
 		SubsystemHandlers:   map[string]ssh.SubsystemHandler{},
+		HandshakeTimeout:    sshHandshakeTimeout,
 	}
 	server.Handler = func(session ssh.Session) {
 		if session.RawCommand() != "" {
@@ -43,9 +44,13 @@ func newSharedSSHServer(hub *terminalHub, signer gossh.Signer, role Role, onAtta
 				}
 			}
 		}()
-		if onAttach != nil {
-			onAttach(role, true)
-			defer onAttach(role, false)
+		if beginAttachment != nil {
+			done := beginAttachment(role)
+			if done == nil {
+				_ = session.Exit(1)
+				return
+			}
+			defer done()
 		}
 		err := hub.Attach(
 			session.Context(), session, session, writable,
