@@ -1,6 +1,8 @@
 export type MessageType =
   | "pake"
   | "pake-confirm"
+  | "ssh-authorize"
+  | "ssh-offer"
   | "externalip"
   | "finished"
   | "error"
@@ -16,6 +18,7 @@ export interface CrocMessage {
   b?: Uint8Array;
   b2?: Uint8Array;
   n?: number;
+  f?: string[];
 }
 
 export interface WireFileInfo {

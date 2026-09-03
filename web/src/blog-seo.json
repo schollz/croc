@@ -32,11 +32,11 @@
       "slug": "share-terminal-with-croc-ssh",
       "title": "Share a terminal with croc ssh",
       "seoTitle": "croc v11.4 SSH: Share a Terminal with a Six-Word Code",
-      "description": "Introduced in croc v11.4, croc ssh turns a six-word invitation into one shared terminal with separate read/write and read-only access.",
+      "description": "croc ssh turns a six-word invitation into one shared terminal with read/write or read-only access from the CLI or browser.",
       "category": "Remote terminals",
       "publishedAt": "2026-09-03",
       "modifiedAt": "2026-09-03",
-      "wordCount": 1101,
+      "wordCount": 1091,
       "readingMinutes": 6,
       "relatedSlugs": [
         "croc-v11-3-release-update",
@@ -50,6 +50,7 @@
         "tmate alternative",
         "remote pair programming",
         "read-only terminal sharing",
+        "browser SSH client",
         "Tailcat",
         "PAKE"
       ],

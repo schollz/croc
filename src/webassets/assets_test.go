@@ -64,6 +64,13 @@ func TestEmbeddedClientContainsEntryPointAndWasm(t *testing.T) {
 	if wasm.Size() == 0 {
 		t.Fatal("embedded WASM is empty")
 	}
+	sshWasm, err := fs.Stat(files, "croc-ssh.wasm")
+	if err != nil {
+		t.Fatalf("stat embedded SSH WASM: %v", err)
+	}
+	if sshWasm.Size() == 0 {
+		t.Fatal("embedded SSH WASM is empty")
+	}
 	installer, err := fs.ReadFile(files, "default.txt")
 	if err != nil {
 		t.Fatalf("read embedded installer: %v", err)

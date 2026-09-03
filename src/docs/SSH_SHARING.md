@@ -53,6 +53,21 @@ Windows accepts that spelling directly. Hosting requires a PTY-capable platform
 (Linux, macOS, FreeBSD, or OpenBSD). Those platforms and Windows can join.
 Relay-only builds and other targets report that SSH sharing is unsupported.
 
+### Join from a browser
+
+The `croc-web` homepage has a top-level **Files / SSH** switch. SSH mode accepts
+either printed invitation, reports the authenticated role, and opens the shared
+PTY in an xterm.js terminal. `Ctrl-C` is sent to the shared shell normally;
+**Disconnect** or `Ctrl-]` leaves the session. Browser input is disabled for a
+read-only invitation in addition to the host-side enforcement.
+
+The browser is join-only. It uses the ordinary croc relay path rather than
+Tailcat, cannot host a terminal, and cannot connect to an arbitrary SSH server.
+For self-hosting, `croc-web` must use the same ordered relay pool and relay
+password as the `croc ssh` host. The invitation stays in page memory only while
+it is needed for the initial connection or reconnection; it is never placed in
+a URL, browser storage, QR code, log, error report, or analytics event.
+
 ## Reconnection
 
 After a participant has attached successfully, a transport failure causes the
@@ -79,6 +94,10 @@ copy loop cannot steal input from the replacement connection. Up to 8 MiB of PTY
 output is retained in memory and replayed on attachment. If older output was
 trimmed, the client receives a warning and a terminal reset before the retained
 transcript.
+
+The browser follows the same two-minute reconnect policy over the relay. It
+reruns PAKE, revalidates the role and pinned host key, and resets its terminal
+emulator before the host replays retained output.
 
 ## Protocol and trust model
 

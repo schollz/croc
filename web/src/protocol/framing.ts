@@ -51,4 +51,33 @@ export class FrameDecoder {
 
     return messages;
   }
+
+  // Decodes at most one frame and returns every byte after it untouched. This
+  // is used when a croc control connection becomes a raw SSH byte stream; the
+  // relay may coalesce the final control frame and the SSH banner in one read.
+  pushOne(chunk: Uint8Array) {
+    this.buffer =
+      this.buffer.byteLength === 0 ? chunk : concatBytes(this.buffer, chunk);
+    if (this.buffer.byteLength < 8) return {};
+    for (let index = 0; index < MAGIC.byteLength; index += 1) {
+      if (this.buffer[index] !== MAGIC[index]) {
+        this.buffer = new Uint8Array();
+        throw new Error("Relay stream did not start with croc framing");
+      }
+    }
+    const length = new DataView(
+      this.buffer.buffer,
+      this.buffer.byteOffset,
+      this.buffer.byteLength,
+    ).getUint32(4, true);
+    if (length > MAX_FRAME_SIZE) {
+      this.buffer = new Uint8Array();
+      throw new Error(`Relay frame is too large (${length} bytes)`);
+    }
+    if (this.buffer.byteLength < length + 8) return {};
+    const message = this.buffer.subarray(8, length + 8);
+    const remainder = this.buffer.subarray(length + 8);
+    this.buffer = new Uint8Array();
+    return { message, remainder };
+  }
 }

@@ -70,3 +70,25 @@ await execFileAsync(
   },
 );
 await chmod(path.join(publicDir, "croc.wasm"), 0o644);
+
+await execFileAsync(
+  "go",
+  [
+    "build",
+    "-buildvcs=false",
+    "-trimpath",
+    "-ldflags=-s -w",
+    "-o",
+    path.join(publicDir, "croc-ssh.wasm"),
+    "./sshwasm",
+  ],
+  {
+    cwd: webRoot,
+    env: {
+      ...goEnvironment,
+      GOOS: "js",
+      GOARCH: "wasm",
+    },
+  },
+);
+await chmod(path.join(publicDir, "croc-ssh.wasm"), 0o644);

@@ -22,6 +22,7 @@ describe("control message codec", () => {
         v: 2,
         b: new Uint8Array([0, 1, 2, 255]),
         b2: new Uint8Array([9, 8]),
+        f: ["relay"],
       },
       new Uint8Array(32),
     );
@@ -34,6 +35,7 @@ describe("control message codec", () => {
       b: new Uint8Array([0, 1, 2, 255]),
       b2: new Uint8Array([9, 8]),
       n: undefined,
+      f: ["relay"],
     });
   });
 });

@@ -61,6 +61,10 @@ describe("Blog", () => {
     ).toBeVisible();
     expect(screen.getByText("FIELD NOTE 11")).toBeVisible();
     expect(screen.getByRole("heading", { name: "The tmate-shaped hole" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "The browser can pull up a chair" }),
+    ).toBeVisible();
+    expect(screen.getByText(/PAKE, pinned-host-key verification/)).toBeVisible();
     for (const link of screen.getAllByRole("link", { name: "Upterm" })) {
       expect(link).toHaveAttribute("href", "https://github.com/owenthereal/upterm");
     }

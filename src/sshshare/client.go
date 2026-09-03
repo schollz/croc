@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	internalssh "github.com/schollz/croc/v11/internal/sshclient"
 	"github.com/schollz/croc/v11/internal/tailcat"
 	"github.com/schollz/croc/v11/src/codephrase"
 	"github.com/schollz/croc/v11/src/comm"
@@ -365,39 +366,6 @@ func parseSSHHostKey(offer sshOffer) (gossh.PublicKey, error) {
 }
 
 func runSSHSession(ctx context.Context, config clientSessionConfig, offer sshOffer, connection net.Conn, expectedHostKey gossh.PublicKey) (bool, error) {
-	stopClose := context.AfterFunc(ctx, func() { _ = connection.Close() })
-	defer stopClose()
-	handshakeDeadline := time.Now().Add(sshHandshakeTimeout)
-	var contextHandshakeDeadline time.Time
-	if deadline, ok := ctx.Deadline(); ok && deadline.Before(handshakeDeadline) {
-		handshakeDeadline = deadline
-		contextHandshakeDeadline = deadline
-	}
-	if err := connection.SetDeadline(handshakeDeadline); err != nil {
-		return false, fmt.Errorf("set SSH handshake deadline: %w", err)
-	}
-	sshConfig := &gossh.ClientConfig{
-		User:              "croc",
-		HostKeyAlgorithms: []string{expectedHostKey.Type()},
-		HostKeyCallback: func(_ string, _ net.Addr, actual gossh.PublicKey) error {
-			if !bytes.Equal(actual.Marshal(), expectedHostKey.Marshal()) {
-				return errors.New("SSH host key does not match authenticated invitation")
-			}
-			return nil
-		},
-	}
-	clientConnection, channels, requests, err := gossh.NewClientConn(connection, "croc-ssh", sshConfig)
-	if err != nil {
-		return false, sshHandshakeError(ctx, contextHandshakeDeadline, err)
-	}
-	client := gossh.NewClient(clientConnection, channels, requests)
-	defer client.Close()
-	session, err := client.NewSession()
-	if err != nil {
-		return false, fmt.Errorf("open SSH session: %w", err)
-	}
-	defer session.Close()
-
 	size := normalizeWindowSize(config.config.InitialSize)
 	if config.config.Terminal != nil && term.IsTerminal(int(config.config.Terminal.Fd())) {
 		if width, height, sizeErr := term.GetSize(int(config.config.Terminal.Fd())); sizeErr == nil {
@@ -408,65 +376,45 @@ func runSSHSession(ctx context.Context, config clientSessionConfig, offer sshOff
 	if terminalName == "" {
 		terminalName = "xterm-256color"
 	}
-	if err = session.RequestPty(terminalName, size.Height, size.Width, gossh.TerminalModes{
-		gossh.ECHO:          1,
-		gossh.TTY_OP_ISPEED: 14400,
-		gossh.TTY_OP_OSPEED: 14400,
-	}); err != nil {
-		return false, fmt.Errorf("request SSH terminal: %w", err)
-	}
-
-	input := config.input.activate()
-	defer config.input.deactivate(input)
-	session.Stdin = input
-	session.Stdout = config.config.Output
-	session.Stderr = config.config.ErrorOutput
-
-	var restore func()
-	if config.config.Terminal != nil && term.IsTerminal(int(config.config.Terminal.Fd())) {
-		state, rawErr := term.MakeRaw(int(config.config.Terminal.Fd()))
-		if rawErr != nil {
-			return false, fmt.Errorf("make local terminal raw: %w", rawErr)
-		}
-		restore = func() { _ = term.Restore(int(config.config.Terminal.Fd()), state) }
-		defer restore()
-	}
-	if err = session.Shell(); err != nil {
-		return false, fmt.Errorf("start shared SSH shell: %w", err)
-	}
-	if err = connection.SetDeadline(time.Time{}); err != nil {
-		return false, fmt.Errorf("clear SSH handshake deadline: %w", err)
-	}
-	if config.config.OnEvent != nil {
-		config.config.OnEvent(JoinEvent{State: JoinStateConnected, Role: offer.Role, Transport: offer.Transport})
-	}
-	stopResize := watchWindowChanges(ctx, config.config.Terminal, session)
+	resizes, stopResize := watchWindowChanges(ctx, config.config.Terminal)
 	defer stopResize()
 
-	wait := make(chan error, 1)
-	go func() { wait <- session.Wait() }()
-	select {
-	case err = <-wait:
-		if config.input.Detached() {
-			return true, nil
-		}
-		return true, err
-	case <-ctx.Done():
-		return true, ctx.Err()
+	connected, err := internalssh.Run(ctx, connection, internalssh.Config{
+		ExpectedHostKey: expectedHostKey,
+		TerminalName:    terminalName,
+		InitialSize:     internalssh.WindowSize{Width: size.Width, Height: size.Height},
+		PrepareInput: func() (io.Reader, func(), error) {
+			input := config.input.activate()
+			return input, func() { config.input.deactivate(input) }, nil
+		},
+		Output:           config.config.Output,
+		ErrorOutput:      config.config.ErrorOutput,
+		Resizes:          resizes,
+		HandshakeTimeout: sshHandshakeTimeout,
+		BeforeShell: func() (func(), error) {
+			if config.config.Terminal == nil || !term.IsTerminal(int(config.config.Terminal.Fd())) {
+				return nil, nil
+			}
+			state, rawErr := term.MakeRaw(int(config.config.Terminal.Fd()))
+			if rawErr != nil {
+				return nil, fmt.Errorf("make local terminal raw: %w", rawErr)
+			}
+			return func() { _ = term.Restore(int(config.config.Terminal.Fd()), state) }, nil
+		},
+		OnConnected: func() {
+			if config.config.OnEvent != nil {
+				config.config.OnEvent(JoinEvent{State: JoinStateConnected, Role: offer.Role, Transport: offer.Transport})
+			}
+		},
+	})
+	if connected && config.input.Detached() {
+		return true, nil
 	}
+	return connected, err
 }
 
 func sshHandshakeError(ctx context.Context, contextDeadline time.Time, err error) error {
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		return ctxErr
-	}
-	// The connection and context use the same limiting deadline. On some
-	// platforms the network poller can report its timeout just before the
-	// context timer publishes DeadlineExceeded.
-	if !contextDeadline.IsZero() && !time.Now().Before(contextDeadline) {
-		return context.DeadlineExceeded
-	}
-	return fmt.Errorf("SSH handshake: %w", err)
+	return internalssh.HandshakeError(ctx, contextDeadline, err)
 }
 
 type detachReader struct {

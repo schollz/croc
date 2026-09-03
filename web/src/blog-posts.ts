@@ -165,14 +165,14 @@ const drafts: DraftBlogPost[] = [
     number: "11",
     title: "Share a terminal with croc ssh",
     description:
-      "Introduced in croc v11.4, croc ssh turns a six-word invitation into one shared terminal with separate read/write and read-only access.",
+      "croc ssh turns a six-word invitation into one shared terminal with read/write or read-only access from the CLI or browser.",
     category: "Remote terminals",
     publishedAt: "2026-09-03",
     publishedLabel: "September 3, 2026",
     author: "schollz",
     visual: "ssh",
     takeaway:
-      "Starting in croc v11.4, run croc ssh, share the appropriate six-word invitation, and another person can join the same persistent shell without an account, inbound port, or Tailscale setup.",
+      "Run croc ssh, share the appropriate six-word invitation, and another person can join the persistent shell from the CLI or browser without an account, inbound port, or Tailscale setup.",
     blocks: [
       {
         type: "paragraph",
@@ -199,6 +199,15 @@ const drafts: DraftBlogPost[] = [
         type: "paragraph",
         text: "Those example invitations have expired, but that is the entire ceremony. Send one line to the person joining. On Unix, CROC_SECRET keeps the six words out of the process list; running croc ssh and pasting the code at its prompt works too. Windows can use croc ssh followed by the code directly.",
       },
+      { type: "heading", text: "The browser can pull up a chair" },
+      {
+        type: "paragraph",
+        text: "The web client now has a Files / SSH switch. Open SSH at getcroc.com, paste either six-word invitation, and the page becomes a full-width terminal showing its authenticated read/write or read-only role. Ctrl-C behaves normally; Disconnect or Ctrl-] leaves. This is a croc-specific joiner, not a general SSH client: it uses the ordinary croc relay path, while PAKE, pinned-host-key verification, and SSH stay in browser WASM, so croc-web forwards ciphertext rather than terminal text.",
+      },
+      {
+        type: "paragraph",
+        text: "The terminal code loads only when SSH is selected, and the invitation stays in memory rather than URLs or storage. A self-hosted web client must use the host's relay pool and password. Read-only input is disabled in the page and still rejected by the host.",
+      },
       { type: "heading", text: "The tmate-shaped hole" },
       {
         type: "paragraph",
@@ -215,21 +224,12 @@ const drafts: DraftBlogPost[] = [
         ],
       },
       {
-        type: "paragraph",
-        text: "There are good successors, although each chooses a different shape. Upterm makes a reverse SSH tunnel and lets guests join with an ordinary SSH client. sshx puts a collaborative terminal in the browser, complete with cursors and a large shared canvas. SSH plus tmux remains the sturdy do-it-yourself option when accounts, keys, and networking are already arranged.",
-        links: [
-          { label: "Upterm", href: "https://github.com/owenthereal/upterm" },
-          { label: "sshx", href: "https://github.com/ekzhang/sshx" },
-          { label: "tmux", href: "https://github.com/tmux/tmux" },
-        ],
-      },
-      {
         type: "table",
         caption: "Several ways to put another person in a terminal",
         headers: ["Tool", "Guest uses", "Meeting point", "Useful distinction"],
         rows: [
           {
-            cells: ["croc ssh", "croc", "croc relay, then direct/DERP when possible", "Six-word read/write and read-only invitations"],
+            cells: ["croc ssh", "croc or browser", "croc relay; CLI can use direct/DERP", "Six-word read/write and read-only invitations"],
             href: "https://github.com/schollz/croc/blob/5595b7507a27f513e3ea460fdd561ee639642d57/src/docs/SSH_SHARING.md",
             highlight: true,
           },
@@ -250,10 +250,6 @@ const drafts: DraftBlogPost[] = [
             href: "https://github.com/tmux/tmux",
           },
         ],
-      },
-      {
-        type: "paragraph",
-        text: "I did not want croc ssh to pretend those projects do not exist. I wanted another choice for people who already have croc, like its short invitations, and do not want to make the host's normal SSH service public. Basically, the rendezvous machinery used to move a file can also introduce two ends of a terminal.",
       },
       { type: "heading", text: "How six words become a shell" },
       {
@@ -301,12 +297,6 @@ const drafts: DraftBlogPost[] = [
           "",
           "# Start in a project and expire after thirty minutes",
           "$ croc ssh --dir /path/to/project --duration 30m",
-          "",
-          "# Let a guest try reconnecting for ten minutes",
-          "$ CROC_SECRET='six-word-invitation-goes-here-now' croc ssh --reconnect-window 10m",
-          "",
-          "# Require the ordinary croc relay transport",
-          "$ CROC_SECRET='six-word-invitation-goes-here-now' croc ssh --transport relay",
         ],
       },
       { type: "heading", text: "The important limits" },
@@ -320,7 +310,7 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "croc ssh arrives in v11.4. Hosting works on Linux, macOS, FreeBSD, and OpenBSD. Those systems and Windows can join. The complete protocol and trust model are in the SSH sharing documentation. I am curious whether this feels useful for pair debugging, support, demos, and the occasional broken server at an inconvenient hour. Try it with a terminal you can afford to share, and let me know what feels awkward.",
+        text: "croc ssh arrives in v11.4. Hosting works on Linux, macOS, FreeBSD, and OpenBSD. Those systems, Windows, and evergreen desktop browsers can join. The complete protocol and trust model are in the SSH sharing documentation. I am curious whether this feels useful for pair debugging, support, demos, and the occasional broken server at an inconvenient hour. Try it with a terminal you can afford to share, and let me know what feels awkward.",
         links: [
           {
             label: "SSH sharing documentation",
