@@ -660,10 +660,7 @@ func (o *firstFrameObserver) Write(p []byte) (int, error) {
 
 	for len(p) > 0 && !o.done {
 		if o.expected == 0 {
-			needed := 8 - len(o.buffer)
-			if needed > len(p) {
-				needed = len(p)
-			}
+			needed := min(8-len(o.buffer), len(p))
 			o.buffer = append(o.buffer, p[:needed]...)
 			p = p[needed:]
 			if len(o.buffer) < 8 {
@@ -681,10 +678,7 @@ func (o *firstFrameObserver) Write(p []byte) (int, error) {
 			o.expected = 8 + int(bodySize)
 		}
 
-		needed := o.expected - len(o.buffer)
-		if needed > len(p) {
-			needed = len(p)
-		}
+		needed := min(o.expected-len(o.buffer), len(p))
 		o.buffer = append(o.buffer, p[:needed]...)
 		p = p[needed:]
 		if len(o.buffer) == o.expected {
