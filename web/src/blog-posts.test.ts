@@ -8,10 +8,11 @@ import {
 } from "./blog-posts";
 
 describe("blog posts", () => {
-  it("ships ten notes and two substantial, addressable release updates", () => {
-    expect(blogPosts).toHaveLength(12);
-    expect(new Set(blogPosts.map((post) => post.slug)).size).toBe(12);
+  it("ships eleven notes and two substantial, addressable release updates", () => {
+    expect(blogPosts).toHaveLength(13);
+    expect(new Set(blogPosts.map((post) => post.slug)).size).toBe(13);
     expect(blogPosts.map((post) => post.slug)).toEqual([
+      "share-terminal-with-croc-ssh",
       "croc-v11-3-release-update",
       "croc-cli-speed-comparison",
       "croc-v11-release-update",
@@ -25,7 +26,7 @@ describe("blog posts", () => {
       "how-croc-moves-a-file",
       "why-croc-works-this-way",
     ]);
-    expect(blogPosts.filter((post) => post.kind === "note")).toHaveLength(10);
+    expect(blogPosts.filter((post) => post.kind === "note")).toHaveLength(11);
     expect(blogPosts.filter((post) => post.kind === "update")).toHaveLength(2);
 
     for (const post of blogPosts) {

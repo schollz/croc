@@ -11,7 +11,7 @@ describe("Blog", () => {
     expect(
       screen.getByRole("heading", { name: "Notes from inside the transfer." }),
     ).toBeVisible();
-    expect(screen.getAllByRole("article")).toHaveLength(12);
+    expect(screen.getAllByRole("article")).toHaveLength(13);
     const categories = screen.getByRole("navigation", {
       name: "Blog post categories",
     });
@@ -50,6 +50,32 @@ describe("Blog", () => {
     expect(document.querySelector('meta[name="twitter:card"]')).toHaveAttribute(
       "content",
       "summary_large_image",
+    );
+  });
+
+  it("renders the shared SSH terminal field note", () => {
+    render(<Blog slug="share-terminal-with-croc-ssh" />);
+
+    expect(
+      screen.getByRole("heading", { name: "Share a terminal with croc ssh" }),
+    ).toBeVisible();
+    expect(screen.getByText("FIELD NOTE 11")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "The tmate-shaped hole" })).toBeVisible();
+    for (const link of screen.getAllByRole("link", { name: "Upterm" })) {
+      expect(link).toHaveAttribute("href", "https://github.com/owenthereal/upterm");
+    }
+    for (const link of screen.getAllByRole("link", { name: "sshx" })) {
+      expect(link).toHaveAttribute("href", "https://github.com/ekzhang/sshx");
+    }
+    expect(screen.getByRole("cell", { name: "Six-word read/write and read-only invitations" })).toBeVisible();
+    expect(
+      screen.getByRole("img", {
+        name: /one host shell, a shared PTY, and separate read\/write and read-only invitations/i,
+      }),
+    ).toHaveClass("blog-article-visual-cover");
+    expect(document.querySelector('meta[property="og:image"]')).toHaveAttribute(
+      "content",
+      "https://getcroc.com/blog/images/share-terminal-with-croc-ssh.jpg",
     );
   });
 
