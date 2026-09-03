@@ -227,16 +227,7 @@ CROC_SECRET='six-word-invitation' croc ssh
 
 Everyone sees one persistent terminal. Multiple read/write participants may
 type; read-only participants receive the same output but their input is
-discarded. Press `Ctrl-]` to detach without stopping the shared shell. Guests
-automatically reauthenticate and reconnect after transient network loss. Use
-`--headless` to host without attaching locally, `--duration` to set the session
-lifetime, and `--dir` to choose its working directory. Guests use
-`--transport auto` by default; `--transport relay` forces the ordinary croc
-relay path when direct/DERP networking is unsuitable.
-
-The `croc-web` homepage can also join either invitation from its **SSH** mode.
-The browser client is join-only and uses the ordinary croc relay path; it keeps
-the invitation in memory and runs both PAKE and the pinned SSH client in WASM.
+discarded. 
 
 This does not expose an SSH daemon or require an account, public IP, inbound
 port, or SSH key setup. The invitation authenticates an ephemeral Tailcat
@@ -245,7 +236,9 @@ cannot establish a direct path; if Tailcat itself is unavailable, the client
 reauthenticates and carries the pinned SSH stream over the ordinary croc relay.
 Remote commands, forwarding, and SFTP are disabled. Anyone who receives an
 invitation has the role printed beside it until the host stops, so treat both
-invitations as secrets. See the
+invitations as secrets. 
+
+See the
 [SSH sharing design and security guide](src/docs/SSH_SHARING.md) for protocol,
 reconnection, platform, relay, and threat-model details.
 
