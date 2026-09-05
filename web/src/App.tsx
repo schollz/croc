@@ -1988,7 +1988,7 @@ export function App() {
             autoCapitalize="none"
             autoCorrect="off"
             enterKeyHint="go"
-            onChange={(event) => setReceiveCode(event.target.value)}
+            onChange={(event) => setReceiveCode(event.target.value.replace(/\s+/g, '-'))}
           />
           <p className="field-help">
             Paste or type the code, stored link, or CLI token, then press Enter
