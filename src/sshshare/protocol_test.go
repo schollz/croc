@@ -101,7 +101,7 @@ func TestGuestPAKEAdvertisesSSHRendezvous(t *testing.T) {
 	require.Error(t, <-guestDone)
 }
 
-func TestHostPAKESendsEncryptedUpgradeErrorToLegacyTransferClient(t *testing.T) {
+func TestHostPAKERejectsClientWithoutSSHRendezvousFeature(t *testing.T) {
 	components, err := codephrase.ParseSSH("acid-acorn-acre-acts-ahead-alien")
 	require.NoError(t, err)
 	hostConn, guestConn := net.Pipe()
@@ -110,44 +110,16 @@ func TestHostPAKESendsEncryptedUpgradeErrorToLegacyTransferClient(t *testing.T) 
 	t.Cleanup(host.Close)
 	t.Cleanup(guest.Close)
 
-	hostErr := make(chan error, 1)
+	sent := make(chan error, 1)
 	go func() {
-		_, _, pakeErr := hostPAKE(host, components)
-		hostErr <- pakeErr
+		sent <- message.Send(guest, nil, message.Message{
+			Type: message.TypePAKE, Version: pakekey.ProtocolVersion,
+			Bytes: []byte("legacy"), Bytes2: []byte("p256"),
+		})
 	}()
-
-	legacy, err := pakekey.Init(
-		[]byte(components.PAKEPassphrase), 0, "p256",
-		pakekey.PurposeTransfer, components.RoomName,
-	)
-	require.NoError(t, err)
-	initiator := append([]byte(nil), legacy.Bytes()...)
-	require.NoError(t, message.Send(guest, nil, message.Message{
-		Type: message.TypePAKE, Version: pakekey.ProtocolVersion,
-		Bytes: initiator, Bytes2: []byte("p256"),
-	}))
-	response, err := receiveMessageUntil(guest, nil, time.Now().Add(time.Second))
-	require.NoError(t, err)
-	require.NotContains(t, response.Features, message.FeatureSSHRendezvous)
-	require.NoError(t, legacy.Update(response.Bytes))
-	keys, err := derivePeerKeys(
-		legacy, components, "p256", pakekey.PurposeTransfer,
-		initiator, response.Bytes, response.Bytes2,
-	)
-	require.NoError(t, err)
-	require.NoError(t, message.Send(guest, nil, message.Message{
-		Type: message.TypePAKEConfirm, Version: pakekey.ProtocolVersion,
-		Bytes: keys.ConfirmationA,
-	}))
-	confirmation, err := receiveMessageUntil(guest, nil, time.Now().Add(time.Second))
-	require.NoError(t, err)
-	require.True(t, pakekey.Confirm(keys.ConfirmationB, confirmation.Bytes))
-
-	upgrade, err := receiveMessageUntil(guest, keys.EncryptionKey, time.Now().Add(time.Second))
-	require.NoError(t, err)
-	require.Equal(t, message.TypeError, upgrade.Type)
-	require.Equal(t, legacyClientMessage, upgrade.Message)
-	require.ErrorIs(t, <-hostErr, errLegacyClientNotified)
+	_, _, err = hostPAKE(host, components)
+	require.ErrorContains(t, err, "did not advertise SSH rendezvous")
+	require.NoError(t, <-sent)
 }
 
 func TestReceiveMessageIgnoresRelayKeepalive(t *testing.T) {
@@ -269,6 +241,7 @@ func TestHostPAKERejectsOversizedWireValue(t *testing.T) {
 		_ = message.Send(guest, nil, message.Message{
 			Type: message.TypePAKE, Version: pakekey.ProtocolVersion,
 			Bytes: make([]byte, maxPAKEPayload+1), Bytes2: []byte("p256"),
+			Features: []string{message.FeatureSSHRendezvous},
 		})
 	}()
 	_, _, err = hostPAKE(host, components)

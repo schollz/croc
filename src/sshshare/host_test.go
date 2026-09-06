@@ -7,12 +7,14 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/schollz/croc/v11/internal/tailcat"
+	"github.com/schollz/croc/v11/src/codephrase"
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/stretchr/testify/require"
 	"tailscale.com/types/key"
@@ -100,6 +102,146 @@ func TestHostRejectsCodesSharingRendezvousRoom(t *testing.T) {
 	require.True(t, strings.Contains(err.Error(), "different first two words"), err)
 }
 
+func TestHostRejectsCodesSharingLegacyRendezvousRoom(t *testing.T) {
+	readWrite := "angel-acid-acorn-acre-acts-ahead"
+	readOnly := "anger-bacon-acorn-acre-acts-ahead"
+	readWriteSSH, err := codephrase.ParseSSH(readWrite)
+	require.NoError(t, err)
+	readOnlySSH, err := codephrase.ParseSSH(readOnly)
+	require.NoError(t, err)
+	require.NotEqual(t, readWriteSSH.RoomName, readOnlySSH.RoomName)
+	readWriteLegacy, err := codephrase.Parse(readWrite)
+	require.NoError(t, err)
+	readOnlyLegacy, err := codephrase.Parse(readOnly)
+	require.NoError(t, err)
+	require.Equal(t, readWriteLegacy.RoomName, readOnlyLegacy.RoomName)
+
+	_, err = StartHost(t.Context(), HostConfig{
+		ReadWriteCode: readWrite,
+		ReadOnlyCode:  readOnly,
+		RelayAddress:  "127.0.0.1:1",
+		RelayPassword: "test",
+	})
+	require.ErrorContains(t, err, "different legacy rendezvous rooms")
+}
+
+func TestGeneratedReadOnlyCodeAvoidsModernAndLegacyRoomCollisions(t *testing.T) {
+	generated := []string{
+		"angel-acid-acorn-acre-acts-alien",
+		"anger-bacon-acorn-acre-acts-ahead",
+		"bacon-acid-acorn-acre-acts-ahead",
+	}
+	index := 0
+	host, err := startHostWithDeps(t.Context(), HostConfig{
+		ReadWriteCode: "angel-acid-acorn-acre-acts-ahead",
+		RelayAddress:  "relay.example:9009",
+		RelayPassword: "test",
+	}, hostDeps{
+		generateSSHCode: func() (string, error) {
+			code := generated[index]
+			index++
+			return code, nil
+		},
+		startTerminal: func(ctx context.Context, _ []string, _ string, _ WindowSize) (*terminalHub, error) {
+			return newTerminalHub(ctx, newMemoryPTY(), nil, nil), nil
+		},
+		startTransport: func(context.Context, HostConfig, func(uint16) func(net.Conn)) (hostTransport, string, error) {
+			return &tailcat.Server{}, "tailcat-offer", nil
+		},
+		connect: func(ctx context.Context, _, _, _ string, _ time.Duration) (relaySession, error) {
+			<-ctx.Done()
+			return relaySession{}, ctx.Err()
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, len(generated), index)
+	require.Equal(t, generated[len(generated)-1], host.Code(RoleReadOnly))
+	require.NoError(t, host.Close())
+}
+
+func TestLegacyInvitationsCoverDefaultAndSelectedRelays(t *testing.T) {
+	config := HostConfig{
+		ReadWriteCode: "acid-acorn-acre-acts-ahead-alien",
+		ReadOnlyCode:  "bacon-acorn-acre-acts-ahead-alien",
+	}
+	components := make(map[Role]codephrase.Components)
+	var err error
+	components[RoleReadWrite], err = codephrase.Parse(config.ReadWriteCode)
+	require.NoError(t, err)
+	components[RoleReadOnly], err = codephrase.Parse(config.ReadOnlyCode)
+	require.NoError(t, err)
+	deps := hostDeps{
+		legacyRelays: func() []string {
+			return []string{"legacy-v6.example:9009", "legacy-v4.example:9009", "legacy-v4.example:9009", ""}
+		},
+		relayKey: strings.ToLower,
+	}.withDefaults()
+	routes, err := legacyInvitations(config, deps, components)
+	require.NoError(t, err)
+	require.Len(t, routes, 6)
+
+	got := make(map[Role][]string)
+	for _, route := range routes {
+		require.Equal(t, components[route.role], route.components)
+		got[route.role] = append(got[route.role], route.relay)
+	}
+	for role, code := range map[Role]string{
+		RoleReadWrite: config.ReadWriteCode,
+		RoleReadOnly:  config.ReadOnlyCode,
+	} {
+		selected, selectErr := relayForCode("", code)
+		require.NoError(t, selectErr)
+		sort.Strings(got[role])
+		want := []string{"legacy-v4.example:9009", "legacy-v6.example:9009", selected}
+		sort.Strings(want)
+		require.Equal(t, want, got[role])
+	}
+}
+
+func TestLegacyInvitationsDeduplicateCanonicalRelayAliases(t *testing.T) {
+	config := HostConfig{
+		ReadWriteCode: "acid-acorn-acre-acts-ahead-alien",
+		ReadOnlyCode:  "bacon-acorn-acre-acts-ahead-alien",
+	}
+	readWrite, err := codephrase.Parse(config.ReadWriteCode)
+	require.NoError(t, err)
+	readOnly, err := codephrase.Parse(config.ReadOnlyCode)
+	require.NoError(t, err)
+	routes, err := legacyInvitations(config, hostDeps{
+		legacyRelays: func() []string { return []string{"old-name:9009", "old-address:9009"} },
+		relayKey:     func(string) string { return "same-relay" },
+	}.withDefaults(), map[Role]codephrase.Components{
+		RoleReadWrite: readWrite,
+		RoleReadOnly:  readOnly,
+	})
+	require.NoError(t, err)
+	require.Len(t, routes, 2)
+}
+
+func TestLegacyInvitationsUseOnlyExplicitRelay(t *testing.T) {
+	config := HostConfig{
+		ReadWriteCode: "acid-acorn-acre-acts-ahead-alien",
+		ReadOnlyCode:  "bacon-acorn-acre-acts-ahead-alien",
+		RelayAddress:  "relay.example:9009",
+	}
+	readWrite, err := codephrase.Parse(config.ReadWriteCode)
+	require.NoError(t, err)
+	readOnly, err := codephrase.Parse(config.ReadOnlyCode)
+	require.NoError(t, err)
+	routes, err := legacyInvitations(config, hostDeps{
+		legacyRelays: func() []string { return []string{"unused.example:9009"} },
+		relayKey:     strings.ToLower,
+	}.withDefaults(), map[Role]codephrase.Components{
+		RoleReadWrite: readWrite,
+		RoleReadOnly:  readOnly,
+	})
+	require.NoError(t, err)
+	require.Len(t, routes, 2)
+	for _, route := range routes {
+		require.Equal(t, config.RelayAddress, route.relay)
+	}
+}
+
 func TestHostRejectsNegativeAuthorizationTTL(t *testing.T) {
 	_, err := StartHost(t.Context(), HostConfig{
 		RelayPassword:    "test",
@@ -122,9 +264,9 @@ func TestStartHostUsesDefaultAuthorizationTTLAndClosesWorkers(t *testing.T) {
 			require.NotNil(t, handler(readOnlyPort))
 			return transport, "tailcat-offer", nil
 		},
-		connect: func(ctx context.Context, _, _, _ string, _ time.Duration) (*comm.Comm, error) {
+		connect: func(ctx context.Context, _, _, _ string, _ time.Duration) (relaySession, error) {
 			<-ctx.Done()
-			return nil, ctx.Err()
+			return relaySession{}, ctx.Err()
 		},
 	})
 	require.NoError(t, err)

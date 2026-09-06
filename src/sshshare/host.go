@@ -44,6 +44,12 @@ type invitation struct {
 	sshServer  sshConnServer
 }
 
+type legacyInvitation struct {
+	role       Role
+	components codephrase.Components
+	relay      string
+}
+
 // Host owns one shared shell, one persistent Tailcat server, and repeatable
 // read-write/read-only rendezvous loops. Invitation holders may disconnect and
 // authenticate again while the host remains alive.
@@ -77,7 +83,7 @@ type Host struct {
 	done      chan struct{}
 }
 
-// StartHost starts a reconnectable shared terminal and its two invitation
+// StartHost starts a reconnectable shared terminal and its invitation
 // listeners. It returns after the Tailcat server is reachable, without waiting
 // for a participant.
 func StartHost(parent context.Context, config HostConfig) (*Host, error) {
@@ -101,7 +107,7 @@ func startHostWithDeps(parent context.Context, config HostConfig, deps hostDeps)
 		return nil, errors.New("SSH authorization TTL must not be negative")
 	}
 	if config.ReadWriteCode == "" {
-		generated, err := codephrase.GenerateSSH()
+		generated, err := deps.generateSSHCode()
 		if err != nil {
 			return nil, err
 		}
@@ -111,9 +117,13 @@ func startHostWithDeps(parent context.Context, config HostConfig, deps hostDeps)
 	if err != nil {
 		return nil, fmt.Errorf("%s code: %w", RoleReadWrite, err)
 	}
+	readWriteLegacy, err := codephrase.Parse(config.ReadWriteCode)
+	if err != nil {
+		return nil, fmt.Errorf("%s legacy code: %w", RoleReadWrite, err)
+	}
 	if config.ReadOnlyCode == "" {
 		for {
-			generated, err := codephrase.GenerateSSH()
+			generated, err := deps.generateSSHCode()
 			if err != nil {
 				return nil, err
 			}
@@ -121,7 +131,11 @@ func startHostWithDeps(parent context.Context, config HostConfig, deps hostDeps)
 			if err != nil {
 				return nil, err
 			}
-			if parsed.RoomName != readWriteComponents.RoomName {
+			legacyParsed, err := codephrase.Parse(generated)
+			if err != nil {
+				return nil, err
+			}
+			if parsed.RoomName != readWriteComponents.RoomName && legacyParsed.RoomName != readWriteLegacy.RoomName {
 				config.ReadOnlyCode = generated
 				break
 			}
@@ -131,8 +145,15 @@ func startHostWithDeps(parent context.Context, config HostConfig, deps hostDeps)
 	if err != nil {
 		return nil, fmt.Errorf("%s code: %w", RoleReadOnly, err)
 	}
+	readOnlyLegacy, err := codephrase.Parse(config.ReadOnlyCode)
+	if err != nil {
+		return nil, fmt.Errorf("%s legacy code: %w", RoleReadOnly, err)
+	}
 	if readOnlyComponents.RoomName == readWriteComponents.RoomName {
 		return nil, errors.New("read-write and read-only SSH codes must have different first two words")
+	}
+	if readOnlyLegacy.RoomName == readWriteLegacy.RoomName {
+		return nil, errors.New("read-write and read-only SSH codes must have different legacy rendezvous rooms")
 	}
 
 	invitations := map[Role]*invitation{
@@ -151,6 +172,13 @@ func startHostWithDeps(parent context.Context, config HostConfig, deps hostDeps)
 			return nil, err
 		}
 		invite.relay = relay
+	}
+	legacy, err := legacyInvitations(config, deps, map[Role]codephrase.Components{
+		RoleReadWrite: readWriteLegacy,
+		RoleReadOnly:  readOnlyLegacy,
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	// Parent cancellation is observed below and routed through Host.Close so
@@ -203,6 +231,10 @@ func startHostWithDeps(parent context.Context, config HostConfig, deps hostDeps)
 	for _, invite := range invitations {
 		h.wg.Add(1)
 		go h.serveRendezvous(invite)
+	}
+	for _, invite := range legacy {
+		h.wg.Add(1)
+		go h.serveLegacyRendezvous(invite)
 	}
 	go func() {
 		select {
@@ -265,6 +297,47 @@ func relayForCode(explicit, code string) (string, error) {
 	return relays[index], nil
 }
 
+// legacyInvitations covers both generations of pre-SSH v11 public relay
+// routing while ensuring aliases for the same relay cannot pair with each
+// other in the same rendezvous room.
+func legacyInvitations(config HostConfig, deps hostDeps, components map[Role]codephrase.Components) ([]*legacyInvitation, error) {
+	seen := make(map[string]struct{})
+	routes := make([]*legacyInvitation, 0, len(components)*2)
+	for _, role := range []Role{RoleReadWrite, RoleReadOnly} {
+		code := config.ReadWriteCode
+		if role == RoleReadOnly {
+			code = config.ReadOnlyCode
+		}
+		var relays []string
+		if config.RelayAddress != "" {
+			relays = []string{config.RelayAddress}
+		} else {
+			relays = append(relays, deps.legacyRelays()...)
+			selected, err := relayForCode("", code)
+			if err != nil {
+				return nil, err
+			}
+			relays = append(relays, selected)
+		}
+		for _, relay := range relays {
+			if relay == "" {
+				continue
+			}
+			key := deps.relayKey(relay) + "\x00" + components[role].RoomName
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			routes = append(routes, &legacyInvitation{
+				role:       role,
+				components: components[role],
+				relay:      relay,
+			})
+		}
+	}
+	return routes, nil
+}
+
 func (h *Host) serveRendezvous(invite *invitation) {
 	defer h.wg.Done()
 	failures := 0
@@ -274,20 +347,22 @@ func (h *Host) serveRendezvous(invite *invitation) {
 			return
 		default:
 		}
-		connection, err := h.deps.connect(
+		session, err := h.deps.connect(
 			h.ctx, invite.relay, h.config.RelayPassword, invite.components.RoomName, 10*time.Second,
 		)
 		if err == nil {
-			stopClose := context.AfterFunc(h.ctx, connection.Close)
-			var handedOff bool
-			handedOff, err = h.authorizeParticipant(connection, invite)
-			if !handedOff {
-				connection.Close()
+			connection := session.connection
+			if connection == nil {
+				err = errors.New("SSH rendezvous connection is nil")
+			} else {
+				stopClose := context.AfterFunc(h.ctx, connection.Close)
+				var handedOff bool
+				handedOff, err = h.authorizeParticipant(connection, invite)
+				if !handedOff {
+					connection.Close()
+				}
+				stopClose()
 			}
-			stopClose()
-		}
-		if errors.Is(err, errLegacyClientNotified) {
-			err = nil
 		}
 		if err != nil && h.ctx.Err() == nil && h.config.Logf != nil {
 			h.config.Logf("SSH %s rendezvous: %v", invite.role, err)

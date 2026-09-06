@@ -848,14 +848,24 @@ func ConnectToTCPServerControlContext(ctx context.Context, address, password, ro
 // ConnectToTCPServerWithCapability uses the optional upgraded-relay fast path
 // and transparently reconnects with the legacy PAKE handshake on rejection.
 func ConnectToTCPServerWithCapability(address, password, room, capability string, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, fast bool, err error) {
+	return ConnectToTCPServerWithCapabilityContext(context.Background(), address, password, room, capability, timelimit...)
+}
+
+// ConnectToTCPServerWithCapabilityContext is ConnectToTCPServerWithCapability
+// with cancellation covering dialing, relay authentication, and admission.
+func ConnectToTCPServerWithCapabilityContext(ctx context.Context, address, password, room, capability string, timelimit ...time.Duration) (c *comm.Comm, banner string, ipaddr string, fast bool, err error) {
 	defer func() { err = redact.Error(err, password, room, capability) }()
+	if ctx == nil {
+		return nil, "", "", false, errors.New("relay connection context is required")
+	}
 	if capability != "" {
 		timeout := 30 * time.Second
 		if len(timelimit) > 0 {
 			timeout = timelimit[0]
 		}
-		c, err = comm.NewConnection(address, timeout)
+		c, err = comm.NewConnectionContext(ctx, address, timeout)
 		if err == nil {
+			stopClose := context.AfterFunc(ctx, c.Close)
 			var request []byte
 			request, err = encodeFastAdmissionRequest(capability, room)
 			if err == nil {
@@ -863,24 +873,35 @@ func ConnectToTCPServerWithCapability(address, password, room, capability string
 			}
 			if err == nil {
 				var confirmation []byte
-				confirmation, err = c.Receive()
+				deadline := time.Time{}
+				if timeout > 0 {
+					deadline = time.Now().Add(timeout)
+				}
+				confirmation, err = c.ReceiveWithDeadline(deadline)
 				if err == nil && bytes.Equal(confirmation, []byte("ok")) {
+					stopClose()
 					return c, "", "", true, nil
 				}
 				if err == nil && bytes.Equal(confirmation, []byte("rate limited")) {
+					stopClose()
 					c.Close()
 					return nil, "", "", false, ErrAdmissionLimited
 				}
 				if err == nil && bytes.Equal(confirmation, []byte("room full")) {
+					stopClose()
 					c.Close()
 					return nil, "", "", false, errors.New("relay room full")
 				}
 			}
+			stopClose()
 			c.Close()
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, "", "", false, ctxErr
 		}
 		log.Debug("fast relay admission unavailable; retrying legacy handshake")
 	}
-	c, banner, ipaddr, err = ConnectToTCPServer(address, password, room, timelimit...)
+	c, banner, ipaddr, _, err = ConnectToTCPServerControlContext(ctx, address, password, room, timelimit...)
 	return c, banner, ipaddr, false, err
 }
 

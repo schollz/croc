@@ -30,7 +30,7 @@ const (
 	sshClientAuthSize    = 32
 	readWritePort        = uint16(22)
 	readOnlyPort         = uint16(23)
-	legacyClientMessage  = "this is a croc ssh invitation; SSH sharing requires croc v11.4.0 or newer; upgrade from https://github.com/schollz/croc/releases/latest"
+	legacyClientMessage  = "This code is for croc ssh, which requires croc v11.4.0 or newer. Upgrade at https://github.com/schollz/croc/releases/latest"
 )
 
 var errLegacyClientNotified = errors.New("legacy croc client was notified that SSH sharing requires an upgrade")
@@ -147,7 +147,7 @@ func guestPAKE(c *comm.Comm, components codephrase.SSHComponents, curve string) 
 		return nil, time.Time{}, fmt.Errorf("SSH PAKE response: %w", err)
 	}
 	keys, err := derivePeerKeys(
-		initiator, components, curve, pakekey.PurposeSSH, initiatorBytes, response.Bytes, response.Bytes2,
+		initiator, components.RoomName, curve, pakekey.PurposeSSH, initiatorBytes, response.Bytes, response.Bytes2,
 	)
 	if err != nil {
 		return nil, time.Time{}, err
@@ -180,7 +180,29 @@ func hostPAKE(c *comm.Comm, components codephrase.SSHComponents) ([]byte, time.T
 	if err != nil {
 		return nil, time.Time{}, err
 	}
+	if !hasFeature(request.Features, message.FeatureSSHRendezvous) {
+		return nil, time.Time{}, errors.New("guest did not advertise SSH rendezvous support")
+	}
 	deadline := time.Now().Add(authTimeout)
+	return respondHostPAKE(c, pakeCredentials{
+		roomName:   components.RoomName,
+		passphrase: components.PAKEPassphrase,
+	}, request, pakekey.PurposeSSH, []string{message.FeatureSSHRendezvous}, deadline)
+}
+
+type pakeCredentials struct {
+	roomName   string
+	passphrase string
+}
+
+func respondHostPAKE(
+	c *comm.Comm,
+	credentials pakeCredentials,
+	request message.Message,
+	purpose string,
+	features []string,
+	deadline time.Time,
+) ([]byte, time.Time, error) {
 	if request.Type != message.TypePAKE || request.Version != pakekey.ProtocolVersion {
 		return nil, time.Time{}, errors.New("invalid SSH PAKE request")
 	}
@@ -190,18 +212,10 @@ func hostPAKE(c *comm.Comm, components codephrase.SSHComponents) ([]byte, time.T
 	if len(request.Bytes2) == 0 || len(request.Bytes2) > 64 {
 		return nil, time.Time{}, errors.New("invalid SSH PAKE curve")
 	}
-	purpose := pakekey.PurposeSSH
-	sshClient := hasFeature(request.Features, message.FeatureSSHRendezvous)
-	if !sshClient {
-		// croc versions released before SSH sharing interpret `croc ssh` as a
-		// normal receive operation. Complete their authenticated transfer PAKE
-		// so they can display a useful encrypted error instead of hanging.
-		purpose = pakekey.PurposeTransfer
-	}
 	curve := string(request.Bytes2)
 	responder, err := pakekey.Init(
-		[]byte(components.PAKEPassphrase), 1, curve,
-		purpose, components.RoomName,
+		[]byte(credentials.passphrase), 1, curve,
+		purpose, credentials.roomName,
 	)
 	if err != nil {
 		return nil, time.Time{}, err
@@ -215,17 +229,14 @@ func hostPAKE(c *comm.Comm, components codephrase.SSHComponents) ([]byte, time.T
 		return nil, time.Time{}, fmt.Errorf("generate SSH PAKE salt: %w", err)
 	}
 	keys, err := derivePeerKeys(
-		responder, components, curve, purpose, request.Bytes, responderBytes, salt,
+		responder, credentials.roomName, curve, purpose, request.Bytes, responderBytes, salt,
 	)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
 	response := message.Message{
 		Type: message.TypePAKE, Version: pakekey.ProtocolVersion,
-		Bytes: responderBytes, Bytes2: salt,
-	}
-	if sshClient {
-		response.Features = []string{message.FeatureSSHRendezvous}
+		Bytes: responderBytes, Bytes2: salt, Features: features,
 	}
 	if err = sendMessageUntil(c, nil, response, deadline); err != nil {
 		return nil, time.Time{}, err
@@ -245,20 +256,12 @@ func hostPAKE(c *comm.Comm, components codephrase.SSHComponents) ([]byte, time.T
 	}, deadline); err != nil {
 		return nil, time.Time{}, err
 	}
-	if !sshClient {
-		if err = sendMessageUntil(c, keys.EncryptionKey, message.Message{
-			Type: message.TypeError, Message: legacyClientMessage,
-		}, deadline); err != nil {
-			return nil, time.Time{}, err
-		}
-		return nil, time.Time{}, errLegacyClientNotified
-	}
 	return keys.EncryptionKey, deadline, nil
 }
 
 func derivePeerKeys(
 	p *pake.Pake,
-	components codephrase.SSHComponents,
+	roomName string,
 	curve, purpose string,
 	initiator, responder, salt []byte,
 ) (pakekey.Keys, error) {
@@ -268,7 +271,7 @@ func derivePeerKeys(
 	}
 	return pakekey.Derive(shared, pakekey.Context{
 		Purpose:   purpose,
-		Room:      components.RoomName,
+		Room:      roomName,
 		Curve:     curve,
 		Initiator: initiator,
 		Responder: responder,

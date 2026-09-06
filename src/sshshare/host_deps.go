@@ -8,10 +8,13 @@ import (
 	"crypto/rand"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/schollz/croc/v11/internal/tailcat"
+	"github.com/schollz/croc/v11/src/codephrase"
 	"github.com/schollz/croc/v11/src/comm"
+	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/tcp"
 	gossh "golang.org/x/crypto/ssh"
 	"tailscale.com/types/key"
@@ -31,13 +34,23 @@ type hostTransport interface {
 	Close() error
 }
 
+type relaySession struct {
+	connection *comm.Comm
+	banner     string
+	capability string
+}
+
 type hostDeps struct {
-	startTerminal  func(context.Context, []string, string, WindowSize) (*terminalHub, error)
-	generateSigner func() (gossh.Signer, error)
-	newSSHServer   func(*terminalHub, gossh.Signer, Role, func(Role) func()) sshConnServer
-	startTransport func(context.Context, HostConfig, func(uint16) func(net.Conn)) (hostTransport, string, error)
-	connect        func(context.Context, string, string, string, time.Duration) (*comm.Comm, error)
-	now            func() time.Time
+	startTerminal   func(context.Context, []string, string, WindowSize) (*terminalHub, error)
+	generateSigner  func() (gossh.Signer, error)
+	generateSSHCode func() (string, error)
+	newSSHServer    func(*terminalHub, gossh.Signer, Role, func(Role) func()) sshConnServer
+	startTransport  func(context.Context, HostConfig, func(uint16) func(net.Conn)) (hostTransport, string, error)
+	connect         func(context.Context, string, string, string, time.Duration) (relaySession, error)
+	connectData     func(context.Context, string, string, string, string, time.Duration) (*comm.Comm, error)
+	legacyRelays    func() []string
+	relayKey        func(string) string
+	now             func() time.Time
 }
 
 func (d hostDeps) withDefaults() hostDeps {
@@ -46,6 +59,9 @@ func (d hostDeps) withDefaults() hostDeps {
 	}
 	if d.generateSigner == nil {
 		d.generateSigner = generateHostSigner
+	}
+	if d.generateSSHCode == nil {
+		d.generateSSHCode = codephrase.GenerateSSH
 	}
 	if d.newSSHServer == nil {
 		d.newSSHServer = func(hub *terminalHub, signer gossh.Signer, role Role, onAttach func(Role) func()) sshConnServer {
@@ -56,15 +72,45 @@ func (d hostDeps) withDefaults() hostDeps {
 		d.startTransport = startTailcatHostTransport
 	}
 	if d.connect == nil {
-		d.connect = func(ctx context.Context, relay, password, room string, timeout time.Duration) (*comm.Comm, error) {
-			connection, _, _, _, err := tcp.ConnectToTCPServerControlContext(ctx, relay, password, room, timeout)
+		d.connect = func(ctx context.Context, relay, password, room string, timeout time.Duration) (relaySession, error) {
+			connection, banner, _, capability, err := tcp.ConnectToTCPServerControlContext(ctx, relay, password, room, timeout)
+			return relaySession{
+				connection: connection,
+				banner:     banner,
+				capability: capability,
+			}, err
+		}
+	}
+	if d.connectData == nil {
+		d.connectData = func(ctx context.Context, relay, password, room, capability string, timeout time.Duration) (*comm.Comm, error) {
+			connection, _, _, _, err := tcp.ConnectToTCPServerWithCapabilityContext(
+				ctx, relay, password, room, capability, timeout,
+			)
 			return connection, err
 		}
+	}
+	if d.legacyRelays == nil {
+		d.legacyRelays = func() []string {
+			return []string{models.DEFAULT_RELAY6, models.DEFAULT_RELAY}
+		}
+	}
+	if d.relayKey == nil {
+		d.relayKey = canonicalRelayKey
 	}
 	if d.now == nil {
 		d.now = time.Now
 	}
 	return d
+}
+
+func canonicalRelayKey(address string) string {
+	// The v11.1 default and the first newer public relay may be DNS aliases.
+	// Resolve them before de-duplicating or the host can join its own room.
+	resolved, err := net.ResolveTCPAddr("tcp", address)
+	if err != nil || resolved.IP == nil {
+		return strings.ToLower(address)
+	}
+	return resolved.String()
 }
 
 func generateHostSigner() (gossh.Signer, error) {
