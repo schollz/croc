@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
@@ -187,9 +188,7 @@ func startSOCKS5TestProxy(t *testing.T, host, controlPort string, relay testRela
 		mu.Lock()
 		defer mu.Unlock()
 		result := make(map[string]int, len(seen))
-		for port, count := range seen {
-			result[port] = count
-		}
+		maps.Copy(result, seen)
 		return result
 	}
 }
