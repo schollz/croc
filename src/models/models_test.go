@@ -1,6 +1,8 @@
 package models
 
 import (
+	"context"
+	"errors"
 	"net"
 	"slices"
 	"strings"
@@ -141,7 +143,7 @@ func TestLookupFunction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ip, err := lookup(tt.address)
+			ip, err := lookup(t.Context(), tt.address)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("lookup() error = %v, wantErr %v", err, tt.wantErr)
@@ -170,5 +172,44 @@ func TestGetConfigFile(t *testing.T) {
 
 	if !strings.HasSuffix(fname, "internal-dns") {
 		t.Errorf("Expected config file to end with 'internal-dns', got %s", fname)
+	}
+}
+
+func TestDefaultRelaysKeepHostnames(t *testing.T) {
+	for _, address := range []string{DEFAULT_RELAY, DEFAULT_RELAY6} {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if host == "" || net.ParseIP(host) != nil {
+			t.Fatalf("default relay must retain its hostname, got %q", address)
+		}
+		if port != DEFAULT_PORT {
+			t.Fatalf("relay port = %q, want %q", port, DEFAULT_PORT)
+		}
+	}
+}
+
+func TestResolveRelayAddress(t *testing.T) {
+	old := INTERNAL_DNS
+	t.Cleanup(func() { INTERNAL_DNS = old })
+	for _, internal := range []bool{false, true} {
+		INTERNAL_DNS = internal
+		addresses := []string{"127.0.0.1:9009", "[::1]:9009"}
+		if !internal {
+			addresses = append(addresses, "relay.invalid:9009")
+		}
+		for _, address := range addresses {
+			got, err := ResolveRelayAddress(t.Context(), address)
+			if err != nil || got != address {
+				t.Fatalf("ResolveRelayAddress(%q), internal=%v = %q, %v", address, internal, got, err)
+			}
+		}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := ResolveRelayAddress(ctx, "relay.invalid:9009")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled DNS lookup returned %v", err)
 	}
 }

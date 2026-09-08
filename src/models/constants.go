@@ -15,10 +15,11 @@ import (
 // TCP_BUFFER_SIZE is the maximum packet size
 const TCP_BUFFER_SIZE = 1024 * 64
 
-// DEFAULT_RELAY is the default relay used (can be set using --relay)
+// Default relay addresses retain their hostnames until dialing so proxies can
+// resolve them remotely. DEFAULT_RELAY can be overridden using --relay.
 var (
-	DEFAULT_RELAY      = "croc.schollz.com"
-	DEFAULT_RELAY6     = "croc6.schollz.com"
+	DEFAULT_RELAY      = "croc.schollz.com:9009"
+	DEFAULT_RELAY6     = "croc6.schollz.com:9009"
 	DEFAULT_PORT       = "9009"
 	DEFAULT_PASSPHRASE = "pass123"
 	INTERNAL_DNS       = false
@@ -83,29 +84,38 @@ func init() {
 		}
 	}
 	log.Trace("Using internal DNS: ", INTERNAL_DNS)
-	var err error
-	var addr string
-	addr, err = lookup(DEFAULT_RELAY)
-	if err == nil {
-		DEFAULT_RELAY = net.JoinHostPort(addr, DEFAULT_PORT)
-	} else {
-		DEFAULT_RELAY = ""
+}
+
+// ResolveRelayAddress applies the optional built-in DNS resolver to a direct
+// connection. Proxy connections must keep the hostname for proxy-side DNS.
+func ResolveRelayAddress(ctx context.Context, address string) (string, error) {
+	if !INTERNAL_DNS {
+		return address, nil
 	}
-	log.Tracef("Default ipv4 relay: %s", addr)
-	addr, err = lookup(DEFAULT_RELAY6)
-	if err == nil {
-		DEFAULT_RELAY6 = net.JoinHostPort(addr, DEFAULT_PORT)
-	} else {
-		DEFAULT_RELAY6 = ""
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return "", err
 	}
-	log.Tracef("Default ipv6 relay: %s", addr)
+	if net.ParseIP(host) != nil {
+		return address, nil
+	}
+	ip, err := lookup(ctx, host)
+	if err != nil {
+		return "", err
+	}
+	return net.JoinHostPort(ip, port), nil
 }
 
 // Resolve a hostname to an IP address using DNS.
-func lookup(address string) (ipaddress string, err error) {
+func lookup(ctx context.Context, address string) (ipaddress string, err error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	if !INTERNAL_DNS {
 		log.Tracef("Using local DNS to resolve %s", address)
-		return localLookupIP(address)
+		return localLookupIPContext(ctx, address)
 	}
 	type Result struct {
 		s   string
@@ -115,13 +125,18 @@ func lookup(address string) (ipaddress string, err error) {
 	for _, dns := range publicDNS {
 		go func(dns string) {
 			var r Result
-			r.s, r.err = remoteLookupIP(address, dns)
+			r.s, r.err = remoteLookupIPContext(ctx, address, dns)
 			log.Tracef("Resolved %s to %s using %s", address, r.s, dns)
 			result <- r
 		}(dns)
 	}
 	for range publicDNS {
-		ipaddress = (<-result).s
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case resolved := <-result:
+			ipaddress = resolved.s
+		}
 		log.Tracef("Resolved %s to %s", address, ipaddress)
 		if ipaddress != "" {
 			return
@@ -133,8 +148,11 @@ func lookup(address string) (ipaddress string, err error) {
 
 // localLookupIP returns a host's IP address using the local DNS configuration.
 func localLookupIP(address string) (ipaddress string, err error) {
-	// Create a context with a 500 millisecond timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	return localLookupIPContext(context.Background(), address)
+}
+
+func localLookupIPContext(ctx context.Context, address string) (ipaddress string, err error) {
+	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
 
 	r := &net.Resolver{}
@@ -150,7 +168,11 @@ func localLookupIP(address string) (ipaddress string, err error) {
 
 // remoteLookupIP returns a host's IP address based on a remote DNS server.
 func remoteLookupIP(address, dns string) (ipaddress string, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	return remoteLookupIPContext(context.Background(), address, dns)
+}
+
+func remoteLookupIPContext(ctx context.Context, address, dns string) (ipaddress string, err error) {
+	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer cancel()
 
 	r := &net.Resolver{

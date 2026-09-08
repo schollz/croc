@@ -15,15 +15,18 @@ transfers remain the default and continue to use PAKE between two live peers.
 Upload with the public service:
 
 ```bash
-croc send --store photo.jpg document.pdf
-croc send --store --store-downloads 3 photo.jpg document.pdf
-croc send --store --store-expiration 3d photo.jpg document.pdf
+croc store photo.jpg document.pdf
+croc store --downloads 3 photo.jpg document.pdf
+croc store --expiration 3d photo.jpg document.pdf
 ```
+
+The original `croc send --store` command remains supported with
+`--store-downloads`, `--store-expiration`, and `--store-url`.
 
 Use another service origin when self-hosting:
 
 ```bash
-croc send --store --store-url https://files.example.com photo.jpg
+croc store --url https://files.example.com photo.jpg
 ```
 
 The sender receives:

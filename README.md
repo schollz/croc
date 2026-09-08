@@ -255,10 +255,13 @@ When an immediate peer-to-peer transfer is inconvenient, `croc` can upload
 regular files as client-side encrypted ciphertext:
 
 ```bash
-croc send --store [file1] [file2]
-croc send --store --store-downloads 3 [file1] [file2]
-croc send --store --store-expiration 3d [file1] [file2]
+croc store [file1] [file2]
+croc store --downloads 3 --expiration 3d [file1] [file2]
+croc store --url https://files.example.com [file1] [file2]
 ```
+
+The original `croc send --store` syntax remains supported, with
+`--store-downloads`, `--store-expiration`, and `--store-url` settings.
 
 The command prints a browser link and a CLI token. The transfer expires after
 the selected lifetime, measured from successful upload completion, or after
@@ -287,7 +290,8 @@ croc --revoke [transfer-id]
 ```
 
 Stored mode is opt-in and separate from croc's normal live relay transfers. A
-self-hosted service can be selected with `--store-url` or `CROC_STORE_URL`.
+self-hosted service can be selected with `croc store --url` (or
+`croc send --store --store-url`) or `CROC_STORE_URL`.
 See [the stored-transfer design and operator guide](src/docs/STORED_TRANSFERS.md)
 for protocol, privacy, limits, and deployment details.
 
@@ -401,6 +405,17 @@ You can send files via a proxy by adding `--socks5`:
 ```bash
 croc --socks5 "127.0.0.1:9050" send SOMEFILE
 ```
+
+Relay hostnames are resolved by the proxy, so the client does not need a
+working DNS server to reach the relay. Bare `host:port`, `socks5://host:port`,
+and `socks5h://host:port` all use proxy-side relay DNS. Use an IP address for
+the proxy itself when local DNS is unavailable. Set `--socks5` on both peers
+(or use the `SOCKS5_PROXY` environment variable).
+
+For a network that only permits proxy traffic, use `--transport relay` on the
+sender to use the SOCKS5-capable relay transport for file data. The browser
+client uses the browser's proxy settings for its WebSocket gateway connection;
+the native CLI flag does not configure the browser.
 
 <p align="center">
   <strong>Sponsored by <a href="https://sx.org/en/proxy/">SX.org</a>.</strong>
