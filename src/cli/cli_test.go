@@ -838,13 +838,19 @@ func TestStoredSendHonorsCommandCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	started := time.Now()
-	err := newApp().RunContext(ctx, []string{"croc", "--ignore-stdin", "send", "--store", file})
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("stored send cancellation returned %v", err)
-	}
-	if elapsed := time.Since(started); elapsed >= 500*time.Millisecond {
-		t.Fatalf("stored send cancellation took %s", elapsed)
+	for _, command := range [][]string{{"send", "--store"}, {"store"}} {
+		t.Run(command[0], func(t *testing.T) {
+			started := time.Now()
+			args := append([]string{"croc", "--ignore-stdin"}, command...)
+			args = append(args, file)
+			err := newApp().RunContext(ctx, args)
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("stored send cancellation returned %v", err)
+			}
+			if elapsed := time.Since(started); elapsed >= 500*time.Millisecond {
+				t.Fatalf("stored send cancellation took %s", elapsed)
+			}
+		})
 	}
 }
 

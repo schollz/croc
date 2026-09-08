@@ -77,6 +77,9 @@ func newApp() *cli.App {
    Receive a file using code:
       croc secret-code
 
+   Store files for later download:
+      croc store --downloads 3 --expiration 3d file.txt
+
    Share a terminal:
       croc ssh
 
@@ -88,7 +91,7 @@ func newApp() *cli.App {
 			Usage:       "send file(s), or folder (see options with croc send -h)",
 			Description: "send file(s), or folder",
 			ArgsUsage:   "[filename(s) or folder]",
-			Flags: []cli.Flag{
+			Flags: append([]cli.Flag{
 				&cli.BoolFlag{Name: "zip", Usage: "zip folder before sending"},
 				&cli.StringFlag{Name: "code", Aliases: []string{"c"}, Usage: "codephrase used to connect to relay (at least 6 characters)"},
 				&cli.StringFlag{Name: "transport", Value: string(croc.TransportAuto), Usage: "sender file data transport (auto, derp, relay)"},
@@ -105,11 +108,19 @@ func newApp() *cli.App {
 				&cli.StringFlag{Name: "socks5", Value: "", Usage: "SOCKS5 proxy address (relay DNS is resolved by the proxy)", EnvVars: []string{"SOCKS5_PROXY"}},
 				&cli.StringFlag{Name: "connect", Value: "", Usage: "add a http proxy", EnvVars: []string{"HTTP_PROXY"}},
 				&cli.BoolFlag{Name: "store", Usage: "upload encrypted files for a finite lifetime or a limited number of verified downloads"},
-				&cli.IntFlag{Name: "store-downloads", Value: 1, Usage: "number of verified downloads allowed in stored mode"},
-				&cli.StringFlag{Name: "store-expiration", Value: "1d", Usage: "stored lifetime after upload (for example 90m, 12h, 3d, or 2w)"},
-				&cli.StringFlag{Name: "store-url", Value: "https://getcroc.com", Usage: "stored-transfer service origin", EnvVars: []string{"CROC_STORE_URL"}},
-			},
+			}, storedUploadFlags("store-")...),
 			HelpName: "croc send",
+			Action:   send,
+		},
+		{
+			Name:        "store",
+			Usage:       "upload encrypted files for later download",
+			Description: "store regular files with a download limit and expiration",
+			ArgsUsage:   "[filename(s)]",
+			Flags: append(storedUploadFlags(""),
+				&cli.BoolFlag{Name: "qrcode", Aliases: []string{"qr"}, Usage: "show the web receive URL as a qrcode"},
+			),
+			HelpName: "croc store",
 			Action:   send,
 		},
 		{
@@ -592,10 +603,11 @@ func send(c *cli.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	if c.Bool("store") && transport != croc.TransportAuto {
+	stored := c.Bool("store") || (c.Command != nil && c.Command.Name == "store")
+	if stored && transport != croc.TransportAuto {
 		return errors.New("--transport must be auto for stored transfers")
 	}
-	if c.Bool("store") {
+	if stored {
 		return sendStored(c)
 	}
 

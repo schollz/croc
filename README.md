@@ -255,10 +255,13 @@ When an immediate peer-to-peer transfer is inconvenient, `croc` can upload
 regular files as client-side encrypted ciphertext:
 
 ```bash
-croc send --store [file1] [file2]
-croc send --store --store-downloads 3 [file1] [file2]
-croc send --store --store-expiration 3d [file1] [file2]
+croc store [file1] [file2]
+croc store --downloads 3 --expiration 3d [file1] [file2]
+croc store --url https://files.example.com [file1] [file2]
 ```
+
+The original `croc send --store` syntax remains supported, with
+`--store-downloads`, `--store-expiration`, and `--store-url` settings.
 
 The command prints a browser link and a CLI token. The transfer expires after
 the selected lifetime, measured from successful upload completion, or after
@@ -287,7 +290,8 @@ croc --revoke [transfer-id]
 ```
 
 Stored mode is opt-in and separate from croc's normal live relay transfers. A
-self-hosted service can be selected with `--store-url` or `CROC_STORE_URL`.
+self-hosted service can be selected with `croc store --url` (or
+`croc send --store --store-url`) or `CROC_STORE_URL`.
 See [the stored-transfer design and operator guide](src/docs/STORED_TRANSFERS.md)
 for protocol, privacy, limits, and deployment details.
 

@@ -22,6 +22,16 @@ import (
 	"github.com/schollz/progressbar/v3"
 )
 
+// storedUploadFlags keeps defaults and service configuration shared between
+// croc store and the original croc send --store command.
+func storedUploadFlags(prefix string) []cli.Flag {
+	return []cli.Flag{
+		&cli.IntFlag{Name: prefix + "downloads", Value: 1, Usage: "number of verified downloads allowed in stored mode"},
+		&cli.StringFlag{Name: prefix + "expiration", Value: "1d", Usage: "stored lifetime after upload (for example 90m, 12h, 3d, or 2w)"},
+		&cli.StringFlag{Name: prefix + "url", Value: "https://getcroc.com", Usage: "stored-transfer service origin", EnvVars: []string{"CROC_STORE_URL"}},
+	}
+}
+
 type storeReceipt struct {
 	ID          string    `json:"id"`
 	Origin      string    `json:"origin"`
@@ -251,23 +261,27 @@ func sendStored(c *cli.Context) error {
 	if stat != nil && (stat.Mode()&os.ModeCharDevice) == 0 && !c.Bool("ignore-stdin") {
 		return errors.New("stored mode does not accept stdin; pass regular file paths")
 	}
+	prefix, command := "store-", "croc send --store"
+	if c.Command != nil && c.Command.Name == "store" {
+		prefix, command = "", "croc store"
+	}
 	paths := c.Args().Slice()
 	if len(paths) == 0 {
-		return errors.New("must specify file: croc send --store [filename(s)]")
+		return fmt.Errorf("must specify file: %s [filename(s)]", command)
 	}
-	downloads := c.Int("store-downloads")
+	downloads := c.Int(prefix + "downloads")
 	if downloads < 1 {
-		return errors.New("--store-downloads must be positive")
+		return fmt.Errorf("--%sdownloads must be positive", prefix)
 	}
-	expiration, err := storeapi.ParseExpiration(c.String("store-expiration"), false)
+	expiration, err := storeapi.ParseExpiration(c.String(prefix+"expiration"), false)
 	if err != nil {
-		return fmt.Errorf("invalid --store-expiration: %w", err)
+		return fmt.Errorf("invalid --%sexpiration: %w", prefix, err)
 	}
 
 	client := new(storeclient.Client)
 	result, err := client.UploadWithOptions(
 		c.Context,
-		strings.TrimSpace(c.String("store-url")),
+		strings.TrimSpace(c.String(prefix+"url")),
 		paths,
 		storeclient.UploadOptions{Downloads: downloads, Expiration: expiration},
 		storedCallbacks(c.Bool("quiet"), "Uploading"),
