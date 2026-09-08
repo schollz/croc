@@ -47,6 +47,17 @@ analytics.
 Active sends and receives show total and per-file progress, measured bytes per
 second, and an ETA calculated with `arrival-time`.
 
+Tunnel mode at `/#tunnel` opens local HTTP apps shared by `croc tunnel PORT`.
+Its separately loaded `croc-tunnel.wasm` uses the same PAKE and pinned SSH
+authentication as native tunnel clients. Each guest moves from the invitation
+room to its own relay room, leaving the invitation available to other guests.
+
+App HTML runs in an opaque sandboxed iframe. A MessageChannel carries HTTP,
+asset, and WebSocket requests to the parent; CSP blocks direct app networking.
+The preview supports Vite modules and full-page refresh on changes. Cookie
+login, storage, workers, other origins, and native location/history semantics
+require CLI forwarding. See [the tunnel guide](../src/docs/TUNNEL.md).
+
 ## Local development
 
 From this directory:

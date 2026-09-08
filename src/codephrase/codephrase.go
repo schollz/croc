@@ -111,6 +111,25 @@ func GenerateSSH() (string, error) {
 	return generateWords(rand.Reader, SSHCodeWordCount)
 }
 
+// TunnelComponents contains the purpose-separated tunnel invitation inputs.
+type TunnelComponents struct {
+	RoomName       string
+	PAKEPassphrase string
+}
+
+// GenerateTunnel returns a six-word invitation for a local service.
+func GenerateTunnel() (string, error) { return generateWords(rand.Reader, SSHCodeWordCount) }
+
+// ParseTunnel deliberately uses a different room namespace from SSH and files.
+func ParseTunnel(secret string) (TunnelComponents, error) {
+	words, ok := effWordSequence(secret, SSHCodeWordCount)
+	if !ok {
+		return TunnelComponents{}, errors.New("invalid tunnel code: expected six EFF words")
+	}
+	digest := sha256.Sum256([]byte(strings.Join(words[:2], "-") + "croc-tunnel-v1"))
+	return TunnelComponents{hex.EncodeToString(digest[:]), strings.Join(words[2:], "-")}, nil
+}
+
 // GenerateForRelay returns a normal three-word EFF code assigned to relayIndex
 // by RelayIndex. On average it generates relayCount candidates.
 func GenerateForRelay(relayIndex, relayCount int) (string, error) {

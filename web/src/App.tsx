@@ -108,14 +108,15 @@ type Theme = "dark" | "light";
 type CopyState = "idle" | "copied" | "error";
 type MobileTransferPanel = "send" | "receive";
 type SendContent = "files" | "text";
-type WorkspaceMode = "files" | "ssh";
+type WorkspaceMode = "files" | "ssh" | "tunnel";
 
 const sshWorkspaceHash = "#ssh";
 
 export function workspaceModeFromHash(
   hash = window.location.hash,
 ): WorkspaceMode {
-  return hash.split("?", 1)[0] === sshWorkspaceHash ? "ssh" : "files";
+  const mode = hash.split("?", 1)[0];
+  return mode === "#tunnel" ? "tunnel" : mode === sshWorkspaceHash ? "ssh" : "files";
 }
 
 export function sshInvitationFromHash(hash = window.location.hash) {
@@ -125,27 +126,33 @@ export function sshInvitationFromHash(hash = window.location.hash) {
   return new URLSearchParams(hash.slice(queryAt + 1)).get("code")?.trim() ?? "";
 }
 
-function scrubSSHInvitationFromURL() {
-  if (!sshInvitationFromHash()) return;
+function workspaceInvitation(hash = window.location.hash) {
+  if (workspaceModeFromHash(hash) === "files") return "";
+  const query = hash.indexOf("?");
+  return query < 0 ? "" : new URLSearchParams(hash.slice(query + 1)).get("code")?.trim() ?? "";
+}
+
+function scrubWorkspaceInvitationFromURL() {
+  if (!workspaceInvitation()) return;
   const url = new URL(window.location.href);
-  url.hash = sshWorkspaceHash;
+  url.hash = workspaceModeFromHash() === "tunnel" ? "#tunnel" : sshWorkspaceHash;
   window.history.replaceState(window.history.state, "", url);
 }
 
 export function useWorkspaceMode() {
   const [mode, setMode] = useState<WorkspaceMode>(() => workspaceModeFromHash());
   const [sshInvitation, setSSHInvitation] = useState(() =>
-    sshInvitationFromHash(),
+    workspaceInvitation(),
   );
 
   useEffect(() => {
     const syncModeFromURL = () => {
       setMode(workspaceModeFromHash());
-      setSSHInvitation(sshInvitationFromHash());
-      scrubSSHInvitationFromURL();
+      setSSHInvitation(workspaceInvitation());
+      scrubWorkspaceInvitationFromURL();
     };
     window.addEventListener("hashchange", syncModeFromURL);
-    scrubSSHInvitationFromURL();
+    scrubWorkspaceInvitationFromURL();
     return () => {
       window.removeEventListener("hashchange", syncModeFromURL);
     };
@@ -156,9 +163,9 @@ export function useWorkspaceMode() {
     setSSHInvitation("");
 
     const url = new URL(window.location.href);
-    if (nextMode === "ssh") {
-      url.hash = sshWorkspaceHash;
-    } else if (url.hash === sshWorkspaceHash) {
+    if (nextMode === "ssh" || nextMode === "tunnel") {
+      url.hash = nextMode === "tunnel" ? "#tunnel" : sshWorkspaceHash;
+    } else if (workspaceModeFromHash() !== "files") {
       url.hash = "";
     } else {
       return;
@@ -173,6 +180,7 @@ export function useWorkspaceMode() {
 }
 
 const SSHPanel = lazy(() => import("./SSHPanel"));
+const TunnelPanel = lazy(() => import("./TunnelPanel"));
 
 export function WorkspaceSwitch({
   mode,
@@ -206,6 +214,9 @@ export function WorkspaceSwitch({
         onClick={() => onChange("ssh")}
       >
         <SquareTerminal aria-hidden="true" /> SSH
+      </button>
+      <button type="button" role="tab" aria-selected={mode === "tunnel"} disabled={disabled} onClick={() => onChange("tunnel")}>
+        <ArrowRight aria-hidden="true" /> Tunnel
       </button>
     </div>
   );
@@ -1500,7 +1511,9 @@ export function App() {
               ? "Receive files, secured end-to-end."
               : workspaceMode === "ssh"
                 ? "Join a terminal, secured end-to-end."
-                : "Send files, secured end-to-end."}
+                : workspaceMode === "tunnel"
+                  ? "Open a web app, secured end-to-end."
+                  : "Send files, secured end-to-end."}
           </h1>
         </div>
       </header>
@@ -2179,6 +2192,12 @@ export function App() {
             theme={theme}
             onActiveChange={setSSHActive}
           />
+        </Suspense>
+      )}
+
+      {!receiveOnly && workspaceMode === "tunnel" && (
+        <Suspense fallback={<article className="panel">Loading encrypted tunnel…</article>}>
+          <TunnelPanel key={sshInvitation} initialCode={sshInvitation} settings={settings} onActiveChange={setSSHActive} />
         </Suspense>
       )}
 

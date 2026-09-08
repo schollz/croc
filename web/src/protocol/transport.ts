@@ -154,6 +154,16 @@ export class CrocSocket {
     }
   }
 
+  // Let the WASM tunnel client own framing from this point onward, including
+  // any partially received relay keepalive. No bytes may be dropped.
+  useRawStream() {
+    if (this.mode !== "framed" || this.readers.length) throw new Error("Relay is not ready for raw mode");
+    this.mode = "raw";
+    for (const message of this.messages.splice(0)) this.deliverRaw(encodeFrame(message));
+    const remainder = this.decoder.takeBuffered();
+    if (remainder.byteLength) this.deliverRaw(remainder);
+  }
+
   prepareRawHandoff() {
     if (this.mode !== "framed") {
       throw new Error("Relay raw-stream handoff was already started");

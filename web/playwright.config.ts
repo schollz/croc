@@ -49,6 +49,7 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${vitePort}`,
     acceptDownloads: true,
+    launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH },
     trace: "retain-on-failure",
   },
   webServer: {

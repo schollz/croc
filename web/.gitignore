@@ -14,3 +14,5 @@ public/croc.wasm
 public/croc-ssh.wasm
 public/wasm_exec.js
 *.tsbuildinfo
+
+/public/croc-tunnel.wasm

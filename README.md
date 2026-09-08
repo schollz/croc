@@ -247,6 +247,43 @@ See the
 [SSH sharing design and security guide](src/docs/SSH_SHARING.md) for protocol,
 reconnection, platform, relay, and threat-model details.
 
+### Share a local port with `croc tunnel`
+
+With a web server already running locally, start sharing its port:
+
+```bash
+croc tunnel 5173
+```
+
+Croc prints a six-word invitation, a CLI join command, and a browser link to
+`https://getcroc.com/#tunnel?code=…`. Keep the host command running while guests
+use the service. Ctrl-C ends the tunnel; it expires after 12 hours by default
+(`--duration 1h` changes this).
+
+A guest with croc can forward the service to their own loopback interface:
+
+```bash
+CROC_SECRET='six-word-invitation' croc tunnel
+# Or choose a different local port:
+CROC_SECRET='six-word-invitation' croc tunnel --local-port 8080
+```
+
+Then open `http://localhost:5173`, or `http://localhost:8080` with the override.
+CLI forwarding carries TCP, including HTTPS. Browser guests open the printed
+link and view an isolated HTTP preview without installing croc. The preview
+supports single-origin Vite apps, modules, assets, API requests, WebSockets,
+links, and forms. Vite updates refresh the preview. Apps requiring cookie login,
+browser storage, workers, or full browser URL/history behavior should use CLI
+forwarding.
+
+The invitation grants access to the entire shared service until the host stops
+or expires. All traffic uses an encrypted stream through a croc relay; no inbound
+port or public IP is required. The browser frontend must include tunnel support.
+For a self-hosted frontend, set `--web-url https://your-croc.example/` and configure
+it for the same relay as the host.
+
+See the [tunnel guide](src/docs/TUNNEL.md) for protocol and compatibility details.
+
 ### Customizations & Options
 
 #### Encrypted temporary storage

@@ -17,6 +17,12 @@ export function encodeFrame(payload: Uint8Array) {
 export class FrameDecoder {
   private buffer: Uint8Array<ArrayBufferLike> = new Uint8Array();
 
+  takeBuffered() {
+    const bytes = this.buffer;
+    this.buffer = new Uint8Array();
+    return bytes;
+  }
+
   push(chunk: Uint8Array) {
     this.buffer =
       this.buffer.byteLength === 0 ? chunk : concatBytes(this.buffer, chunk);

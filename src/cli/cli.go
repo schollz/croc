@@ -55,7 +55,7 @@ func newApp() *cli.App {
 	app.Name = "croc"
 	app.Version = Version
 	app.Compiled = time.Now()
-	app.Usage = "securely transfer files or share a terminal"
+	app.Usage = "securely transfer files, share a terminal, or tunnel a local port"
 	app.UsageText = `croc [GLOBAL OPTIONS] [COMMAND] [COMMAND OPTIONS] [filename(s) or folder]
 
    USAGE EXAMPLES:
@@ -81,7 +81,10 @@ func newApp() *cli.App {
       croc ssh
 
    Join a shared terminal:
-      CROC_SECRET=six-word-invitation croc ssh`
+      CROC_SECRET=six-word-invitation croc ssh
+
+   Share a local web server:
+      croc tunnel 5173`
 	app.Commands = []*cli.Command{
 		{
 			Name:        "send",
@@ -127,6 +130,19 @@ func newApp() *cli.App {
 			},
 			HelpName: "croc ssh",
 			Action:   sshSession,
+		},
+		{
+			Name:        "tunnel",
+			Usage:       "share a local port or join an encrypted tunnel",
+			Description: "host with a local port; join using CROC_SECRET or an invitation prompt",
+			ArgsUsage:   "[port | six-word-code]",
+			Flags: []cli.Flag{
+				&cli.IntFlag{Name: "local-port", Usage: "guest loopback port (defaults to the shared port)"},
+				&cli.DurationFlag{Name: "duration", Value: 12 * time.Hour, Usage: "maximum hosted tunnel lifetime"},
+				&cli.StringFlag{Name: "web-url", Value: "https://getcroc.com", Usage: "croc website used for browser invitations"},
+			},
+			HelpName: "croc tunnel",
+			Action:   tunnelSession,
 		},
 		{
 			Name:        "update",

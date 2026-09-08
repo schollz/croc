@@ -57,6 +57,7 @@ func main() {
 	b.expose(api, "hashFinal", b.hashFinal)
 	b.expose(api, "codeComponents", b.codeComponents)
 	b.expose(api, "sshCodeComponents", b.sshCodeComponents)
+	b.expose(api, "tunnelCodeComponents", b.tunnelCodeComponents)
 	b.expose(api, "relayIndex", b.relayIndex)
 	b.expose(api, "sha256Init", b.sha256Init)
 	b.expose(api, "sha256Update", b.sha256Update)
@@ -500,6 +501,20 @@ func (b *bridge) sshCodeComponents(args []js.Value) (any, error) {
 		return nil, fmt.Errorf("sshCodeComponents expects an SSH invitation")
 	}
 	components, err := codephrase.ParseSSH(args[0].String())
+	if err != nil {
+		return nil, err
+	}
+	result := js.Global().Get("Object").New()
+	result.Set("room", components.RoomName)
+	result.Set("passphrase", components.PAKEPassphrase)
+	return result, nil
+}
+
+func (b *bridge) tunnelCodeComponents(args []js.Value) (any, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("tunnelCodeComponents expects a tunnel invitation")
+	}
+	components, err := codephrase.ParseTunnel(args[0].String())
 	if err != nil {
 		return nil, err
 	}

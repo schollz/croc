@@ -238,6 +238,10 @@ export class CrocWasm {
     return this.call<SSHCodeComponents>("sshCodeComponents", [secret]);
   }
 
+  tunnelCodeComponents(secret: string) {
+    return this.call<SSHCodeComponents>("tunnelCodeComponents", [secret]);
+  }
+
   relayIndex(secret: string, relayCount: number) {
     return this.call<number>("relayIndex", [secret, relayCount]);
   }

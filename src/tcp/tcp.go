@@ -394,6 +394,9 @@ var weakKey = []byte{1, 2, 3}
 // configured per-source or per-room admission policy.
 var ErrAdmissionLimited = errors.New("relay admission rate limited")
 
+// ErrRoomFull means a paired room has not yet been released.
+var ErrRoomFull = errors.New("relay room full")
+
 func (s *server) clientHandshake(c *comm.Comm, deadline time.Time) (result handshakeResult, err error) {
 	send := func(message []byte) error {
 		if err := c.Connection().SetWriteDeadline(deadline); err != nil {
@@ -886,7 +889,7 @@ func ConnectToTCPServerWithCapabilityContext(ctx context.Context, address, passw
 				}
 				if err == nil && bytes.Equal(confirmation, []byte("room full")) {
 					c.Close()
-					return nil, "", "", false, errors.New("relay room full")
+					return nil, "", "", false, ErrRoomFull
 				}
 			}
 			stopClose()
@@ -1018,6 +1021,8 @@ func HandshakeTCPServerCapability(c *comm.Comm, password, room string) (banner s
 	if !bytes.Equal(data, []byte("ok")) {
 		if bytes.Equal(data, []byte("rate limited")) {
 			err = ErrAdmissionLimited
+		} else if bytes.Equal(data, []byte("room full")) {
+			err = ErrRoomFull
 		} else {
 			err = fmt.Errorf("relay admission rejected")
 		}
