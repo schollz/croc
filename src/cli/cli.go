@@ -102,7 +102,7 @@ func newApp() *cli.App {
 				&cli.BoolFlag{Name: "qrcode", Aliases: []string{"qr"}, Usage: "show the web receive URL as a qrcode"},
 				&cli.StringFlag{Name: "exclude", Value: "", Usage: "exclude files if they contain any of the comma separated strings"},
 				&cli.StringFlag{Name: "exclude-file", Value: "", Usage: "exclude files matching any of the comma separated relative paths exactly"},
-				&cli.StringFlag{Name: "socks5", Value: "", Usage: "add a socks5 proxy", EnvVars: []string{"SOCKS5_PROXY"}},
+				&cli.StringFlag{Name: "socks5", Value: "", Usage: "SOCKS5 proxy address (relay DNS is resolved by the proxy)", EnvVars: []string{"SOCKS5_PROXY"}},
 				&cli.StringFlag{Name: "connect", Value: "", Usage: "add a http proxy", EnvVars: []string{"HTTP_PROXY"}},
 				&cli.BoolFlag{Name: "store", Usage: "upload encrypted files for a finite lifetime or a limited number of verified downloads"},
 				&cli.IntFlag{Name: "store-downloads", Value: 1, Usage: "number of verified downloads allowed in stored mode"},
@@ -199,7 +199,7 @@ func newApp() *cli.App {
 		&cli.StringFlag{Name: "relay6", Value: models.DEFAULT_RELAY6, Usage: "ipv6 address of the relay", EnvVars: []string{"CROC_RELAY6"}},
 		&cli.StringFlag{Name: "out", Value: ".", Usage: "specify an output folder to receive the file"},
 		&cli.StringFlag{Name: "pass", Value: models.DEFAULT_PASSPHRASE, Usage: "password for the relay", EnvVars: []string{"CROC_PASS"}},
-		&cli.StringFlag{Name: "socks5", Value: "", Usage: "add a socks5 proxy", EnvVars: []string{"SOCKS5_PROXY"}},
+		&cli.StringFlag{Name: "socks5", Value: "", Usage: "SOCKS5 proxy address (relay DNS is resolved by the proxy)", EnvVars: []string{"SOCKS5_PROXY"}},
 		&cli.StringFlag{Name: "connect", Value: "", Usage: "add a http proxy", EnvVars: []string{"HTTP_PROXY"}},
 		&cli.StringFlag{Name: "throttleUpload", Value: "", Usage: "throttle the upload speed e.g. 500k"},
 	}

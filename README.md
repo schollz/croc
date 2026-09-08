@@ -402,6 +402,17 @@ You can send files via a proxy by adding `--socks5`:
 croc --socks5 "127.0.0.1:9050" send SOMEFILE
 ```
 
+Relay hostnames are resolved by the proxy, so the client does not need a
+working DNS server to reach the relay. Bare `host:port`, `socks5://host:port`,
+and `socks5h://host:port` all use proxy-side relay DNS. Use an IP address for
+the proxy itself when local DNS is unavailable. Set `--socks5` on both peers
+(or use the `SOCKS5_PROXY` environment variable).
+
+For a network that only permits proxy traffic, use `--transport relay` on the
+sender to use the SOCKS5-capable relay transport for file data. The browser
+client uses the browser's proxy settings for its WebSocket gateway connection;
+the native CLI flag does not configure the browser.
+
 <p align="center">
   <strong>Sponsored by <a href="https://sx.org/en/proxy/">SX.org</a>.</strong>
 </p>

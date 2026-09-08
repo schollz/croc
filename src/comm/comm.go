@@ -15,6 +15,7 @@ import (
 
 	"github.com/magisterquis/connectproxy"
 	log "github.com/schollz/croc/v11/src/logger"
+	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/utils"
 	"golang.org/x/net/proxy"
 )
@@ -108,7 +109,11 @@ func NewConnectionContext(ctx context.Context, address string, timelimit ...time
 
 	} else {
 		log.Debugf("dialing to %s with timelimit %s", address, tlimit)
-		connection, err = (&net.Dialer{}).DialContext(dialCtx, "tcp", address)
+		var directAddress string
+		directAddress, err = models.ResolveRelayAddress(dialCtx, address)
+		if err == nil {
+			connection, err = (&net.Dialer{}).DialContext(dialCtx, "tcp", directAddress)
+		}
 	}
 	if err != nil {
 		err = fmt.Errorf("comm.NewConnection failed: %w", err)
