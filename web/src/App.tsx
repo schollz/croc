@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { FaGithub } from "react-icons/fa";
+import crocIllustration from "./assets/croc.jpg?inline";
 import { driver, type DriveStep, type Driver } from "driver.js";
 import {
   trackTransferEvent,
@@ -1485,7 +1486,7 @@ export function App() {
         <a className="brand-link" href="/" aria-label="Go to croc home">
           <img
             className="brand-illustration"
-            src="/croc.jpg"
+            src={crocIllustration}
             width="408"
             height="196"
             alt="Hand-drawn green crocodile floating in blue water"

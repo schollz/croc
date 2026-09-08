@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useState } from "react";
+import crocIllustration from "./assets/croc.jpg?inline";
 import {
   ArrowLeft,
   ArrowRight,
@@ -392,7 +393,7 @@ function BlogHeader() {
       <div className="blog-site-header-inner">
         <a className="blog-brand" href="/blog" aria-label="croc field notes home">
           <img
-            src="/croc.jpg"
+            src={crocIllustration}
             width="408"
             height="196"
             alt=""
