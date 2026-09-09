@@ -701,8 +701,12 @@ func send(c *cli.Context) (err error) {
 	publicRelayMode := usesPublicRelay(c, crocOptions)
 
 	var fnames []string
-	stat, _ := os.Stdin.Stat()
-	if ((stat.Mode() & os.ModeCharDevice) == 0) && !c.Bool("ignore-stdin") {
+	stdinIsPipe := false
+	if !c.Bool("ignore-stdin") && os.Stdin != nil {
+		stat, statErr := os.Stdin.Stat()
+		stdinIsPipe = statErr == nil && stat != nil && (stat.Mode()&os.ModeCharDevice) == 0
+	}
+	if stdinIsPipe {
 		fnames, err = getStdinContext(c.Context)
 		if err != nil {
 			return

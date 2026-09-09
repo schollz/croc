@@ -65,6 +65,32 @@ func TestCopyStdinContextCancelsAndRemovesTemporaryFile(t *testing.T) {
 	require.Empty(t, matches, "canceled stdin copy left a temporary file")
 }
 
+func TestSendHandlesUnavailableStdin(t *testing.T) {
+	stdin, err := os.CreateTemp(t.TempDir(), "closed-stdin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stdin.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if stat, err := stdin.Stat(); err == nil || stat != nil {
+		t.Fatalf("closed stdin Stat() = (%v, %v), want (nil, error)", stat, err)
+	}
+
+	oldStdin := os.Stdin
+	os.Stdin = stdin
+	t.Cleanup(func() { os.Stdin = oldStdin })
+	t.Setenv("CROC_DO_CHECK", "0")
+
+	for _, args := range [][]string{
+		{"croc", "send"},
+		{"croc", "--ignore-stdin", "send"},
+	} {
+		err := newApp().Run(args)
+		require.EqualError(t, err, "must specify file: croc send [filename(s) or folder]")
+	}
+}
+
 func TestRelayMaxRoomsOpenConfiguration(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		unsetEnv(t, "CROC_MAX_ROOMS_OPEN")
