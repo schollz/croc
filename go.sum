@@ -232,8 +232,8 @@ github.com/tc-hib/winres v0.2.1/go.mod h1:C/JaNhH3KBvhNKVbvdlDWkbMDO9H4fKKDaN7/0
 github.com/tscholl2/siec v0.0.0-20240310163802-c2c6f6198406 h1:sDWDZkwYqX0jvLWstKzFwh+pYhQNaVg65BgSkCP/f7U=
 github.com/tscholl2/siec v0.0.0-20240310163802-c2c6f6198406/go.mod h1:KL9+ubr1JZdaKjgAaHr+tCytEncXBa1pR6FjbTsOJnw=
 github.com/twmb/murmur3 v1.1.5/go.mod h1:Qq/R7NUyOfr65zD+6Q5IHKsJLwP7exErjN6lyyq3OSQ=
-github.com/twmb/murmur3 v1.1.8 h1:8Yt9taO/WN3l08xErzjeschgZU2QSrwm1kclYq+0aRg=
-github.com/twmb/murmur3 v1.1.8/go.mod h1:Qq/R7NUyOfr65zD+6Q5IHKsJLwP7exErjN6lyyq3OSQ=
+github.com/twmb/murmur3 v1.2.0 h1:S6p/KHqoqsLveELUoKh6zSm/Kwwgl1pStVBgrrLa5UA=
+github.com/twmb/murmur3 v1.2.0/go.mod h1:LVqs/avIy0flspVtmBd4VSbogDepFl6Wkj0i0ToccHE=
 github.com/u-root/gobusybox/src v0.0.0-20240225013946-a274a8d5d83a h1:eg5FkNoQp76ZsswyGZ+TjYqA/rhKefxK8BW7XOlQsxo=
 github.com/u-root/gobusybox/src v0.0.0-20240225013946-a274a8d5d83a/go.mod h1:e/8TmrdreH0sZOw2DFKBaUV7bvDWRq6SeM9PzkuVM68=
 github.com/u-root/u-root v0.14.0 h1:Ka4T10EEML7dQ5XDvO9c3MBN8z4nuSnGjcd1jmU2ivg=
