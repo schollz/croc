@@ -3,6 +3,7 @@ package storecrypto
 import (
 	"bytes"
 	"crypto/sha256"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -125,4 +126,22 @@ func TestValidateManifestRejectsUnsafeMetadata(t *testing.T) {
 	manifest := testManifest()
 	manifest.Files[0].FirstChunk = 4
 	assert.ErrorContains(t, ValidateManifest(manifest, 1024), "invalid chunk map")
+}
+
+func TestValidateChunkRefRejectsOutOfRangeIndex(t *testing.T) {
+    cases := []struct {
+        name string
+        ref  ChunkRef
+    }{
+        {"ObjectIndex too large", ChunkRef{ObjectIndex: math.MaxUint32 + 1, PlainSize: 4}},
+        {"FileIndex too large", ChunkRef{FileIndex: math.MaxUint32 + 1, PlainSize: 4}},
+        {"FileChunk too large", ChunkRef{FileChunk: math.MaxUint32 + 1, PlainSize: 4}},
+    }
+    for _, tc := range cases {
+        t.Run(tc.name, func(t *testing.T) {
+            if err := validateChunkRef(tc.ref, 4); err == nil {
+                t.Fatalf("expected out-of-range index to be rejected")
+            }
+        })
+    }
 }
