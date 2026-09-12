@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/url"
 	"path"
 	"strings"
@@ -348,6 +349,9 @@ func (c *ChunkCipher) OpenInPlace(id string, ref ChunkRef, ciphertext []byte) ([
 func validateChunkRef(ref ChunkRef, plaintextLength int) error {
 	if ref.ObjectIndex < 0 || ref.FileIndex < 0 || ref.FileChunk < 0 {
 		return errors.New("stored-transfer chunk index cannot be negative")
+	}
+	if int64(ref.ObjectIndex) > math.MaxUint32 || int64(ref.FileIndex) > math.MaxUint32 || int64(ref.FileChunk) > math.MaxUint32 {
+		return errors.New("stored-transfer chunk index cannot be larger than 2^32-1")
 	}
 	if ref.PlainSize < 1 || ref.PlainSize > ChunkSize || plaintextLength != ref.PlainSize {
 		return errors.New("stored-transfer chunk has an invalid plaintext length")
