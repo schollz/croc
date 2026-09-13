@@ -41,6 +41,12 @@ type receiverRelayAttempt struct {
 }
 
 func raceRelayTCP(ctx context.Context, addresses []string, timeout, stagger time.Duration) (*comm.Comm, string, error) {
+	return raceRelayTCPWithDialer(ctx, addresses, timeout, stagger, func(ctx context.Context, address string, timeout time.Duration) (*comm.Comm, error) {
+		return comm.NewConnectionContext(ctx, address, timeout)
+	})
+}
+
+func raceRelayTCPWithDialer(ctx context.Context, addresses []string, timeout, stagger time.Duration, dial func(context.Context, string, time.Duration) (*comm.Comm, error)) (*comm.Comm, string, error) {
 	unique := make([]string, 0, len(addresses))
 	for _, address := range addresses {
 		address = normalizeRelayAddress(address)
@@ -71,7 +77,7 @@ func raceRelayTCP(ctx context.Context, addresses []string, timeout, stagger time
 					return
 				}
 			}
-			connection, err := comm.NewConnectionContext(ctx, address, timeout)
+			connection, err := dial(ctx, address, timeout)
 			result := rawRelayDialResult{connection: connection, address: address, err: err}
 			select {
 			case results <- result:
