@@ -501,7 +501,7 @@ jobs:
           RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y rpm cpio qemu-user zsh fish
+          sudo apt-get install -y rpm rpm2cpio qemu-user zsh fish
           python3 packaging/verify.py --version "${RELEASE_TAG}" --artifacts dist
       - name: Upload Linux packages
         uses: actions/upload-artifact@v7

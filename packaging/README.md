@@ -56,7 +56,8 @@ nFPM is pinned in `nfpm-version`, and the script checks the tool's build metadat
 Fish completion comes from the native executable even when packaging foreign
 architectures. Output files appear atomically once complete.
 
-On Linux, install `python3 rpm cpio qemu-user binutils bash zsh fish`, then run:
+On Ubuntu, install `python3 rpm rpm2cpio qemu-user binutils bash zsh fish`
+(`rpm2cpio` supplies the `rpm2archive` command), then run:
 
 ```sh
 python3 packaging/verify.py --version "$VERSION" --artifacts tmp/linux-builds
@@ -69,6 +70,13 @@ packages, and transfers data around all six architectures through a local relay.
 ARMv5 executes with `qemu-arm -cpu arm926`. A directory transfer is also checked.
 The existing `TestReconnectResumesControlDrop` and `TestReconnectResumesDataDrop`
 tests cover interrupted transfers and resumed data integrity.
+
+RPM verification checks header and payload digests with `rpm -K --nosignature`
+before extracting with `rpm2archive`. The packages are unsigned. This extractor
+avoids the [rpmpack archive-size mismatch](https://github.com/google/rpmpack/issues/60)
+that makes RPM 4.18's `rpm2cpio` exit with an error after copying the payload.
+Both package formats undergo the same TAR file, ownership and permission checks
+before extraction; links, duplicate files and unexpected paths are rejected.
 
 `lifecycle.sh` runs only in a disposable root container. It installs, upgrades,
 removes, reinstalls, and removes the package; tests update protection; and checks

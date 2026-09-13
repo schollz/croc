@@ -28,6 +28,7 @@ the documented package-update and completion backports.
 |---|---|---|
 | Six Linux static builds | Passed: amd64, 386, ARMv7, ARMv5, arm64, riscv64. CGO disabled with netgo/osusergo. | `tmp/linux-builds/` |
 | Twelve DEB/RPM inspections | Passed: exact names, versions/revision, architectures, root ownership, modes, dependencies, notices, manual, shell syntax, file lists, absent scripts/services and static ELF. Each package binary matched its Linux archive. | `tmp/package-verification-final.log` |
+| Ubuntu 24.04 RPM extractor compatibility | Reproduced the RPM 4.18.2 `rpm2cpio` archive-size failure from the first CI run. With digest verification and `rpm2archive`, all twelve existing package fixtures passed inspection/execution and all six architecture transfers plus the directory transfer passed. A corrupted RPM was rejected by the digest check before extraction. | `tmp/rpm-compat-verification.log`; [initial CI failure](https://github.com/schollz/croc/actions/runs/34777074801/job/103777037362) |
 | Six-target execution | Version/help passed for both formats. Foreign targets used QEMU; ARMv5 explicitly used `qemu-arm -cpu arm926`. | Same log |
 | Cross-package transfers | Six local-relay transfers around the architecture ring passed SHA-256 comparison. RPM-to-DEB directory transfer with nested and spaced names also passed. | Same log |
 | Package lifecycle | Passed on all nine listed Debian/Ubuntu/Fedora/openSUSE arm64 combinations and eight amd64 combinations. Ubuntu 26.04 amd64 is blocked by emulated tar extraction; the same failure reproduces on a tiny unrelated archive. Stale standalone registration did not allow replacement; registration itself was rejected; user config survived removal. Debian used a lower-revision fixture; Fedora used the actual old repository package. | `tmp/lifecycle-*.log`, `tmp/ubuntu26-rosetta-tar.log` |
@@ -39,13 +40,15 @@ the documented package-update and completion backports.
 | Offline source | Two archives of stamped base commit `6ff8cd6f` built with an empty module cache, GOTOOLCHAIN=local and proxy/sumdb disabled. Tagged go.mod/go.sum preserved; no Git directory. Archives were byte-identical. This validates the source preparer against committed source, not an uncommitted source release. | `tmp/source-check/normalized*.tar.gz` |
 | Source reproducibility hash | Both normalized archives: `073b4ccc50ebe00ac6557a9aa52bc5347ae351ef33536d4d509a340599f46b56`. | Same archives |
 | Exact 34-asset boundary | Passed names and checksums using new Linux archives/packages plus downloaded published non-Linux/web/source fixtures. No claim that all platforms were rebuilt or signed locally. | `tmp/release-dry-run/` |
-| Release regression tests | Five Python tests passed, including missing/extra assets, corruption, unsafe binary entries and remote draft requirements. | `python3 -m unittest discover -s packaging -v` |
+| Release regression tests | Nine Python tests passed on macOS and Ubuntu 24.04, including missing/extra assets, corruption, unsafe binary entries, remote draft requirements, and package payload paths, links, duplicates, completeness, ownership and permissions. | `python3 -m unittest discover -s packaging -v` |
 | Workflow/shell/manual checks | actionlint passed all three changed/new workflows; shell syntax and groff manual rendering passed; Bash registration and Zsh autoload names checked. | `tmp/completion-tests.log` |
 | Upstream DEB lint | Lintian reports expected `statically-linked-binary` for the required static payload and `initial-upload-closes-no-bugs` because no ITP has been filed. These were not suppressed or claimed as a clean official Debian package. | `tmp/lintian.log` |
 
 The reusable CI lifecycle matrix targets amd64. Eight matrix cases passed locally
-under emulation; Ubuntu 26.04 needs native execution. The workflow has not run
-remotely because the changes have not been pushed or dispatched. Containers share their host
+under emulation; Ubuntu 26.04 needs native execution. The first remote package
+workflow built all binaries and packages but failed in RPM extraction before
+the lifecycle matrix. The compatibility fix is locally verified as recorded above;
+remote lifecycle results remain pending. Containers share their host
 kernel; these checks do not validate every supported historical kernel, every
 distro architecture, native NixOS VMs, Windows signing, or downstream acceptance.
 

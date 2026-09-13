@@ -38,7 +38,7 @@ jobs:
         run: |
           go install "github.com/goreleaser/nfpm/v2/cmd/nfpm@$(cat packaging/nfpm-version)"
           sudo apt-get update
-          sudo apt-get install -y rpm cpio qemu-user zsh fish
+          sudo apt-get install -y rpm rpm2cpio qemu-user zsh fish
       - name: Package and exercise every target
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}

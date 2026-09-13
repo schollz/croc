@@ -4,7 +4,7 @@ import argparse
 import gzip
 import io
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import platform
 import shutil
 import socket
@@ -24,6 +24,7 @@ FILES = {
     "usr/share/man/man1/croc.1.gz", "usr/share/bash-completion/completions/croc",
     "usr/share/zsh/site-functions/_croc", "usr/share/fish/vendor_completions.d/croc.fish",
 }
+DIRECTORIES = {str(parent) for name in FILES for parent in PurePosixPath(name).parents}
 
 
 def require(condition, message):
@@ -33,6 +34,24 @@ def require(condition, message):
 
 def command(*args, **kwargs):
     return subprocess.check_output(args, timeout=120, text=True, **kwargs).strip()
+
+
+def extract_payload(payload, path, destination):
+    with tarfile.open(fileobj=io.BytesIO(payload)) as archive:
+        actual = set()
+        for member in archive:
+            name = member.name.removeprefix("./").rstrip("/") or "."
+            require(member.uid == member.gid == 0, f"{path}: non-root owner: {name}")
+            if member.isdir():
+                require(name in DIRECTORIES, f"{path}: unexpected directory: {name}")
+                require(member.mode == 0o755, f"{path}: directory permissions: {name}")
+                continue
+            require(member.isfile() and name in FILES, f"{path}: unexpected file: {name}")
+            require(name not in actual, f"{path}: duplicate file: {name}")
+            require(member.mode == (0o755 if name == "usr/bin/croc" else 0o644), f"{path}: permissions: {name}")
+            actual.add(name)
+        require(actual == FILES, f"{path}: incomplete payload: {FILES-actual}")
+        archive.extractall(destination, filter="data")
 
 
 def inspect_package(path, target, v, destination):
@@ -45,20 +64,8 @@ def inspect_package(path, target, v, destination):
             require(all(m.name.removeprefix("./") in ("", "control", "md5sums", "conffiles") for m in archive),
                     f"{path}: unexpected maintainer script")
         payload = subprocess.check_output(["dpkg-deb", "--fsys-tarfile", str(path)])
-        with tarfile.open(fileobj=io.BytesIO(payload)) as archive:
-            actual = set()
-            for member in archive:
-                name = member.name.removeprefix("./").rstrip("/")
-                require(member.uid == member.gid == 0, f"{path}: non-root owner: {name}")
-                if member.isdir():
-                    require(member.mode == 0o755, f"{path}: directory permissions: {name}")
-                    continue
-                require(member.isfile() and name in FILES, f"{path}: unexpected file: {name}")
-                require(member.mode == (0o755 if name == "usr/bin/croc" else 0o644), f"{path}: permissions: {name}")
-                actual.add(name)
-            require(actual == FILES, f"{path}: incomplete payload: {FILES-actual}")
-        subprocess.run(["dpkg-deb", "-x", str(path), str(destination)], check=True)
     else:
+        command("rpm", "-K", "--nosignature", str(path))
         metadata = command("rpm", "-qp", "--qf", "%{NAME}\n%{VERSION}\n%{RELEASE}\n%{ARCH}\n%{LICENSE}", str(path))
         require(metadata.splitlines() == ["croc", v, "1", target["rpm"], "MIT"], f"{path}: {metadata}")
         require("ca-certificates" in command("rpm", "-qp", "--requires", str(path)).splitlines(), f"{path}: no CA dependency")
@@ -77,9 +84,9 @@ def inspect_package(path, target, v, destination):
             require(stat.S_IMODE(mode) == (0o755 if name == "usr/bin/croc" else 0o644), f"{path}: permissions: {name}")
             actual.add(name)
         require(actual == FILES, f"{path}: incomplete payload: {FILES-actual}")
-        destination.mkdir()
-        payload = subprocess.check_output(["rpm2cpio", str(path)])
-        subprocess.run(["cpio", "-id", "--quiet", "--no-absolute-filenames"], input=payload, cwd=destination, check=True)
+        with path.open("rb") as package:
+            payload = subprocess.check_output(["rpm2archive", "-n", "-"], stdin=package, timeout=120)
+    extract_payload(payload, path, destination)
     binary = destination / "usr/bin/croc"
     require("INTERP" not in command("readelf", "-l", str(binary)), f"{path}: not static")
     docs = destination / "usr/share/doc/croc"
