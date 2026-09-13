@@ -289,10 +289,14 @@ func shellQuote(value string) string {
 }
 
 func applyStandaloneUpdate(ctx context.Context, target, version string, client *http.Client) error {
+	return applyStandaloneUpdateWithAssetName(ctx, target, version, client, updateAssetName)
+}
+
+func applyStandaloneUpdateWithAssetName(ctx context.Context, target, version string, client *http.Client, assetName func(string) (string, error)) error {
 	if packageManagedLocation(target) {
 		return errors.New("refusing to replace a package-managed executable")
 	}
-	asset, err := updateAssetName(version)
+	asset, err := assetName(version)
 	if err != nil {
 		return err
 	}
@@ -459,6 +463,20 @@ func extractUpdateBinary(asset string, archive []byte, destination io.Writer) er
 }
 
 func updateAssetName(version string) (string, error) {
+	var goarm string
+	if runtime.GOARCH == "arm" {
+		if buildInfo, ok := debug.ReadBuildInfo(); ok {
+			for _, setting := range buildInfo.Settings {
+				if setting.Key == "GOARM" {
+					goarm = setting.Value
+				}
+			}
+		}
+	}
+	return updateAssetNameForPlatform(version, runtime.GOOS, runtime.GOARCH, goarm)
+}
+
+func updateAssetNameForPlatform(version, goos, goarch, goarm string) (string, error) {
 	if parsed, ok := parseReleaseVersion(version); !ok || parsed.String() != version {
 		return "", fmt.Errorf("invalid croc update version %q", version)
 	}
@@ -471,27 +489,23 @@ func updateAssetName(version string) (string, error) {
 		"netbsd":    {"386": true, "amd64": true, "arm64": true},
 		"openbsd":   {"amd64": true, "arm64": true},
 	}
-	if !supported[runtime.GOOS][runtime.GOARCH] {
-		return "", fmt.Errorf("croc releases do not contain an update for %s/%s", runtime.GOOS, runtime.GOARCH)
+	if !supported[goos][goarch] {
+		return "", fmt.Errorf("croc releases do not contain an update for %s/%s", goos, goarch)
 	}
 	arch := map[string]string{
 		"amd64":   "64bit",
 		"386":     "32bit",
 		"arm64":   "ARM64",
 		"riscv64": "RISCV64",
-	}[runtime.GOARCH]
-	if runtime.GOARCH == "arm" {
+	}[goarch]
+	if goarch == "arm" {
 		arch = "ARM"
-		if buildInfo, ok := debug.ReadBuildInfo(); ok {
-			for _, setting := range buildInfo.Settings {
-				if setting.Key == "GOARM" && strings.HasPrefix(setting.Value, "5") {
-					arch = "ARMv5"
-				}
-			}
+		if strings.HasPrefix(goarm, "5") {
+			arch = "ARMv5"
 		}
 	}
 	if arch == "" {
-		return "", fmt.Errorf("croc releases do not contain an update for %s/%s", runtime.GOOS, runtime.GOARCH)
+		return "", fmt.Errorf("croc releases do not contain an update for %s/%s", goos, goarch)
 	}
 	osName := map[string]string{
 		"darwin":    "macOS",
@@ -501,12 +515,12 @@ func updateAssetName(version string) (string, error) {
 		"openbsd":   "OpenBSD",
 		"netbsd":    "NetBSD",
 		"dragonfly": "DragonFlyBSD",
-	}[runtime.GOOS]
+	}[goos]
 	if osName == "" {
-		return "", fmt.Errorf("croc releases do not contain an update for %s/%s", runtime.GOOS, runtime.GOARCH)
+		return "", fmt.Errorf("croc releases do not contain an update for %s/%s", goos, goarch)
 	}
 	extension := ".tar.gz"
-	if runtime.GOOS == "windows" {
+	if goos == "windows" {
 		extension = ".zip"
 	}
 	return fmt.Sprintf("croc_v%s_%s-%s%s", version, osName, arch, extension), nil
