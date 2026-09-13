@@ -1,0 +1,5 @@
+croc (11.5.2-1) UNRELEASED; urgency=medium
+
+  * Prepare unbundled source packaging; dependency packaging is still pending.
+
+ -- Zack Scholl <zack.scholl+croc@gmail.com>  Sun, 13 Sep 2026 12:00:00 -0700

@@ -1,0 +1,63 @@
+name: Linux packages
+
+on:
+  pull_request:
+    paths:
+      - 'packaging/**'
+      - 'src/**'
+      - 'internal/**'
+      - 'main.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/*package*'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '^1.27.0'
+      - id: version
+        run: sed -n 's/^const Value = "\(.*\)"$/version=\1/p' src/version/version.go >> "$GITHUB_OUTPUT"
+      - name: Test publication boundaries
+        run: python3 -m unittest discover -s packaging -v
+      - name: Build all six Linux targets
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: python3 packaging/release.py build --version "$RELEASE_VERSION" --output dist
+      - name: Install package tools
+        run: |
+          go install "github.com/goreleaser/nfpm/v2/cmd/nfpm@$(cat packaging/nfpm-version)"
+          sudo apt-get update
+          sudo apt-get install -y rpm rpm2cpio qemu-user zsh fish
+      - name: Package and exercise every target
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 packaging/release.py packages --version "$RELEASE_VERSION" --artifacts dist --native-binary dist/native-croc
+          python3 packaging/verify.py --version "$RELEASE_VERSION" --artifacts dist
+      - name: Verify offline source archive
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: python3 packaging/release.py source --version "$RELEASE_VERSION" --ref HEAD --verify --output dist/source.tar.gz
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-packages
+          path: |
+            dist/*.deb
+            dist/*.rpm
+  lifecycle:
+    needs: build
+    uses: ./.github/workflows/package-lifecycle.yml
+    with:
+      version: ${{ needs.build.outputs.version }}
+      revision: ${{ github.sha }}

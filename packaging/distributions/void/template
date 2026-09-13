@@ -1,0 +1,29 @@
+# Template file for 'croc'
+pkgname=croc
+version=11.5.2
+revision=1
+build_style=go
+go_import_path="github.com/schollz/croc/v${version%%.*}"
+hostmakedepends="go>=1.27"
+depends="ca-certificates"
+short_desc="Easily and securely send things from one computer to another"
+maintainer="Orphaned <orphan@voidlinux.org>"
+license="MIT"
+homepage="https://github.com/schollz/croc"
+distfiles="https://github.com/schollz/croc/archive/refs/tags/v${version}.tar.gz"
+checksum=2ceddb504be8b5912f4a3bfd76dc28bb18afda54191f2bebcf5b0fb24e63f774
+
+post_install() {
+	vlicense LICENSE
+	vdoc THIRD_PARTY_NOTICES.md
+	vdoc src/codephrase/wordlists/LICENSE.txt wordlists-LICENSE.txt
+	vman "${FILESDIR}/croc.1"
+	vcompletion src/install/bash_autocomplete bash croc
+	cp src/install/zsh_autocomplete _croc
+	vcompletion _croc zsh croc
+	# the completion generator must run on the build host when cross compiling.
+	GOOS= GOARCH= GOARM= CGO_ENABLED=0 GOFLAGS= GOTOOLCHAIN=local \
+		go build -buildvcs=false -o croc-completion .
+	./croc-completion generate-fish-completion > croc.fish
+	vcompletion croc.fish fish croc
+}

@@ -1,0 +1,28 @@
+#!/usr/bin/make -f
+export DH_GOLANG_BUILDPKG := github.com/schollz/croc/v11
+export DH_GOLANG_INSTALL_ALL := 1
+export GO111MODULE := off
+export GOTOOLCHAIN := local
+export CGO_ENABLED := 0
+
+%:
+	dh $@ --buildsystem=golang --with=golang
+
+override_dh_auto_build:
+	dh_auto_build -- -trimpath -buildvcs=false -tags=netgo,osusergo
+
+override_dh_auto_install:
+	dh_auto_install -- --no-source
+
+execute_after_dh_auto_install:
+	GOOS= GOARCH= GOARM= GOFLAGS= GOPATH="$(CURDIR)/_build" go build -o debian/croc-completion .
+	CROC_CONFIG_DIR="$(CURDIR)/debian/completion-config" debian/croc-completion generate-fish-completion > debian/croc.fish
+	install -Dm0644 src/install/bash_autocomplete debian/croc/usr/share/bash-completion/completions/croc
+	cp src/install/zsh_autocomplete debian/_croc
+	install -Dm0644 debian/_croc debian/croc/usr/share/zsh/site-functions/_croc
+	install -Dm0644 debian/croc.fish debian/croc/usr/share/fish/vendor_completions.d/croc.fish
+	install -Dm0644 debian/croc.1 debian/croc/usr/share/man/man1/croc.1
+	install -Dm0644 THIRD_PARTY_NOTICES.md debian/croc/usr/share/doc/croc/THIRD_PARTY_NOTICES.md
+	install -Dm0644 src/codephrase/wordlists/LICENSE.txt debian/croc/usr/share/doc/croc/wordlists-LICENSE.txt
+
+override_dh_dwz:

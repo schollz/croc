@@ -1,0 +1,25 @@
+[archive]
+tidy = false
+
+[licensing]
+detector = "askalono"
+[[licensing.licenses]]
+path = "vendor/github.com/go4org/plan9netshell/netshell.go"
+sha256sum = "7a5ef7f27d839c3c7bdeba357864d24556b91cfbc4158dfc66f144351ebb218e"
+expression = "BSD-3-Clause"
+[[licensing.licenses]]
+path = "vendor/github.com/creachadair/msync/LICENSE"
+sha256sum = "1d45f7789b678c742a045d7a6923c2762f667dc2523b9b4c01fe240d24c83083"
+expression = "BSD-3-Clause"
+[[licensing.licenses]]
+path = "vendor/go.yaml.in/yaml/v3/LICENSE"
+sha256sum = "d18f6323b71b0b768bb5e9616e36da390fbd39369a81807cca352de4e4e6aa0b"
+expression = "MIT AND (MIT AND Apache-2.0)"
+[[licensing.licenses]]
+path = "vendor/honnef.co/go/tools/LICENSE-THIRD-PARTY"
+sha256sum = "3e7ed5dc00f1b3518b99284123bfc3e3c65b82c62988c0dcda5c86c13d913f7c"
+expression = "BSD-3-Clause AND MIT"
+[[licensing.licenses]]
+path = "vendor/github.com/twmb/murmur3/LICENSE"
+sha256sum = "4228ef1819124b490d2e6a88e8c5e1348bedf32ff05b8fb5deed49921600e503"
+expression = "BSD-3-Clause"

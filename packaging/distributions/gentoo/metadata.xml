@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+    <maintainer type="person" proxied="yes">
+        <name>Armas Spann</name>
+        <email>zappel@simple-co.de</email>
+    </maintainer>
+    <maintainer type="project" proxied="proxy">
+        <email>proxy-maint@gentoo.org</email>
+        <name>Proxy Maintainers</name>
+    </maintainer>
+    <upstream>
+        <remote-id type="github">schollz/croc</remote-id>
+        <doc>https://schollz.com/docs/software/croc/</doc>
+        <bugs-to>https://github.com/schollz/croc/issues</bugs-to>
+    </upstream>
+</pkgmetadata>

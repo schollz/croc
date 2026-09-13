@@ -1,0 +1,1751 @@
+{
+  "directory": ".",
+  "license_map": {
+    "LICENSE": "MIT",
+    "internal/cli/LICENSE": "MIT",
+    "internal/tailcat/LICENSE": "BSD-3-Clause",
+    "src/codephrase/wordlists/LICENSE.txt": "CC-BY-4.0",
+    "vendor/9fans.net/go/LICENSE": "MIT",
+    "vendor/filippo.io/edwards25519/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/BurntSushi/toml/COPYING": "MIT",
+    "vendor/github.com/akutz/memconn/LICENSE": "Apache-2.0",
+    "vendor/github.com/alexbrainman/sspi/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/anmitsu/go-shlex/LICENSE": "MIT",
+    "vendor/github.com/aws/aws-sdk-go-v2/LICENSE.txt": "Apache-2.0",
+    "vendor/github.com/aws/aws-sdk-go-v2/config/LICENSE.txt": "Apache-2.0",
+    "vendor/github.com/aws/aws-sdk-go-v2/credentials/LICENSE.txt": "Apache-2.0",
+    "vendor/github.com/aws/aws-sdk-go-v2/feature/ec2/imds/LICENSE.txt": "Apache-2.0",
+    "vendor/github.com/aws/aws-sdk-go-v2/internal/configsources/LICENSE.txt": "Apache-2.0",
+    "vendor/github.com/aws/aws-sdk-go-v2/internal/endpoints/v2/LICENSE.txt": "Apache-2.0",
+    "vendor/github.com/aws/aws-sdk-go-v2/internal/sync/singleflight/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/aws/aws-sdk-go-v2/internal/v4a/LICENSE.txt": "Apache-2.0",
+    "vendor/github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding/LICENSE.txt": "Apache-2.0",
+    "vendor/github.com/aws/aws-sdk-go-v2/service/internal/presigned-url/LICENSE.txt": "Apache-2.0",
+    "vendor/github.com/aws/aws-sdk-go-v2/service/signin/LICENSE.txt": "Apache-2.0",
+    "vendor/github.com/aws/aws-sdk-go-v2/service/ssm/LICENSE.txt": "Apache-2.0",
+    "vendor/github.com/aws/aws-sdk-go-v2/service/sso/LICENSE.txt": "Apache-2.0",
+    "vendor/github.com/aws/aws-sdk-go-v2/service/ssooidc/LICENSE.txt": "Apache-2.0",
+    "vendor/github.com/aws/aws-sdk-go-v2/service/sts/LICENSE.txt": "Apache-2.0",
+    "vendor/github.com/aws/smithy-go/LICENSE": "Apache-2.0",
+    "vendor/github.com/aws/smithy-go/internal/sync/singleflight/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/axiomhq/hyperloglog/LICENSE": "MIT",
+    "vendor/github.com/cespare/xxhash/v2/LICENSE.txt": "MIT",
+    "vendor/github.com/coder/websocket/LICENSE.txt": "ISC",
+    "vendor/github.com/coreos/go-iptables/LICENSE": "Apache-2.0",
+    "vendor/github.com/creachadair/msync/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/creack/pty/LICENSE": "MIT",
+    "vendor/github.com/dblohm7/wingoes/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/denisbrodbeck/machineid/LICENSE.md": "MIT",
+    "vendor/github.com/dgryski/go-metro/LICENSE": "MIT",
+    "vendor/github.com/digitalocean/go-smbios/LICENSE.md": "Apache-2.0",
+    "vendor/github.com/djherbis/times/LICENSE": "MIT",
+    "vendor/github.com/fxamacker/cbor/v2/LICENSE": "MIT",
+    "vendor/github.com/gaissmai/bart/LICENSE": "MIT",
+    "vendor/github.com/go-json-experiment/json/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/go-ole/go-ole/LICENSE": "MIT",
+    "vendor/github.com/go4org/hashtriemap/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/go4org/plan9netshell/netshell.go": "BSD-3-Clause",
+    "vendor/github.com/godbus/dbus/v5/LICENSE": "BSD-2-Clause",
+    "vendor/github.com/golang/groupcache/LICENSE": "Apache-2.0",
+    "vendor/github.com/google/btree/LICENSE": "Apache-2.0",
+    "vendor/github.com/google/go-cmp/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/google/go-tpm/LICENSE": "Apache-2.0",
+    "vendor/github.com/google/nftables/LICENSE": "Apache-2.0",
+    "vendor/github.com/google/uuid/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/hdevalence/ed25519consensus/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/huin/goupnp/LICENSE": "BSD-2-Clause",
+    "vendor/github.com/illarion/gonotify/v3/LICENSE": "MIT",
+    "vendor/github.com/insomniacslk/dhcp/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/jellydator/ttlcache/v3/LICENSE": "MIT",
+    "vendor/github.com/jmespath/go-jmespath/LICENSE": "Apache-2.0",
+    "vendor/github.com/jsimonetti/rtnetlink/LICENSE.md": "MIT",
+    "vendor/github.com/kalafut/imohash/LICENSE": "MIT",
+    "vendor/github.com/klauspost/compress/LICENSE": "Apache-2.0",
+    "vendor/github.com/klauspost/compress/internal/snapref/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/klauspost/compress/zstd/internal/xxhash/LICENSE.txt": "MIT",
+    "vendor/github.com/kortschak/wol/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/kr/fs/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/magisterquis/connectproxy/LICENSE": "Zlib",
+    "vendor/github.com/mattn/go-colorable/LICENSE": "MIT",
+    "vendor/github.com/mattn/go-isatty/LICENSE": "MIT",
+    "vendor/github.com/mdlayher/genetlink/LICENSE.md": "MIT",
+    "vendor/github.com/mdlayher/netlink/LICENSE.md": "MIT",
+    "vendor/github.com/mdlayher/sdnotify/LICENSE.md": "MIT",
+    "vendor/github.com/mdlayher/socket/LICENSE.md": "MIT",
+    "vendor/github.com/minio/highwayhash/LICENSE": "Apache-2.0",
+    "vendor/github.com/mitchellh/colorstring/LICENSE": "MIT",
+    "vendor/github.com/mitchellh/go-ps/LICENSE.md": "MIT",
+    "vendor/github.com/pierrec/lz4/v4/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/pires/go-proxyproto/LICENSE": "Apache-2.0",
+    "vendor/github.com/pkg/sftp/LICENSE": "BSD-2-Clause",
+    "vendor/github.com/rivo/uniseg/LICENSE.txt": "MIT",
+    "vendor/github.com/sabhiram/go-gitignore/LICENSE": "MIT",
+    "vendor/github.com/safchain/ethtool/LICENSE": "Apache-2.0",
+    "vendor/github.com/schollz/pake/v3/LICENSE": "MIT",
+    "vendor/github.com/schollz/peerdiscovery/LICENSE": "MIT",
+    "vendor/github.com/schollz/progressbar/v3/LICENSE": "MIT",
+    "vendor/github.com/skip2/go-qrcode/LICENSE": "MIT",
+    "vendor/github.com/stretchr/testify/LICENSE": "MIT",
+    "vendor/github.com/stretchr/testify/internal/difflib/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/stretchr/testify/internal/spew/LICENSE": "ISC",
+    "vendor/github.com/tailscale/certstore/LICENSE.md": "MIT",
+    "vendor/github.com/tailscale/gliderssh/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/tailscale/go-winio/LICENSE": "MIT",
+    "vendor/github.com/tailscale/hujson/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/tailscale/netlink/LICENSE": "Apache-2.0",
+    "vendor/github.com/tailscale/peercred/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/tailscale/web-client-prebuilt/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/tailscale/wf/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/tailscale/wireguard-go/LICENSE": "MIT",
+    "vendor/github.com/tailscale/xnet/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/tscholl2/siec/LICENSE": "MIT",
+    "vendor/github.com/twmb/murmur3/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/u-root/u-root/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/u-root/uio/LICENSE": "BSD-3-Clause",
+    "vendor/github.com/vishvananda/netns/LICENSE": "Apache-2.0",
+    "vendor/github.com/x448/float16/LICENSE": "MIT",
+    "vendor/go.yaml.in/yaml/v3/LICENSE": "MIT AND (MIT AND Apache-2.0)",
+    "vendor/go4.org/mem/LICENSE": "Apache-2.0",
+    "vendor/go4.org/netipx/LICENSE": "BSD-3-Clause",
+    "vendor/golang.org/x/crypto/LICENSE": "BSD-3-Clause",
+    "vendor/golang.org/x/exp/LICENSE": "BSD-3-Clause",
+    "vendor/golang.org/x/exp/typeparams/LICENSE": "BSD-3-Clause",
+    "vendor/golang.org/x/mod/LICENSE": "BSD-3-Clause",
+    "vendor/golang.org/x/net/LICENSE": "BSD-3-Clause",
+    "vendor/golang.org/x/sync/LICENSE": "BSD-3-Clause",
+    "vendor/golang.org/x/sys/LICENSE": "BSD-3-Clause",
+    "vendor/golang.org/x/term/LICENSE": "BSD-3-Clause",
+    "vendor/golang.org/x/text/LICENSE": "BSD-3-Clause",
+    "vendor/golang.org/x/time/LICENSE": "BSD-3-Clause",
+    "vendor/golang.org/x/tools/LICENSE": "BSD-3-Clause",
+    "vendor/golang.zx2c4.com/wintun/LICENSE": "MIT",
+    "vendor/golang.zx2c4.com/wireguard/windows/COPYING": "MIT",
+    "vendor/gvisor.dev/gvisor/LICENSE": "Apache-2.0",
+    "vendor/honnef.co/go/tools/LICENSE": "MIT",
+    "vendor/honnef.co/go/tools/LICENSE-THIRD-PARTY": "BSD-3-Clause AND MIT",
+    "vendor/honnef.co/go/tools/go/ir/LICENSE": "BSD-3-Clause",
+    "vendor/tailscale.com/LICENSE": "BSD-3-Clause"
+  },
+  "undetected_licenses": [],
+  "unmatched_manual_licenses": [],
+  "extra_license_files": [
+    "vendor/github.com/go-json-experiment/json/AUTHORS",
+    "vendor/github.com/tailscale/peercred/AUTHORS",
+    "vendor/github.com/tailscale/wf/AUTHORS",
+    "vendor/github.com/tailscale/xnet/PATENTS",
+    "vendor/github.com/coreos/go-iptables/NOTICE",
+    "vendor/github.com/aws/smithy-go/NOTICE",
+    "vendor/github.com/aws/aws-sdk-go-v2/NOTICE.txt",
+    "vendor/github.com/digitalocean/go-smbios/AUTHORS",
+    "vendor/github.com/u-root/u-root/AUTHORS",
+    "vendor/golang.org/x/exp/PATENTS",
+    "vendor/golang.org/x/mod/PATENTS",
+    "vendor/golang.org/x/net/PATENTS",
+    "vendor/golang.org/x/term/PATENTS",
+    "vendor/golang.org/x/time/PATENTS",
+    "vendor/golang.org/x/sync/PATENTS",
+    "vendor/golang.org/x/tools/PATENTS",
+    "vendor/golang.org/x/crypto/PATENTS",
+    "vendor/golang.org/x/text/PATENTS",
+    "vendor/golang.org/x/sys/PATENTS",
+    "vendor/go.yaml.in/yaml/v3/NOTICE",
+    "vendor/gvisor.dev/gvisor/AUTHORS",
+    "vendor/tailscale.com/PATENTS",
+    "vendor/go4.org/netipx/AUTHORS"
+  ],
+  "detector_name": "askalono",
+  "license_set": [
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSD-3-Clause AND MIT",
+    "CC-BY-4.0",
+    "ISC",
+    "MIT",
+    "MIT AND (MIT AND Apache-2.0)",
+    "Zlib"
+  ],
+  "license_expression": "Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND CC-BY-4.0 AND ISC AND MIT AND Zlib",
+  "license_file_paths": [
+    "LICENSE",
+    "internal/cli/LICENSE",
+    "internal/tailcat/LICENSE",
+    "src/codephrase/wordlists/LICENSE.txt",
+    "vendor/9fans.net/go/LICENSE",
+    "vendor/filippo.io/edwards25519/LICENSE",
+    "vendor/github.com/BurntSushi/toml/COPYING",
+    "vendor/github.com/akutz/memconn/LICENSE",
+    "vendor/github.com/alexbrainman/sspi/LICENSE",
+    "vendor/github.com/anmitsu/go-shlex/LICENSE",
+    "vendor/github.com/aws/aws-sdk-go-v2/LICENSE.txt",
+    "vendor/github.com/aws/aws-sdk-go-v2/config/LICENSE.txt",
+    "vendor/github.com/aws/aws-sdk-go-v2/credentials/LICENSE.txt",
+    "vendor/github.com/aws/aws-sdk-go-v2/feature/ec2/imds/LICENSE.txt",
+    "vendor/github.com/aws/aws-sdk-go-v2/internal/configsources/LICENSE.txt",
+    "vendor/github.com/aws/aws-sdk-go-v2/internal/endpoints/v2/LICENSE.txt",
+    "vendor/github.com/aws/aws-sdk-go-v2/internal/sync/singleflight/LICENSE",
+    "vendor/github.com/aws/aws-sdk-go-v2/internal/v4a/LICENSE.txt",
+    "vendor/github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding/LICENSE.txt",
+    "vendor/github.com/aws/aws-sdk-go-v2/service/internal/presigned-url/LICENSE.txt",
+    "vendor/github.com/aws/aws-sdk-go-v2/service/signin/LICENSE.txt",
+    "vendor/github.com/aws/aws-sdk-go-v2/service/ssm/LICENSE.txt",
+    "vendor/github.com/aws/aws-sdk-go-v2/service/sso/LICENSE.txt",
+    "vendor/github.com/aws/aws-sdk-go-v2/service/ssooidc/LICENSE.txt",
+    "vendor/github.com/aws/aws-sdk-go-v2/service/sts/LICENSE.txt",
+    "vendor/github.com/aws/smithy-go/LICENSE",
+    "vendor/github.com/aws/smithy-go/internal/sync/singleflight/LICENSE",
+    "vendor/github.com/axiomhq/hyperloglog/LICENSE",
+    "vendor/github.com/cespare/xxhash/v2/LICENSE.txt",
+    "vendor/github.com/coder/websocket/LICENSE.txt",
+    "vendor/github.com/coreos/go-iptables/LICENSE",
+    "vendor/github.com/creachadair/msync/LICENSE",
+    "vendor/github.com/creack/pty/LICENSE",
+    "vendor/github.com/dblohm7/wingoes/LICENSE",
+    "vendor/github.com/denisbrodbeck/machineid/LICENSE.md",
+    "vendor/github.com/dgryski/go-metro/LICENSE",
+    "vendor/github.com/digitalocean/go-smbios/LICENSE.md",
+    "vendor/github.com/djherbis/times/LICENSE",
+    "vendor/github.com/fxamacker/cbor/v2/LICENSE",
+    "vendor/github.com/gaissmai/bart/LICENSE",
+    "vendor/github.com/go-json-experiment/json/LICENSE",
+    "vendor/github.com/go-ole/go-ole/LICENSE",
+    "vendor/github.com/go4org/hashtriemap/LICENSE",
+    "vendor/github.com/go4org/plan9netshell/netshell.go",
+    "vendor/github.com/godbus/dbus/v5/LICENSE",
+    "vendor/github.com/golang/groupcache/LICENSE",
+    "vendor/github.com/google/btree/LICENSE",
+    "vendor/github.com/google/go-cmp/LICENSE",
+    "vendor/github.com/google/go-tpm/LICENSE",
+    "vendor/github.com/google/nftables/LICENSE",
+    "vendor/github.com/google/uuid/LICENSE",
+    "vendor/github.com/hdevalence/ed25519consensus/LICENSE",
+    "vendor/github.com/huin/goupnp/LICENSE",
+    "vendor/github.com/illarion/gonotify/v3/LICENSE",
+    "vendor/github.com/insomniacslk/dhcp/LICENSE",
+    "vendor/github.com/jellydator/ttlcache/v3/LICENSE",
+    "vendor/github.com/jmespath/go-jmespath/LICENSE",
+    "vendor/github.com/jsimonetti/rtnetlink/LICENSE.md",
+    "vendor/github.com/kalafut/imohash/LICENSE",
+    "vendor/github.com/klauspost/compress/LICENSE",
+    "vendor/github.com/klauspost/compress/internal/snapref/LICENSE",
+    "vendor/github.com/klauspost/compress/zstd/internal/xxhash/LICENSE.txt",
+    "vendor/github.com/kortschak/wol/LICENSE",
+    "vendor/github.com/kr/fs/LICENSE",
+    "vendor/github.com/magisterquis/connectproxy/LICENSE",
+    "vendor/github.com/mattn/go-colorable/LICENSE",
+    "vendor/github.com/mattn/go-isatty/LICENSE",
+    "vendor/github.com/mdlayher/genetlink/LICENSE.md",
+    "vendor/github.com/mdlayher/netlink/LICENSE.md",
+    "vendor/github.com/mdlayher/sdnotify/LICENSE.md",
+    "vendor/github.com/mdlayher/socket/LICENSE.md",
+    "vendor/github.com/minio/highwayhash/LICENSE",
+    "vendor/github.com/mitchellh/colorstring/LICENSE",
+    "vendor/github.com/mitchellh/go-ps/LICENSE.md",
+    "vendor/github.com/pierrec/lz4/v4/LICENSE",
+    "vendor/github.com/pires/go-proxyproto/LICENSE",
+    "vendor/github.com/pkg/sftp/LICENSE",
+    "vendor/github.com/rivo/uniseg/LICENSE.txt",
+    "vendor/github.com/sabhiram/go-gitignore/LICENSE",
+    "vendor/github.com/safchain/ethtool/LICENSE",
+    "vendor/github.com/schollz/pake/v3/LICENSE",
+    "vendor/github.com/schollz/peerdiscovery/LICENSE",
+    "vendor/github.com/schollz/progressbar/v3/LICENSE",
+    "vendor/github.com/skip2/go-qrcode/LICENSE",
+    "vendor/github.com/stretchr/testify/LICENSE",
+    "vendor/github.com/stretchr/testify/internal/difflib/LICENSE",
+    "vendor/github.com/stretchr/testify/internal/spew/LICENSE",
+    "vendor/github.com/tailscale/certstore/LICENSE.md",
+    "vendor/github.com/tailscale/gliderssh/LICENSE",
+    "vendor/github.com/tailscale/go-winio/LICENSE",
+    "vendor/github.com/tailscale/hujson/LICENSE",
+    "vendor/github.com/tailscale/netlink/LICENSE",
+    "vendor/github.com/tailscale/peercred/LICENSE",
+    "vendor/github.com/tailscale/web-client-prebuilt/LICENSE",
+    "vendor/github.com/tailscale/wf/LICENSE",
+    "vendor/github.com/tailscale/wireguard-go/LICENSE",
+    "vendor/github.com/tailscale/xnet/LICENSE",
+    "vendor/github.com/tscholl2/siec/LICENSE",
+    "vendor/github.com/twmb/murmur3/LICENSE",
+    "vendor/github.com/u-root/u-root/LICENSE",
+    "vendor/github.com/u-root/uio/LICENSE",
+    "vendor/github.com/vishvananda/netns/LICENSE",
+    "vendor/github.com/x448/float16/LICENSE",
+    "vendor/go.yaml.in/yaml/v3/LICENSE",
+    "vendor/go4.org/mem/LICENSE",
+    "vendor/go4.org/netipx/LICENSE",
+    "vendor/golang.org/x/crypto/LICENSE",
+    "vendor/golang.org/x/exp/LICENSE",
+    "vendor/golang.org/x/exp/typeparams/LICENSE",
+    "vendor/golang.org/x/mod/LICENSE",
+    "vendor/golang.org/x/net/LICENSE",
+    "vendor/golang.org/x/sync/LICENSE",
+    "vendor/golang.org/x/sys/LICENSE",
+    "vendor/golang.org/x/term/LICENSE",
+    "vendor/golang.org/x/text/LICENSE",
+    "vendor/golang.org/x/time/LICENSE",
+    "vendor/golang.org/x/tools/LICENSE",
+    "vendor/golang.zx2c4.com/wintun/LICENSE",
+    "vendor/golang.zx2c4.com/wireguard/windows/COPYING",
+    "vendor/gvisor.dev/gvisor/LICENSE",
+    "vendor/honnef.co/go/tools/LICENSE",
+    "vendor/honnef.co/go/tools/LICENSE-THIRD-PARTY",
+    "vendor/honnef.co/go/tools/go/ir/LICENSE",
+    "vendor/tailscale.com/LICENSE"
+  ],
+  "unknown_license_keys": [],
+  "is_valid_license": true,
+  "askalono_license_data": [
+    {
+      "path": "LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "internal/cli/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "internal/tailcat/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "src/codephrase/wordlists/LICENSE.txt",
+      "result": {
+        "score": 0.99178725,
+        "license": {
+          "name": "CC-BY-4.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/9fans.net/go/LICENSE",
+      "result": {
+        "score": 0.9700599,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/filippo.io/edwards25519/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/BurntSushi/toml/COPYING",
+      "result": {
+        "score": 0.9878049,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/akutz/memconn/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/alexbrainman/sspi/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/anmitsu/go-shlex/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/aws-sdk-go-v2/LICENSE.txt",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/aws-sdk-go-v2/config/LICENSE.txt",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/aws-sdk-go-v2/credentials/LICENSE.txt",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/aws-sdk-go-v2/feature/ec2/imds/LICENSE.txt",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/aws-sdk-go-v2/internal/configsources/LICENSE.txt",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/aws-sdk-go-v2/internal/endpoints/v2/LICENSE.txt",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/aws-sdk-go-v2/internal/sync/singleflight/LICENSE",
+      "result": {
+        "score": 0.94392526,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/aws-sdk-go-v2/internal/v4a/LICENSE.txt",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding/LICENSE.txt",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/aws-sdk-go-v2/service/internal/presigned-url/LICENSE.txt",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/aws-sdk-go-v2/service/signin/LICENSE.txt",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/aws-sdk-go-v2/service/ssm/LICENSE.txt",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/aws-sdk-go-v2/service/sso/LICENSE.txt",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/aws-sdk-go-v2/service/ssooidc/LICENSE.txt",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/aws-sdk-go-v2/service/sts/LICENSE.txt",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/smithy-go/LICENSE",
+      "result": {
+        "score": 0.94373745,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/aws/smithy-go/internal/sync/singleflight/LICENSE",
+      "result": {
+        "score": 0.94392526,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/axiomhq/hyperloglog/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/cespare/xxhash/v2/LICENSE.txt",
+      "result": {
+        "score": 0.993865,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/coder/websocket/LICENSE.txt",
+      "result": {
+        "score": 0.94063926,
+        "license": {
+          "name": "ISC",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/coreos/go-iptables/LICENSE",
+      "result": {
+        "score": 0.9961905,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/creachadair/msync/LICENSE",
+      "result": {
+        "score": 0.9448441,
+        "license": {
+          "name": "BSD-3-Clause-HP",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/creack/pty/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/dblohm7/wingoes/LICENSE",
+      "result": {
+        "score": 0.99310344,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/denisbrodbeck/machineid/LICENSE.md",
+      "result": {
+        "score": 0.9878049,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/dgryski/go-metro/LICENSE",
+      "result": {
+        "score": 0.9364162,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/digitalocean/go-smbios/LICENSE.md",
+      "result": {
+        "score": 0.9946083,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/djherbis/times/LICENSE",
+      "result": {
+        "score": 0.9878049,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/fxamacker/cbor/v2/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/gaissmai/bart/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/go-json-experiment/json/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/go-ole/go-ole/LICENSE",
+      "result": {
+        "score": 0.9878049,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/go4org/hashtriemap/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/godbus/dbus/v5/LICENSE",
+      "result": {
+        "score": 0.9919571,
+        "license": {
+          "name": "BSD-2-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/golang/groupcache/LICENSE",
+      "result": {
+        "score": 0.9961905,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/google/btree/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/google/go-cmp/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/google/go-tpm/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/google/nftables/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/google/uuid/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/hdevalence/ed25519consensus/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/huin/goupnp/LICENSE",
+      "result": {
+        "score": 0.97574127,
+        "license": {
+          "name": "BSD-2-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/illarion/gonotify/v3/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/insomniacslk/dhcp/LICENSE",
+      "result": {
+        "score": 0.9722222,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/jellydator/ttlcache/v3/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/jmespath/go-jmespath/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "header",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/jsimonetti/rtnetlink/LICENSE.md",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/kalafut/imohash/LICENSE",
+      "result": {
+        "score": 0.9878049,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/klauspost/compress/LICENSE",
+      "result": {
+        "score": 0.8031576,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/klauspost/compress/internal/snapref/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/klauspost/compress/zstd/internal/xxhash/LICENSE.txt",
+      "result": {
+        "score": 0.993865,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/kortschak/wol/LICENSE",
+      "result": {
+        "score": 0.943128,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/kr/fs/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/magisterquis/connectproxy/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Zlib",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/mattn/go-colorable/LICENSE",
+      "result": {
+        "score": 0.9878049,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/mattn/go-isatty/LICENSE",
+      "result": {
+        "score": 0.9908257,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/mdlayher/genetlink/LICENSE.md",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/mdlayher/netlink/LICENSE.md",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/mdlayher/sdnotify/LICENSE.md",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/mdlayher/socket/LICENSE.md",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/minio/highwayhash/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/mitchellh/colorstring/LICENSE",
+      "result": {
+        "score": 0.9878049,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/mitchellh/go-ps/LICENSE.md",
+      "result": {
+        "score": 0.9878049,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/pierrec/lz4/v4/LICENSE",
+      "result": {
+        "score": 0.95813954,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/pires/go-proxyproto/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/pkg/sftp/LICENSE",
+      "result": {
+        "score": 0.97574127,
+        "license": {
+          "name": "BSD-2-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/rivo/uniseg/LICENSE.txt",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/sabhiram/go-gitignore/LICENSE",
+      "result": {
+        "score": 0.9878049,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/safchain/ethtool/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/schollz/pake/v3/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/schollz/peerdiscovery/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/schollz/progressbar/v3/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/skip2/go-qrcode/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/stretchr/testify/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/stretchr/testify/internal/difflib/LICENSE",
+      "result": {
+        "score": 0.9458824,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/stretchr/testify/internal/spew/LICENSE",
+      "result": {
+        "score": 0.95454544,
+        "license": {
+          "name": "ISC",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/tailscale/certstore/LICENSE.md",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/tailscale/gliderssh/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/tailscale/go-winio/LICENSE",
+      "result": {
+        "score": 0.9878049,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/tailscale/hujson/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/tailscale/netlink/LICENSE",
+      "result": {
+        "score": 0.97232175,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/tailscale/peercred/LICENSE",
+      "result": {
+        "score": 0.99310344,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/tailscale/web-client-prebuilt/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/tailscale/wf/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/tailscale/wireguard-go/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/tailscale/xnet/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/tscholl2/siec/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/twmb/murmur3/LICENSE",
+      "error": "Confidence threshold not high enough for any known license"
+    },
+    {
+      "path": "vendor/github.com/u-root/u-root/LICENSE",
+      "result": {
+        "score": 0.9722222,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/u-root/uio/LICENSE",
+      "result": {
+        "score": 0.9722222,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/vishvananda/netns/LICENSE",
+      "result": {
+        "score": 0.97232175,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/github.com/x448/float16/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/go.yaml.in/yaml/v3/LICENSE",
+      "error": "Confidence threshold not high enough for any known license"
+    },
+    {
+      "path": "vendor/go4.org/mem/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/go4.org/netipx/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/golang.org/x/crypto/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/golang.org/x/exp/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/golang.org/x/exp/typeparams/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/golang.org/x/mod/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/golang.org/x/net/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/golang.org/x/sync/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/golang.org/x/sys/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/golang.org/x/term/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/golang.org/x/text/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/golang.org/x/time/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/golang.org/x/tools/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/golang.zx2c4.com/wintun/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/golang.zx2c4.com/wireguard/windows/COPYING",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/gvisor.dev/gvisor/LICENSE",
+      "result": {
+        "score": 0.8869516,
+        "license": {
+          "name": "Apache-2.0",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/honnef.co/go/tools/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "MIT",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/honnef.co/go/tools/LICENSE-THIRD-PARTY",
+      "error": "Confidence threshold not high enough for any known license"
+    },
+    {
+      "path": "vendor/honnef.co/go/tools/go/ir/LICENSE",
+      "result": {
+        "score": 0.95327103,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    },
+    {
+      "path": "vendor/tailscale.com/LICENSE",
+      "result": {
+        "score": 1.0,
+        "license": {
+          "name": "BSD-3-Clause",
+          "kind": "original",
+          "aliases": []
+        },
+        "containing": []
+      }
+    }
+  ]
+}

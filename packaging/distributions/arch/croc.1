@@ -1,0 +1,102 @@
+.TH CROC 1 "" "croc" "User Commands"
+.SH NAME
+croc \- transfer files, directories, and text using a short code
+.SH SYNOPSIS
+.B croc
+.RI [ options ]
+.br
+.B croc send
+.RI [ options ] " file ..."
+.br
+.B croc store
+.RI [ options ] " file ..."
+.br
+.B croc ssh
+.RI [ options ]
+.br
+.B croc relay
+.RI [ options ]
+.SH DESCRIPTION
+Croc transfers data between computers using a shared code. Connections are
+encrypted end to end, with direct connections when available and relay fallback.
+Both participants must be available for a normal transfer. The store command
+uploads encrypted regular files for later retrieval.
+.SH EXAMPLES
+Send a file:
+.PP
+.RS
+.B croc send document.pdf
+.RE
+.PP
+Receive a file by running croc and entering the code at its prompt:
+.PP
+.RS
+.B croc
+.RE
+.PP
+On Unix, a code may also be passed using the CROC_SECRET environment variable.
+Avoid putting secrets in command arguments or shell history.
+.PP
+Show all options for a command:
+.PP
+.RS
+.B croc send --help
+.RE
+.SH COMMANDS
+.TP
+.B send
+Send files, directories, or text. Use --transport auto, derp, or relay to select
+the file data transport. Use --zip to send a directory as an archive.
+.TP
+.B store
+Upload client-side encrypted regular files for later download. Use --help for
+expiration, download-limit, and storage service options.
+.TP
+.B ssh
+Share an interactive terminal using separate read/write and read-only invitations.
+An invitation grants the access described by the host until the session ends.
+.TP
+.B relay
+Run a relay explicitly. Installing this package does not start a relay service.
+.TP
+.B update
+Check for newer upstream releases. Package-managed installations must be updated
+with their owning package manager.
+.SH OPTIONS
+.TP
+.B --help, -h
+Show usage and the complete list of options. Each subcommand has its own help.
+.TP
+.B --version, -v
+Print the installed release version.
+.TP
+.B --yes
+Automatically accept prompts. Use only when the sender and transfer are trusted.
+.TP
+.B --out DIRECTORY
+Receive files in DIRECTORY.
+.TP
+.B --relay ADDRESS
+Use the specified relay.
+.TP
+.B --quiet
+Disable output.
+.SH ENVIRONMENT
+.TP
+.B CROC_SECRET
+The code or invitation used for a transfer or shared terminal.
+.TP
+.B CROC_CONFIG_DIR
+Override the per-user configuration directory.
+.SH FILES
+Croc keeps per-user configuration separately from the package installation.
+Removing or upgrading this package does not remove transferred files or user
+configuration.
+.SH SECURITY
+Share codes only with intended recipients. Check the transfer description before
+accepting files and use a dedicated output directory when receiving untrusted
+content. See the project security policy to report vulnerabilities privately.
+.SH SEE ALSO
+.UR https://github.com/schollz/croc
+Project documentation and release notes
+.UE

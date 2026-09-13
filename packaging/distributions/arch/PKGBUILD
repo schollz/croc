@@ -1,0 +1,55 @@
+# Maintainer: Caleb Maclennan <caleb@alerque.com>
+# Contributor: Maxim Baz <archlinux at maximbaz dot com>
+# Contributor: Mikuro Kagamine <mikurok@forgecrushing.com>
+
+pkgname=croc
+pkgver=11.5.2
+pkgrel=2
+epoch=1
+pkgdesc='Easily and securely send things from one computer to another.'
+arch=(x86_64)
+url="https://github.com/schollz/$pkgname"
+license=(MIT)
+depends=(glibc ca-certificates)
+makedepends=(go)
+_archive="$pkgname-v$pkgver"
+source=("$_archive.tar.gz::$url/releases/download/v$pkgver/${pkgname}_v${pkgver}_src.tar.gz")
+source+=(croc.1 completions.patch package-update.patch)
+sha256sums=('9c7f6209c8a8d8ce5984d18277c71602807a924338f89d405134c540e24bf2c3'
+            '0cbe13f9e652ce7b124385affb54f74ef00ec51b5a7f04ce08482953e644c887'
+            'aeb4df6f2cabf0f9997916e5d358c2fb925c63b4ba0ebf92868ac49a692fa063'
+            '33a37ededc3cdf82a382874fa0fdc9e3cca015f40a7a036e579551859b608732')
+
+prepare() {
+    cd "$_archive"
+    patch -p1 -i "$srcdir/completions.patch"
+    patch -p1 -i "$srcdir/package-update.patch"
+}
+
+build() {
+    cd "$_archive"
+    export CGO_CPPFLAGS="$CPPFLAGS"
+    export CGO_CFLAGS="$CFLAGS"
+    export CGO_CXXFLAGS="$CXXFLAGS"
+    export CGO_LDFLAGS="$LDFLAGS"
+    export GOFLAGS='-buildmode=pie -trimpath -ldflags=-linkmode=external -mod=vendor -modcacherw -buildvcs=false'
+    go build
+    ./croc generate-fish-completion > croc.fish
+}
+
+check() {
+    cd "$_archive"
+    go test ./...
+}
+
+package() {
+    cd "$_archive"
+    install -Dm0755 -t "$pkgdir/usr/bin/" "$pkgname"
+    install -Dm0644 -t "$pkgdir/usr/share/licenses/$pkgname/" LICENSE THIRD_PARTY_NOTICES.md
+    install -Dm0644 src/codephrase/wordlists/LICENSE.txt "$pkgdir/usr/share/licenses/$pkgname/wordlists-LICENSE.txt"
+    install -Dm0644 "$srcdir/croc.1" "$pkgdir/usr/share/man/man1/croc.1"
+    install -Dm0644 src/install/bash_autocomplete "$pkgdir/usr/share/bash-completion/completions/croc"
+    cp src/install/zsh_autocomplete _croc
+    install -Dm0644 _croc "$pkgdir/usr/share/zsh/site-functions/_croc"
+    install -Dm0644 croc.fish "$pkgdir/usr/share/fish/vendor_completions.d/croc.fish"
+}

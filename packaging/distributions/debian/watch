@@ -1,0 +1,2 @@
+version=4
+https://github.com/schollz/croc/tags .*/v?(\d[\d.]*)\.tar\.gz

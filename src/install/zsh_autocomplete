@@ -1,6 +1,6 @@
-#compdef $PROG
+#compdef croc
 
-_cli_zsh_autocomplete() {
+_croc() {
 
   local -a opts
   local cur
@@ -20,4 +20,4 @@ _cli_zsh_autocomplete() {
   return
 }
 
-compdef _cli_zsh_autocomplete $PROG
+_croc "$@"

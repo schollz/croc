@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -189,6 +190,39 @@ func TestUpdateGuidanceForUnmanagedInstallations(t *testing.T) {
 }
 
 type updateRoundTripper func(*http.Request) (*http.Response, error)
+
+func TestPackageManagedUpdateRejectsStaleRegistration(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux package locations")
+	}
+	t.Setenv("CROC_CONFIG_DIR", t.TempDir())
+	for _, target := range []string{"/usr/bin/croc", "/bin/croc", "/nix/store/hash-croc/bin/croc"} {
+		path, err := installManifestPath(true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload, err := json.Marshal(installManifest{Version: installManifestVersion, Method: officialInstallerMethod, Target: target})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = os.WriteFile(path, payload, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if eligible, reason := registeredWritableTarget(target); eligible || !strings.Contains(reason, "package-managed") {
+			t.Fatalf("%s: eligible=%v, reason=%q", target, eligible, reason)
+		}
+		client := &http.Client{Transport: updateRoundTripper(func(*http.Request) (*http.Response, error) {
+			t.Fatal("package-managed update must not download a replacement")
+			return nil, nil
+		})}
+		if err = applyStandaloneUpdate(context.Background(), target, "11.5.3", client); err == nil || !strings.Contains(err.Error(), "package-managed") {
+			t.Fatalf("%s: unexpected update error: %v", target, err)
+		}
+	}
+	if packageManagedLocation("/usr/local/bin/croc") {
+		t.Fatal("standalone installer location must remain eligible")
+	}
+}
 
 func (roundTrip updateRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
 	return roundTrip(request)

@@ -1,0 +1,8 @@
+[
+  {"name":"Linux-64bit","goarch":"amd64","arch":"amd64","deb":"amd64","rpm":"x86_64","qemu":"x86_64"},
+  {"name":"Linux-32bit","goarch":"386","arch":"386","deb":"i386","rpm":"i386","qemu":"i386"},
+  {"name":"Linux-ARM","goarch":"arm","goarm":"7","arch":"arm7","deb":"armhf","rpm":"armv7hl","qemu":"arm"},
+  {"name":"Linux-ARMv5","goarch":"arm","goarm":"5","arch":"arm5","deb":"armel","rpm":"armv5tel","qemu":"arm","cpu":"arm926"},
+  {"name":"Linux-ARM64","goarch":"arm64","arch":"arm64","deb":"arm64","rpm":"aarch64","qemu":"aarch64"},
+  {"name":"Linux-RISCV64","goarch":"riscv64","arch":"riscv64","deb":"riscv64","rpm":"riscv64","qemu":"riscv64"}
+]
