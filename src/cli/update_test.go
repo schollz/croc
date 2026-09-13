@@ -21,7 +21,10 @@ func TestStandaloneUpdateVerifiesAndReplaces(t *testing.T) {
 		t.Skip("in-place self-update is intentionally disabled on Windows")
 	}
 	const version = "11.4.1"
-	asset, err := updateAssetName(version)
+	fixtureAssetName := func(version string) (string, error) {
+		return updateAssetNameForPlatform(version, "linux", "amd64", "")
+	}
+	asset, err := fixtureAssetName(version)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +57,7 @@ func TestStandaloneUpdateVerifiesAndReplaces(t *testing.T) {
 					Header:     make(http.Header),
 				}, nil
 			})}
-			err := applyStandaloneUpdate(context.Background(), target, version, client)
+			err := applyStandaloneUpdateWithAssetName(context.Background(), target, version, client, fixtureAssetName)
 			if test.wantError != "" {
 				if err == nil || !strings.Contains(err.Error(), test.wantError) {
 					t.Fatalf("error = %v, want containing %q", err, test.wantError)
@@ -77,6 +80,84 @@ func TestStandaloneUpdateVerifiesAndReplaces(t *testing.T) {
 			}
 			if !bytes.Contains(output, []byte("11.4.1")) {
 				t.Fatalf("updated executable = %q", output)
+			}
+		})
+	}
+}
+
+func TestUpdateAssetNameForPlatform(t *testing.T) {
+	for _, test := range []struct {
+		goos, goarch, goarm string
+		want                string
+	}{
+		{"linux", "amd64", "", "Linux-64bit.tar.gz"},
+		{"linux", "386", "", "Linux-32bit.tar.gz"},
+		{"linux", "arm64", "", "Linux-ARM64.tar.gz"},
+		{"linux", "arm", "7", "Linux-ARM.tar.gz"},
+		{"linux", "arm", "5", "Linux-ARMv5.tar.gz"},
+		{"linux", "arm", "5,softfloat", "Linux-ARMv5.tar.gz"},
+		{"linux", "riscv64", "", "Linux-RISCV64.tar.gz"},
+		{"darwin", "amd64", "", "macOS-64bit.tar.gz"},
+		{"darwin", "arm64", "", "macOS-ARM64.tar.gz"},
+		{"windows", "amd64", "", "Windows-64bit.zip"},
+		{"windows", "386", "", "Windows-32bit.zip"},
+		{"windows", "arm64", "", "Windows-ARM64.zip"},
+		{"freebsd", "amd64", "", "FreeBSD-64bit.tar.gz"},
+		{"freebsd", "arm64", "", "FreeBSD-ARM64.tar.gz"},
+		{"netbsd", "amd64", "", "NetBSD-64bit.tar.gz"},
+		{"netbsd", "386", "", "NetBSD-32bit.tar.gz"},
+		{"netbsd", "arm64", "", "NetBSD-ARM64.tar.gz"},
+		{"openbsd", "amd64", "", "OpenBSD-64bit.tar.gz"},
+		{"openbsd", "arm64", "", "OpenBSD-ARM64.tar.gz"},
+		{"dragonfly", "amd64", "", "DragonFlyBSD-64bit.tar.gz"},
+	} {
+		t.Run(test.goos+"/"+test.goarch+"/"+test.goarm, func(t *testing.T) {
+			got, err := updateAssetNameForPlatform("11.5.2", test.goos, test.goarch, test.goarm)
+			if want := "croc_v11.5.2_" + test.want; err != nil || got != want {
+				t.Fatalf("asset = %q, error = %v; want %q", got, err, want)
+			}
+		})
+	}
+	for _, version := range []string{"v11.5.2", "11.5.2/other", "11.5.2-rc.1"} {
+		t.Run(version, func(t *testing.T) {
+			if asset, err := updateAssetNameForPlatform(version, "linux", "amd64", ""); err == nil || asset != "" {
+				t.Fatalf("invalid version accepted: asset=%q, error=%v", asset, err)
+			}
+		})
+	}
+}
+
+func TestStandaloneUpdateRejectsUnsupportedPlatformBeforeDownload(t *testing.T) {
+	for _, test := range []struct{ goos, goarch string }{
+		{"linux", "ppc64le"}, {"linux", "s390x"}, {"linux", "loong64"},
+		{"freebsd", "386"}, {"unknown", "amd64"},
+	} {
+		t.Run(test.goos+"/"+test.goarch, func(t *testing.T) {
+			target := filepath.Join(t.TempDir(), "croc")
+			const original = "original executable"
+			if err := os.WriteFile(target, []byte(original), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			requested := false
+			client := &http.Client{Transport: updateRoundTripper(func(*http.Request) (*http.Response, error) {
+				requested = true
+				return nil, fmt.Errorf("unexpected download")
+			})}
+			assetName := func(version string) (string, error) {
+				return updateAssetNameForPlatform(version, test.goos, test.goarch, "")
+			}
+			err := applyStandaloneUpdateWithAssetName(t.Context(), target, "11.5.2", client, assetName)
+			wantError := "croc releases do not contain an update for " + test.goos + "/" + test.goarch
+			if err == nil || err.Error() != wantError || requested {
+				t.Fatalf("error=%v, requested=%v; want %q without a download", err, requested, wantError)
+			}
+			contents, err := os.ReadFile(target)
+			if err != nil || string(contents) != original {
+				t.Fatalf("unsupported update changed executable: contents=%q, error=%v", contents, err)
+			}
+			files, err := os.ReadDir(filepath.Dir(target))
+			if err != nil || len(files) != 1 {
+				t.Fatalf("unsupported update created staging files: files=%v, error=%v", files, err)
 			}
 		})
 	}
