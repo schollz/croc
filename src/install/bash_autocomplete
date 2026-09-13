@@ -1,5 +1,3 @@
-: ${PROG:=$(basename ${BASH_SOURCE})}
-
 _cli_bash_autocomplete() {
   if [[ "${COMP_WORDS[0]}" != "source" ]]; then
     local cur opts base
@@ -15,5 +13,4 @@ _cli_bash_autocomplete() {
   fi
 }
 
-complete -o bashdefault -o default -o nospace -F _cli_bash_autocomplete $PROG
-unset PROG
+complete -o bashdefault -o default -o nospace -F _cli_bash_autocomplete croc

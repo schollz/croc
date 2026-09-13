@@ -1,0 +1,30 @@
+name: croc
+arch: ${PACKAGE_ARCH}
+platform: linux
+version: ${PACKAGE_VERSION}
+release: 1
+section: utils
+priority: optional
+maintainer: croc maintainers <zack.scholl+croc@gmail.com>
+description: |
+  Easily and securely send files between computers.
+  Transfer files, directories, and text using a short code, with encrypted
+  peer-to-peer connections and relay fallback.
+homepage: https://github.com/schollz/croc
+license: MIT
+depends:
+  - ca-certificates
+contents:
+  - src: ${PACKAGE_STAGE}/usr/bin/croc
+    dst: /usr/bin/croc
+    expand: true
+    file_info:
+      mode: 0755
+  - src: ${PACKAGE_STAGE}/usr/share/
+    dst: /usr/share/
+    type: tree
+    expand: true
+rpm:
+  compression: gzip
+deb:
+  compression: gzip

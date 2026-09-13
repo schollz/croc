@@ -1,0 +1,135 @@
+diff --git a/src/cli/update.go b/src/cli/update.go
+index e9661342..1ca977a8 100644
+--- a/src/cli/update.go
++++ b/src/cli/update.go
+@@ -47,6 +47,22 @@ func updateCommand(c *internalcli.Context) error {
+ 	if c.Bool("register-installer") {
+ 		return registerInstallerTarget()
+ 	}
++	// Package-owned paths must remain protected even with a stale standalone
++	// registration, and should not need network access to explain how to update.
++	if !c.Bool("check") {
++		target, err := runningExecutable()
++		if err != nil {
++			return fmt.Errorf("locate running croc executable: %w", err)
++		}
++		if packageManagedLocation(target) {
++			writer := io.Writer(os.Stdout)
++			if c.App != nil && c.App.Writer != nil {
++				writer = c.App.Writer
++			}
++			_, _ = fmt.Fprintln(writer, updateGuidance(target))
++			return nil
++		}
++	}
+ 	if _, ok := parseReleaseVersion(Version); !ok {
+ 		return fmt.Errorf("cannot update development build %q; install a stable croc release first", Version)
+ 	}
+@@ -170,6 +186,9 @@ func registerInstallerTarget() error {
+ 	if err != nil {
+ 		return err
+ 	}
++	if packageManagedLocation(target) {
++		return errors.New("cannot register a package-managed executable for standalone updates")
++	}
+ 	path, err := installManifestPath(true)
+ 	if err != nil {
+ 		return err
+@@ -186,6 +205,9 @@ func registerInstallerTarget() error {
+ }
+ 
+ func registeredWritableTarget(target string) (bool, string) {
++	if packageManagedLocation(target) {
++		return false, "This executable is installed in a package-managed location."
++	}
+ 	if runtime.GOOS == "windows" {
+ 		return false, "This platform cannot safely replace the running executable in place."
+ 	}
+@@ -223,6 +245,14 @@ func registeredWritableTarget(target string) (bool, string) {
+ 	return true, ""
+ }
+ 
++func packageManagedLocation(target string) bool {
++	if runtime.GOOS != "linux" {
++		return false
++	}
++	target = filepath.Clean(target)
++	return target == "/usr/bin/croc" || target == "/bin/croc" || strings.HasPrefix(target, "/nix/store/")
++}
++
+ func updateGuidance(target string) string {
+ 	normalized := filepath.ToSlash(strings.ToLower(target))
+ 	switch {
+@@ -242,8 +272,8 @@ func updateGuidance(target string) string {
+ 		return "Upgrade with Termux pkg: pkg upgrade croc"
+ 	case runtime.GOOS == "freebsd" && normalized == "/usr/local/bin/croc":
+ 		return "Upgrade with FreeBSD pkg: pkg upgrade croc (or rerun the official installer if it owns this file)"
+-	case normalized == "/usr/bin/croc":
+-		return "Upgrade croc with the system package manager that installed it (for example apt, pacman, apk, or pkg)."
++	case normalized == "/usr/bin/croc" || normalized == "/bin/croc":
++		return "Upgrade croc with the system package manager that installed it (for example apt, dnf, zypper, pacman, or apk)."
+ 	case strings.HasSuffix(normalized, "/go/bin/croc"):
+ 		return "Upgrade the Go installation: go install github.com/schollz/croc/v11@latest"
+ 	case runtime.GOOS == "windows":
+@@ -259,6 +289,9 @@ func shellQuote(value string) string {
+ }
+ 
+ func applyStandaloneUpdate(ctx context.Context, target, version string, client *http.Client) error {
++	if packageManagedLocation(target) {
++		return errors.New("refusing to replace a package-managed executable")
++	}
+ 	asset, err := updateAssetName(version)
+ 	if err != nil {
+ 		return err
+diff --git a/src/cli/update_test.go b/src/cli/update_test.go
+index bb27f26f..8e149614 100644
+--- a/src/cli/update_test.go
++++ b/src/cli/update_test.go
+@@ -6,6 +6,7 @@ import (
+ 	"compress/gzip"
+ 	"context"
+ 	"crypto/sha256"
++	"encoding/json"
+ 	"fmt"
+ 	"io"
+ 	"net/http"
+@@ -109,6 +110,39 @@ func TestUpdateGuidanceForUnmanagedInstallations(t *testing.T) {
+ 
+ type updateRoundTripper func(*http.Request) (*http.Response, error)
+ 
++func TestPackageManagedUpdateRejectsStaleRegistration(t *testing.T) {
++	if runtime.GOOS != "linux" {
++		t.Skip("Linux package locations")
++	}
++	t.Setenv("CROC_CONFIG_DIR", t.TempDir())
++	for _, target := range []string{"/usr/bin/croc", "/bin/croc", "/nix/store/hash-croc/bin/croc"} {
++		path, err := installManifestPath(true)
++		if err != nil {
++			t.Fatal(err)
++		}
++		payload, err := json.Marshal(installManifest{Version: installManifestVersion, Method: officialInstallerMethod, Target: target})
++		if err != nil {
++			t.Fatal(err)
++		}
++		if err = os.WriteFile(path, payload, 0o600); err != nil {
++			t.Fatal(err)
++		}
++		if eligible, reason := registeredWritableTarget(target); eligible || !strings.Contains(reason, "package-managed") {
++			t.Fatalf("%s: eligible=%v, reason=%q", target, eligible, reason)
++		}
++		client := &http.Client{Transport: updateRoundTripper(func(*http.Request) (*http.Response, error) {
++			t.Fatal("package-managed update must not download a replacement")
++			return nil, nil
++		})}
++		if err = applyStandaloneUpdate(context.Background(), target, "11.5.3", client); err == nil || !strings.Contains(err.Error(), "package-managed") {
++			t.Fatalf("%s: unexpected update error: %v", target, err)
++		}
++	}
++	if packageManagedLocation("/usr/local/bin/croc") {
++		t.Fatal("standalone installer location must remain eligible")
++	}
++}
++
+ func (roundTrip updateRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+ 	return roundTrip(request)
+ }

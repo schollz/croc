@@ -1,0 +1,585 @@
+[
+  {
+    "path": "filippo.io/edwards25519",
+    "version": "v1.2.0",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/anmitsu/go-shlex",
+    "version": "v0.0.0-20200514113438-38f4b401e2be",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/cespare/xxhash/v2",
+    "version": "v2.3.0",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/coder/websocket",
+    "version": "v1.8.15",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/creachadair/msync",
+    "version": "v0.8.1",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/creack/pty",
+    "version": "v1.1.24",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/denisbrodbeck/machineid",
+    "version": "v1.0.1",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/fxamacker/cbor/v2",
+    "version": "v2.9.3",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/gaissmai/bart",
+    "version": "v0.26.1",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/go-json-experiment/json",
+    "version": "v0.0.0-20260820222146-c27c302e5fc3",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/godbus/dbus/v5",
+    "version": "v5.2.2",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/golang/groupcache",
+    "version": "v0.0.0-20241129210726-2c02b8208cf8",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/google/btree",
+    "version": "v1.1.3",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/hdevalence/ed25519consensus",
+    "version": "v0.2.0",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/jsimonetti/rtnetlink",
+    "version": "v1.4.1",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/kalafut/imohash",
+    "version": "v1.1.1",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/klauspost/compress",
+    "version": "v1.19.1",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/magisterquis/connectproxy",
+    "version": "v0.0.0-20200725203833-3582e84f0c9b",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/mattn/go-colorable",
+    "version": "v0.1.15",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/mattn/go-isatty",
+    "version": "v0.0.24",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/mdlayher/netlink",
+    "version": "v1.7.3-0.20250113171957-fbb4dce95f42",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/mdlayher/socket",
+    "version": "v0.5.1",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/minio/highwayhash",
+    "version": "v1.0.4",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/mitchellh/colorstring",
+    "version": "v0.0.0-20190213212951-d06e56a500db",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/mitchellh/go-ps",
+    "version": "v1.0.0",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/pires/go-proxyproto",
+    "version": "v0.8.1",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/rivo/uniseg",
+    "version": "v0.4.7",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/sabhiram/go-gitignore",
+    "version": "v0.0.0-20210923224102-525f6e181f06",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/safchain/ethtool",
+    "version": "v0.3.0",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/schollz/pake/v3",
+    "version": "v3.2.0",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/schollz/peerdiscovery",
+    "version": "v1.7.6",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/schollz/progressbar/v3",
+    "version": "v3.19.1",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/skip2/go-qrcode",
+    "version": "v0.0.0-20200617195104-da1b6568686e",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/tailscale/gliderssh",
+    "version": "v0.3.4-0.20260716005906-1a0f895faf28",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/tailscale/hujson",
+    "version": "v0.0.0-20260302212456-ecc657c15afd",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/tailscale/peercred",
+    "version": "v0.0.0-20250107143737-35a0c7bd7edc",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/tailscale/web-client-prebuilt",
+    "version": "v0.0.0-20250124233751-d4cd19a26976",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/tailscale/wireguard-go",
+    "version": "v0.0.0-20260715223240-2e01ba5b00f0",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/tscholl2/siec",
+    "version": "v0.0.0-20240310163802-c2c6f6198406",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/twmb/murmur3",
+    "version": "v1.1.8",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "github.com/x448/float16",
+    "version": "v0.8.4",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "go4.org/mem",
+    "version": "v0.0.0-20240501181205-ae6ca9944745",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "go4.org/netipx",
+    "version": "v0.0.0-20260823151212-3075585bcbeb",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "golang.org/x/crypto",
+    "version": "v0.56.0",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "golang.org/x/exp",
+    "version": "v0.0.0-20260410095643-746e56fc9e2f",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "golang.org/x/net",
+    "version": "v0.58.0",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "golang.org/x/sync",
+    "version": "v0.22.0",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "golang.org/x/sys",
+    "version": "v0.47.0",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "golang.org/x/term",
+    "version": "v0.45.0",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "golang.org/x/text",
+    "version": "v0.41.0",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "golang.org/x/time",
+    "version": "v0.15.0",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "gvisor.dev/gvisor",
+    "version": "v0.0.0-20260906120324-45bde0d1defa",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  },
+  {
+    "path": "tailscale.com",
+    "version": "v1.102.3",
+    "linuxArchitectures": [
+      "amd64",
+      "386",
+      "arm",
+      "arm64",
+      "riscv64"
+    ]
+  }
+]

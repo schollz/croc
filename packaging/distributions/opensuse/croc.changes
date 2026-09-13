@@ -1,0 +1,9 @@
+-------------------------------------------------------------------
+Sun Sep 13 18:00:00 UTC 2026 - Zack Scholl <zack.scholl+croc@gmail.com>
+
+- Update to 11.5.2 and require Go 1.27.
+- Add manual, Bash/Zsh/Fish completions, certificate dependency and
+  component license notices.
+- Remove relay service files and service-management scriptlets.
+- Use DWARF 4 output for compatibility with debugedit.
+- Keep the security acceptance review separate from package validation.

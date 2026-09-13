@@ -1,0 +1,63 @@
+# Contributor: André Klitzing <aklitzing@gmail.com>
+# Maintainer: André Klitzing <aklitzing@gmail.com>
+pkgname=croc
+pkgver=11.5.2
+pkgrel=0
+pkgdesc="Easily and securely send things from one computer to another"
+url="https://github.com/schollz/croc"
+license="MIT"
+arch="all"
+depends="ca-certificates"
+makedepends="go>=1.27"
+checkdepends="bash"
+subpackages="$pkgname-doc $pkgname-bash-completion $pkgname-zsh-completion $pkgname-fish-completion"
+source="https://github.com/schollz/croc/archive/refs/tags/v$pkgver/croc-$pkgver.tar.gz
+	disable-updatecheck.patch
+	completions.patch
+	package-update.patch
+	croc.1
+	"
+options="net" # fetch dependencies
+
+# secfixes:
+#   9.1.0-r0:
+#     - CVE-2021-31603
+#   10.0.11-r0:
+#     - CVE-2023-43617
+#     - CVE-2023-43616
+#     - CVE-2023-43618
+#     - CVE-2023-43619
+#     - CVE-2023-43620
+#     - CVE-2023-43621
+
+build() {
+	go build -v -trimpath -buildvcs=false -tags=netgo,osusergo -o croc .
+	./croc generate-fish-completion > croc.fish
+}
+
+check() {
+	go test ./...
+}
+
+package() {
+	install -Dm755 $pkgname -t "$pkgdir"/usr/bin/
+	install -Dm644 LICENSE -t "$pkgdir"/usr/share/licenses/$pkgname/
+
+	install -Dm644 src/install/bash_autocomplete \
+		"$pkgdir"/usr/share/bash-completion/completions/croc
+	cp src/install/zsh_autocomplete _croc
+	install -Dm644 _croc \
+		"$pkgdir"/usr/share/zsh/site-functions/_croc
+	install -Dm644 croc.fish "$pkgdir"/usr/share/fish/vendor_completions.d/croc.fish
+	install -Dm644 "$srcdir"/croc.1 "$pkgdir"/usr/share/man/man1/croc.1
+	install -Dm644 THIRD_PARTY_NOTICES.md "$pkgdir"/usr/share/doc/croc/THIRD_PARTY_NOTICES.md
+	install -Dm644 src/codephrase/wordlists/LICENSE.txt "$pkgdir"/usr/share/doc/croc/wordlists-LICENSE.txt
+}
+
+sha512sums="
+cfff97eaf86d521a87f8b86840a01ae90006656368d8422aaff89a4d2f31dce5093fa532e96afbd88a7b25fb7a9fd873900929de75a414920733bfa3314c86db  croc-11.5.2.tar.gz
+1d5f07a61651cd02a241b6f79100ddd28e27d9d0d2e74a2c70114dc0262eb1db89e0659980578bb1d6233b9bd0f5e8e7bf1de308f9ea96f2718c458c07f04bd8  disable-updatecheck.patch
+8cc5d19d46381e599b616eae1c4e4fd6b0f53d2ada19edaaaf7fcb146ec814e4204f511124e5d3132e9a27217528e1c008e31185b270462830f74cd42898b3f7  completions.patch
+560e19782e29f96b3c3c1e1bb4f628cae3c619f01ddb90a8bda529c12e67248a9aee1905086b321cf406c56419e5d68db02d9486d247c825feb7bfc72fb0074a  package-update.patch
+d513ee3e579edbe7a923e23630a3cd9a5f1f74f7c5a06b264b1777b6b0732a97ba20bff0dbc3a7d9af3b0edfa0651d7baa0c68ce2526a5abef5653fddbac2f81  croc.1
+"

@@ -1,0 +1,36 @@
+diff --git a/src/install/bash_autocomplete b/src/install/bash_autocomplete
+index 81f3c657..1a4213c0 100644
+--- a/src/install/bash_autocomplete
++++ b/src/install/bash_autocomplete
+@@ -1,5 +1,3 @@
+-: ${PROG:=$(basename ${BASH_SOURCE})}
+-
+ _cli_bash_autocomplete() {
+   if [[ "${COMP_WORDS[0]}" != "source" ]]; then
+     local cur opts base
+@@ -15,5 +13,4 @@ _cli_bash_autocomplete() {
+   fi
+ }
+ 
+-complete -o bashdefault -o default -o nospace -F _cli_bash_autocomplete $PROG
+-unset PROG
++complete -o bashdefault -o default -o nospace -F _cli_bash_autocomplete croc
+diff --git a/src/install/zsh_autocomplete b/src/install/zsh_autocomplete
+index cf39c888..9c8ac703 100644
+--- a/src/install/zsh_autocomplete
++++ b/src/install/zsh_autocomplete
+@@ -1,6 +1,6 @@
+-#compdef $PROG
++#compdef croc
+ 
+-_cli_zsh_autocomplete() {
++_croc() {
+ 
+   local -a opts
+   local cur
+@@ -20,4 +20,4 @@ _cli_zsh_autocomplete() {
+   return
+ }
+ 
+-compdef _cli_zsh_autocomplete $PROG
++_croc "$@"

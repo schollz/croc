@@ -1,0 +1,4 @@
+debian/croc-completion
+debian/croc.fish
+debian/_croc
+debian/completion-config/

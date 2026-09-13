@@ -71,16 +71,18 @@ After correcting a transient problem, either run
 `gh run rerun "${RELEASE_RUN_ID}" --failed` or dispatch the same tag again. A
 rerun is permitted only while the release is absent or still a draft.
 
-After a successful run, verify that the release is a draft and contains 22
+After a successful run, verify that the release is a draft and contains 34
 assets: 19 `croc` platform archives, the `croc-web` archive, the source archive,
-and the checksum file.
+the twelve Linux DEB/RPM packages, and the checksum file.
 
 ```bash
 gh release view "${RELEASE_TAG}" --json isDraft,url,assets \
   --jq '{isDraft: .isDraft, url: .url, assets: [.assets[].name]}'
 test "$(gh release view "${RELEASE_TAG}" --json isDraft --jq .isDraft)" = true
-test "$(gh release view "${RELEASE_TAG}" --json assets --jq '.assets | length')" -eq 22
+test "$(gh release view "${RELEASE_TAG}" --json assets --jq '.assets | length')" -eq 34
 ```
+
+Download the draft assets and run `python3 packaging/release.py verify-assets --version "${RELEASE_TAG}" --artifacts DIRECTORY` to validate their exact names and checksums.
 
 Review the generated notes and asset names before publishing. Publishing is the
 point that triggers the Docker workflow:

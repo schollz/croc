@@ -118,27 +118,23 @@ jobs:
     needs: prepare
     runs-on: ubuntu-24.04
     steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
           go-version: '^1.27.0'
 
-      - name: Prepare source tarball
+      - name: Prepare and verify offline source tarball
         env:
           RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
           RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
-          git clone --branch "${RELEASE_TAG}" --depth 1 https://github.com/schollz/croc "croc-${RELEASE_TAG}"
-          cd "croc-${RELEASE_TAG}"
-          actual_sha="$(git rev-parse HEAD)"
-          if [[ "${actual_sha}" != "${RELEASE_SHA}" ]]; then
-            echo "Tag moved from ${RELEASE_SHA} to ${actual_sha}" >&2
-            exit 1
-          fi
-          go mod tidy
-          go mod vendor
-          cd ..
-          tar -czvf "croc_${RELEASE_TAG}_src.tar.gz" "croc-${RELEASE_TAG}"
+          python3 packaging/release.py source --ref "${RELEASE_SHA}" \
+            --version "${RELEASE_TAG}" --verify --output "croc_${RELEASE_TAG}_src.tar.gz"
 
       - name: Upload source artifact
         uses: actions/upload-artifact@v7
@@ -182,6 +178,7 @@ jobs:
             archive: tar.gz
           - goos: linux
             goarch: arm
+            goarm: "7"
             name: Linux-ARM
             ext: ""
             archive: tar.gz
@@ -474,9 +471,56 @@ jobs:
           name: build-Windows-64bit
           path: "croc_*_Windows-64bit.zip"
 
+  linux-packages:
+    name: Package and verify all Linux targets
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '^1.27.0'
+      - name: Install pinned package builder
+        run: go install "github.com/goreleaser/nfpm/v2/cmd/nfpm@$(cat packaging/nfpm-version)"
+      - name: Download Linux archives
+        uses: actions/download-artifact@v8
+        with:
+          pattern: build-Linux-*
+          merge-multiple: true
+          path: dist
+      - name: Package archive binaries
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: python3 packaging/release.py packages --version "${RELEASE_TAG}" --artifacts dist
+      - name: Inspect packages and exercise every architecture
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm cpio qemu-user zsh fish
+          python3 packaging/verify.py --version "${RELEASE_TAG}" --artifacts dist
+      - name: Upload Linux packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-packages
+          path: |
+            dist/*.deb
+            dist/*.rpm
+
+  package-lifecycle:
+    needs: [prepare, linux-packages]
+    uses: ./.github/workflows/package-lifecycle.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      revision: ${{ needs.prepare.outputs.sha }}
+
   release:
     name: Create draft release
-    needs: [prepare, prepare-source, build, build-web, sign-windows-amd64]
+    needs: [prepare, prepare-source, build, build-web, sign-windows-amd64, linux-packages, package-lifecycle]
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout tagged commit
@@ -499,22 +543,26 @@ jobs:
         with:
           pattern: build-*
           merge-multiple: true
+          path: dist
 
       - name: Download source artifact
         uses: actions/download-artifact@v8
         with:
           name: source-tarball
+          path: dist
 
-      - name: Generate checksums
+      - name: Download Linux packages
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-packages
+          path: dist
+
+      - name: Verify exact asset set and generate checksums
         env:
           RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
-          # Generate SHA256 checksums for all archives
-          sha256sum *.zip *.tar.gz > "croc_${RELEASE_TAG}_checksums.txt"
-          
-          # Display the checksums file for verification
-          echo "Generated checksums:"
-          cat "croc_${RELEASE_TAG}_checksums.txt"
+          python3 packaging/release.py checksums --version "${RELEASE_TAG}" --artifacts dist
+          python3 packaging/release.py verify-assets --version "${RELEASE_TAG}" --artifacts dist
 
       - name: Create or update draft release
         env:
@@ -522,13 +570,8 @@ jobs:
           RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
-          assets=( *.zip *.tar.gz *_checksums.txt )
-          if (( ${#assets[@]} != 22 )); then
-            echo "Expected 22 release assets (19 croc archives, croc-web, source, and checksums); found ${#assets[@]}" >&2
-            printf '  %s\n' "${assets[@]}" >&2
-            exit 1
-          fi
+          python3 packaging/release.py verify-assets --version "${RELEASE_TAG}" --artifacts dist
+          assets=( dist/*.zip dist/*.tar.gz dist/*.deb dist/*.rpm dist/*_checksums.txt )
 
           if release_is_draft="$(gh release view "${RELEASE_TAG}" --json isDraft --jq .isDraft 2>/dev/null)"; then
             if [[ "${release_is_draft}" != "true" ]]; then
@@ -544,5 +587,7 @@ jobs:
               --verify-tag
           fi
 
+          gh release view "${RELEASE_TAG}" --json isDraft,assets > release-assets.json
+          python3 packaging/release.py verify-draft --version "${RELEASE_TAG}" --metadata release-assets.json
           release_url="$(gh release view "${RELEASE_TAG}" --json url --jq .url)"
           echo "Draft release: ${release_url}" >> "${GITHUB_STEP_SUMMARY}"

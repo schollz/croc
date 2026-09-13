@@ -1,0 +1,44 @@
+name: Linux package lifecycle
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      revision:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  lifecycle:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - debian:bookworm-slim
+          - debian:trixie-slim
+          - ubuntu:22.04
+          - ubuntu:24.04
+          - ubuntu:26.04
+          - fedora:43
+          - fedora:44
+          - opensuse/leap:16.0
+          - opensuse/tumbleweed:latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.revision }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: linux-packages
+          path: dist
+      - name: Install, upgrade, remove, and protect package-owned files
+        env:
+          TEST_IMAGE: ${{ matrix.image }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: docker run --rm -v "$PWD:/work:ro" -w /work "$TEST_IMAGE" sh packaging/lifecycle.sh dist "$RELEASE_VERSION"

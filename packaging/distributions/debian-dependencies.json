@@ -1,0 +1,1251 @@
+{
+  "checked": "2026-09-13",
+  "index": "https://deb.debian.org/debian/dists/sid/main/source/Sources.xz",
+  "indexSHA256": "96a51390db1db3993688b20b7f6bd5770914702facf4475e0ad519467fd1cc26",
+  "compiler": [
+    {
+      "source": "golang-1.27",
+      "version": "1.27.1-2"
+    },
+    {
+      "source": "golang-defaults",
+      "version": "2:1.27~1"
+    }
+  ],
+  "modules": [
+    {
+      "path": "filippo.io/edwards25519",
+      "version": "v1.2.0",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-filippo-edwards25519",
+          "version": "1.2.0-2",
+          "binaryPackages": [
+            "golang-filippo-edwards25519-dev"
+          ],
+          "importPaths": [
+            "filippo.io/edwards25519"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-filippo-edwards25519"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/anmitsu/go-shlex",
+      "version": "v0.0.0-20200514113438-38f4b401e2be",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-anmitsu-go-shlex",
+          "version": "0.0~git20200514.38f4b40-2",
+          "binaryPackages": [
+            "golang-github-anmitsu-go-shlex-dev"
+          ],
+          "importPaths": [
+            "github.com/anmitsu/go-shlex"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-anmitsu-go-shlex"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/cespare/xxhash/v2",
+      "version": "v2.3.0",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-cespare-xxhash",
+          "version": "2.3.0-2",
+          "binaryPackages": [
+            "golang-github-cespare-xxhash-dev"
+          ],
+          "importPaths": [
+            "github.com/cespare/xxhash"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-cespare-xxhash"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/coder/websocket",
+      "version": "v1.8.15",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-nhooyr-websocket",
+          "version": "1.8.12-5",
+          "binaryPackages": [
+            "golang-nhooyr-websocket-dev"
+          ],
+          "importPaths": [
+            "github.com/coder/websocket",
+            "nhooyr.io/websocket"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-nhooyr-websocket"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/creachadair/msync",
+      "version": "v0.8.1",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [],
+      "status": "no exact import metadata match"
+    },
+    {
+      "path": "github.com/creack/pty",
+      "version": "v1.1.24",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-creack-pty",
+          "version": "1.1.21-1",
+          "binaryPackages": [
+            "golang-github-creack-pty-dev"
+          ],
+          "importPaths": [
+            "github.com/creack/pty"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-creack-pty"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/denisbrodbeck/machineid",
+      "version": "v1.0.1",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-denisbrodbeck-machineid",
+          "version": "1.0.1-2",
+          "binaryPackages": [
+            "golang-github-denisbrodbeck-machineid-dev",
+            "machineid"
+          ],
+          "importPaths": [
+            "github.com/denisbrodbeck/machineid"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-denisbrodbeck-machineid"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/fxamacker/cbor/v2",
+      "version": "v2.9.3",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-fxamacker-cbor",
+          "version": "2.9.3-1",
+          "binaryPackages": [
+            "golang-github-fxamacker-cbor-dev"
+          ],
+          "importPaths": [
+            "github.com/fxamacker/cbor"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-fxamacker-cbor"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/gaissmai/bart",
+      "version": "v0.26.1",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-gaissmai-bart",
+          "version": "0.26.1-1",
+          "binaryPackages": [
+            "golang-github-gaissmai-bart-dev"
+          ],
+          "importPaths": [
+            "github.com/gaissmai/bart"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-gaissmai-bart"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/go-json-experiment/json",
+      "version": "v0.0.0-20260820222146-c27c302e5fc3",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-go-json-experiment-json",
+          "version": "0.0~git20260214.d219187-4",
+          "binaryPackages": [
+            "golang-github-go-json-experiment-json-dev"
+          ],
+          "importPaths": [
+            "github.com/go-json-experiment/json"
+          ],
+          "sourceRepository": "https://forgejo.debian.net/golang/golang-github-go-json-experiment-json"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/godbus/dbus/v5",
+      "version": "v5.2.2",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-dbus",
+          "version": "5.1.0-1",
+          "binaryPackages": [
+            "golang-dbus-dev"
+          ],
+          "importPaths": [
+            "github.com/godbus/dbus"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-dbus"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/golang/groupcache",
+      "version": "v0.0.0-20241129210726-2c02b8208cf8",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-golang-groupcache",
+          "version": "0.0~git20210331.41bb18b-2",
+          "binaryPackages": [
+            "golang-github-golang-groupcache-dev"
+          ],
+          "importPaths": [
+            "github.com/golang/groupcache"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-golang-groupcache"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/google/btree",
+      "version": "v1.1.3",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-google-btree",
+          "version": "1.0.1-1",
+          "binaryPackages": [
+            "golang-github-google-btree-dev"
+          ],
+          "importPaths": [
+            "github.com/google/btree"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-google-btree"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/hdevalence/ed25519consensus",
+      "version": "v0.2.0",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [],
+      "status": "no exact import metadata match"
+    },
+    {
+      "path": "github.com/jsimonetti/rtnetlink",
+      "version": "v1.4.1",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-jsimonetti-rtnetlink",
+          "version": "2.2.0-2",
+          "binaryPackages": [
+            "golang-github-jsimonetti-rtnetlink-dev"
+          ],
+          "importPaths": [
+            "github.com/jsimonetti/rtnetlink"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-jsimonetti-rtnetlink"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/kalafut/imohash",
+      "version": "v1.1.1",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-kalafut-imohash",
+          "version": "1.1.0-1",
+          "binaryPackages": [
+            "golang-github-kalafut-imohash-dev"
+          ],
+          "importPaths": [
+            "github.com/kalafut/imohash"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-kalafut-imohash"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/klauspost/compress",
+      "version": "v1.19.1",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-klauspost-compress",
+          "version": "1.19.0+ds1-1",
+          "binaryPackages": [
+            "golang-github-klauspost-compress-dev"
+          ],
+          "importPaths": [
+            "github.com/klauspost/compress"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-klauspost-compress"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/magisterquis/connectproxy",
+      "version": "v0.0.0-20200725203833-3582e84f0c9b",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-magisterquis-connectproxy",
+          "version": "0.0~git20200725.3582e84-2",
+          "binaryPackages": [
+            "golang-github-magisterquis-connectproxy-dev"
+          ],
+          "importPaths": [
+            "github.com/magisterquis/connectproxy"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-magisterquis-connectproxy"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/mattn/go-colorable",
+      "version": "v0.1.15",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-mattn-go-colorable",
+          "version": "0.1.13-1",
+          "binaryPackages": [
+            "golang-github-mattn-go-colorable-dev"
+          ],
+          "importPaths": [
+            "github.com/mattn/go-colorable"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-mattn-go-colorable"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/mattn/go-isatty",
+      "version": "v0.0.24",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-mattn-go-isatty",
+          "version": "0.0.24-1",
+          "binaryPackages": [
+            "golang-github-mattn-go-isatty-dev"
+          ],
+          "importPaths": [
+            "github.com/mattn/go-isatty"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-mattn-go-isatty"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/mdlayher/netlink",
+      "version": "v1.7.3-0.20250113171957-fbb4dce95f42",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-mdlayher-netlink",
+          "version": "1.11.2-1",
+          "binaryPackages": [
+            "golang-github-mdlayher-netlink-dev"
+          ],
+          "importPaths": [
+            "github.com/mdlayher/netlink"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-mdlayher-netlink"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/mdlayher/socket",
+      "version": "v0.5.1",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-mdlayher-socket",
+          "version": "0.6.1-1",
+          "binaryPackages": [
+            "golang-github-mdlayher-socket-dev"
+          ],
+          "importPaths": [
+            "github.com/mdlayher/socket"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-mdlayher-socket"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/minio/highwayhash",
+      "version": "v1.0.4",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-minio-highwayhash",
+          "version": "1.0.4-1",
+          "binaryPackages": [
+            "golang-github-minio-highwayhash-dev"
+          ],
+          "importPaths": [
+            "github.com/minio/highwayhash"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-minio-highwayhash"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/mitchellh/colorstring",
+      "version": "v0.0.0-20190213212951-d06e56a500db",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-mitchellh-colorstring",
+          "version": "0.0~git20190213.d06e56a-1",
+          "binaryPackages": [
+            "golang-github-mitchellh-colorstring-dev"
+          ],
+          "importPaths": [
+            "github.com/mitchellh/colorstring"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-mitchellh-colorstring"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/mitchellh/go-ps",
+      "version": "v1.0.0",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-mitchellh-go-ps",
+          "version": "1.0.0-2",
+          "binaryPackages": [
+            "golang-github-mitchellh-go-ps-dev"
+          ],
+          "importPaths": [
+            "github.com/mitchellh/go-ps"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-mitchellh-go-ps"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/pires/go-proxyproto",
+      "version": "v0.8.1",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-pires-go-proxyproto",
+          "version": "0.11.0-1",
+          "binaryPackages": [
+            "golang-github-pires-go-proxyproto-dev"
+          ],
+          "importPaths": [
+            "github.com/pires/go-proxyproto"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-pires-go-proxyproto"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/rivo/uniseg",
+      "version": "v0.4.7",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-rivo-uniseg",
+          "version": "0.4.7-1",
+          "binaryPackages": [
+            "golang-github-rivo-uniseg-dev"
+          ],
+          "importPaths": [
+            "github.com/rivo/uniseg"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-rivo-uniseg"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/sabhiram/go-gitignore",
+      "version": "v0.0.0-20210923224102-525f6e181f06",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-sabhiram-go-gitignore",
+          "version": "1.0.2+git20210923.525f6e1-1",
+          "binaryPackages": [
+            "golang-github-sabhiram-go-gitignore-dev"
+          ],
+          "importPaths": [
+            "github.com/sabhiram/go-gitignore"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-sabhiram-go-gitignore"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/safchain/ethtool",
+      "version": "v0.3.0",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-safchain-ethtool",
+          "version": "0.7.0-1",
+          "binaryPackages": [
+            "golang-github-safchain-ethtool-dev"
+          ],
+          "importPaths": [
+            "github.com/safchain/ethtool"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-safchain-ethtool"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/schollz/pake/v3",
+      "version": "v3.2.0",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-schollz-pake",
+          "version": "3.0.5-2",
+          "binaryPackages": [
+            "golang-github-schollz-pake-dev"
+          ],
+          "importPaths": [
+            "github.com/schollz/pake"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-schollz-pake"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/schollz/peerdiscovery",
+      "version": "v1.7.6",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-schollz-peerdiscovery",
+          "version": "1.7.4-1",
+          "binaryPackages": [
+            "golang-github-schollz-peerdiscovery-dev"
+          ],
+          "importPaths": [
+            "github.com/schollz/peerdiscovery"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-schollz-peerdiscovery"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/schollz/progressbar/v3",
+      "version": "v3.19.1",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-schollz-progressbar",
+          "version": "3.14.1-1",
+          "binaryPackages": [
+            "golang-github-schollz-progressbar-dev"
+          ],
+          "importPaths": [
+            "github.com/schollz/progressbar"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-schollz-progressbar"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/skip2/go-qrcode",
+      "version": "v0.0.0-20200617195104-da1b6568686e",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "go-qrcode",
+          "version": "0.0~git20200617.da1b656-4",
+          "binaryPackages": [
+            "go-qrcode",
+            "golang-github-skip2-go-qrcode-dev"
+          ],
+          "importPaths": [
+            "github.com/skip2/go-qrcode"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/go-qrcode"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/tailscale/gliderssh",
+      "version": "v0.3.4-0.20260716005906-1a0f895faf28",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [],
+      "status": "no exact import metadata match"
+    },
+    {
+      "path": "github.com/tailscale/hujson",
+      "version": "v0.0.0-20260302212456-ecc657c15afd",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-tailscale-hujson",
+          "version": "0.0~git20260302.ecc657c-2",
+          "binaryPackages": [
+            "golang-github-tailscale-hujson-dev"
+          ],
+          "importPaths": [
+            "github.com/tailscale/hujson"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-tailscale-hujson"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/tailscale/peercred",
+      "version": "v0.0.0-20250107143737-35a0c7bd7edc",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [],
+      "status": "no exact import metadata match"
+    },
+    {
+      "path": "github.com/tailscale/web-client-prebuilt",
+      "version": "v0.0.0-20250124233751-d4cd19a26976",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [],
+      "status": "no exact import metadata match"
+    },
+    {
+      "path": "github.com/tailscale/wireguard-go",
+      "version": "v0.0.0-20260715223240-2e01ba5b00f0",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [],
+      "status": "no exact import metadata match"
+    },
+    {
+      "path": "github.com/tscholl2/siec",
+      "version": "v0.0.0-20240310163802-c2c6f6198406",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-tscholl2-siec",
+          "version": "0.0~git20210707.9bdfc48-2",
+          "binaryPackages": [
+            "golang-github-tscholl2-siec-dev"
+          ],
+          "importPaths": [
+            "github.com/tscholl2/siec"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-tscholl2-siec"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/twmb/murmur3",
+      "version": "v1.1.8",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-twmb-murmur3",
+          "version": "1.1.6-1",
+          "binaryPackages": [
+            "golang-github-twmb-murmur3-dev"
+          ],
+          "importPaths": [
+            "github.com/twmb/murmur3"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-twmb-murmur3"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "github.com/x448/float16",
+      "version": "v0.8.4",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-github-x448-float16",
+          "version": "0.8.4-3",
+          "binaryPackages": [
+            "golang-github-x448-float16-dev"
+          ],
+          "importPaths": [
+            "github.com/x448/float16"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-github-x448-float16"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "go4.org/mem",
+      "version": "v0.0.0-20240501181205-ae6ca9944745",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [],
+      "status": "no exact import metadata match"
+    },
+    {
+      "path": "go4.org/netipx",
+      "version": "v0.0.0-20260823151212-3075585bcbeb",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-go4-netipx",
+          "version": "0.0~git20231129.fdeea32-2",
+          "binaryPackages": [
+            "golang-go4-netipx-dev"
+          ],
+          "importPaths": [
+            "go4.org/netipx"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-go4-netipx"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "golang.org/x/crypto",
+      "version": "v0.56.0",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-go.crypto",
+          "version": "1:0.56.0-1",
+          "binaryPackages": [
+            "golang-golang-x-crypto-dev"
+          ],
+          "importPaths": [
+            "golang.org/x/crypto"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-go.crypto"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "golang.org/x/exp",
+      "version": "v0.0.0-20260410095643-746e56fc9e2f",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-golang-x-exp",
+          "version": "0.0~git20260820.ca53665-1",
+          "binaryPackages": [
+            "golang-golang-x-exp-dev",
+            "ebnflint"
+          ],
+          "importPaths": [
+            "golang.org/x/exp"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-golang-x-exp"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "golang.org/x/net",
+      "version": "v0.58.0",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-golang-x-net",
+          "version": "1:0.58.0-1",
+          "binaryPackages": [
+            "golang-golang-x-net-dev"
+          ],
+          "importPaths": [
+            "golang.org/x/net"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-golang-x-net"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "golang.org/x/sync",
+      "version": "v0.22.0",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-golang-x-sync",
+          "version": "0.22.0-1",
+          "binaryPackages": [
+            "golang-golang-x-sync-dev"
+          ],
+          "importPaths": [
+            "golang.org/x/sync"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-golang-x-sync"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "golang.org/x/sys",
+      "version": "v0.47.0",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-golang-x-sys",
+          "version": "0.47.0+dfsg-1",
+          "binaryPackages": [
+            "golang-golang-x-sys-dev"
+          ],
+          "importPaths": [
+            "golang.org/x/sys"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-golang-x-sys"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "golang.org/x/term",
+      "version": "v0.45.0",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-golang-x-term",
+          "version": "0.45.0-1",
+          "binaryPackages": [
+            "golang-golang-x-term-dev"
+          ],
+          "importPaths": [
+            "golang.org/x/term"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-golang-x-term"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "golang.org/x/text",
+      "version": "v0.41.0",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-golang-x-text",
+          "version": "0.41.0-1",
+          "binaryPackages": [
+            "golang-golang-x-text-dev"
+          ],
+          "importPaths": [
+            "golang.org/x/text"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-golang-x-text"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "golang.org/x/time",
+      "version": "v0.15.0",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-golang-x-time",
+          "version": "0.15.0-1",
+          "binaryPackages": [
+            "golang-golang-x-time-dev"
+          ],
+          "importPaths": [
+            "golang.org/x/time"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-golang-x-time"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "gvisor.dev/gvisor",
+      "version": "v0.0.0-20260906120324-45bde0d1defa",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [
+        {
+          "source": "golang-gvisor-gvisor",
+          "version": "0.0~20240729.0-7",
+          "binaryPackages": [
+            "runsc",
+            "golang-gvisor-gvisor-dev"
+          ],
+          "importPaths": [
+            "gvisor.dev/gvisor"
+          ],
+          "sourceRepository": "https://salsa.debian.org/go-team/packages/golang-gvisor-gvisor"
+        }
+      ],
+      "status": "compare versions and APIs"
+    },
+    {
+      "path": "tailscale.com",
+      "version": "v1.102.3",
+      "linuxArchitectures": [
+        "amd64",
+        "386",
+        "arm",
+        "arm64",
+        "riscv64"
+      ],
+      "debianCandidates": [],
+      "status": "no exact import metadata match"
+    }
+  ]
+}

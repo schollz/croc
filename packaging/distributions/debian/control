@@ -1,0 +1,17 @@
+Source: croc
+Section: net
+Priority: optional
+Maintainer: Zack Scholl <zack.scholl+croc@gmail.com>
+Build-Depends: debhelper-compat (= 13), dh-golang, golang-any (>= 2:1.27~)
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Homepage: https://github.com/schollz/croc
+XS-Go-Import-Path: github.com/schollz/croc/v11
+
+Package: croc
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}, ca-certificates
+Description: transfer files and directories using a shared code
+ croc transfers files and directories between computers using encrypted
+ connections and a short shared code. A relay can connect peers behind NAT.
+ The package installs the command-line program and shell completions.
