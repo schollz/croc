@@ -32,7 +32,7 @@ require (
 	golang.org/x/text v0.42.0
 	golang.org/x/time v0.15.0
 	gvisor.dev/gvisor v0.0.0-20260906120324-45bde0d1defa
-	tailscale.com v1.102.3
+	tailscale.com v1.102.4
 )
 
 require (
