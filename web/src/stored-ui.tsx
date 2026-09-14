@@ -78,7 +78,12 @@ export function StoredModeSwitch({
   onChange,
 }: StoredModeSwitchProps) {
   return (
-    <div className="send-mode-switch" role="group" aria-label="Send mode">
+    <div
+      className="send-mode-switch"
+      role="group"
+      aria-label="Send mode"
+      data-tour="store"
+    >
       <button
         type="button"
         className={mode === "direct" ? "active" : ""}

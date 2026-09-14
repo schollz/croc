@@ -665,8 +665,10 @@ test("help tour explains browser transfers and end-to-end encryption", async ({
   const steps = [
     "Welcome to croc web",
     "Send one or several files",
+    "Store now, download later",
     "Receive and review",
     "The code or link provides the key",
+    "SSH: join a shared terminal",
     "Use another relay when needed",
     "Works with the croc CLI",
     "Read the field notes",
