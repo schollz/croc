@@ -56,9 +56,9 @@ type ManifestFile struct {
 // ChunkRef identifies a chunk and supplies the authenticated context required
 // to decrypt it.
 type ChunkRef struct {
-	ObjectIndex int
-	FileIndex   int
-	FileChunk   int
+	ObjectIndex int64
+	FileIndex   int64
+	FileChunk   int64
 	PlainSize   int
 }
 
@@ -350,7 +350,7 @@ func validateChunkRef(ref ChunkRef, plaintextLength int) error {
 	if ref.ObjectIndex < 0 || ref.FileIndex < 0 || ref.FileChunk < 0 {
 		return errors.New("stored-transfer chunk index cannot be negative")
 	}
-	if int64(ref.ObjectIndex) > math.MaxUint32 || int64(ref.FileIndex) > math.MaxUint32 || int64(ref.FileChunk) > math.MaxUint32 {
+	if ref.ObjectIndex > math.MaxUint32 || ref.FileIndex > math.MaxUint32 || ref.FileChunk > math.MaxUint32 {
 		return errors.New("stored-transfer chunk index cannot be larger than 2^32-1")
 	}
 	if ref.PlainSize < 1 || ref.PlainSize > ChunkSize || plaintextLength != ref.PlainSize {
@@ -417,9 +417,9 @@ func ChunkRefs(manifest Manifest) []ChunkRef {
 				size = int(remaining)
 			}
 			refs = append(refs, ChunkRef{
-				ObjectIndex: file.FirstChunk + fileChunk,
-				FileIndex:   fileIndex,
-				FileChunk:   fileChunk,
+				ObjectIndex: int64(file.FirstChunk + fileChunk),
+				FileIndex:   int64(fileIndex),
+				FileChunk:   int64(fileChunk),
 				PlainSize:   size,
 			})
 			remaining -= int64(size)
