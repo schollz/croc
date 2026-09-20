@@ -106,7 +106,7 @@ type downloadState struct {
 	ID           string          `json:"id"`
 	ManifestHash string          `json:"manifestHash"`
 	ClaimToken   string          `json:"claimToken"`
-	Completed    map[int]bool    `json:"completed"`
+	Completed    map[int64]bool  `json:"completed"`
 	Renamed      map[string]bool `json:"renamed"`
 	Verified     bool            `json:"verified"`
 }
@@ -906,7 +906,7 @@ func (c *Client) startDownload(
 		Version:      storecrypto.Version,
 		ID:           share.ID,
 		ManifestHash: storecrypto.EncodedSHA256(manifestBytes),
-		Completed:    make(map[int]bool),
+		Completed:    make(map[int64]bool),
 		Renamed:      make(map[string]bool),
 	}
 	if existing, readErr := readDownloadStateRoot(root, statePath); readErr == nil &&
@@ -1192,7 +1192,7 @@ func withFreshClaim[T any](
 func (c *Client) getChunkWithClaimRetry(
 	ctx context.Context,
 	session *downloadSession,
-	index int,
+	index int64,
 ) ([]byte, error) {
 	return withFreshClaim(ctx, c, session, func(token string) ([]byte, error) {
 		return c.getChunk(ctx, session.share, token, index)
@@ -1237,7 +1237,7 @@ func readDownloadStateRoot(root *receivefs.Root, path string) (downloadState, er
 	var state downloadState
 	err = json.Unmarshal(bytes, &state)
 	if state.Completed == nil {
-		state.Completed = make(map[int]bool)
+		state.Completed = make(map[int64]bool)
 	}
 	if state.Renamed == nil {
 		state.Renamed = make(map[string]bool)
@@ -1299,7 +1299,7 @@ func (c *Client) getChunk(
 	ctx context.Context,
 	share storecrypto.Share,
 	claimToken string,
-	index int,
+	index int64,
 ) ([]byte, error) {
 	request, err := jsonRequest(
 		ctx,
