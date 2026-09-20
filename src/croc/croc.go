@@ -1322,7 +1322,7 @@ func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {
 		log.Debugf("file %d info: %+v", i, c.FilesToTransfer[i])
 		fmt.Fprintf(os.Stderr, "\r                                 ")
 		output, _ := termui.Output(os.Stderr)
-		fmt.Fprintf(output, "\rSending %d files (%s)", i, utils.ByteCountDecimal(totalFilesSize))
+		fmt.Fprintf(output, "\rPreparing %d files (%s)", i+1, utils.ByteCountDecimal(totalFilesSize))
 	}
 	log.Debugf("longestFilename: %+v", c.longestFilename)
 	fname := fmt.Sprintf("%d files", len(c.FilesToTransfer))
