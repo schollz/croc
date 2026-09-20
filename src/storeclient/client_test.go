@@ -36,7 +36,7 @@ func BenchmarkStoredChunkUploadConcurrency(b *testing.B) {
 	refs := make([]storecrypto.ChunkRef, chunks)
 	for index := range refs {
 		refs[index] = storecrypto.ChunkRef{
-			ObjectIndex: index, FileIndex: 0, FileChunk: index, PlainSize: storecrypto.ChunkSize,
+			ObjectIndex: int64(index), FileIndex: 0, FileChunk: int64(index), PlainSize: storecrypto.ChunkSize,
 		}
 	}
 	client := &Client{HTTP: &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
@@ -344,7 +344,7 @@ func TestReceiveRenewsAnExpiredPersistedClaim(t *testing.T) {
 			ID:           result.Share.ID,
 			ManifestHash: storecrypto.EncodedSHA256(manifestBytes),
 			ClaimToken:   staleClaim,
-			Completed:    make(map[int]bool),
+			Completed:    make(map[int64]bool),
 			Renamed:      make(map[string]bool),
 		},
 	))
@@ -371,7 +371,7 @@ func TestStoredStateAtomicWriteReplacesSymlinkWithoutFollowingIt(t *testing.T) {
 	root, err := receivefs.OpenRoot(output)
 	require.NoError(t, err)
 	defer root.Close()
-	state := downloadState{Version: storecrypto.Version, Completed: map[int]bool{}, Renamed: map[string]bool{}}
+	state := downloadState{Version: storecrypto.Version, Completed: map[int64]bool{}, Renamed: map[string]bool{}}
 	require.NoError(t, writeStateRoot(root, filepath.Base(statePath), state))
 	assert.Equal(t, []byte("keep"), mustReadFile(t, outside))
 	info, err := os.Lstat(statePath)

@@ -631,9 +631,9 @@ func (b *bridge) storeOpenManifest(args []js.Value) (any, error) {
 
 func storeChunkRef(args []js.Value) storecrypto.ChunkRef {
 	return storecrypto.ChunkRef{
-		ObjectIndex: args[2].Int(),
-		FileIndex:   args[3].Int(),
-		FileChunk:   args[4].Int(),
+		ObjectIndex: int64(args[2].Int()),
+		FileIndex:   int64(args[3].Int()),
+		FileChunk:   int64(args[4].Int()),
 		PlainSize:   args[5].Int(),
 	}
 }
