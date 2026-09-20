@@ -118,6 +118,9 @@ func newApp() *cli.App {
 			Description: "store regular files with a download limit and expiration",
 			ArgsUsage:   "[filename(s)]",
 			Flags: append(storedUploadFlags(""),
+                &cli.StringFlag{Name: "socks5", Value: "", Usage: "SOCKS5 proxy address (relay DNS is resolved by the proxy)", EnvVars: []string{"SOCKS5_PROXY"}},
+				&cli.StringFlag{Name: "connect", Value: "", Usage: "add a http proxy", EnvVars: []string{"HTTP_PROXY"}},
+
 				&cli.BoolFlag{Name: "qrcode", Aliases: []string{"qr"}, Usage: "show the web receive URL as a qrcode"},
 			),
 			HelpName: "croc store",
@@ -222,6 +225,8 @@ func newApp() *cli.App {
 			return errors.New("the web server has moved to the standalone croc-web binary")
 		}
 		if c.IsSet("revoke") {
+			comm.Socks5Proxy = c.String("socks5")
+			comm.HttpProxy = c.String("connect")
 			return revokeStored(c, c.String("revoke"))
 		}
 
