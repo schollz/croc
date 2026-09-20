@@ -20,7 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
-    "github.com/schollz/croc/v11/src/comm"
+	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/receivefs"
 	"github.com/schollz/croc/v11/src/storecrypto"
 )
@@ -33,8 +33,12 @@ const (
 )
 
 // Client talks to one croc stored-transfer HTTP service.
+// It must not be copied after first use.
 type Client struct {
 	HTTP *http.Client
+
+	defaultHTTPOnce sync.Once
+	defaultHTTP     *http.Client
 }
 
 // Progress reports plaintext bytes processed.
@@ -141,35 +145,38 @@ func (c *Client) httpClient() *http.Client {
 		return c.HTTP
 	}
 
-	// Reuse the default transport's sane timeouts/keep-alives and only
-	// layer proxy support on top, so stored transfers honor the same
-	// --socks5/--connect flags that regular send/receive already do.
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+	c.defaultHTTPOnce.Do(func() {
+		// Snapshot proxy settings on first use and share the connection pool
+		// across requests, including concurrent chunk transfers.
+		transport := http.DefaultTransport.(*http.Transport).Clone()
 
-	if comm.HttpProxy != "" {
-		proxyStr := comm.HttpProxy
-		if !strings.Contains(proxyStr, "://") {
-			proxyStr = "http://" + proxyStr
+		// Match the SOCKS5-first precedence used by regular transfers.
+		if comm.Socks5Proxy != "" {
+			proxyStr := comm.Socks5Proxy
+			if !strings.Contains(proxyStr, "://") {
+				proxyStr = "socks5://" + proxyStr
+			}
+			if proxyURL, err := url.Parse(proxyStr); err == nil {
+				transport.Proxy = http.ProxyURL(proxyURL)
+			}
+		} else if comm.HttpProxy != "" {
+			proxyStr := comm.HttpProxy
+			if !strings.Contains(proxyStr, "://") {
+				proxyStr = "http://" + proxyStr
+			}
+			if proxyURL, err := url.Parse(proxyStr); err == nil {
+				transport.Proxy = http.ProxyURL(proxyURL)
+			}
 		}
-		if proxyURL, err := url.Parse(proxyStr); err == nil {
-			transport.Proxy = http.ProxyURL(proxyURL)
-		}
-	} else if comm.Socks5Proxy != "" {
-		proxyStr := comm.Socks5Proxy
-		if !strings.Contains(proxyStr, "://") {
-			proxyStr = "socks5://" + proxyStr
-		}
-		if proxyURL, err := url.Parse(proxyStr); err == nil {
-			transport.Proxy = http.ProxyURL(proxyURL)
-		}
-	}
 
-	return &http.Client{
-        Transport: transport,
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			return errors.New("stored-transfer redirects are not allowed")
-		},
-	}
+		c.defaultHTTP = &http.Client{
+			Transport: transport,
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return errors.New("stored-transfer redirects are not allowed")
+			},
+		}
+	})
+	return c.defaultHTTP
 }
 
 func apiURL(origin, suffix string) string {
