@@ -76,7 +76,7 @@ func NewExitError(message any, exitCode int) ExitCoder {
 //
 // This is the simplest way to trigger a non-zero exit code for an App without
 // having to call os.Exit manually. During testing, this behavior can be avoided
-// by overiding the ExitErrHandler function on an App or the package-global
+// by overriding the ExitErrHandler function on an App or the package-global
 // OsExiter function.
 func Exit(message any, exitCode int) ExitCoder {
 	return &exitError{
