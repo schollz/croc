@@ -327,6 +327,10 @@ type FileInfo struct {
 	TempFile     bool        `json:"tf,omitempty"`
 	IsIgnored    bool        `json:"ig,omitempty"`
 	Prepared     bool        `json:"p,omitempty"`
+
+	// declined is set on the receiver when the user refuses to overwrite
+	// or resume the file, so nothing was written for it.
+	declined bool
 }
 
 // RemoteFileRequest requests specific bytes
@@ -2376,7 +2380,7 @@ func (c *Client) extractReceivedArchives() error {
 		return err
 	}
 	for _, file := range c.FilesToTransfer {
-		if !file.TempFile {
+		if !file.TempFile || file.declined {
 			continue
 		}
 		_, archivePath, pathErr := normalizeReceiveFilePath(file.FolderRemote, file.Name)
@@ -3428,6 +3432,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 					return promptErr
 				}
 				if !overwrite {
+					c.FilesToTransfer[i].declined = true
 					continue
 				}
 			}

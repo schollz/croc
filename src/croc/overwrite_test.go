@@ -284,3 +284,31 @@ func TestReceiveTextArtifactDoesNotPromptOrRename(t *testing.T) {
 		})
 	}
 }
+
+func TestDeclinedArchiveIsNotExtracted(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeTestZip(t, "keep.zip", map[string]string{"mine.txt": "mine"})
+	originalInput := receiveOverwriteInput
+	receiveOverwriteInput = func(context.Context, string) (string, error) { return "n", nil }
+	t.Cleanup(func() { receiveOverwriteInput = originalInput })
+
+	client := overwriteTestClient(t, FileInfo{Name: "keep.zip", FolderRemote: ".", Size: 99999, TempFile: true}, Options{
+		HashAlgorithm: defaultHashAlgorithm,
+		NoPrompt:      true,
+	})
+	if err := client.updateIfRecipientHasFileInfo(); err != nil {
+		t.Fatal(err)
+	}
+	if !client.lifecycleSnapshot().Successful {
+		t.Fatal("transfer with only a declined file did not finish")
+	}
+	if err := client.extractReceivedArchives(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat("keep.zip"); err != nil {
+		t.Fatalf("declined archive was removed: %v", err)
+	}
+	if _, err := os.Stat("mine.txt"); !os.IsNotExist(err) {
+		t.Fatalf("declined archive was extracted: %v", err)
+	}
+}
