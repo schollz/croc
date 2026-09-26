@@ -279,6 +279,10 @@ type Client struct {
 	finishedNum              int
 	numberOfTransferredFiles int
 	numberOfUnchangedFiles   int
+	// filesWrittenByReceiver tracks destination indexes this session opened
+	// or created. --stdout cleanup must not remove a skipped or unchanged file:
+	// FilesToTransferCurrentNum stays at zero when nothing was written.
+	filesWrittenByReceiver   map[int]struct{}
 	preparedHashAlgorithm    string
 	sourceSnapshots          []os.FileInfo
 	remainingPreparationOnce sync.Once
@@ -2328,7 +2332,7 @@ func (c *Client) transfer() (err error) {
 		}
 	}
 
-	if c.Options.Stdout && !c.Options.IsSender && len(c.FilesToTransfer) > 0 && c.FilesToTransferCurrentNum < len(c.FilesToTransfer) {
+	if c.Options.Stdout && !c.Options.IsSender && c.receiverWroteFile(c.FilesToTransferCurrentNum) {
 		pathToFile := path.Join(
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote,
 			c.FilesToTransfer[c.FilesToTransferCurrentNum].Name,
@@ -3171,6 +3175,7 @@ func (c *Client) recipientInitializeFile() (err error) {
 			return err
 		}
 	}
+	c.markFileWrittenByReceiver(c.FilesToTransferCurrentNum)
 	return
 }
 
@@ -3292,7 +3297,23 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 	}
 	c.setProgressBar(c.newProgressBar(1, formatDescription(description), 0))
 	c.finishProgress()
+	c.markFileWrittenByReceiver(i)
 	return
+}
+
+func (c *Client) markFileWrittenByReceiver(index int) {
+	if c.filesWrittenByReceiver == nil {
+		c.filesWrittenByReceiver = make(map[int]struct{})
+	}
+	c.filesWrittenByReceiver[index] = struct{}{}
+}
+
+func (c *Client) receiverWroteFile(index int) bool {
+	if index < 0 || index >= len(c.FilesToTransfer) {
+		return false
+	}
+	_, wrote := c.filesWrittenByReceiver[index]
+	return wrote
 }
 
 var receiveFileHash = utils.HashFileCtx
