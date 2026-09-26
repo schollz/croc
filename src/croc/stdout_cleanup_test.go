@@ -46,17 +46,17 @@ func TestStdoutDoesNotDeleteUnwrittenLocalFile(t *testing.T) {
 		{
 			name:         "declined resume",
 			sender:       senderPayload,
-			local:        ptr(string(senderPayload[:8])),
+			local:        new(string(senderPayload[:8])),
 			answer:       "n",
 			wantPrompts:  1,
-			wantContents: ptr(string(senderPayload[:8])),
+			wantContents: new(string(senderPayload[:8])),
 		},
 		{
 			name:          "identical hash",
 			sender:        senderPayload,
-			local:         ptr(string(senderPayload)),
+			local:         new(string(senderPayload)),
 			wantUnchanged: 1,
-			wantContents:  ptr(string(senderPayload)),
+			wantContents:  new(string(senderPayload)),
 		},
 		{
 			name:            "approved overwrite is removed after stdout",
@@ -188,8 +188,4 @@ func TestStdoutDoesNotDeleteUnwrittenLocalFile(t *testing.T) {
 			}
 		})
 	}
-}
-
-func ptr(value string) *string {
-	return &value
 }
