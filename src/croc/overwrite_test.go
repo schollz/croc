@@ -284,3 +284,101 @@ func TestReceiveTextArtifactDoesNotPromptOrRename(t *testing.T) {
 		})
 	}
 }
+
+func TestDeclinedArchiveIsNotExtracted(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeTestZip(t, "keep.zip", map[string]string{"mine.txt": "mine"})
+	originalInput := receiveOverwriteInput
+	receiveOverwriteInput = func(context.Context, string) (string, error) { return "n", nil }
+	t.Cleanup(func() { receiveOverwriteInput = originalInput })
+
+	client := overwriteTestClient(t, FileInfo{Name: "keep.zip", FolderRemote: ".", Size: 99999, TempFile: true}, Options{
+		HashAlgorithm: defaultHashAlgorithm,
+		NoPrompt:      true,
+	})
+	if err := client.updateIfRecipientHasFileInfo(); err != nil {
+		t.Fatal(err)
+	}
+	if !client.lifecycleSnapshot().Successful {
+		t.Fatal("transfer with only a declined file did not finish")
+	}
+	if err := client.extractReceivedArchives(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat("keep.zip"); err != nil {
+		t.Fatalf("declined archive was removed: %v", err)
+	}
+	if _, err := os.Stat("mine.txt"); !os.IsNotExist(err) {
+		t.Fatalf("declined archive was extracted: %v", err)
+	}
+}
+
+// declineOnce answers no to the first overwrite prompt and reports any later
+// prompt, accepting it the way a user changing their mind would.
+func declineOnce(t *testing.T) {
+	t.Helper()
+	originalInput := receiveOverwriteInput
+	asked := false
+	receiveOverwriteInput = func(context.Context, string) (string, error) {
+		if asked {
+			t.Error("declined file was prompted again")
+			return "y", nil
+		}
+		asked = true
+		return "n", nil
+	}
+	t.Cleanup(func() { receiveOverwriteInput = originalInput })
+}
+
+func TestDeclinedArchiveSurvivesReconnect(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeTestZip(t, "keep.zip", map[string]string{"mine.txt": "mine"})
+	declineOnce(t)
+
+	offered := FileInfo{Name: "keep.zip", FolderRemote: ".", Size: 99999, TempFile: true}
+	client := overwriteTestClient(t, offered, Options{
+		HashAlgorithm: defaultHashAlgorithm,
+		NoPrompt:      true,
+	})
+	if err := client.updateIfRecipientHasFileInfo(); err != nil {
+		t.Fatal(err)
+	}
+	// a reconnect resets the lifecycle and the sender offers the file list again
+	client.resetLifecycle()
+	if _, err := client.processSenderInfo(SenderInfo{FilesToTransfer: []FileInfo{offered}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.extractReceivedArchives(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat("keep.zip"); err != nil {
+		t.Fatalf("declined archive was removed after reconnect: %v", err)
+	}
+	if _, err := os.Stat("mine.txt"); !os.IsNotExist(err) {
+		t.Fatalf("declined archive was extracted after reconnect: %v", err)
+	}
+}
+
+func TestDeclinedFileIsNotPromptedAgain(t *testing.T) {
+	t.Chdir(t.TempDir())
+	writeTestZip(t, "keep.zip", map[string]string{"mine.txt": "mine"})
+	declineOnce(t)
+
+	client := overwriteTestClient(t, FileInfo{Name: "keep.zip", FolderRemote: ".", Size: 99999, TempFile: true, Prepared: true}, Options{
+		HashAlgorithm: progressiveHashAlgorithm,
+		NoPrompt:      true,
+	})
+	client.peerProgressiveHash = true
+	client.FilesToTransfer = append(client.FilesToTransfer, FileInfo{Name: "next.bin", FolderRemote: ".", Size: 5})
+	// the second file is not prepared yet, so this pass stops after the prompt
+	if err := client.updateIfRecipientHasFileInfo(); err != nil {
+		t.Fatal(err)
+	}
+	client.FilesToTransfer[1].Prepared = true
+	if err := client.updateIfRecipientHasFileInfo(); err != nil {
+		t.Fatal(err)
+	}
+	if client.FilesToTransferCurrentNum != 1 {
+		t.Fatalf("receiving file %d, want the file after the declined one", client.FilesToTransferCurrentNum)
+	}
+}

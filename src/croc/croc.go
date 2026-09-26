@@ -331,6 +331,10 @@ type FileInfo struct {
 	TempFile     bool        `json:"tf,omitempty"`
 	IsIgnored    bool        `json:"ig,omitempty"`
 	Prepared     bool        `json:"p,omitempty"`
+
+	// declined is set on the receiver when the user refuses to overwrite
+	// or resume the file, so nothing was written for it.
+	declined bool
 }
 
 // RemoteFileRequest requests specific bytes
@@ -2380,7 +2384,7 @@ func (c *Client) extractReceivedArchives() error {
 		return err
 	}
 	for _, file := range c.FilesToTransfer {
-		if !file.TempFile {
+		if !file.TempFile || file.declined {
 			continue
 		}
 		_, archivePath, pathErr := normalizeReceiveFilePath(file.FolderRemote, file.Name)
@@ -2464,9 +2468,19 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 	}
 	c.nextReconnectRoom = senderInfo.NextReconnectRoom
 	c.TotalNumberFolders = senderInfo.TotalNumberFolders
+	// a reconnect offers the file list again, keep what the user already declined
+	declined := make(map[string]bool)
+	for _, fi := range c.FilesToTransfer {
+		if fi.declined {
+			declined[path.Join(fi.FolderRemote, fi.Name)] = true
+		}
+	}
 	c.FilesToTransfer, c.EmptyFoldersToTransfer, err = validateReceiveMetadata(senderInfo.FilesToTransfer, senderInfo.EmptyFoldersToTransfer)
 	if err != nil {
 		return true, err
+	}
+	for i, fi := range c.FilesToTransfer {
+		c.FilesToTransfer[i].declined = declined[path.Join(fi.FolderRemote, fi.Name)]
 	}
 	if err = validateSendingTextOffer(senderInfo.SendingText, c.FilesToTransfer, c.EmptyFoldersToTransfer, c.TotalNumberFolders); err != nil {
 		return true, err
@@ -3385,7 +3399,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 		if _, ok := c.FilesHasFinished[i]; ok {
 			continue
 		}
-		if i < c.FilesToTransferCurrentNum {
+		if i < c.FilesToTransferCurrentNum || fileInfo.declined {
 			continue
 		}
 		if c.progressiveHashActive() && !fileInfo.Prepared {
@@ -3449,6 +3463,7 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 					return promptErr
 				}
 				if !overwrite {
+					c.FilesToTransfer[i].declined = true
 					continue
 				}
 			}
