@@ -6,9 +6,78 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	internalcli "github.com/schollz/croc/v11/internal/cli"
 )
+
+func TestStoreUploadEnvironmentConfiguration(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		env     bool
+		args    []string
+		rate    int
+		active  int
+		timeout time.Duration
+		proxies []string
+	}{
+		{name: "defaults", rate: 5, active: 2, timeout: 5 * time.Minute},
+		{name: "environment", env: true, rate: 60, active: 10, timeout: 2 * time.Minute, proxies: []string{"10.0.1.3/32", "::1/128"}},
+		{name: "flags override environment", env: true, args: []string{"--store-create-rate", "12", "--store-active-uploads", "3", "--store-upload-timeout", "30s", "--store-trusted-proxy", "127.0.0.1/32", "--store-trusted-proxy", "192.0.2.1/32"}, rate: 12, active: 3, timeout: 30 * time.Second, proxies: []string{"127.0.0.1/32", "192.0.2.1/32"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for key, value := range map[string]string{
+				"CROC_STORE_CREATE_RATE": "60", "CROC_STORE_ACTIVE_UPLOADS": "10",
+				"CROC_STORE_UPLOAD_TIMEOUT": "2m", "CROC_STORE_TRUSTED_PROXY": "10.0.1.3/32, ::1/128",
+			} {
+				t.Setenv(key, value)
+				if !tc.env {
+					if err := os.Unsetenv(key); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			app := newApp(context.Background())
+			app.Action = func(ctx *internalcli.Context) error {
+				if got := ctx.Int("store-create-rate"); got != tc.rate {
+					t.Errorf("create rate = %d, want %d", got, tc.rate)
+				}
+				if got := ctx.Int("store-active-uploads"); got != tc.active {
+					t.Errorf("active uploads = %d, want %d", got, tc.active)
+				}
+				if got := ctx.Duration("store-upload-timeout"); got != tc.timeout {
+					t.Errorf("upload timeout = %s, want %s", got, tc.timeout)
+				}
+				if got := ctx.StringSlice("store-trusted-proxy"); !reflect.DeepEqual(got, tc.proxies) {
+					t.Errorf("proxies = %v, want %v", got, tc.proxies)
+				}
+				return nil
+			}
+			if err := app.Run(append([]string{"croc-web"}, tc.args...)); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestStoreUploadConfigurationValidation(t *testing.T) {
+	for _, tc := range []struct{ flag, value, message string }{
+		{"store-create-rate", "0", "--store-create-rate must be positive"},
+		{"store-create-rate", "-1", "--store-create-rate must be positive"},
+		{"store-active-uploads", "0", "--store-active-uploads must be positive"},
+		{"store-active-uploads", "-1", "--store-active-uploads must be positive"},
+		{"store-upload-timeout", "0s", "--store-upload-timeout must be positive"},
+		{"store-upload-timeout", "-1s", "--store-upload-timeout must be positive"},
+		{"store-trusted-proxy", "10.0.1.3", "invalid --store-trusted-proxy"},
+	} {
+		t.Run(tc.flag+"="+tc.value, func(t *testing.T) {
+			err := newApp(context.Background()).Run([]string{"croc-web", "--store-dir", t.TempDir(), "--" + tc.flag, tc.value})
+			if err == nil || !strings.Contains(err.Error(), tc.message) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
 
 func TestAppIdentityAndArguments(t *testing.T) {
 	app := newApp(context.Background())

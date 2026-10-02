@@ -65,7 +65,7 @@ jobs:
           go-version: '^1.27.0'
 
       - name: Race-test root-scoped and stored writes
-        run: go test -race ./src/receivefs ./src/redact ./src/storecrypto ./src/storeclient
+        run: go test -race ./src/receivefs ./src/redact ./src/storecrypto ./src/storeclient ./src/store ./src/webcli ./src/webrelay
 
       - name: Race-test archive and marked-file regressions
         run: go test -race ./src/utils -run 'Test(UnzipDirectory|RemoveMarkedFiles)'

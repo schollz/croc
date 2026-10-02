@@ -604,6 +604,32 @@ Disco stop the previous volume-owning web service before starting its
 replacement, avoiding concurrent access to the store. Port 9020 carries no
 application traffic and should remain blocked by the server firewall.
 
+Stored-upload policy can be set per deployment without editing `disco.json`:
+
+```bash
+disco env:set \
+  CROC_STORE_CREATE_RATE=60 \
+  CROC_STORE_ACTIVE_UPLOADS=10 \
+  CROC_STORE_UPLOAD_TIMEOUT=5m \
+  CROC_STORE_TRUSTED_PROXY=VERIFIED_PROXY_IP/32 \
+  --project croc --disco YOUR_DISCO_HOST
+```
+
+Replace the proxy placeholder with the socket source address seen by croc.
+With Docker Swarm routing, this can be the `lb-disco-main` endpoint shown by
+`docker network inspect disco-main`, rather than Caddy's container address.
+Verify the source on each instance and again after Docker network changes.
+Caddy's normal forwarding configuration supplies `X-Forwarded-For`; verify
+that different external clients remain distinct and that a forged incoming
+header cannot choose their accounting IP. Do not edit Disco-generated Caddy
+configuration or trust an entire private network to work around a mismatch.
+
+The values above are deployment overrides; croc's defaults remain five creation
+attempts per hour and two unfinished uploads per IP. `CROC_STORE_DOWNLOADS`
+controls downloads from each link and does not raise upload limits. See the
+[stored-transfer operator guide](src/docs/STORED_TRANSFERS.md) for timeout,
+cleanup, and rate-limit response behavior.
+
 The ports in `CROC_RELAY_PORTS` must match the `publishedPorts` entries in
 the `relay` service in [`disco.json`](disco.json); do not include the web
 service's deployment-only port 9020. Disco cannot generate host port mappings

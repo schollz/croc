@@ -59,9 +59,10 @@ func newApp(ctx context.Context) *cli.App {
 		&cli.IntFlag{Name: "store-max-files", Value: 100, Usage: "maximum files per stored transfer"},
 		&cli.IntFlag{Name: "store-downloads", Value: 1, Usage: "maximum verified downloads per stored transfer", EnvVars: []string{"CROC_STORE_DOWNLOADS"}},
 		&cli.StringFlag{Name: "store-max-expiration", Value: "0", Usage: "maximum stored lifetime (m, h, d, or w; 0 is unlimited)", EnvVars: []string{"CROC_STORE_MAX_EXPIRATION"}},
-		&cli.IntFlag{Name: "store-create-rate", Value: 5, Usage: "stored transfers created per client IP per hour"},
-		&cli.IntFlag{Name: "store-active-uploads", Value: 2, Usage: "concurrent uploads per client IP"},
-		&cli.StringSliceFlag{Name: "store-trusted-proxy", Usage: "trusted reverse-proxy CIDR for client IP forwarding"},
+		&cli.IntFlag{Name: "store-create-rate", Value: storeapi.DefaultCreatePerHour, Usage: "stored transfers created per client IP per hour", EnvVars: []string{"CROC_STORE_CREATE_RATE"}},
+		&cli.IntFlag{Name: "store-active-uploads", Value: storeapi.DefaultActiveUploads, Usage: "concurrent uploads per client IP", EnvVars: []string{"CROC_STORE_ACTIVE_UPLOADS"}},
+		&cli.DurationFlag{Name: "store-upload-timeout", Value: storeapi.DefaultUploadTimeout, Usage: "maximum time to read each stored-transfer request body", EnvVars: []string{"CROC_STORE_UPLOAD_TIMEOUT"}},
+		&cli.StringSliceFlag{Name: "store-trusted-proxy", Usage: "trusted reverse-proxy CIDR for client IP forwarding", EnvVars: []string{"CROC_STORE_TRUSTED_PROXY"}},
 	}
 	app.HideHelp = false
 	app.HideVersion = false
@@ -95,8 +96,13 @@ func serve(ctx context.Context, c *cli.Context) error {
 	var storeService *storeapi.Service
 	storeDirectory := strings.TrimSpace(c.String("store-dir"))
 	if storeDirectory != "" {
-		if c.Int("store-downloads") < 1 {
-			return errors.New("--store-downloads must be positive")
+		for _, flag := range []string{"store-downloads", "store-create-rate", "store-active-uploads"} {
+			if c.Int(flag) < 1 {
+				return fmt.Errorf("--%s must be positive", flag)
+			}
+		}
+		if c.Duration("store-upload-timeout") <= 0 {
+			return errors.New("--store-upload-timeout must be positive")
 		}
 		maxExpiration, parseErr := storeapi.ParseExpiration(c.String("store-max-expiration"), true)
 		if parseErr != nil {
@@ -132,12 +138,15 @@ func serve(ctx context.Context, c *cli.Context) error {
 			MaxExpiration:    maxExpiration,
 			CreatePerHour:    c.Int("store-create-rate"),
 			MaxActiveUploads: c.Int("store-active-uploads"),
+			UploadTimeout:    c.Duration("store-upload-timeout"),
 			TrustedProxies:   trusted,
 		})
 		if err != nil {
 			return err
 		}
 		defer storeService.Close()
+		log.Infof("stored-transfer limits: creates_per_hour=%d active_uploads=%d upload_timeout=%s trusted_proxies=%v",
+			c.Int("store-create-rate"), c.Int("store-active-uploads"), c.Duration("store-upload-timeout"), trusted)
 	}
 
 	return webrelay.Run(ctx, webrelay.Config{

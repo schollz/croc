@@ -18,12 +18,14 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/schollz/croc/v11/src/diskusage"
+	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/schollz/croc/v11/src/storecrypto"
 )
 
@@ -35,6 +37,7 @@ const (
 	DefaultMaxDownloads  = 1
 	DefaultCreatePerHour = 5
 	DefaultActiveUploads = 2
+	DefaultUploadTimeout = 5 * time.Minute
 	MaxManifestBytes     = int64(256 << 10)
 	MaxChunkObjects      = 512
 	transferLockStripes  = 256
@@ -67,6 +70,7 @@ type Config struct {
 	MaxExpiration    time.Duration
 	CreatePerHour    int
 	MaxActiveUploads int
+	UploadTimeout    time.Duration
 	TrustedProxies   []netip.Prefix
 	Now              func() time.Time
 	CleanupInterval  time.Duration
@@ -201,6 +205,12 @@ func New(config Config) (*Service, error) {
 	if config.MaxActiveUploads <= 0 {
 		config.MaxActiveUploads = DefaultActiveUploads
 	}
+	if config.UploadTimeout < 0 {
+		return nil, errors.New("stored-transfer upload timeout must be positive")
+	}
+	if config.UploadTimeout == 0 {
+		config.UploadTimeout = DefaultUploadTimeout
+	}
 	if config.Now == nil {
 		config.Now = time.Now
 	}
@@ -262,7 +272,9 @@ func (s *Service) RunCleanup(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			_ = s.Sweep()
+			if err := s.Sweep(); err != nil {
+				log.Warnf("%v", err)
+			}
 		}
 	}
 }
@@ -338,33 +350,51 @@ func (s *Service) recover() error {
 func (s *Service) Sweep() error {
 	now := s.now()
 	var ids []string
+	var scanErrors, transferErrors, skipped, changed int
 	err := filepath.WalkDir(s.config.Root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return walkErr
+			if !errors.Is(walkErr, os.ErrNotExist) {
+				scanErrors++
+			}
+			return nil
 		}
 		if !entry.IsDir() && entry.Name() == "metadata.json" {
 			meta, readErr := readMetadata(path)
 			if readErr != nil {
-				return readErr
+				if !errors.Is(readErr, os.ErrNotExist) {
+					scanErrors++
+				}
+				return nil
+			}
+			if !validID(meta.ID) || s.metadataPath(meta.ID) != path {
+				scanErrors++
+				return nil
 			}
 			ids = append(ids, meta.ID)
 		}
 		return nil
 	})
 	if err != nil {
-		return err
+		scanErrors++
 	}
 	for _, id := range ids {
 		lock := s.lockFor(id)
-		lock.Lock()
+		// A slow request must not prevent unrelated transfers from expiring.
+		// Busy stripes are retried on the next sweep.
+		if !lock.TryLock() {
+			skipped++
+			continue
+		}
 		meta, readErr := s.load(id)
 		if readErr != nil {
 			lock.Unlock()
 			if errors.Is(readErr, os.ErrNotExist) {
 				continue
 			}
-			return readErr
+			transferErrors++
+			continue
 		}
+		updated := true
 		switch {
 		case meta.State == stateUploading && !meta.UploadExpiresAt.After(now):
 			readErr = s.tombstone(meta, stateExpired)
@@ -380,11 +410,21 @@ func (s *Service) Sweep() error {
 			if readErr == nil && !meta.TombstoneExpiresAt.After(now) {
 				readErr = s.removeTransfer(meta)
 			}
+		default:
+			updated = false
 		}
 		lock.Unlock()
 		if readErr != nil {
-			return readErr
+			transferErrors++
+		} else if updated {
+			changed++
 		}
+	}
+	log.Debugf("stored-transfer cleanup: scanned=%d processed=%d busy=%d scan_errors=%d transfer_errors=%d",
+		len(ids), changed, skipped, scanErrors, transferErrors)
+	if scanErrors+transferErrors > 0 {
+		// Keep metadata paths and untrusted record contents out of logs.
+		return fmt.Errorf("stored-transfer cleanup: %d scan errors, %d transfer errors", scanErrors, transferErrors)
 	}
 	return nil
 }
@@ -559,28 +599,47 @@ func (s *Service) clientIP(request *http.Request) string {
 		remoteHost = request.RemoteAddr
 	}
 	remote, err := netip.ParseAddr(strings.Trim(remoteHost, "[]"))
-	if err == nil {
-		for _, prefix := range s.config.TrustedProxies {
-			if prefix.Contains(remote) {
-				forwarded := strings.TrimSpace(strings.Split(request.Header.Get("X-Forwarded-For"), ",")[0])
-				if address, parseErr := netip.ParseAddr(forwarded); parseErr == nil {
-					return address.String()
-				}
-				break
-			}
-		}
+	if err != nil {
+		return remoteHost
+	}
+	remote = remote.Unmap()
+	if !s.trustedProxy(remote) {
 		return remote.String()
 	}
-	return remoteHost
+	var chain []netip.Addr
+	for value := range strings.SplitSeq(strings.Join(request.Header.Values("X-Forwarded-For"), ","), ",") {
+		address, parseErr := netip.ParseAddr(strings.TrimSpace(value))
+		if parseErr != nil || address.Zone() != "" {
+			return remote.String()
+		}
+		chain = append(chain, address.Unmap())
+	}
+	for i, c := range slices.Backward(chain) {
+		if !s.trustedProxy(c) || i == 0 {
+			return c.String()
+		}
+	}
+	return remote.String()
 }
 
-func (s *Service) allowCreation(ip string) bool {
+func (s *Service) trustedProxy(address netip.Addr) bool {
+	for _, prefix := range s.config.TrustedProxies {
+		if prefix.Contains(address) {
+			return true
+		}
+	}
+	return false
+}
+
+// allowCreation returns the limiting reason and suggested retry delay, or an
+// empty reason after reserving one active upload and recording the attempt.
+func (s *Service) allowCreation(ip string) (string, int64) {
 	now := s.now()
 	cutoff := now.Add(-time.Hour)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.activeUploads[ip] >= s.config.MaxActiveUploads {
-		return false
+		return "active-uploads", 60
 	}
 	window := s.creationWindows[ip]
 	if window == nil {
@@ -595,11 +654,12 @@ func (s *Service) allowCreation(ip string) bool {
 	}
 	window.times = recent
 	if len(recent) >= s.config.CreatePerHour {
-		return false
+		delay := recent[0].Add(time.Hour).Sub(now)
+		return "create-rate", max(1, int64((delay+time.Second-1)/time.Second))
 	}
 	window.times = append(window.times, now)
 	s.activeUploads[ip]++
-	return true
+	return "", 0
 }
 
 func (s *Service) reserve(bytes int64) bool {
@@ -627,6 +687,17 @@ func (s *Service) unreserve(bytes int64) {
 
 // ServeHTTP serves /api/v1/store/transfers and its descendants.
 func (s *Service) ServeHTTP(response http.ResponseWriter, request *http.Request) {
+	if request.Body != nil && request.Body != http.NoBody {
+		// This also bounds net/http's draining of unread bodies on error paths.
+		// Leave the deadline in place until net/http finishes the request; clearing
+		// it here could make that drain block forever. The server resets it for
+		// the next request. WebSockets and bodyless downloads are unaffected.
+		err := http.NewResponseController(response).SetReadDeadline(time.Now().Add(s.config.UploadTimeout))
+		if err != nil && !errors.Is(err, http.ErrNotSupported) {
+			http.Error(response, "could not set stored-transfer request deadline", http.StatusInternalServerError)
+			return
+		}
+	}
 	response.Header().Set("Cache-Control", "no-store")
 	response.Header().Set("Referrer-Policy", "no-referrer")
 	response.Header().Set("X-Content-Type-Options", "nosniff")
@@ -719,7 +790,10 @@ func decodeJSON(request *http.Request, value any, max int64) error {
 		return err
 	}
 	var trailing any
-	if decoder.Decode(&trailing) != io.EOF {
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if os.IsTimeout(err) {
+			return err
+		}
 		return errors.New("request has trailing JSON")
 	}
 	return nil
@@ -727,9 +801,14 @@ func decodeJSON(request *http.Request, value any, max int64) error {
 
 func (s *Service) create(response http.ResponseWriter, request *http.Request) {
 	ip := s.clientIP(request)
-	if !s.allowCreation(ip) {
-		response.Header().Set("Retry-After", "3600")
-		http.Error(response, "stored-transfer creation rate exceeded", http.StatusTooManyRequests)
+	if reason, retryAfter := s.allowCreation(ip); reason != "" {
+		response.Header().Set("Retry-After", strconv.FormatInt(retryAfter, 10))
+		response.Header().Set("X-Croc-Rate-Limit-Reason", reason)
+		message := "stored-transfer creation rate exceeded for this IP"
+		if reason == "active-uploads" {
+			message = "too many unfinished stored uploads for this IP; finish or revoke an upload, or retry later"
+		}
+		http.Error(response, message, http.StatusTooManyRequests)
 		return
 	}
 	releaseActive := true
@@ -745,6 +824,10 @@ func (s *Service) create(response http.ResponseWriter, request *http.Request) {
 
 	var input createRequest
 	if err := decodeJSON(request, &input, 64<<10); err != nil {
+		if os.IsTimeout(err) {
+			http.Error(response, "stored-transfer upload timed out; retry the request", http.StatusRequestTimeout)
+			return
+		}
 		http.Error(response, "invalid stored-transfer request", http.StatusBadRequest)
 		return
 	}
@@ -877,6 +960,10 @@ func (s *Service) uploadObject(response http.ResponseWriter, request *http.Reque
 		return
 	}
 	if err = writeAtomic(destination, expected, digest, request.Body); err != nil {
+		if os.IsTimeout(err) {
+			http.Error(response, "stored-transfer upload timed out; retry the request", http.StatusRequestTimeout)
+			return
+		}
 		http.Error(response, err.Error(), http.StatusBadRequest)
 		return
 	}
