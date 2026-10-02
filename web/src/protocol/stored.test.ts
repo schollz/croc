@@ -5,6 +5,15 @@ const wasmMocks = vi.hoisted(() => ({
   storeRedeemCapability: vi.fn(async () => new Uint8Array(32)),
   storeSealManifest: vi.fn(async () => new Uint8Array(29)),
   storeSealChunk: vi.fn(async () => new Uint8Array(32)),
+  storeOpenChunk: vi.fn(async (
+    _key: Uint8Array,
+    _id: string,
+    _objectIndex: number,
+    _fileIndex: number,
+    _fileChunk: number,
+    plainSize: number,
+    _ciphertext: Uint8Array,
+  ) => new Uint8Array(plainSize)),
 }));
 
 vi.mock("../wasm/client", () => ({ wasm: () => wasmMocks }));
@@ -14,8 +23,11 @@ import {
   parseStoredShare,
   prepareStoredFiles,
   receiveStoredTransfer,
+  storedChunkSize,
   uploadStoredFiles,
+  type StoredInspection,
 } from "./stored";
+import type { FileProgress } from "./types";
 
 describe("stored-transfer shares", () => {
   const share = {
@@ -190,6 +202,156 @@ describe("stored-transfer progress", () => {
       { totalBytes: 0, totalSize: 4 },
       { totalBytes: 4, totalSize: 4 },
     ]);
+  });
+});
+
+describe("stored-download progress", () => {
+  afterEach(() => {
+    sessionStorage.clear();
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  function startDownload(sizes: number[]) {
+    let chunkCount = 0;
+    const hash = new Uint8Array(32);
+    const files = sizes.map((size, index) => {
+      const file = {
+        n: `file-${index}.bin`,
+        s: size,
+        m: new Date(0).toISOString(),
+        h: btoa(String.fromCharCode(...hash)),
+        fc: chunkCount,
+        cc: Math.ceil(size / storedChunkSize),
+      };
+      chunkCount += file.cc;
+      return file;
+    });
+    const inspection: StoredInspection = {
+      share: {
+        origin: "https://files.example.test",
+        id: "AwMDAwMDAwMDAwMDAwMDAw",
+        key: new Uint8Array(32),
+      },
+      manifest: { v: 1, cs: storedChunkSize, f: files },
+      offer: {
+        kind: "files",
+        files: files.map((file) => ({
+          name: file.n, path: file.n, folder: "./", size: file.s, hash,
+        })),
+        emptyFolders: [],
+        totalSize: sizes.reduce((total, size) => total + size, 0),
+        senderMachineID: "encrypted temporary storage",
+        noCompress: true,
+        perFileCompression: false,
+      },
+    };
+    const controllers: ReadableStreamDefaultController<Uint8Array>[] = [];
+    const responses = Array.from({ length: chunkCount }, () => new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) { controllers.push(controller); },
+      }),
+    ));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/claim")) {
+        return new Response(JSON.stringify({
+          claimToken: "BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ",
+        }));
+      }
+      if (url.endsWith("/commit")) return new Response(null, { status: 204 });
+      const index = Number(url.match(/\/chunks\/(\d+)$/)![1]);
+      return responses[index];
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const sinks = sizes.map(() => ({
+      writeAt: vi.fn(async (_position: number, _bytes: Uint8Array) => undefined),
+      finalize: vi.fn(async () => undefined),
+      hash: vi.fn(async () => hash),
+      commit: vi.fn(async () => undefined),
+      abort: vi.fn(async () => undefined),
+    }));
+    const progress: FileProgress[] = [];
+    const onFileComplete = vi.fn();
+    const done = receiveStoredTransfer({
+      inspection,
+      settings: {
+        storeAPI: "/api/v1/store",
+        maxTransferBytes: 1024 * 1024 * 1024,
+        maxFiles: 10, maxDownloads: 3, maxExpiresSeconds: 0,
+      },
+      callbacks: {
+        onOffer: async () => ({
+          openFile: async (file) => sinks[files.findIndex((f) => f.n === file.name)],
+          createEmptyFolder: async () => undefined,
+        }),
+        onProgress: (update) => progress.push(update),
+        onFileComplete,
+      },
+    });
+    return { controllers, responses, sinks, progress, onFileComplete, fetchMock, done };
+  }
+
+  it("updates during each response without double-counting chunks or files", async () => {
+    const { controllers, sinks, progress, done } = startDownload([
+      storedChunkSize + 40, 100,
+    ]);
+    const chunks = [
+      { size: storedChunkSize, fileIndex: 0, position: 0, total: 0 },
+      { size: 40, fileIndex: 0, position: storedChunkSize, total: storedChunkSize },
+      { size: 100, fileIndex: 1, position: 0, total: storedChunkSize + 40 },
+    ];
+    for (const [index, chunk] of chunks.entries()) {
+      const ciphertext = new Uint8Array(chunk.size + 28).fill(index + 1);
+      const split = ciphertext.length / 2;
+      controllers[index].enqueue(ciphertext.slice(0, split));
+      await vi.waitFor(() => expect(progress.at(-1)).toMatchObject({
+        fileIndex: chunk.fileIndex,
+        fileBytes: chunk.position + chunk.size / 2,
+        totalBytes: chunk.total + chunk.size / 2,
+      }));
+      // Receiving bytes must update the UI before the full chunk is decrypted.
+      expect(wasmMocks.storeOpenChunk).toHaveBeenCalledTimes(index);
+      controllers[index].enqueue(ciphertext.slice(split));
+      controllers[index].close();
+      await vi.waitFor(() => expect(sinks[chunk.fileIndex].writeAt.mock.calls.at(-1)?.[0])
+        .toBe(chunk.position));
+      expect(sinks[chunk.fileIndex].writeAt.mock.calls.at(-1)?.[1].byteLength)
+        .toBe(chunk.size);
+      const received = wasmMocks.storeOpenChunk.mock.calls[index][6];
+      expect(received.byteLength).toBe(ciphertext.byteLength);
+      expect(received.every((byte, offset) => byte === ciphertext[offset])).toBe(true);
+    }
+    await expect(done).resolves.toBe(0);
+    expect(progress[0].totalBytes).toBe(0);
+    expect(progress.at(-1)?.totalBytes).toBe(storedChunkSize + 140);
+    expect(progress.map((update) => update.totalBytes)).toEqual(
+      progress.map((update) => update.totalBytes).sort((a, b) => a - b),
+    );
+    for (const sink of sinks) {
+      expect(sink.hash).toHaveBeenCalledWith("sha256");
+      expect(sink.commit).toHaveBeenCalledOnce();
+    }
+  });
+
+  it.each([
+    new Error("Network interrupted"),
+    new DOMException("Transfer cancelled", "AbortError"),
+  ])("aborts an interrupted response without completing the file: %s", async (error) => {
+    const { controllers, responses, sinks, progress, onFileComplete, fetchMock, done } =
+      startDownload([100]);
+    const failed = expect(done).rejects.toThrow(error);
+    controllers[0].enqueue(new Uint8Array(64));
+    await vi.waitFor(() => expect(progress.at(-1)?.totalBytes).toBe(50));
+    controllers[0].error(error);
+    await failed;
+    expect(sinks[0].abort).toHaveBeenCalledOnce();
+    expect(sinks[0].writeAt).not.toHaveBeenCalled();
+    expect(sinks[0].commit).not.toHaveBeenCalled();
+    expect(onFileComplete).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/commit")))
+      .toBe(false);
+    expect(responses[0].body?.locked).toBe(false);
   });
 });
 
