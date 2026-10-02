@@ -96,6 +96,32 @@ describe("stored-transfer download limits", () => {
   });
 });
 
+describe("stored-upload rate limits", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([
+    ["active-uploads", "60", /unfinished stored uploads.*about 1 minute/],
+    ["create-rate", "91", /hourly stored-upload limit.*about 2 minutes/],
+    ["create-rate", "invalid", /hourly stored-upload limit.*reached$/],
+    ["", "", /Too many stored uploads; please try again later$/],
+  ])("explains %s with Retry-After %s", async (reason, retryAfter, expected) => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("rate exceeded", {
+      status: 429,
+      headers: {
+        "X-Croc-Rate-Limit-Reason": reason,
+        "Retry-After": retryAfter,
+      },
+    })));
+    await expect(uploadStoredFiles({
+      files: [],
+      settings: {
+        storeAPI: "/api/v1/store", maxTransferBytes: 1024,
+        maxFiles: 10, maxDownloads: 1, maxExpiresSeconds: 0,
+      },
+    })).rejects.toThrow(expected);
+  });
+});
+
 describe("stored-transfer progress", () => {
   afterEach(() => vi.unstubAllGlobals());
 

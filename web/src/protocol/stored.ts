@@ -240,10 +240,21 @@ async function responseError(response: Response) {
     );
   }
   if (response.status === 429) {
-    return new StoredHTTPError(
-      "Too many stored uploads; please try again later",
-      response.status,
-    );
+    const reason = response.headers.get("X-Croc-Rate-Limit-Reason");
+    let description = "Too many stored uploads; please try again later";
+    if (reason === "active-uploads") {
+      description =
+        "Too many unfinished stored uploads from your IP address. Finish or revoke an upload, or try again later";
+    } else if (reason === "create-rate") {
+      description = "The hourly stored-upload limit for your IP address has been reached";
+    }
+    const retryAfter = response.headers.get("Retry-After");
+    const seconds = retryAfter === null ? NaN : Number(retryAfter);
+    if (Number.isSafeInteger(seconds) && seconds > 0) {
+      const minutes = Math.ceil(seconds / 60);
+      description += `. Try again in about ${minutes} minute${minutes === 1 ? "" : "s"}`;
+    }
+    return new StoredHTTPError(description, response.status);
   }
   if (response.status === 507) {
     return new StoredHTTPError(

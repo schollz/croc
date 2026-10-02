@@ -158,6 +158,7 @@ The storage controls are:
 | `--store-max-expiration` | `0` | Maximum sender-selected lifetime; `0` means no policy ceiling |
 | `--store-create-rate` | `5` | Creates allowed per client IP per hour |
 | `--store-active-uploads` | `2` | Concurrent incomplete uploads per client IP |
+| `--store-upload-timeout` | `5m` | Maximum time to read each stored API request body |
 | `--store-trusted-proxy` | none | Repeatable trusted reverse-proxy CIDR |
 
 Set `CROC_STORE_DOWNLOADS` and `CROC_STORE_MAX_EXPIRATION` to configure the
@@ -168,6 +169,27 @@ server maximum. An empty or `0` server maximum permits any finite representable
 lifetime. The accepted lifetime is stored when the transfer is created, so a
 later policy change does not alter it. Legacy metadata retains the one-day
 default.
+
+Upload controls also accept `CROC_STORE_CREATE_RATE`,
+`CROC_STORE_ACTIVE_UPLOADS`, `CROC_STORE_UPLOAD_TIMEOUT`, and
+`CROC_STORE_TRUSTED_PROXY` (comma-separated CIDRs). Explicit flags override
+the environment. Rates, active-upload limits, and timeouts must be positive.
+The download allowance does not change upload limits. Creation attempts count
+toward the rolling hourly limit even when their declarations are rejected.
+
+The request timeout applies separately to each manifest, chunk, or other
+stored API request body. It does not limit the duration of a complete transfer,
+a stored download, or a live WebSocket session. A timed-out body returns HTTP
+408 when possible and discards its partial temporary file; the sender can retry
+the chunk or revoke the transfer. Abandoned upload reservations expire after
+one hour. Cleanup skips busy transfers, retries them on the next sweep, and
+reports failures without stopping cleanup of unrelated records.
+
+HTTP 429 includes `X-Croc-Rate-Limit-Reason: create-rate` or `active-uploads`.
+`Retry-After` reports the remaining hourly-window delay for `create-rate`; for
+`active-uploads`, 60 seconds is a retry suggestion, not a guarantee that another
+upload will have finished. Finishing or revoking an unfinished upload frees its
+active slot but does not reset the hourly counter.
 
 Byte flags accept integer `B`, `KB`, `MB`, `GB`, `TB`, `KiB`, `MiB`, `GiB`,
 and `TiB` suffixes. A service holds an exclusive lock on its configured root;
@@ -181,6 +203,12 @@ exclude ciphertext from backups so deletion semantics are not undermined.
 Only configure `--store-trusted-proxy` for infrastructure that overwrites
 client forwarding headers; otherwise rate limiting deliberately uses the
 socket peer address.
+
+When the socket peer is trusted, the service validates the complete
+`X-Forwarded-For` chain and selects the first untrusted address from the right.
+Malformed chains fall back to the socket peer. IPv4-mapped IPv6 addresses are
+normalized to IPv4. Trust only the proxy sources controlled by the operator;
+do not trust all private networks to make forwarding work.
 
 The HTTP API is versioned at `/api/v1/store/transfers`. It is an implementation
 boundary for the official croc web and CLI clients, not a promise that
