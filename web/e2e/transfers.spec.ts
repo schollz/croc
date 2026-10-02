@@ -1166,7 +1166,25 @@ test("CLI stored upload → Web download verifies and consumes files", async ({
     const panel = page.locator(".receive-panel");
     await panel.getByLabel("Croc code").fill(browserURL!);
     await panel.getByLabel("Croc code").press("Enter");
+    await expect(panel.getByText("Incoming transfer")).toBeVisible();
+    const network = await page.context().newCDPSession(page);
+    await network.send("Network.enable");
+    await network.send("Network.emulateNetworkConditions", {
+      offline: false,
+      latency: 0,
+      downloadThroughput: 64 * 1024,
+      uploadThroughput: -1,
+    });
     const downloads = await acceptAsDownloads(page, panel);
+    const progress = panel.getByRole("progressbar", { name: "Transfer progress" });
+    const percent = async () => Number(await progress.getAttribute("aria-valuenow"));
+    await expect.poll(percent).toBeGreaterThan(0);
+    // Each fixture is smaller than one encrypted chunk. Progress must advance
+    // while the first response is still arriving, before that file completes.
+    const totalSize = [...fixtures.contents.values()].reduce((sum, bytes) => sum + bytes.length, 0);
+    const firstFilePercent = Math.round(fixtures.contents.get("alpha.bin")!.length / totalSize * 100);
+    expect(await percent()).toBeLessThan(firstFilePercent);
+    await expectTransferMetrics(panel);
     await expect(panel).toContainText(
       "All files received and verified; stored ciphertext removed",
       { timeout: transferTimeout },
@@ -1174,6 +1192,7 @@ test("CLI stored upload → Web download verifies and consumes files", async ({
     await expectCompletedTransferMetrics(panel);
     await expectDownloads(downloads, fixtures);
 
+    await network.detach();
     await page.goto("about:blank");
     await page.goto(browserURL!);
     await expect(page.locator(".receive-panel")).toContainText(

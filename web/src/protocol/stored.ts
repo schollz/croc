@@ -18,6 +18,7 @@ import { wasm } from "../wasm/client";
 
 export const storedProtocol = "croc-store-v1";
 export const storedChunkSize = 4 * 1024 * 1024;
+const storedChunkOverhead = 12 + 16; // AES-GCM nonce and authentication tag.
 const storedKeyBytes = 32;
 const maxManifestCiphertext = 256 * 1024;
 
@@ -389,7 +390,7 @@ function planStoredUpload(files: StoredPreparedFile[]): StoredUploadPlan {
     let remaining = file.size;
     for (let chunk = 0; chunk < file.chunkCount; chunk += 1) {
       const size = Math.min(remaining, storedChunkSize);
-      chunkBytes.push(size + 28);
+      chunkBytes.push(size + storedChunkOverhead);
       remaining -= size;
     }
   }
@@ -807,6 +808,43 @@ async function withFreshClaim<T>(
   }
 }
 
+async function readStoredChunk(
+  response: Response,
+  plainSize: number,
+  onProgress: (bytes: number) => void,
+) {
+  const reader = response.body?.getReader();
+  if (!reader) return new Uint8Array(await response.arrayBuffer());
+
+  const ciphertext = new Uint8Array(plainSize + storedChunkOverhead);
+  let received = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (received + value.byteLength > ciphertext.byteLength) {
+        throw new Error("Stored-transfer chunk has an invalid size");
+      }
+      ciphertext.set(value, received);
+      received += value.byteLength;
+      // Map wire bytes to payload progress without counting encryption overhead.
+      // The caller reports the full chunk only after authentication and writing.
+      if (received < ciphertext.byteLength) {
+        onProgress(Math.floor((received / ciphertext.byteLength) * plainSize));
+      }
+    }
+    if (received !== ciphertext.byteLength) {
+      throw new Error("Stored-transfer chunk has an invalid size");
+    }
+    return ciphertext;
+  } catch (error) {
+    await reader.cancel().catch(() => undefined);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 async function downloadStoredFile(
   session: StoredReceiveSession,
   destination: ReceiveDestination,
@@ -817,6 +855,15 @@ async function downloadStoredFile(
   const offered = inspection.offer.files[fileIndex];
   const sink = await destination.openFile(offered);
   let fileBytes = 0;
+  const reportProgress = (chunkBytes = 0) => callbacks.onProgress?.({
+    fileIndex,
+    fileCount: inspection.manifest.f.length,
+    fileName: storedFile.n,
+    fileBytes: fileBytes + chunkBytes,
+    fileSize: storedFile.s,
+    totalBytes: session.totalBytes + chunkBytes,
+    totalSize: inspection.offer.totalSize,
+  });
   try {
     for (let fileChunk = 0; fileChunk < storedFile.cc; fileChunk += 1) {
       checkAbort(signal);
@@ -831,7 +878,7 @@ async function downloadStoredFile(
           { signal },
         ),
       );
-      const ciphertext = new Uint8Array(await response.arrayBuffer());
+      const ciphertext = await readStoredChunk(response, plainSize, reportProgress);
       const plaintext = await wasm().storeOpenChunk(
         inspection.share.key,
         inspection.share.id,
@@ -844,15 +891,7 @@ async function downloadStoredFile(
       await sink.writeAt(position, plaintext);
       fileBytes += plaintext.byteLength;
       session.totalBytes += plaintext.byteLength;
-      callbacks.onProgress?.({
-        fileIndex,
-        fileCount: inspection.manifest.f.length,
-        fileName: storedFile.n,
-        fileBytes,
-        fileSize: storedFile.s,
-        totalBytes: session.totalBytes,
-        totalSize: inspection.offer.totalSize,
-      });
+      reportProgress();
     }
     await sink.finalize();
     callbacks.onStatus?.(`Verifying ${storedFile.n}`);
