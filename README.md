@@ -15,9 +15,6 @@ Supporting organizations:
 <p align="center">
 <a href="https://sx.org/c/CROC">
 <img width="600"  alt="CROC_728х90" src="https://github.com/user-attachments/assets/04553f49-3e4e-467b-91c3-e869750118a2" />
-<a href="https://www.rapidproxy.io/?ref=croc">
-<img width="600" alt="image" src="https://github.com/user-attachments/assets/1efc8f9a-afae-4f21-87b9-1599b09f1bd5" />
-</a>
 </p>
 
 
@@ -453,10 +450,6 @@ the native CLI flag does not configure the browser.
 
 <p align="center">
   <strong>Sponsored by <a href="https://sx.org/en/proxy/">SX.org</a>.</strong>
-</p>
-
-<p align="center">
-  <strong>Sponsored by <a href="https://www.rapidproxy.io/?ref=croc">RapidProxy</a>.</strong>
 </p>
 
 ### Data transport selection
