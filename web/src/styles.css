@@ -425,6 +425,24 @@ h1 {
   height: 15px;
 }
 
+.ssh-code-input:focus-within {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+}
+
+.ssh-code-input input:focus-visible,
+.ssh-code-input button:focus-visible {
+  outline: 0;
+}
+
+.ssh-code-input:focus-within input {
+  border-color: var(--foreground);
+}
+
+.ssh-code-input:focus-within button {
+  border-left-color: var(--foreground);
+}
+
 .ssh-status-row {
   display: flex;
   min-height: 24px;
