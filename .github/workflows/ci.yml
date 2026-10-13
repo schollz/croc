@@ -9,6 +9,9 @@ on:
     paths-ignore:
       - '**/*.md'
   workflow_dispatch:
+permissions:
+  contents: read
+
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
