@@ -27,8 +27,8 @@ require (
 	go4.org/netipx v0.0.0-20260823151212-3075585bcbeb
 	golang.org/x/crypto v0.57.0
 	golang.org/x/net v0.59.0
-	golang.org/x/sys v0.48.0
-	golang.org/x/term v0.46.0
+	golang.org/x/sys v0.49.0
+	golang.org/x/term v0.47.0
 	golang.org/x/text v0.42.0
 	golang.org/x/time v0.16.0
 	gvisor.dev/gvisor v0.0.0-20260926034703-66ed76bcb72f
