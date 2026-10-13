@@ -701,6 +701,42 @@ func observedRoomProtocol(payload []byte) (RoomProtocol, bool) {
 	return RoomProtocolSSH, true
 }
 
+// relayCopy forwards bytes from src to dst with an explicit buffered copy
+// loop. It deliberately avoids io.Copy's zero-copy fast paths
+// (net.TCPConn.ReadFrom -> splice(2) on Linux, and io.WriterTo). The splice
+// path requires both ends to be real sockets and has been observed to abort a
+// long-lived relay pipe with "splice: connection reset by peer" or to return
+// early, which stalls the transfer and stops further relay debug logging
+// (see schollz/croc#1359). A plain read/write loop keeps the relay forwarding
+// correctly regardless of the underlying connection types.
+func relayCopy(dst, src net.Conn) (int64, error) {
+	buf := make([]byte, 32*1024)
+	var written int64
+	for {
+		n, readErr := src.Read(buf)
+		if n > 0 {
+			remaining := buf[:n]
+			for len(remaining) > 0 {
+				w, writeErr := dst.Write(remaining)
+				if writeErr != nil {
+					return written, writeErr
+				}
+				if w == 0 {
+					return written, io.ErrShortWrite
+				}
+				written += int64(w)
+				remaining = remaining[w:]
+			}
+		}
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				return written, nil
+			}
+			return written, readErr
+		}
+	}
+}
+
 func copyWithProtocolObservation(dst, src net.Conn, onFrame func([]byte)) error {
 	observer := &firstFrameObserver{onFrame: onFrame}
 	buffer := make([]byte, 32*1024)
@@ -727,9 +763,8 @@ func copyWithProtocolObservation(dst, src net.Conn, onFrame func([]byte)) error 
 			return readErr
 		}
 	}
-	// Resume the normal net.Conn copy path after the first frame so long-lived
-	// transfers can still use the platform's optimized socket forwarding.
-	_, err := io.Copy(dst, src)
+	// Resume the normal copy path after the first frame.
+	_, err := relayCopy(dst, src)
 	return err
 }
 
@@ -739,7 +774,7 @@ func pipeWithProtocol(conn1 net.Conn, conn2 net.Conn, callback func(RoomProtocol
 	copyDirection := func(dst, src net.Conn) {
 		var err error
 		if callback == nil {
-			_, err = io.Copy(dst, src)
+			_, err = relayCopy(dst, src)
 		} else {
 			err = copyWithProtocolObservation(dst, src, func(payload []byte) {
 				protocol, ok := observedRoomProtocol(payload)
