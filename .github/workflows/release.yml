@@ -121,6 +121,7 @@ jobs:
       - name: Checkout tagged commit
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.prepare.outputs.sha }}
 
       - name: Setup Go
@@ -257,6 +258,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.prepare.outputs.tag }}
 
       - name: Verify tagged source version
@@ -348,6 +350,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.prepare.outputs.tag }}
 
       - name: Verify tagged commit
@@ -434,7 +437,7 @@ jobs:
           }
 
       - name: Sign Windows 64-bit binary
-        uses: azure/trusted-signing-action@v2.0.0
+        uses: azure/trusted-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -479,6 +482,7 @@ jobs:
       - name: Checkout release commit
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.prepare.outputs.sha }}
       - name: Setup Go
         uses: actions/setup-go@v7
@@ -526,6 +530,7 @@ jobs:
       - name: Checkout tagged commit
         uses: actions/checkout@v6
         with:
+          persist-credentials: false
           ref: ${{ needs.prepare.outputs.tag }}
 
       - name: Verify tagged commit
