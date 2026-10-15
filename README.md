@@ -9,14 +9,6 @@
   <strong>This project’s future depends on community support. <a href="https://github.com/sponsors/schollz">Become a sponsor today</a>.</strong>
 </p>
 
-<p align="center">
-Supporting organizations:
-</p>
-<p align="center">
-<a href="https://sx.org/c/CROC">
-<img width="600"  alt="CROC_728х90" src="https://github.com/user-attachments/assets/04553f49-3e4e-467b-91c3-e869750118a2" />
-</p>
-
 
 ## About
 
@@ -447,10 +439,6 @@ For a network that only permits proxy traffic, use `--transport relay` on the
 sender to use the SOCKS5-capable relay transport for file data. The browser
 client uses the browser's proxy settings for its WebSocket gateway connection;
 the native CLI flag does not configure the browser.
-
-<p align="center">
-  <strong>Sponsored by <a href="https://sx.org/en/proxy/">SX.org</a>.</strong>
-</p>
 
 ### Data transport selection
 
