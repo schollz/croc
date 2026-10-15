@@ -1,0 +1,20 @@
+# Plumber overlay: inherits every control from the CLI's built-in
+# baseline, only the differences for this repository are written here.
+# Run 'plumber config resolve' to see the full effective config.
+extends: plumber:default
+version: '2.0'
+
+github:
+  controls:
+    githubActionMustComeFromAuthorizedSources:
+      # Keep the curated default list and trust the one action this
+      # repository uses on top of it, pinned by commit SHA.
+      includePlumberDefaults: true
+      trustedGithubActions:
+        - dessant/lock-threads
+
+    # Off for now: protecting main is a repository setting only an
+    # admin can change, nothing in the tree can fix it. Worth turning
+    # back on once a protection rule is in place.
+    branchMustBeProtected:
+      enabled: false
