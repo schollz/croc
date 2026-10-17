@@ -160,12 +160,35 @@ func RunWithOptionsAsync(host, port, password string, opts ...serverOptsFunc) er
 	return s.start()
 }
 
+// RunWithListener serves an already-bound TCP listener until it stops or its
+// configured context is cancelled. It takes ownership of listener, including
+// closing it if configuration fails.
+func RunWithListener(listener net.Listener, password string, opts ...serverOptsFunc) error {
+	if listener == nil {
+		return errors.New("relay listener must not be nil")
+	}
+	defer listener.Close()
+	s := newDefaultServer()
+	defer func() { s.stop.Cancel() }()
+	s.password = password
+	for _, opt := range opts {
+		if err := opt(s); err != nil {
+			return fmt.Errorf("could not apply optional configurations: %w", err)
+		}
+	}
+	return s.startWithListener(listener)
+}
+
 // Run starts a tcp listener, run async
 func Run(debugLevel, host, port, password string, banner ...string) (err error) {
 	return RunWithOptionsAsync(host, port, password, WithBanner(banner...), WithLogLevel(debugLevel))
 }
 
 func (s *server) start() (err error) {
+	return s.startWithListener(nil)
+}
+
+func (s *server) startWithListener(listener net.Listener) (err error) {
 	log.SetLevel(s.debugLevel)
 	log.Debug("starting relay with configured authentication")
 
@@ -179,12 +202,18 @@ func (s *server) start() (err error) {
 		s.deleteOldRooms()
 	})
 	// defer s.stopRoomDeletion()
-	defer s.stop.Cancel()
-	if s.stop.gui {
-		defer s.stop.wg.Wait()
-	}
+	defer func() {
+		s.stop.Cancel()
+		if s.stop.gui {
+			s.stop.wg.Wait()
+		}
+	}()
 
-	err = s.run()
+	if listener == nil {
+		err = s.run()
+	} else {
+		err = s.serve(listener)
+	}
 	err = Ignore(err)
 	if err != nil {
 		log.Error(err)
@@ -219,8 +248,16 @@ func (s *server) run() (err error) {
 	if err != nil {
 		return fmt.Errorf("error listening on %s: %w", addr, err)
 	}
+	return s.serve(listener)
+}
+
+func (s *server) serve(listener net.Listener) error {
+	network := listener.Addr().Network()
+	addr := listener.Addr().String()
 	s.stop.setServer(listener)
 	defer listener.Close()
+	stopClose := context.AfterFunc(s.stop.ctx, func() { listener.Close() })
+	defer stopClose()
 	close(s.started)
 
 	go func() {

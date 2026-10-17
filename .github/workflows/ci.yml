@@ -48,6 +48,11 @@ jobs:
       - name: Test relay admission regressions
         run: go test ./src/tcp -run 'Test(AdmissionLimiter|RoomDenials|RelayAdmissionLimits|CanonicalSource|WithAdmissionLimits|ConnectToTCPServerControlContext)'
 
+      - name: Test reserved relay listener lifecycle
+        run: |
+          go test ./src/tcp -run '^TestRunWithListener'
+          go test ./src/croc -run '^TestLocalRelay(Reservation|Startup)'
+
       - name: Test SSH sharing protocol and lifecycle regressions
         run: |
           go test ./src/sshshare
@@ -79,6 +84,11 @@ jobs:
 
       - name: Race-test relay admission
         run: go test -race ./src/tcp -run 'Test(AdmissionLimiter|RoomDenials|RelayAdmissionLimits|CanonicalSource|WithAdmissionLimits|ConnectToTCPServerControlContext)'
+
+      - name: Race-test reserved relay listener lifecycle
+        run: |
+          go test -race ./src/tcp -run '^TestRunWithListener'
+          go test -race ./src/croc -run '^TestLocalRelay(Reservation|Startup)'
 
       - name: Race-test SSH sharing protocol and lifecycle
         run: |

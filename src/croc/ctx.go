@@ -3,6 +3,7 @@ package croc
 
 import (
 	"context"
+	"net"
 	"sync"
 	"time"
 
@@ -19,7 +20,7 @@ type stop struct {
 	cancelOnce sync.Once
 	doneOnce   sync.Once
 	stopChan   chan struct{} //peerdiscovery
-	run        func(debugLevel string, host string, port string, password string, banner ...string) (err error)
+	run        func(ctx context.Context, debugLevel string, listener net.Listener, password string, banner ...string) error
 	hash       func(fname string, algorithm string, showProgress ...bool) (hash256 []byte, err error)
 	gui        bool
 }
@@ -28,8 +29,10 @@ type stop struct {
 func newStop(ctx context.Context) *stop {
 	s := &stop{
 		stopChan: make(chan struct{}),
-		run:      tcp.Run,
-		hash:     utils.HashFile,
+		run: func(ctx context.Context, debugLevel string, listener net.Listener, password string, banner ...string) error {
+			return tcp.RunWithListener(listener, password, tcp.WithCtx(ctx), tcp.WithLogLevel(debugLevel), tcp.WithBanner(banner...))
+		},
+		hash: utils.HashFile,
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -67,9 +70,6 @@ func NewCtx(ctx context.Context, ops Options) (*Client, error) {
 	}
 	c.stop = newStop(ctx)
 	c.stop.gui = true
-	c.stop.run = func(debugLevel string, host string, port string, password string, banner ...string) (err error) {
-		return tcp.RunCtx(c.stop.ctx, debugLevel, host, port, password, banner...)
-	}
 	c.stop.hash = func(fname string, algorithm string, showProgress ...bool) (hash256 []byte, err error) {
 		return utils.HashFileCtx(c.stop.ctx, fname, algorithm, showProgress...)
 	}
