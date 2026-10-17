@@ -5,51 +5,6 @@
       "command": "--debug relay",
       "publishedPorts": [
         {
-          "publishedAs": 9009,
-          "fromContainerPort": 9009,
-          "protocol": "tcp"
-        },
-        {
-          "publishedAs": 9010,
-          "fromContainerPort": 9010,
-          "protocol": "tcp"
-        },
-        {
-          "publishedAs": 9011,
-          "fromContainerPort": 9011,
-          "protocol": "tcp"
-        },
-        {
-          "publishedAs": 9012,
-          "fromContainerPort": 9012,
-          "protocol": "tcp"
-        },
-        {
-          "publishedAs": 9013,
-          "fromContainerPort": 9013,
-          "protocol": "tcp"
-        },
-        {
-          "publishedAs": 9014,
-          "fromContainerPort": 9014,
-          "protocol": "tcp"
-        },
-        {
-          "publishedAs": 9015,
-          "fromContainerPort": 9015,
-          "protocol": "tcp"
-        },
-        {
-          "publishedAs": 9016,
-          "fromContainerPort": 9016,
-          "protocol": "tcp"
-        },
-        {
-          "publishedAs": 9017,
-          "fromContainerPort": 9017,
-          "protocol": "tcp"
-        },
-        {
           "publishedAs": 9021,
           "fromContainerPort": 65535,
           "protocol": "tcp"
@@ -57,7 +12,8 @@
       ],
       "health": {
         "command": "P=\"${CROC_RELAY_PORTS:-${CROC_PORTS:-9009,9010,9011,9012,9013,9014,9015,9016,9017}}\"; IFS=,; set -- $P; for p in \"$@\"; do nc -z -w 3 127.0.0.1 \"$p\" || exit 1; done"
-      }
+      },
+      "extraSwarmParams": "--constraint node.labels.disco-role==main --publish published=9009,target=9009,protocol=tcp,mode=host --publish published=9010,target=9010,protocol=tcp,mode=host --publish published=9011,target=9011,protocol=tcp,mode=host --publish published=9012,target=9012,protocol=tcp,mode=host --publish published=9013,target=9013,protocol=tcp,mode=host --publish published=9014,target=9014,protocol=tcp,mode=host --publish published=9015,target=9015,protocol=tcp,mode=host --publish published=9016,target=9016,protocol=tcp,mode=host --publish published=9017,target=9017,protocol=tcp,mode=host"
     },
     "web": {
       "port": 8080,
