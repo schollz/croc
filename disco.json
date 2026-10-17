@@ -48,6 +48,11 @@
           "publishedAs": 9017,
           "fromContainerPort": 9017,
           "protocol": "tcp"
+        },
+        {
+          "publishedAs": 9021,
+          "fromContainerPort": 65535,
+          "protocol": "tcp"
         }
       ],
       "health": {
