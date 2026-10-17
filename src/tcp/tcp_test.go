@@ -146,6 +146,8 @@ func TestHandshakeOptions(t *testing.T) {
 	defer s.stop.Cancel()
 
 	assert.Equal(t, DEFAULT_MAX_PENDING_HANDSHAKES, s.maxPendingHandshakes)
+	assert.Equal(t, DEFAULT_MAX_PENDING_HANDSHAKES_PER_SOURCE, s.maxPendingHandshakesPerSource)
+	assert.Equal(t, DEFAULT_FIRST_MESSAGE_TIMEOUT, s.firstMessageTimeout)
 	assert.Equal(t, DEFAULT_HANDSHAKE_TIMEOUT, s.handshakeTimeout)
 
 	assert.NoError(t, WithMaxPendingHandshakes(7)(s))
@@ -153,6 +155,15 @@ func TestHandshakeOptions(t *testing.T) {
 	assert.Error(t, WithMaxPendingHandshakes(0)(s))
 	assert.Error(t, WithMaxPendingHandshakes(-1)(s))
 	assert.Equal(t, 7, s.maxPendingHandshakes)
+
+	assert.NoError(t, WithMaxPendingHandshakesPerSource(96)(s))
+	assert.Error(t, WithMaxPendingHandshakesPerSource(0)(s))
+	assert.Error(t, WithMaxPendingHandshakesPerSource(-1)(s))
+	assert.Equal(t, 96, s.maxPendingHandshakesPerSource)
+	assert.NoError(t, WithFirstMessageTimeout(2*time.Minute)(s))
+	assert.Error(t, WithFirstMessageTimeout(0)(s))
+	assert.Error(t, WithFirstMessageTimeout(-time.Second)(s))
+	assert.Equal(t, 2*time.Minute, s.firstMessageTimeout)
 
 	assert.NoError(t, WithHandshakeTimeout(2*time.Minute)(s))
 	assert.Equal(t, 2*time.Minute, s.handshakeTimeout)
@@ -305,7 +316,13 @@ func TestPendingHandshakeLimitRejectsExcessConnections(t *testing.T) {
 	}
 	defer excess.Close()
 	waitForRawConnectionClose(t, excess)
-	assert.Equal(t, 2, len(s.handshakeSlots))
+	pending, _ := pendingHandshakeCounts(s)
+	assert.Equal(t, 2, pending)
+	_, independent, stopIndependent := startConfiguredTestServer(t, WithMaxPendingHandshakes(1))
+	defer stopIndependent()
+	if err := PingServer(independent); err != nil {
+		t.Fatalf("another listener's capacity was affected: %v", err)
+	}
 
 	first.Close()
 	waitForPendingHandshakes(t, s, 1)
@@ -344,6 +361,7 @@ func TestPendingHandshakeDeadlineClosesIdleAndPartialConnections(t *testing.T) {
 func TestEstablishedTransferOutlivesHandshakeDeadline(t *testing.T) {
 	_, address, stopServer := startConfiguredTestServer(t,
 		WithHandshakeTimeout(500*time.Millisecond),
+		WithFirstMessageTimeout(200*time.Millisecond),
 	)
 	defer stopServer()
 
@@ -352,6 +370,8 @@ func TestEstablishedTransferOutlivesHandshakeDeadline(t *testing.T) {
 		t.Fatalf("connect first client: %v", err)
 	}
 	defer first.Close()
+	// A sender may wait for its peer after its own handshake has completed.
+	time.Sleep(250 * time.Millisecond)
 	second, _, _, err := ConnectToTCPServer(address, "pass123", "deadline-cleared")
 	if err != nil {
 		t.Fatalf("connect second client: %v", err)
@@ -388,6 +408,9 @@ func TestServerCancellationClosesPendingHandshake(t *testing.T) {
 	started := time.Now()
 	stopServer()
 	assert.Less(t, time.Since(started), time.Second)
+	pending, sources := pendingHandshakeCounts(s)
+	assert.Zero(t, pending)
+	assert.Empty(t, sources)
 }
 
 func startTestServer(t *testing.T, maxRoomsOpen int) (string, func()) {
@@ -478,9 +501,13 @@ func openPartialHandshake(t *testing.T, address string) net.Conn {
 func waitForPendingHandshakes(t *testing.T, s *server, want int) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
-	for len(s.handshakeSlots) != want {
+	for {
+		pending, _ := pendingHandshakeCounts(s)
+		if pending == want {
+			return
+		}
 		if time.Now().After(deadline) {
-			t.Fatalf("pending handshakes = %d, want %d", len(s.handshakeSlots), want)
+			t.Fatalf("pending handshakes = %d, want %d", pending, want)
 		}
 		time.Sleep(time.Millisecond)
 	}

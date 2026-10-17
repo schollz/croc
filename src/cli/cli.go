@@ -118,7 +118,7 @@ func newApp() *cli.App {
 			Description: "store regular files with a download limit and expiration",
 			ArgsUsage:   "[filename(s)]",
 			Flags: append(storedUploadFlags(""),
-                &cli.StringFlag{Name: "socks5", Value: "", Usage: "SOCKS5 proxy address (relay DNS is resolved by the proxy)", EnvVars: []string{"SOCKS5_PROXY"}},
+				&cli.StringFlag{Name: "socks5", Value: "", Usage: "SOCKS5 proxy address (relay DNS is resolved by the proxy)", EnvVars: []string{"SOCKS5_PROXY"}},
 				&cli.StringFlag{Name: "connect", Value: "", Usage: "add a http proxy", EnvVars: []string{"HTTP_PROXY"}},
 
 				&cli.BoolFlag{Name: "qrcode", Aliases: []string{"qr"}, Usage: "show the web receive URL as a qrcode"},
@@ -168,6 +168,8 @@ func newApp() *cli.App {
 				&cli.IntFlag{Name: "transfers", Value: 5, Usage: "number of ports to use for relay"},
 				&cli.IntFlag{Name: "max-rooms-open", Value: tcp.DEFAULT_MAX_ROOMS_OPEN, Usage: "maximum waiting rooms per relay port", EnvVars: []string{"CROC_MAX_ROOMS_OPEN"}},
 				&cli.IntFlag{Name: "max-pending-handshakes", Value: tcp.DEFAULT_MAX_PENDING_HANDSHAKES, Usage: "maximum incomplete handshakes per relay port", EnvVars: []string{"CROC_MAX_PENDING_HANDSHAKES"}},
+				&cli.IntFlag{Name: "max-pending-handshakes-per-source", Value: tcp.DEFAULT_MAX_PENDING_HANDSHAKES_PER_SOURCE, Usage: "maximum incomplete handshakes per source IP per relay port", EnvVars: []string{"CROC_MAX_PENDING_HANDSHAKES_PER_SOURCE"}},
+				&cli.DurationFlag{Name: "first-message-timeout", Value: tcp.DEFAULT_FIRST_MESSAGE_TIMEOUT, Usage: "maximum time from accepting a connection to its first complete protocol message", EnvVars: []string{"CROC_FIRST_MESSAGE_TIMEOUT"}},
 				&cli.DurationFlag{Name: "handshake-timeout", Value: tcp.DEFAULT_HANDSHAKE_TIMEOUT, Usage: "maximum time for an initial relay handshake", EnvVars: []string{"CROC_HANDSHAKE_TIMEOUT"}},
 				&cli.IntFlag{Name: "source-join-limit", Value: tcp.DEFAULT_SOURCE_JOIN_LIMIT, Usage: "maximum room joins per source IP in the admission window", EnvVars: []string{"CROC_SOURCE_JOIN_LIMIT"}},
 				&cli.IntFlag{Name: "room-join-limit", Value: tcp.DEFAULT_ROOM_JOIN_LIMIT, Usage: "maximum joins per room in the admission window", EnvVars: []string{"CROC_ROOM_JOIN_LIMIT"}},
@@ -1162,6 +1164,14 @@ func relay(c *cli.Context) (err error) {
 	if maxPendingHandshakes <= 0 {
 		return fmt.Errorf("--max-pending-handshakes must be positive")
 	}
+	maxPendingHandshakesPerSource := c.Int("max-pending-handshakes-per-source")
+	if maxPendingHandshakesPerSource <= 0 {
+		return fmt.Errorf("--max-pending-handshakes-per-source must be positive")
+	}
+	firstMessageTimeout := c.Duration("first-message-timeout")
+	if firstMessageTimeout <= 0 {
+		return fmt.Errorf("--first-message-timeout must be positive")
+	}
 	handshakeTimeout := c.Duration("handshake-timeout")
 	if handshakeTimeout <= 0 {
 		return fmt.Errorf("--handshake-timeout must be positive")
@@ -1251,6 +1261,8 @@ func relay(c *cli.Context) (err error) {
 				tcp.WithLogLevel(debugString),
 				tcp.WithMaxRoomsOpen(maxRoomsOpen),
 				tcp.WithMaxPendingHandshakes(maxPendingHandshakes),
+				tcp.WithMaxPendingHandshakesPerSource(maxPendingHandshakesPerSource),
+				tcp.WithFirstMessageTimeout(firstMessageTimeout),
 				tcp.WithHandshakeTimeout(handshakeTimeout),
 				tcp.WithAdmissionLimits(sourceJoinLimit, roomJoinLimit, joinLimitWindow),
 				tcp.WithFastAdmission(capabilitySet),
@@ -1269,6 +1281,8 @@ func relay(c *cli.Context) (err error) {
 		tcp.WithLogLevel(debugString),
 		tcp.WithMaxRoomsOpen(maxRoomsOpen),
 		tcp.WithMaxPendingHandshakes(maxPendingHandshakes),
+		tcp.WithMaxPendingHandshakesPerSource(maxPendingHandshakesPerSource),
+		tcp.WithFirstMessageTimeout(firstMessageTimeout),
 		tcp.WithHandshakeTimeout(handshakeTimeout),
 		tcp.WithAdmissionLimits(sourceJoinLimit, roomJoinLimit, joinLimitWindow),
 		tcp.WithFastAdmission(capabilitySet),
