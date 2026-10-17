@@ -63,6 +63,30 @@ func WithMaxPendingHandshakes(maxPendingHandshakes int) serverOptsFunc {
 	}
 }
 
+// WithMaxPendingHandshakesPerSource limits incomplete handshakes from one
+// source IP on this relay port. The total pending limit still applies.
+func WithMaxPendingHandshakesPerSource(limit int) serverOptsFunc {
+	return func(s *server) error {
+		if limit <= 0 {
+			return fmt.Errorf("max pending handshakes per source must be positive")
+		}
+		s.maxPendingHandshakesPerSource = limit
+		return nil
+	}
+}
+
+// WithFirstMessageTimeout sets the absolute time from acceptance to receive
+// the first complete protocol frame. The overall handshake timeout still applies.
+func WithFirstMessageTimeout(timeout time.Duration) serverOptsFunc {
+	return func(s *server) error {
+		if timeout <= 0 {
+			return fmt.Errorf("first message timeout must be positive")
+		}
+		s.firstMessageTimeout = timeout
+		return nil
+	}
+}
+
 // WithHandshakeTimeout sets the absolute time allowed for the initial relay
 // handshake to complete.
 func WithHandshakeTimeout(timeout time.Duration) serverOptsFunc {

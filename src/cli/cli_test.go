@@ -177,6 +177,9 @@ func TestRelayStopsPromptlyWhenCommandContextIsCanceled(t *testing.T) {
 }
 
 func TestRelayHandshakeGuardConfiguration(t *testing.T) {
+	for _, key := range []string{"CROC_MAX_PENDING_HANDSHAKES_PER_SOURCE", "CROC_FIRST_MESSAGE_TIMEOUT"} {
+		unsetEnv(t, key)
+	}
 	t.Run("defaults", func(t *testing.T) {
 		unsetEnv(t, "CROC_MAX_PENDING_HANDSHAKES")
 		unsetEnv(t, "CROC_HANDSHAKE_TIMEOUT")
@@ -187,6 +190,9 @@ func TestRelayHandshakeGuardConfiguration(t *testing.T) {
 		if got.handshakeTimeout != tcp.DEFAULT_HANDSHAKE_TIMEOUT {
 			t.Fatalf("default handshake timeout = %s, want %s", got.handshakeTimeout, tcp.DEFAULT_HANDSHAKE_TIMEOUT)
 		}
+		if got.maxPendingHandshakesPerSource != tcp.DEFAULT_MAX_PENDING_HANDSHAKES_PER_SOURCE || got.firstMessageTimeout != tcp.DEFAULT_FIRST_MESSAGE_TIMEOUT {
+			t.Fatalf("unexpected source/first-message defaults: %+v", got)
+		}
 	})
 
 	t.Run("flags", func(t *testing.T) {
@@ -196,6 +202,8 @@ func TestRelayHandshakeGuardConfiguration(t *testing.T) {
 			"croc", "relay",
 			"--max-pending-handshakes", "19",
 			"--handshake-timeout", "7m",
+			"--max-pending-handshakes-per-source", "83",
+			"--first-message-timeout", "9m",
 		})
 		if got.maxPendingHandshakes != 19 {
 			t.Fatalf("max pending handshakes = %d, want 19", got.maxPendingHandshakes)
@@ -203,17 +211,33 @@ func TestRelayHandshakeGuardConfiguration(t *testing.T) {
 		if got.handshakeTimeout != 7*time.Minute {
 			t.Fatalf("handshake timeout = %s, want 7m", got.handshakeTimeout)
 		}
+		if got.maxPendingHandshakesPerSource != 83 || got.firstMessageTimeout != 9*time.Minute {
+			t.Fatalf("unexpected source/first-message flags: %+v", got)
+		}
 	})
 
 	t.Run("environment", func(t *testing.T) {
 		t.Setenv("CROC_MAX_PENDING_HANDSHAKES", "23")
 		t.Setenv("CROC_HANDSHAKE_TIMEOUT", "8m")
+		t.Setenv("CROC_MAX_PENDING_HANDSHAKES_PER_SOURCE", "31")
+		t.Setenv("CROC_FIRST_MESSAGE_TIMEOUT", "10m")
 		got := runRelayWithCapturedConfig(t, []string{"croc", "relay"})
 		if got.maxPendingHandshakes != 23 {
 			t.Fatalf("max pending handshakes = %d, want 23", got.maxPendingHandshakes)
 		}
 		if got.handshakeTimeout != 8*time.Minute {
 			t.Fatalf("handshake timeout = %s, want 8m", got.handshakeTimeout)
+		}
+		if got.maxPendingHandshakesPerSource != 31 || got.firstMessageTimeout != 10*time.Minute {
+			t.Fatalf("unexpected source/first-message environment: %+v", got)
+		}
+	})
+	t.Run("flags override environment", func(t *testing.T) {
+		t.Setenv("CROC_MAX_PENDING_HANDSHAKES_PER_SOURCE", "8")
+		t.Setenv("CROC_FIRST_MESSAGE_TIMEOUT", "2m")
+		got := runRelayWithCapturedConfig(t, []string{"croc", "relay", "--max-pending-handshakes-per-source=3", "--first-message-timeout=7s"})
+		if got.maxPendingHandshakesPerSource != 3 || got.firstMessageTimeout != 7*time.Second {
+			t.Fatalf("flags did not override environment: %+v", got)
 		}
 	})
 }
@@ -226,6 +250,10 @@ func TestRelayRejectsNonPositiveHandshakeGuards(t *testing.T) {
 	}{
 		{name: "zero pending", arg: "--max-pending-handshakes=0", want: "--max-pending-handshakes must be positive"},
 		{name: "negative pending", arg: "--max-pending-handshakes=-1", want: "--max-pending-handshakes must be positive"},
+		{name: "zero source pending", arg: "--max-pending-handshakes-per-source=0", want: "--max-pending-handshakes-per-source must be positive"},
+		{name: "negative source pending", arg: "--max-pending-handshakes-per-source=-1", want: "--max-pending-handshakes-per-source must be positive"},
+		{name: "zero first message timeout", arg: "--first-message-timeout=0s", want: "--first-message-timeout must be positive"},
+		{name: "negative first message timeout", arg: "--first-message-timeout=-1s", want: "--first-message-timeout must be positive"},
 		{name: "zero timeout", arg: "--handshake-timeout=0s", want: "--handshake-timeout must be positive"},
 		{name: "negative timeout", arg: "--handshake-timeout=-1s", want: "--handshake-timeout must be positive"},
 	}
@@ -233,6 +261,8 @@ func TestRelayRejectsNonPositiveHandshakeGuards(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			unsetEnv(t, "CROC_MAX_PENDING_HANDSHAKES")
 			unsetEnv(t, "CROC_HANDSHAKE_TIMEOUT")
+			unsetEnv(t, "CROC_MAX_PENDING_HANDSHAKES_PER_SOURCE")
+			unsetEnv(t, "CROC_FIRST_MESSAGE_TIMEOUT")
 			err := newApp().Run([]string{"croc", "relay", tt.arg})
 			if err == nil {
 				t.Fatalf("%s unexpectedly succeeded", tt.arg)
@@ -306,12 +336,14 @@ func runRelayWithCapturedMaxRooms(t *testing.T, args []string) int {
 }
 
 type capturedRelayConfig struct {
-	maxRoomsOpen         int
-	maxPendingHandshakes int
-	handshakeTimeout     time.Duration
-	sourceJoinLimit      int
-	roomJoinLimit        int
-	joinLimitWindow      time.Duration
+	maxRoomsOpen                  int
+	maxPendingHandshakes          int
+	maxPendingHandshakesPerSource int
+	firstMessageTimeout           time.Duration
+	handshakeTimeout              time.Duration
+	sourceJoinLimit               int
+	roomJoinLimit                 int
+	joinLimitWindow               time.Duration
 }
 
 func runRelayWithCapturedConfig(t *testing.T, args []string) capturedRelayConfig {
@@ -325,6 +357,8 @@ func runRelayWithCapturedConfig(t *testing.T, args []string) capturedRelayConfig
 		command.Action = func(ctx *cli.Context) error {
 			got.maxRoomsOpen = ctx.Int("max-rooms-open")
 			got.maxPendingHandshakes = ctx.Int("max-pending-handshakes")
+			got.maxPendingHandshakesPerSource = ctx.Int("max-pending-handshakes-per-source")
+			got.firstMessageTimeout = ctx.Duration("first-message-timeout")
 			got.handshakeTimeout = ctx.Duration("handshake-timeout")
 			got.sourceJoinLimit = ctx.Int("source-join-limit")
 			got.roomJoinLimit = ctx.Int("room-join-limit")

@@ -46,7 +46,7 @@ jobs:
         run: go test ./src/storecrypto ./src/storeclient -run 'Test(ValidateManifest|Stored|Receive)'
 
       - name: Test relay admission regressions
-        run: go test ./src/tcp -run 'Test(AdmissionLimiter|RoomDenials|RelayAdmissionLimits|CanonicalSource|WithAdmissionLimits|ConnectToTCPServerControlContext)'
+        run: go test ./src/tcp -run 'Test(AdmissionLimiter|RoomDenials|RelayAdmissionLimits|CanonicalSource|WithAdmissionLimits|ConnectToTCPServerControlContext|PendingHandshake|FirstMessage|HandshakeOptions|EstablishedTransfer|ServerCancellation)'
 
       - name: Test reserved relay listener lifecycle
         run: |
@@ -83,7 +83,7 @@ jobs:
         run: go test -race ./src/utils -run 'Test(UnzipDirectory|RemoveMarkedFiles)'
 
       - name: Race-test relay admission
-        run: go test -race ./src/tcp -run 'Test(AdmissionLimiter|RoomDenials|RelayAdmissionLimits|CanonicalSource|WithAdmissionLimits|ConnectToTCPServerControlContext)'
+        run: go test -race ./src/tcp -run 'Test(AdmissionLimiter|RoomDenials|RelayAdmissionLimits|CanonicalSource|WithAdmissionLimits|ConnectToTCPServerControlContext|PendingHandshake|FirstMessage|HandshakeOptions|EstablishedTransfer|ServerCancellation)'
 
       - name: Race-test reserved relay listener lifecycle
         run: |
