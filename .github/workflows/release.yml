@@ -451,7 +451,8 @@ jobs:
           timestamp-digest: SHA256
 
       - name: Verify signature and recreate archive
-        shell: powershell
+        # PowerShell 7: Windows PowerShell 5.1 Compress-Archive writes backslash entry names.
+        shell: pwsh
         run: |
           $binary = "${{ github.workspace }}\signed\croc.exe"
           $signature = Get-AuthenticodeSignature -FilePath $binary
@@ -467,6 +468,21 @@ jobs:
           $archives = @(Get-ChildItem -Path "${{ github.workspace }}\unsigned" -Filter "croc_*_Windows-64bit.zip" -File)
           $destination = Join-Path "${{ github.workspace }}" $archives[0].Name
           Compress-Archive -Path "${{ github.workspace }}\signed\*" -DestinationPath $destination -CompressionLevel Optimal
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          function Get-FileEntries($path) {
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($path)
+            try { @($zip.Entries.FullName | Where-Object { -not $_.EndsWith('/') } | Sort-Object) } finally { $zip.Dispose() }
+          }
+          $expected = Get-FileEntries $archives[0].FullName
+          $actual = Get-FileEntries $destination
+          $actual | ForEach-Object { Write-Host "  $_" }
+          if ($actual | Where-Object { $_.Contains('\') }) {
+            throw "Signed archive contains backslash entry names."
+          }
+          if (Compare-Object $expected $actual) {
+            throw "Signed archive entries ($($actual -join ', ')) differ from unsigned archive ($($expected -join ', '))."
+          }
 
       - name: Upload signed Windows 64-bit artifact
         uses: actions/upload-artifact@v7
