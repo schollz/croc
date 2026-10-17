@@ -1398,40 +1398,6 @@ func (c *Client) currentFileUsesCompression() bool {
 		c.FilesToTransfer[c.FilesToTransferCurrentNum].IsCompressed
 }
 
-func (c *Client) setupLocalRelay() {
-	// setup the relay locally
-	firstPort, _ := strconv.Atoi(c.Options.RelayPorts[0])
-	openPorts := utils.FindOpenPorts("127.0.0.1", firstPort, len(c.Options.RelayPorts))
-	if len(openPorts) < len(c.Options.RelayPorts) {
-		panic("not enough open ports to run local relay")
-	}
-	for i, port := range openPorts {
-		c.Options.RelayPorts[i] = fmt.Sprint(port)
-	}
-	// Capture the local relay control port before any goroutine that handles
-	// the external relay can overwrite c.Options.RelayPorts.
-	c.localRelayPort = c.Options.RelayPorts[0]
-	localRelayPorts := append([]string(nil), c.Options.RelayPorts...)
-	localRelayBanner := strings.Join(localRelayPorts[1:], ",")
-	for _, port := range localRelayPorts {
-		go func(portStr string) {
-			debugString := "warn"
-			if c.Options.Debug {
-				debugString = "debug"
-			}
-			err := c.stop.run(
-				debugString,
-				"",
-				portStr,
-				c.Options.RelayPassword,
-				localRelayBanner)
-			if err != nil {
-				panic(err)
-			}
-		}(port)
-	}
-}
-
 func (c *Client) broadcastOnLocalNetwork(useipv6 bool) {
 	var timeLimit time.Duration
 	// if we don't use an external relay, the broadcast messages need to be sent continuously
@@ -1833,7 +1799,9 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 	if !c.Options.DisableLocal {
 		// add two things to the error channel
 		errchan = make(chan error, 2)
-		c.setupLocalRelay()
+		if err := c.setupLocalRelay(); err != nil {
+			return fmt.Errorf("start local relay: %w", err)
+		}
 		// broadcast on ipv4
 		go c.broadcastOnLocalNetwork(false)
 		// broadcast on ipv6
