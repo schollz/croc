@@ -4,11 +4,12 @@ The in-tree Tailcat transport and its direct runtime dependencies are distribute
 under the licenses below. Transitive dependency notices remain available in
 their respective Go modules.
 
-## Tailcat snapshot and tailscale.com v1.102.3
+## Tailcat snapshot and tailscale.com v1.104.1
 
 Tailcat is vendored from tailscale/tailcat commit
 `c04c5afee401df40e620db8ae108e957ae07bcd9`. Both the snapshot and
-`tailscale.com v1.102.3` use the BSD 3-Clause License.
+`tailscale.com v1.104.1` use the BSD 3-Clause License. The snapshot includes
+compatibility backports documented in `internal/tailcat/UPSTREAM.md`.
 
 BSD 3-Clause License
 

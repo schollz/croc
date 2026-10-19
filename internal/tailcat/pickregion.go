@@ -21,7 +21,7 @@ import (
 // returns the region ID with the lowest latency. It returns 0 (and a
 // nil error) if the netcheck report contained no usable region
 // latencies.
-func PickBestRegion(ctx context.Context, dm *tailcfg.DERPMap) (regionID int, err error) {
+func PickBestRegion(ctx context.Context, dm *tailcfg.DERPMap) (regionID tailcfg.DERPRegionID, err error) {
 	nc := &netcheck.Client{
 		NetMon:  netmon.NewStatic(),
 		Verbose: Verbose,

@@ -34,7 +34,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.27.0'
+          go-version: '^1.27.1'
 
       - name: Test portable path, redaction, and PAKE primitives
         run: go test ./src/receivefs ./src/redact ./src/pakekey
@@ -74,7 +74,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.27.0'
+          go-version: '^1.27.1'
 
       - name: Race-test root-scoped and stored writes
         run: go test -race ./src/receivefs ./src/redact ./src/storecrypto ./src/storeclient ./src/store ./src/webcli ./src/webrelay
@@ -99,7 +99,7 @@ jobs:
       - name: Race-test Croc and Tailcat transport lifecycle
         run: |
           go test -race ./src/logger ./src/tailcattransport
-          go test -race ./internal/tailcat -run 'HalfClose|ConnBlob|FetchDERPMapMemoryCache|Wire'
+          go test -race ./internal/tailcat -run 'HalfClose|ConnBlob|FetchDERPMapMemoryCache|Wire|ExpandWideDERPRegion|PeerConfig'
           go test -race ./src/croc -run 'Tailcat|Staged|Transport'
 
   security-fuzz-smoke:
@@ -114,7 +114,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.27.0'
+          go-version: '^1.27.1'
 
       - name: Fuzz portable path normalization
         run: go test ./src/receivefs -run '^$' -fuzz '^FuzzNormalize$' -fuzztime 10s
@@ -137,7 +137,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.27.0'
+          go-version: '^1.27.1'
 
       - name: Check go fix
         run: |
