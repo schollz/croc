@@ -1385,6 +1385,53 @@ func TestGetFilesInfoExactFileExclusion(t *testing.T) {
 	}
 }
 
+func TestRemoteFolderPath(t *testing.T) {
+	tests := []struct {
+		name       string
+		parentDir  string
+		folderPath string
+		separator  string
+		want       string
+	}{
+		{"windows drive root", `D:\`, `D:\first_folder\empty_folder`, `\`, "first_folder/empty_folder/"},
+		{"windows drive root top folder", `D:\`, `D:\first_folder`, `\`, "first_folder/"},
+		{"windows nested parent", `C:\Users\me`, `C:\Users\me\first_folder\a\b`, `\`, "first_folder/a/b/"},
+		{"unix root", "/", "/first_folder/empty_folder", "/", "first_folder/empty_folder/"},
+		{"unix nested parent", "/home/me", "/home/me/first_folder/empty_folder", "/", "first_folder/empty_folder/"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := remoteFolderPath(tt.parentDir, tt.folderPath, tt.separator); got != tt.want {
+				t.Fatalf("remoteFolderPath(%q, %q, %q) = %q, want %q", tt.parentDir, tt.folderPath, tt.separator, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetFilesInfoEmptyFolderIsRelative(t *testing.T) {
+	parent := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(parent, "first_folder", "empty_folder"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(parent, "first_folder", "file.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	files, emptyFolders, _, err := GetFilesInfo([]string{filepath.Join(parent, "first_folder")}, false, false, nil)
+	if err != nil {
+		t.Fatalf("GetFilesInfo: %v", err)
+	}
+	if len(files) != 1 || files[0].FolderRemote != "first_folder/" {
+		t.Fatalf("unexpected files: %+v", files)
+	}
+	if len(emptyFolders) != 1 || emptyFolders[0].FolderRemote != "first_folder/empty_folder/" {
+		t.Fatalf("unexpected empty folders: %+v", emptyFolders)
+	}
+	if _, _, err := validateReceiveMetadata(files, emptyFolders); err != nil {
+		t.Fatalf("receiver rejected sender metadata: %v", err)
+	}
+}
+
 func TestGetFilesInfoContextReturnsCanceledBeforeWalking(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
