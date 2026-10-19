@@ -34,7 +34,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.27.0'
+          go-version: '^1.27.1'
 
       - name: Validate release tag
         id: version
@@ -127,7 +127,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.27.0'
+          go-version: '^1.27.1'
 
       - name: Prepare and verify offline source tarball
         env:
@@ -281,7 +281,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.27.0'
+          go-version: '^1.27.1'
 
       - name: Build binary
         env:
@@ -366,7 +366,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.27.0'
+          go-version: '^1.27.1'
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -503,7 +503,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '^1.27.0'
+          go-version: '^1.27.1'
       - name: Install pinned package builder
         run: go install "github.com/goreleaser/nfpm/v2/cmd/nfpm@$(cat packaging/nfpm-version)"
       - name: Download Linux archives

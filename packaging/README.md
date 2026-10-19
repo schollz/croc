@@ -7,7 +7,7 @@ It does not create a repository service, start a relay, or package croc-web.
 ## Payload and names
 
 All twelve packages use the same CLI binaries as the six Linux archives, with
-CGO disabled, `netgo,osusergo`, and explicit ARMv7/ARMv5 variants. Go 1.27 or newer
+CGO disabled, `netgo,osusergo`, and explicit ARMv7/ARMv5 variants. Go 1.27.1 or newer
 is required. Distro recipes may preserve their native hardening flags.
 
 | Build | DEB | RPM |
@@ -39,7 +39,7 @@ retain their existing installer-based update behavior.
 
 ## Local reproduction
 
-Run from the repository root using Python 3.12+ and Go 1.27+. `VERSION` must match
+Run from the repository root using Python 3.12+ and Go 1.27.1+. `VERSION` must match
 `src/version/version.go`. Tools and generated files can live under ignored `tmp/`.
 
 ```sh

@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@v7
         with:
-          go-version: '^1.27.0'
+          go-version: '^1.27.1'
       - id: version
         run: sed -n 's/^const Value = "\(.*\)"$/version=\1/p' src/version/version.go >> "$GITHUB_OUTPUT"
       - name: Test publication boundaries

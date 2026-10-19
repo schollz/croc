@@ -33,16 +33,34 @@ wire protocol.
   and adds `Server.RemoveAllowedClient` so one-time client keys can be revoked.
 - `croc_status.go`: adds a client status accessor for direct/DERP path
   transitions and final byte reporting.
+- `tailcat.go`, `pickregion.go`, `pickregion_js.go`, `wire.go`: backport the
+  DERP region ID migration from upstream commit
+  [`93727442357477eed62e939327dff26c648aabd1`](https://github.com/tailscale/tailcat/commit/93727442357477eed62e939327dff26c648aabd1).
+  Networking uses `tailcfg.DERPRegionID`; the independent wire types use
+  `int64`, preserving existing CBOR encodings and numeric JSON fields.
+- `tailcat.go`: adapt the peer configuration callback to return
+  `wgcfg.PeerConfig`, following the API migration in upstream commit
+  [`522df6f59825dc8da3a1fbcaaf4e549594d3e458`](https://github.com/tailscale/tailcat/commit/522df6f59825dc8da3a1fbcaaf4e549594d3e458).
+  Only `AllowedIPs` is populated; the optional preshared key stays zero.
+- `tailcat_test.go`: includes croc's client revocation regression test.
+- `croc_compat_test.go`: verifies historical connection blobs, 64-bit region
+  IDs, numeric JSON display, and peer configuration compatibility.
 
-All other imported source and test files are unchanged. `SOURCE_HASHES.sha256`
-records SHA-256 hashes of the exact upstream files before the local patch.
-The resulting croc-patched `tailcat.go` has SHA-256
-`897b2a9a03be97cbd5a55009b158b4a54cd161cc0552438574dbc52e277718bd`.
+`SOURCE_HASHES.sha256` records SHA-256 hashes of the exact original upstream
+files before local patches. These hashes retain the snapshot's provenance;
+selective compatibility backports do not change the recorded snapshot commit.
+The patched networking source hashes are listed below.
 
-Croc deliberately uses stable `tailscale.com v1.102.3` instead of Tailcat's
-pre-release Tailscale pseudo-version. The complete imported upstream test suite
-passes with that stable release. The gVisor version remains Tailcat's pinned
-`v0.0.0-20260224225140-573d5e7127a8`.
+```text
+b35b0c74dd88209210756d72e0c9413b8f53078cdf8c57d7cf3b569336fa6af3  tailcat.go
+6db28d7ab032ac35e399468b328a74cfc563066bcc256d8883041cb3cfcceab4  wire.go
+749cf062c79f531b02b6891dcbcf5fce1e8b1b1286e95a3755c49a2538424a0b  pickregion.go
+9c188c59c09aa67ab5d96d2c95eeeadc46e5e6258a9ef52a648d87464fe6e91b  pickregion_js.go
+```
+
+Croc uses stable `tailscale.com v1.104.1` instead of Tailcat's pre-release
+Tailscale pseudo-version, requiring Go 1.27.1 or newer. The gVisor dependency
+remains pinned at `v0.0.0-20260926034703-66ed76bcb72f`.
 
 ## Updating
 
@@ -50,7 +68,8 @@ passes with that stable release. The gVisor version remains Tailcat's pinned
 2. Download the source archive and verify its commit identity.
 3. Re-copy only the files listed above, preserving `LICENSE`.
 4. Regenerate `SOURCE_HASHES.sha256` from the unmodified upstream files.
-5. Reapply and review the documented `Server.StartContext` and package-comment
-   changes, and keep croc-only additions in `croc_*.go` where possible.
+5. Reapply and review the documented croc-local changes and compatibility
+   backports, refresh the patched source hashes above, and keep croc-only
+   additions in `croc_*.go` where possible.
 6. Run `go test ./internal/tailcat ./src/tailcattransport`, the focused race
    tests, `go test ./...`, and croc's release cross-build matrix.

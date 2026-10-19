@@ -16,6 +16,6 @@ import (
 // which makes [ConnInfo.Expand] fall back to picking an arbitrary
 // region, relying on the DERP map server to have already filtered the
 // regions by client proximity.
-func PickBestRegion(ctx context.Context, dm *tailcfg.DERPMap) (regionID int, err error) {
+func PickBestRegion(ctx context.Context, dm *tailcfg.DERPMap) (regionID tailcfg.DERPRegionID, err error) {
 	return 0, nil
 }
