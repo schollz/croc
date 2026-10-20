@@ -1199,13 +1199,6 @@ func GetFilesInfoWithExactExclusionsContext(ctx context.Context, fnames []string
 					if err != nil {
 						return err
 					}
-					absPathWithSeparator := filepath.Dir(absPath)
-					if !strings.HasSuffix(absPathWithSeparator, string(os.PathSeparator)) {
-						absPathWithSeparator += string(os.PathSeparator)
-					}
-					if strings.HasSuffix(absPathWithSeparator, string(os.PathSeparator)+string(os.PathSeparator)) {
-						absPathWithSeparator = strings.TrimSuffix(absPathWithSeparator, string(os.PathSeparator))
-					}
 					relPath, relErr := filepath.Rel(absPath, pathName)
 					if relErr == nil && exactPathExcluded(exactExclusions, relPath) {
 						if info.IsDir() {
@@ -1213,11 +1206,10 @@ func GetFilesInfoWithExactExclusionsContext(ctx context.Context, fnames []string
 						}
 						return nil
 					}
-					remoteFolder := strings.TrimPrefix(filepath.Dir(pathName), absPathWithSeparator)
 					if !info.IsDir() {
 						fInfo := FileInfo{
 							Name:         info.Name(),
-							FolderRemote: strings.ReplaceAll(remoteFolder, string(os.PathSeparator), "/") + "/",
+							FolderRemote: remoteFolderPath(filepath.Dir(absPath), filepath.Dir(pathName), string(os.PathSeparator)),
 							FolderSource: filepath.Dir(pathName),
 							Size:         info.Size(),
 							ModTime:      info.ModTime(),
@@ -1239,8 +1231,7 @@ func GetFilesInfoWithExactExclusionsContext(ctx context.Context, fnames []string
 						if isEmptyFolder {
 							emptyFolders = append(emptyFolders, FileInfo{
 								// Name: info.Name(),
-								FolderRemote: strings.ReplaceAll(strings.TrimPrefix(pathName,
-									filepath.Dir(absPath)+string(os.PathSeparator)), string(os.PathSeparator), "/") + "/",
+								FolderRemote: remoteFolderPath(filepath.Dir(absPath), pathName, string(os.PathSeparator)),
 							})
 						}
 					}
@@ -1272,6 +1263,17 @@ func GetFilesInfoWithExactExclusionsContext(ctx context.Context, fnames []string
 		}
 	}
 	return
+}
+
+// remoteFolderPath returns folderPath relative to parentDir, using forward
+// slashes and a trailing slash, as sent to the receiver. parentDir may be a
+// filesystem root such as "/" or `D:\` that already ends in a separator.
+func remoteFolderPath(parentDir, folderPath, separator string) string {
+	prefix := parentDir
+	if !strings.HasSuffix(prefix, separator) {
+		prefix += separator
+	}
+	return strings.ReplaceAll(strings.TrimPrefix(folderPath, prefix), separator, "/") + "/"
 }
 
 func exactPathExcluded(exclusions []string, candidate string) bool {
