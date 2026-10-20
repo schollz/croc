@@ -1,0 +1,48 @@
+name: Windows path check
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Source commit or PR ref to test
+        required: true
+        default: b2a6e41cf7df1374dc2777b932526d1fe77d2a09
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  drive-root:
+    name: Drive-root folder metadata
+    runs-on: windows-2025
+    timeout-minutes: 8
+    steps:
+      - name: Checkout test harness
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/tests
+
+      - name: Checkout source under review
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+          path: source
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '^1.27.1'
+          cache-dependency-path: source/go.sum
+
+      - name: Test drive-root metadata and receiver directory creation
+        shell: pwsh
+        run: |
+          Copy-Item .github/tests/windows_drive_root_test.go source/src/croc/windows_drive_root_test.go
+          Set-Location source
+          git rev-parse HEAD
+          # The relay-only build avoids compiling Tailcat's unrelated dependencies.
+          go test -tags croc_no_tailcat ./src/croc -run '^(TestWindowsDriveRootMetadata|TestRemoteFolderPath|TestGetFilesInfoEmptyFolderIsRelative)$' -count=1 -timeout=2m -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
