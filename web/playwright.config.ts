@@ -67,6 +67,7 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${vitePort}`,
     acceptDownloads: true,
     trace: "retain-on-failure",
+    screenshot: "only-on-failure",
   },
   webServer: {
     command: "node e2e/stack.mjs",

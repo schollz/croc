@@ -46,6 +46,15 @@ jobs:
         working-directory: web
         env:
           CROC_E2E_PRIVACY: '1'
+      - name: Upload browser failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-store-failures
+          path: web/.e2e/test-results/
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: ignore
 
   security-regressions:
     name: Security portability regressions (${{ matrix.os }})
