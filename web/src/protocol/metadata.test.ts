@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeOutgoingFileName, validateSenderInfo } from "./metadata";
+import { collisionKey, normalizeOutgoingFileName, validateSenderInfo } from "./metadata";
 import type { SenderInfoWire } from "./types";
 
 function sender(
@@ -19,6 +19,11 @@ function sender(
 }
 
 describe("incoming croc metadata", () => {
+  it("matches Go case folding for Unicode 16 and 17 letters", () => {
+    expect(collisionKey("\u1c89\u{10d50}\u{16ea0}"))
+      .toBe("\u1c8a\u{10d70}\u{16ebb}");
+  });
+
   it("normalizes Unicode separators in outgoing filenames for Go compatibility", () => {
     expect(
       normalizeOutgoingFileName("Screenshot 2026-07-22 at 8.59.57\u202fAM.png"),
