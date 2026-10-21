@@ -1,9 +1,5 @@
 import { errorMessage, textDecoder, textEncoder } from "./bytes";
-import {
-  hashFileContents,
-  waitForHash,
-  type FileHashProvider,
-} from "./hash";
+import { hashFileContents, waitForHash, type FileHashProvider } from "./hash";
 import { normalizeOutgoingFileName } from "./metadata";
 import { verifySinkSHA256 } from "./storage";
 import type {
@@ -14,28 +10,19 @@ import type {
   TransferOffer,
   TransferSettings,
 } from "./types";
-import { wasm } from "../wasm/client";
+import {
+  StoredCrypto,
+  generateStoredKey,
+  storedProtocol,
+  storedChunkSize,
+  type StoredManifest,
+} from "./stored-crypto";
+export { storedProtocol, storedChunkSize } from "./stored-crypto";
 
-export const storedProtocol = "croc-store-v1";
-export const storedChunkSize = 4 * 1024 * 1024;
-const storedChunkOverhead = 12 + 16; // AES-GCM nonce and authentication tag.
+const storedChunkOverhead = 12 + 16;
 const storedKeyBytes = 32;
 const maxManifestCiphertext = 256 * 1024;
-
-type StoredManifestFile = {
-  n: string;
-  s: number;
-  m: string;
-  h: string;
-  fc: number;
-  cc: number;
-};
-
-type StoredManifest = {
-  v: number;
-  cs: number;
-  f: StoredManifestFile[];
-};
+export const manifestTimeoutMs = 30_000;
 
 export type StoredShare = {
   origin: string;
@@ -85,6 +72,7 @@ type StoredUploadPlan = {
 };
 
 type CreatedStoredUpload = {
+  crypto: StoredCrypto;
   share: StoredShare;
   uploadToken: string;
 };
@@ -99,7 +87,8 @@ class StoredHTTPError extends Error {
 }
 
 function checkAbort(signal?: AbortSignal) {
-  if (signal?.aborted) throw new DOMException("Transfer cancelled", "AbortError");
+  if (signal?.aborted)
+    throw new DOMException("Transfer cancelled", "AbortError");
 }
 
 function base64URL(bytes: Uint8Array) {
@@ -107,7 +96,10 @@ function base64URL(bytes: Uint8Array) {
   for (let offset = 0; offset < bytes.byteLength; offset += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
   }
-  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+  return btoa(binary)
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
 }
 
 function fromBase64URL(value: string) {
@@ -138,14 +130,17 @@ function normalizeOrigin(value: string) {
     parsed.hostname === "[::1]" ||
     parsed.hostname === "::1";
   if (
-    (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && loopback)) ||
+    (parsed.protocol !== "https:" &&
+      !(parsed.protocol === "http:" && loopback)) ||
     parsed.username ||
     parsed.password ||
     (parsed.pathname !== "/" && parsed.pathname !== "") ||
     parsed.search ||
     parsed.hash
   ) {
-    throw new Error("Stored-transfer origin must contain only an HTTPS scheme and host");
+    throw new Error(
+      "Stored-transfer origin must contain only an HTTPS scheme and host",
+    );
   }
   return parsed.origin;
 }
@@ -247,7 +242,8 @@ async function responseError(response: Response) {
       description =
         "Too many unfinished stored uploads from your IP address. Finish or revoke an upload, or try again later";
     } else if (reason === "create-rate") {
-      description = "The hourly stored-upload limit for your IP address has been reached";
+      description =
+        "The hourly stored-upload limit for your IP address has been reached";
     }
     const retryAfter = response.headers.get("Retry-After");
     const seconds = retryAfter === null ? NaN : Number(retryAfter);
@@ -274,6 +270,7 @@ async function authorizedFetch(
   token: string,
   init: RequestInit = {},
 ) {
+  checkAbort(init.signal ?? undefined);
   const response = await fetch(input, {
     ...init,
     redirect: "error",
@@ -282,6 +279,7 @@ async function authorizedFetch(
       Authorization: `Bearer ${token}`,
     },
   });
+  checkAbort(init.signal ?? undefined);
   if (!response.ok) throw await responseError(response);
   return response;
 }
@@ -295,11 +293,15 @@ export async function prepareStoredFiles(
 ) {
   if (selected.length === 0) throw new Error("Choose at least one file");
   if (selected.length > settings.maxFiles) {
-    throw new Error(`Stored transfers can contain at most ${settings.maxFiles} files`);
+    throw new Error(
+      `Stored transfers can contain at most ${settings.maxFiles} files`,
+    );
   }
   const total = selected.reduce((sum, file) => sum + file.size, 0);
   if (!Number.isSafeInteger(total) || total > settings.maxTransferBytes) {
-    throw new Error(`Stored transfer exceeds the ${settings.maxTransferBytes} byte limit`);
+    throw new Error(
+      `Stored transfer exceeds the ${settings.maxTransferBytes} byte limit`,
+    );
   }
   const names = new Set<string>();
   const prepared: StoredPreparedFile[] = [];
@@ -376,8 +378,11 @@ async function putCiphertext(
       return;
     } catch (error) {
       lastError = error;
-      if (error instanceof DOMException && error.name === "AbortError") throw error;
-      await new Promise((resolve) => window.setTimeout(resolve, (attempt + 1) * 250));
+      if (error instanceof DOMException && error.name === "AbortError")
+        throw error;
+      await new Promise((resolve) =>
+        window.setTimeout(resolve, (attempt + 1) * 250),
+      );
     }
   }
   throw lastError;
@@ -404,6 +409,7 @@ function planStoredUpload(files: StoredPreparedFile[]): StoredUploadPlan {
 
 async function createStoredUpload(
   key: Uint8Array,
+  crypto: StoredCrypto,
   plan: StoredUploadPlan,
   downloads: number,
   expiresSeconds: number,
@@ -411,9 +417,12 @@ async function createStoredUpload(
   callbacks: StoredUploadCallbacks,
   signal?: AbortSignal,
 ): Promise<CreatedStoredUpload> {
-  const redeem = await wasm().storeRedeemCapability(key);
+  const redeem = await crypto.redeem();
   const redeemVerifier = new Uint8Array(
-    await crypto.subtle.digest("SHA-256", Uint8Array.from(redeem).buffer),
+    await globalThis.crypto.subtle.digest(
+      "SHA-256",
+      Uint8Array.from(redeem).buffer,
+    ),
   );
   callbacks.onStatus?.("Reserving encrypted temporary storage…");
   const response = await fetch(api(settings, ""), {
@@ -459,6 +468,7 @@ async function createStoredUpload(
     );
   }
   return {
+    crypto,
     share: validateShare({
       origin: window.location.origin,
       id: created.id,
@@ -476,8 +486,7 @@ async function uploadStoredManifest(
   signal?: AbortSignal,
 ) {
   callbacks.onStatus?.("Uploading encrypted manifest…");
-  const ciphertext = await wasm().storeSealManifest(
-    created.share.key,
+  const ciphertext = await created.crypto.sealManifest(
     created.share.id,
     plan.manifestJSON,
   );
@@ -522,8 +531,7 @@ async function uploadStoredChunks(
           .arrayBuffer(),
       );
       const objectIndex = file.firstChunk + fileChunk;
-      const ciphertext = await wasm().storeSealChunk(
-        created.share.key,
+      const ciphertext = await created.crypto.sealChunk(
         created.share.id,
         objectIndex,
         fileIndex,
@@ -613,19 +621,24 @@ export async function uploadStoredFiles(options: {
       `Stored transfers can expire after at most ${settings.maxExpiresSeconds} seconds`,
     );
   }
-  const key = await wasm().storeGenerateKey();
-  const plan = planStoredUpload(files);
-  const created = await createStoredUpload(
-    key,
-    plan,
-    downloads,
-    expiresSeconds,
-    settings,
-    callbacks,
-    signal,
-  );
+  checkAbort(signal);
+  const key = generateStoredKey();
+  const crypto = new StoredCrypto(key);
+  let created: CreatedStoredUpload | undefined;
   let finalized = false;
   try {
+    const plan = planStoredUpload(files);
+    created = await createStoredUpload(
+      key,
+      crypto,
+      plan,
+      downloads,
+      expiresSeconds,
+      settings,
+      callbacks,
+      signal,
+    );
+    checkAbort(signal);
     await uploadStoredManifest(plan, created, settings, callbacks, signal);
     await uploadStoredChunks(plan, created, settings, callbacks, signal);
     const expiresAt = await completeStoredUpload(
@@ -644,7 +657,8 @@ export async function uploadStoredFiles(options: {
       downloads,
     } satisfies StoredUploadResult;
   } finally {
-    if (!finalized) {
+    crypto.close();
+    if (created && !finalized) {
       void revokeStoredTransfer(
         created.share,
         created.uploadToken,
@@ -675,34 +689,121 @@ function offerFromManifest(manifest: StoredManifest): TransferOffer {
   };
 }
 
+async function fetchStoredManifest(
+  share: StoredShare,
+  settings: StoredSettings,
+  token: string,
+  signal?: AbortSignal,
+) {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  let rejectAbort!: (error: Error) => void;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    rejectAbort = reject;
+  });
+  const onAbort = () =>
+    rejectAbort(new DOMException("Transfer cancelled", "AbortError"));
+  controller.signal.addEventListener("abort", onAbort, { once: true });
+  let timedOut = false;
+  const timer = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, manifestTimeoutMs);
+  signal?.addEventListener("abort", abort, { once: true });
+  if (signal?.aborted) abort();
+  try {
+    const response = await Promise.race([
+      authorizedFetch(api(settings, `/${share.id}/manifest`), token, {
+        signal: controller.signal,
+      }),
+      aborted,
+    ]);
+    const length = Number(response.headers.get("Content-Length"));
+    if (length > maxManifestCiphertext) {
+      await response.body?.cancel();
+      throw new Error("Stored-transfer manifest is too large");
+    }
+    const reader = response.body?.getReader();
+    if (!reader) return { response, ciphertext: new Uint8Array() };
+    const cancel = () => {
+      void reader.cancel().catch(() => {});
+    };
+    controller.signal.addEventListener("abort", cancel, { once: true });
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try {
+      for (;;) {
+        checkAbort(controller.signal);
+        const { done, value } = await Promise.race([reader.read(), aborted]);
+        checkAbort(controller.signal);
+        if (done) break;
+        size += value.byteLength;
+        if (size > maxManifestCiphertext)
+          throw new Error("Stored-transfer manifest is too large");
+        chunks.push(value);
+      }
+      const ciphertext = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        ciphertext.set(chunk, offset);
+        offset += chunk.length;
+      }
+      return { response, ciphertext };
+    } finally {
+      controller.signal.removeEventListener("abort", cancel);
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
+  } catch (error) {
+    checkAbort(signal);
+    if (timedOut)
+      throw new Error(
+        "Opening the stored link timed out. Please try receiving again.",
+      );
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+    controller.signal.removeEventListener("abort", onAbort);
+    signal?.removeEventListener("abort", abort);
+  }
+}
+
 export async function inspectStoredTransfer(
   share: StoredShare,
   settings: StoredSettings,
   signal?: AbortSignal,
+  onStatus?: (status: string) => void,
 ) {
-  const redeem = await wasm().storeRedeemCapability(share.key);
-  const response = await authorizedFetch(
-    api(settings, `/${share.id}/manifest`),
-    base64URL(redeem),
-    { signal },
-  );
-  const ciphertext = new Uint8Array(await response.arrayBuffer());
-  if (ciphertext.byteLength > maxManifestCiphertext) {
-    throw new Error("Stored-transfer manifest is too large");
+  checkAbort(signal);
+  const crypto = new StoredCrypto(share.key);
+  try {
+    const redeem = await crypto.redeem();
+    checkAbort(signal);
+    onStatus?.("Fetching encrypted manifest…");
+    const { response, ciphertext } = await fetchStoredManifest(
+      share,
+      settings,
+      base64URL(redeem),
+      signal,
+    );
+    checkAbort(signal);
+    onStatus?.("Decrypting and validating manifest…");
+    const manifest = await crypto.openManifest(
+      share.id,
+      ciphertext,
+      settings.maxTransferBytes,
+      settings.maxFiles,
+    );
+    checkAbort(signal);
+    return {
+      share,
+      manifest,
+      offer: offerFromManifest(manifest),
+      expiresAt: response.headers.get("X-Croc-Expires-At") ?? undefined,
+    } satisfies StoredInspection;
+  } finally {
+    crypto.close();
   }
-  const plaintext = await wasm().storeOpenManifest(
-    share.key,
-    share.id,
-    ciphertext,
-    settings.maxTransferBytes,
-  );
-  const manifest = JSON.parse(textDecoder.decode(plaintext)) as StoredManifest;
-  return {
-    share,
-    manifest,
-    offer: offerFromManifest(manifest),
-    expiresAt: response.headers.get("X-Croc-Expires-At") ?? undefined,
-  } satisfies StoredInspection;
 }
 
 function claimSessionKey(id: string) {
@@ -748,26 +849,34 @@ function forgetVerifiedDownload(id: string) {
 async function claimStored(
   inspection: StoredInspection,
   settings: StoredSettings,
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  crypto: StoredCrypto,
 ) {
+  checkAbort(signal);
   try {
-    const existing = sessionStorage.getItem(claimSessionKey(inspection.share.id));
+    const existing = sessionStorage.getItem(
+      claimSessionKey(inspection.share.id),
+    );
     if (existing) return existing;
   } catch {
     // Session persistence is optional.
   }
-  const redeem = await wasm().storeRedeemCapability(inspection.share.key);
+  const redeem = await crypto.redeem();
   const response = await authorizedFetch(
     api(settings, `/${inspection.share.id}/claim`),
     base64URL(redeem),
     { method: "POST", signal },
   );
+  checkAbort(signal);
   const claimed = (await response.json()) as { claimToken: string };
   if (!isCapability(claimed.claimToken)) {
     throw new Error("Storage service returned an invalid claim capability");
   }
   try {
-    sessionStorage.setItem(claimSessionKey(inspection.share.id), claimed.claimToken);
+    sessionStorage.setItem(
+      claimSessionKey(inspection.share.id),
+      claimed.claimToken,
+    );
   } catch {
     // The claim remains valid in memory.
   }
@@ -775,6 +884,7 @@ async function claimStored(
 }
 
 type StoredReceiveSession = {
+  crypto: StoredCrypto;
   inspection: StoredInspection;
   settings: StoredSettings;
   callbacks: ReceiveCallbacks;
@@ -803,6 +913,7 @@ async function withFreshClaim<T>(
       session.inspection,
       session.settings,
       session.signal,
+      session.crypto,
     );
     return operation(session.claimToken);
   }
@@ -853,17 +964,18 @@ async function downloadStoredFile(
   const { inspection, settings, callbacks, signal } = session;
   const storedFile = inspection.manifest.f[fileIndex];
   const offered = inspection.offer.files[fileIndex];
-  const sink = await destination.openFile(offered);
+  const sink = await destination.openFile(offered, signal);
   let fileBytes = 0;
-  const reportProgress = (chunkBytes = 0) => callbacks.onProgress?.({
-    fileIndex,
-    fileCount: inspection.manifest.f.length,
-    fileName: storedFile.n,
-    fileBytes: fileBytes + chunkBytes,
-    fileSize: storedFile.s,
-    totalBytes: session.totalBytes + chunkBytes,
-    totalSize: inspection.offer.totalSize,
-  });
+  const reportProgress = (chunkBytes = 0) =>
+    callbacks.onProgress?.({
+      fileIndex,
+      fileCount: inspection.manifest.f.length,
+      fileName: storedFile.n,
+      fileBytes: fileBytes + chunkBytes,
+      fileSize: storedFile.s,
+      totalBytes: session.totalBytes + chunkBytes,
+      totalSize: inspection.offer.totalSize,
+    });
   try {
     for (let fileChunk = 0; fileChunk < storedFile.cc; fileChunk += 1) {
       checkAbort(signal);
@@ -878,9 +990,12 @@ async function downloadStoredFile(
           { signal },
         ),
       );
-      const ciphertext = await readStoredChunk(response, plainSize, reportProgress);
-      const plaintext = await wasm().storeOpenChunk(
-        inspection.share.key,
+      const ciphertext = await readStoredChunk(
+        response,
+        plainSize,
+        reportProgress,
+      );
+      const plaintext = await session.crypto.openChunk(
         inspection.share.id,
         objectIndex,
         fileIndex,
@@ -888,6 +1003,7 @@ async function downloadStoredFile(
         plainSize,
         ciphertext,
       );
+      checkAbort(signal);
       await sink.writeAt(position, plaintext);
       fileBytes += plaintext.byteLength;
       session.totalBytes += plaintext.byteLength;
@@ -895,7 +1011,8 @@ async function downloadStoredFile(
     }
     await sink.finalize();
     callbacks.onStatus?.(`Verifying ${storedFile.n}`);
-    await verifySinkSHA256(sink, fromBase64URL(storedFile.h));
+    await verifySinkSHA256(sink, fromBase64URL(storedFile.h), signal);
+    checkAbort(signal);
     await sink.commit();
     callbacks.onFileComplete?.(storedFile.n);
   } catch (error) {
@@ -953,51 +1070,61 @@ export async function receiveStoredTransfer(options: {
   signal?: AbortSignal;
 }) {
   const { inspection, settings, callbacks, signal } = options;
+  checkAbort(signal);
+  const crypto = new StoredCrypto(inspection.share.key);
+  try {
+    if (hasVerifiedDownload(inspection.share.id)) {
+      const session: StoredReceiveSession = {
+        crypto,
+        inspection,
+        settings,
+        callbacks,
+        signal,
+        claimToken: await claimStored(inspection, settings, signal, crypto),
+        totalBytes: inspection.offer.totalSize,
+      };
+      return await commitStoredDownload(session);
+    }
 
-  if (hasVerifiedDownload(inspection.share.id)) {
+    const destination = await callbacks.onOffer(inspection.offer);
+    checkAbort(signal);
+    if (!destination) throw new Error("Transfer refused");
     const session: StoredReceiveSession = {
+      crypto,
       inspection,
       settings,
       callbacks,
       signal,
-      claimToken: await claimStored(inspection, settings, signal),
-      totalBytes: inspection.offer.totalSize,
-    };
-    return commitStoredDownload(session);
-  }
-
-  const destination = await callbacks.onOffer(inspection.offer);
-  if (!destination) throw new Error("Transfer refused");
-  const session: StoredReceiveSession = {
-    inspection,
-    settings,
-    callbacks,
-    signal,
-    claimToken: await claimStored(inspection, settings, signal),
-    totalBytes: 0,
-  };
-  const firstFileIndex = inspection.manifest.f.findIndex((file) => file.s > 0);
-  if (firstFileIndex >= 0) {
-    const firstFile = inspection.manifest.f[firstFileIndex];
-    callbacks.onProgress?.({
-      fileIndex: firstFileIndex,
-      fileCount: inspection.manifest.f.length,
-      fileName: firstFile.n,
-      fileBytes: 0,
-      fileSize: firstFile.s,
+      claimToken: await claimStored(inspection, settings, signal, crypto),
       totalBytes: 0,
-      totalSize: inspection.offer.totalSize,
-    });
+    };
+    const firstFileIndex = inspection.manifest.f.findIndex(
+      (file) => file.s > 0,
+    );
+    if (firstFileIndex >= 0) {
+      const firstFile = inspection.manifest.f[firstFileIndex];
+      callbacks.onProgress?.({
+        fileIndex: firstFileIndex,
+        fileCount: inspection.manifest.f.length,
+        fileName: firstFile.n,
+        fileBytes: 0,
+        fileSize: firstFile.s,
+        totalBytes: 0,
+        totalSize: inspection.offer.totalSize,
+      });
+    }
+    for (
+      let fileIndex = 0;
+      fileIndex < inspection.manifest.f.length;
+      fileIndex += 1
+    ) {
+      await downloadStoredFile(session, destination, fileIndex);
+    }
+    rememberVerifiedDownload(inspection.share.id);
+    return await commitStoredDownload(session);
+  } finally {
+    crypto.close();
   }
-  for (
-    let fileIndex = 0;
-    fileIndex < inspection.manifest.f.length;
-    fileIndex += 1
-  ) {
-    await downloadStoredFile(session, destination, fileIndex);
-  }
-  rememberVerifiedDownload(inspection.share.id);
-  return commitStoredDownload(session);
 }
 
 export async function revokeStoredTransfer(

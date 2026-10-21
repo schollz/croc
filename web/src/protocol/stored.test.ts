@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const wasmMocks = vi.hoisted(() => ({
-  storeGenerateKey: vi.fn(async () => new Uint8Array(32)),
+const cryptoMocks = vi.hoisted(() => ({
+  storeGenerateKey: vi.fn(() => new Uint8Array(32)),
   storeRedeemCapability: vi.fn(async () => new Uint8Array(32)),
   storeSealManifest: vi.fn(async () => new Uint8Array(29)),
   storeSealChunk: vi.fn(async () => new Uint8Array(32)),
@@ -16,7 +16,21 @@ const wasmMocks = vi.hoisted(() => ({
   ) => new Uint8Array(plainSize)),
 }));
 
-vi.mock("../wasm/client", () => ({ wasm: () => wasmMocks }));
+vi.mock("../wasm/client", () => ({ wasm: () => { throw new Error("Store must not use WASM"); } }));
+vi.mock("./stored-crypto", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./stored-crypto")>(),
+  generateStoredKey: () => cryptoMocks.storeGenerateKey(),
+  StoredCrypto: class {
+    constructor(private key: Uint8Array) {}
+    redeem() { return cryptoMocks.storeRedeemCapability(); }
+    sealManifest() { return cryptoMocks.storeSealManifest(); }
+    sealChunk() { return cryptoMocks.storeSealChunk(); }
+    openChunk(id: string, object: number, file: number, chunk: number, size: number, bytes: Uint8Array) {
+      return cryptoMocks.storeOpenChunk(this.key, id, object, file, chunk, size, bytes);
+    }
+    close() {}
+  },
+}));
 import {
   formatStoredBrowserURL,
   formatStoredCLIToken,
@@ -311,14 +325,14 @@ describe("stored-download progress", () => {
         totalBytes: chunk.total + chunk.size / 2,
       }));
       // Receiving bytes must update the UI before the full chunk is decrypted.
-      expect(wasmMocks.storeOpenChunk).toHaveBeenCalledTimes(index);
+      expect(cryptoMocks.storeOpenChunk).toHaveBeenCalledTimes(index);
       controllers[index].enqueue(ciphertext.slice(split));
       controllers[index].close();
       await vi.waitFor(() => expect(sinks[chunk.fileIndex].writeAt.mock.calls.at(-1)?.[0])
         .toBe(chunk.position));
       expect(sinks[chunk.fileIndex].writeAt.mock.calls.at(-1)?.[1].byteLength)
         .toBe(chunk.size);
-      const received = wasmMocks.storeOpenChunk.mock.calls[index][6];
+      const received = cryptoMocks.storeOpenChunk.mock.calls[index][6];
       expect(received.byteLength).toBe(ciphertext.byteLength);
       expect(received.every((byte, offset) => byte === ciphertext[offset])).toBe(true);
     }
@@ -329,7 +343,7 @@ describe("stored-download progress", () => {
       progress.map((update) => update.totalBytes).sort((a, b) => a - b),
     );
     for (const sink of sinks) {
-      expect(sink.hash).toHaveBeenCalledWith("sha256");
+      expect(sink.hash).toHaveBeenCalledWith("sha256", undefined);
       expect(sink.commit).toHaveBeenCalledOnce();
     }
   });

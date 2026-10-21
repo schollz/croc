@@ -6,6 +6,7 @@ import type {
   WireFileInfo,
 } from "./types";
 import { maxTextTransferBytes } from "./types";
+import { foldCase } from "./unicode-casefold";
 
 const forbiddenComponents = new Set([".ssh", ".git", ".gnupg"]);
 const windowsDeviceNames = new Set([
@@ -18,10 +19,8 @@ const windowsDeviceNames = new Set([
   "CONOUT$",
 ]);
 
-function collisionKey(value: string) {
-  // Go uses cases.Fold. NFC + lowercase covers the ASCII filesystem hazards
-  // and normalization collisions enforced by the browser client.
-  return value.normalize("NFC").toLowerCase();
+export function collisionKey(value: string) {
+  return foldCase(value);
 }
 
 function isWindowsDeviceName(component: string) {
@@ -35,7 +34,7 @@ function isWindowsDeviceName(component: string) {
 
 function validateSegment(raw: string, value: string) {
   const segment = raw.normalize("NFC");
-  if ([...segment].some((character) => !/\P{C}/u.test(character))) {
+  if ([...segment].some((character) => !/^[\p{L}\p{M}\p{N}\p{P}\p{S} ]$/u.test(character))) {
     throw new Error(`Remote path contains a non-printable character: ${value}`);
   }
   if (segment.includes(":")) {

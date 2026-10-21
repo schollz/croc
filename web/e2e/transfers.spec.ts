@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -196,7 +197,12 @@ async function expectDownloads(
   }
   expect([...actual.keys()].sort()).toEqual([...fixtures.contents.keys()].sort());
   for (const [name, expected] of fixtures.contents) {
-    expect(actual.get(name)).toEqual(expected);
+    const received = actual.get(name)!;
+    expect(received.length, name).toBe(expected.length);
+    // Deep-equality matchers expand large Buffers into per-byte objects and
+    // can exhaust Node's heap on the executable fixture.
+    expect(createHash("sha256").update(received).digest("hex"), name)
+      .toBe(createHash("sha256").update(expected).digest("hex"));
   }
 }
 
@@ -208,7 +214,10 @@ async function expectDirectory(
     [...fixtures.contents.keys()].sort(),
   );
   for (const [name, expected] of fixtures.contents) {
-    expect(await fs.readFile(join(directory, name))).toEqual(expected);
+    const received = await fs.readFile(join(directory, name));
+    expect(received.length, name).toBe(expected.length);
+    expect(createHash("sha256").update(received).digest("hex"), name)
+      .toBe(createHash("sha256").update(expected).digest("hex"));
   }
 }
 
@@ -770,7 +779,7 @@ test("copying a croc code shows confirmation", async ({ page }) => {
   await expect(linkCopyButton.getByRole("status")).toHaveText("Copy failed");
 });
 
-test("preloads WASM and reveals a mobile-sized code only after Send is pressed", async ({
+test("loads WASM on direct file selection and reveals a mobile-sized code after Send", async ({
   page,
 }) => {
   const wasmRequests: string[] = [];
@@ -789,8 +798,7 @@ test("preloads WASM and reveals a mobile-sized code only after Send is pressed",
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await expect(page.locator('link[rel="preload"][href="/croc.wasm"]'))
-    .toHaveAttribute("as", "fetch");
+  await expect(page.locator('link[rel="preload"][href="/croc.wasm"]')).toHaveCount(0);
   const panel = page.locator(".send-panel");
   const sendButton = panel.getByRole("button", { name: "Send file" });
   await expect(sendButton).toBeDisabled();
@@ -798,11 +806,7 @@ test("preloads WASM and reveals a mobile-sized code only after Send is pressed",
   await expect(panel.getByRole("button", { name: "Show QR code" })).toHaveCount(0);
   await expect(panel).not.toContainText("Generated codes use");
   await page.waitForTimeout(250);
-  expect(wasmRequests).toHaveLength(1);
-  expect(
-    new Set(wasmRequests.map((url) => new URL(url).pathname)),
-  ).toEqual(new Set(["/croc.wasm"]));
-  const wasmRequestCount = wasmRequests.length;
+  expect(wasmRequests).toHaveLength(0);
   const hashReadsBeforeSelection = await page.evaluate(
     () =>
       (window as typeof window & { __crocHashReads?: number })
@@ -823,7 +827,8 @@ test("preloads WASM and reveals a mobile-sized code only after Send is pressed",
       ),
     )
     .toBeGreaterThan(hashReadsBeforeSelection);
-  expect(wasmRequests).toHaveLength(wasmRequestCount);
+  expect(wasmRequests).toHaveLength(1);
+  expect(new URL(wasmRequests[0]).pathname).toBe("/croc.wasm");
   await expect(sendButton).toBeEnabled();
   await sendButton.click();
   await expect(sendButton).toHaveCount(0);

@@ -50,6 +50,9 @@ each complete file with SHA-256, renames it into place, and only then commits
 one allowed download. Its partial state allows completed chunks to resume.
 
 The web client performs the same inspection before asking the user to accept.
+Stored encryption and decryption use native Web Crypto; streaming SHA-256 runs
+in a small JavaScript worker. Store operations do not download or initialize
+the Go WebAssembly runtime used by direct transfers.
 It writes through the File System Access API where available. Otherwise a
 service worker streams the download without keeping the complete file in page
 memory. Blob fallback is limited to 256 MiB; for larger files on browsers that
@@ -71,6 +74,10 @@ The URL fragment is interpreted by the browser and is not sent in HTTP request
 targets or `Referer` headers. The service therefore sees `/s/<id>` while the
 web client reads `#v1.<key>` locally and uses it to decrypt. This keeps the
 decryption key out of server access logs and reverse-proxy logs.
+
+Stored-link pages are served without injected advertising or analytics scripts,
+with `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. A script can
+read a URL fragment even though browsers omit it from ordinary HTTP requests.
 
 The complete link is still a bearer secret. Anyone or any application that can
 read the text can decrypt the files, claim the transfer, or deliberately

@@ -146,8 +146,14 @@ start("server", webBinaryPath, [
   storeDirectory,
   "--store-min-free",
   "1B",
+  "--store-create-rate",
+  "1000",
+  "--store-downloads",
+  "3",
   `127.0.0.1:${vitePort}`,
-]);
+], process.env.CROC_E2E_PRIVACY === "1" ? {
+  env: { ...process.env, UMAMI_URL: "https://analytics.example.invalid", UMAMI_WEBSITE_ID: "test-site", GOOGLE_ADSENSE: "ca-pub-test" },
+} : {});
 await waitForHTTP(`http://127.0.0.1:${vitePort}/healthz`);
 
 await new Promise(() => {});
