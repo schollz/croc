@@ -1173,6 +1173,18 @@ select:disabled {
 
 .offer-list li {
   grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 48px;
+  padding: 10px 0;
+}
+
+.offer-list li > span {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.offer-list .file-name {
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .folder-glyph {
@@ -1234,18 +1246,16 @@ select:disabled {
   unicode-bidi: plaintext;
 }
 
-.button-pair {
-  display: grid;
-  grid-template-columns: 0.72fr 1.28fr;
-  gap: 7px;
-}
-
-.button-pair.three {
-  grid-template-columns: 0.65fr 0.85fr 1.5fr;
-}
-
-.button-pair .primary-button {
+.offer-action .primary-button {
+  min-height: 52px;
   margin-top: 0;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.offer-action .primary-button svg {
+  width: 20px;
+  height: 20px;
 }
 
 .completed-files {
@@ -4052,11 +4062,6 @@ a.cli-download-primary:hover {
 
   .workspace-toolbar .workspace-switch svg {
     display: none;
-  }
-
-  .button-pair,
-  .button-pair.three {
-    grid-template-columns: 1fr;
   }
 
   .cli-download {

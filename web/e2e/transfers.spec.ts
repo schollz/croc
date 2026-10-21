@@ -172,13 +172,11 @@ async function connectWebReceiver(page: Page, secret: string) {
 async function acceptAsDownloads(page: Page, panel: Locator) {
   const downloads: Download[] = [];
   page.on("download", (download) => downloads.push(download));
-  await expect(panel.getByText("Incoming transfer")).toBeVisible();
-  const fallback = panel.getByRole("button", { name: "Download", exact: true });
-  if (await fallback.isVisible()) {
-    await fallback.click();
-  } else {
-    await panel.getByRole("button", { name: "Accept files" }).click();
-  }
+  await expect(panel.getByRole("button", { name: "Download files" })).toBeVisible();
+  await page.evaluate(() => Object.defineProperty(window, "showDirectoryPicker", {
+    configurable: true, value: undefined,
+  }));
+  await panel.getByRole("button", { name: "Download files" }).click();
   return downloads;
 }
 
@@ -611,6 +609,9 @@ test("receive links open with the Receive panel top edge visible", async ({
   const receivePanel = page.locator("#receive");
   await expect(receivePanel).toBeVisible();
   await expect(page.locator(".send-panel")).toHaveCount(0);
+  await expect(receivePanel.locator("#receive-code")).toHaveCount(0);
+  await expect(receivePanel.getByText(/Enter a croc code|Paste or type the code/))
+    .toHaveCount(0);
   await expect
     .poll(() =>
       receivePanel.evaluate((element) =>
@@ -885,7 +886,7 @@ test("CLI → Web transfers and verifies multiple files", async ({
   await page.goto(`/?code=${encodeURIComponent(secret)}`);
   await expect(page.locator(".send-panel")).toHaveCount(0);
   const receivePanel = page.locator(".receive-panel");
-  await expect(receivePanel.getByLabel("Croc code")).toHaveValue(secret);
+  await expect(receivePanel.getByLabel("Croc code")).toHaveCount(0);
   await expect(
     receivePanel.getByRole("button", { name: "Cancel receive" }),
   ).toBeVisible();
@@ -1027,7 +1028,7 @@ test("CLI → Web reviews, verifies, displays, and copies text without a downloa
   );
   try {
     await expect(panel.getByText("Incoming text", { exact: true })).toBeVisible();
-    await expect(panel.getByRole("button", { name: "Accept files" })).toHaveCount(0);
+    await expect(panel.getByRole("button", { name: "Download files" })).toHaveCount(0);
     await expect(panel.getByLabel("Received text")).toHaveCount(0);
     await panel.getByRole("button", { name: "Display text" }).click();
     await expect(panel.getByLabel("Received text")).toHaveText(message, {
@@ -1171,7 +1172,7 @@ test("CLI stored upload → Web download verifies and consumes files", async ({
     const panel = page.locator(".receive-panel");
     await panel.getByLabel("Croc code").fill(browserURL!);
     await panel.getByLabel("Croc code").press("Enter");
-    await expect(panel.getByText("Incoming transfer")).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Download files" })).toBeVisible();
     const network = await page.context().newCDPSession(page);
     await network.send("Network.enable");
     await network.send("Network.emulateNetworkConditions", {
