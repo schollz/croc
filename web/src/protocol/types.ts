@@ -116,14 +116,14 @@ export interface TransferCallbacks {
 export interface ReceiveSink {
   writeAt(position: number, bytes: Uint8Array): Promise<void>;
   finalize(): Promise<void>;
-  hash(algorithm?: "xxhash" | "sha256"): Promise<Uint8Array>;
+  hash(algorithm?: "xxhash" | "sha256", signal?: AbortSignal): Promise<Uint8Array>;
   commit(): Promise<void>;
   abort(): Promise<void>;
 }
 
 export interface ReceiveDestination {
   createEmptyFolder(path: string): Promise<void>;
-  openFile(file: OfferedFile): Promise<ReceiveSink>;
+  openFile(file: OfferedFile, signal?: AbortSignal): Promise<ReceiveSink>;
 }
 
 export interface ReceiveCallbacks extends TransferCallbacks {

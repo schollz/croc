@@ -86,6 +86,13 @@ func TestEmbeddedClientContainsEntryPointAndWasm(t *testing.T) {
 	if wasm.Size() == 0 {
 		t.Fatal("embedded WASM is empty")
 	}
+	hashWorkers, err := fs.Glob(files, "assets/sha256-worker-*.js")
+	if err != nil || len(hashWorkers) != 1 {
+		t.Fatalf("expected one embedded native SHA-256 worker: %v, %v", hashWorkers, err)
+	}
+	if bytes.Contains(index, []byte(`href="/croc.wasm"`)) {
+		t.Fatal("entry point eagerly preloads the live-transfer WASM runtime")
+	}
 	sshWasm, err := fs.Stat(files, "croc-ssh.wasm")
 	if err != nil {
 		t.Fatalf("stat embedded SSH WASM: %v", err)

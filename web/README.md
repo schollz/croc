@@ -15,6 +15,11 @@ produces both a browser link and a CLI token. The transfer is deleted after its
 verified-download allowance or selected lifetime, whichever comes first. The
 normal direct-transfer mode remains the default.
 
+Stored transfers use native Web Crypto (HKDF-SHA-256 and AES-256-GCM) and a
+small SHA-256 module worker. Uploading, inspecting, downloading, and verifying
+stored files do not load the Go WASM runtime. Direct transfers load that runtime
+when needed, rather than preloading it on every visit.
+
 Both send modes can display a QR code for the browser receive URL. Direct-mode
 codes open the receive page with the croc code filled in and connecting, while
 stored-mode codes contain the complete encrypted share link.
@@ -89,8 +94,12 @@ it only in `croc-web`. The generated files are not committed. A deployed
 The Playwright suite builds real `croc` and `croc-web` binaries, starts an
 isolated local croc relay and unified embedded server on temporary ports, then
 verifies file transfers byte-for-byte and a real CLI-hosted SSH session through
-the browser. Install its browser once with
-`npx playwright install chromium`. Test processes use an isolated
+the browser. Install the browsers once with
+`npx playwright install chromium firefox webkit`. Existing live-transfer and SSH
+tests use Chromium; the native Store suite also runs in Firefox and mobile-sized
+WebKit. To test Store with ads and analytics configured, run
+`CROC_E2E_PRIVACY=1 npx playwright test stored-native.spec.ts` after `npm run embed`.
+Test processes use an isolated
 `CROC_CONFIG_DIR` and storage directory and do not read or change remembered
 croc settings.
 
@@ -151,7 +160,9 @@ Successful browser transfers emit the custom events `send-direct`,
 session emits `ssh-browser-session` once, excluding automatic reconnections.
 When Umami is not configured, event tracking is disabled and transfers and SSH
 sessions behave identically. When configured, the server injects Umami's
-deferred script directly into every page's `<head>`. Umami records its normal
+deferred script into page `<head>` elements except stored-link routes (`/s/…`).
+Stored-link pages exclude both ads and analytics scripts, including on invalid
+links, because scripts can read the fragment's decryption key. Umami records its normal
 pageviews, and custom activity events remove query strings and fragments from
 the reported URL. The server also emits the `installer-curl` event after
 successfully serving the installer script for a curl `GET /`; wget downloads

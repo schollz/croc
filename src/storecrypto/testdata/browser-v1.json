@@ -1,0 +1,15 @@
+{
+  "key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc",
+  "id": "CQkJCQkJCQkJCQkJCQkJCQ",
+  "redeem": "6i94HWG9ets5p_fES6W0QfEPq4cyNXSJDAj9vMtgzPM",
+  "manifestJSON": "{\"v\":1,\"cs\":4194304,\"f\":[{\"n\":\"hello.txt\",\"s\":5,\"m\":\"2023-11-14T22:13:20Z\",\"h\":\"LPJNul-wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ\",\"fc\":0,\"cc\":1},{\"n\":\"empty.bin\",\"s\":0,\"m\":\"2023-11-14T22:13:20Z\",\"h\":\"47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU\",\"fc\":1,\"cc\":0}]}",
+  "manifestCiphertext": "AgICAgICAgICAgICZPLhoN7i_dkX8Mo3YEBjTKXwe9OtYYuBkOszmmE0cG5fq8mrx_yTxw1Y5G8uZGnoMN5asomTfkdqBBkISvFuvRXIDK6f_ZvL1-BTryDmOxLlNpRcsBGf2C0LJoKQ0ZoXUyTuys9AUAmtvarvvev5O9koDSxBhaRk7-nTAZ7OWSWU81mrfx7EuBOM3I5jgeFbFz6ct4Q8fjcAursrBwSilrLU1wO1Rpv_WjBtLmq4C0B75oKrm6afqQoQ0hSWCDLZCP0UevebT-tlE8sDB4ouJbIvsG3surdL6A0PvkdGORthNn227eSScQKeSLJS7s880yLRlQVC6fSbe3yCJkb4PuWwlGAb3Ey4MC6-7WQgt4Y",
+  "chunk": {
+    "objectIndex": 0,
+    "fileIndex": 0,
+    "fileChunk": 0,
+    "plainSize": 5,
+    "plaintext": "aGVsbG8",
+    "ciphertext": "AwMDAwMDAwMDAwMDXXTqqjm0VY_hTmzXI0uWbKKpaiQA"
+  }
+}

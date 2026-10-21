@@ -1195,20 +1195,36 @@ export function App() {
     }
   }
 
-  function receiveCallbacks(): ReceiveCallbacks {
+  function receiveCallbacks(signal: AbortSignal): ReceiveCallbacks {
+    const active = () => !signal.aborted && receiveAbort.current?.signal === signal;
     return {
-      onStatus: setReceiveStatus,
-      onProgress: updateReceiveProgress,
+      onStatus: (status) => {
+        if (active()) setReceiveStatus(status);
+      },
+      onProgress: (progress) => {
+        if (active()) updateReceiveProgress(progress);
+      },
       onFileComplete: (name) => {
+        if (!active()) return;
         if (receiveOfferKind.current !== "text") {
           setCompletedReceive((current) => [...current, name]);
         }
       },
       onOffer: (incoming) =>
         new Promise((resolve) => {
+          if (!active()) {
+            resolve(false);
+            return;
+          }
+          const abort = () => finish(false);
+          const finish = (destination: ReceiveDestination | false) => {
+            signal.removeEventListener("abort", abort);
+            resolve(destination);
+          };
+          signal.addEventListener("abort", abort, { once: true });
           receiveOfferKind.current = incoming.kind;
           setReceivingText(incoming.kind === "text");
-          offerResolver.current = resolve;
+          offerResolver.current = finish;
           setOffer(incoming);
         }),
     };
@@ -1217,18 +1233,22 @@ export function App() {
   async function receiveStored(signal: AbortSignal) {
     setStoredReceiveActive(true);
     const share = parseStoredShare(receiveCode);
-    setReceiveStatus("Opening encrypted manifest…");
+    setReceiveStatus("Opening stored link…");
     const inspection = await inspectStoredTransfer(
       share,
       storedSettings,
       signal,
+      (status) => {
+        if (!signal.aborted) setReceiveStatus(status);
+      },
     );
+    if (signal.aborted) throw new DOMException("Transfer cancelled", "AbortError");
     setStoredReceiveExpiresAt(inspection.expiresAt ?? "");
     const remaining = await receiveStoredTransfer({
       inspection,
       settings: storedSettings,
       signal,
-      callbacks: receiveCallbacks(),
+      callbacks: receiveCallbacks(signal),
     });
     window.history.replaceState({}, "", "/");
     return remaining;
@@ -1239,7 +1259,7 @@ export function App() {
       secret: receiveCode.trim(),
       settings,
       signal,
-      callbacks: receiveCallbacks(),
+      callbacks: receiveCallbacks(signal),
     });
   }
 
@@ -1269,6 +1289,7 @@ export function App() {
       } else {
         directOffer = await receiveDirect(controller.signal);
       }
+      if (receiveAbort.current !== controller || controller.signal.aborted) return;
       trackTransferEvent(transferEvents.receive);
       setOffer(undefined);
       setReceiveActivity("done");
@@ -1284,6 +1305,7 @@ export function App() {
             : "All files received and verified",
       );
     } catch (error) {
+      if (receiveAbort.current !== controller) return;
       setOffer(undefined);
       offerResolver.current = undefined;
       if (controller.signal.aborted) {
@@ -1989,7 +2011,10 @@ export function App() {
               <button
                 className="primary-button inverted"
                 type="button"
-                onClick={() => sendAbort.current?.abort()}
+                onClick={(event) => {
+                  event.preventDefault();
+                  sendAbort.current?.abort();
+                }}
               >
                 <X /> Cancel send
               </button>
@@ -2153,7 +2178,7 @@ export function App() {
             </div>
           )}
 
-          {(receiveBusy || receiveProgress) && !offer ? (
+          {(receiveBusy || (receiveActivity === "done" && receiveProgress)) && !offer ? (
             <ProgressBlock
               progress={receiveProgress}
               status={receiveStatus}
@@ -2218,7 +2243,14 @@ export function App() {
               <button
                 className="primary-button inverted"
                 type="button"
-                onClick={() => receiveAbort.current?.abort()}
+                onClick={(event) => {
+                  // This DOM button becomes the submit button when cancelled.
+                  event.preventDefault();
+                  receiveAbort.current?.abort();
+                  setOffer(undefined);
+                  setReceiveActivity("idle");
+                  setReceiveStatus("Transfer cancelled");
+                }}
               >
                 <X /> Cancel receive
               </button>

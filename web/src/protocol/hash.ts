@@ -1,4 +1,5 @@
 import { wasm } from "../wasm/client";
+import { hashSHA256Blob } from "./sha256";
 
 export type FileHashAlgorithm = "xxhash" | "sha256";
 export type FileHashProvider = (file: File) => Promise<Uint8Array>;
@@ -28,9 +29,9 @@ export async function hashFileContents(
   signal?: AbortSignal,
 ) {
   checkAbort(signal);
+  if (algorithm === "sha256") return hashSHA256Blob(file, signal);
   const engine = wasm();
-  const handle =
-    algorithm === "sha256" ? await engine.sha256Init() : await engine.hashInit();
+  const handle = await engine.hashInit();
   const reader = file.stream().getReader();
   let finalized = false;
   try {
@@ -39,21 +40,14 @@ export async function hashFileContents(
       const { done, value } = await reader.read();
       checkAbort(signal);
       if (done) break;
-      if (algorithm === "sha256") await engine.sha256Update(handle, value);
-      else await engine.hashUpdate(handle, value);
+      await engine.hashUpdate(handle, value);
     }
     finalized = true;
-    return algorithm === "sha256"
-      ? await engine.sha256Final(handle)
-      : await engine.hashFinal(handle);
+    return await engine.hashFinal(handle);
   } finally {
     reader.releaseLock();
     if (!finalized) {
-      const cleanup =
-        algorithm === "sha256"
-          ? engine.sha256Final(handle)
-          : engine.hashFinal(handle);
-      await cleanup.catch(() => undefined);
+      await engine.hashFinal(handle).catch(() => undefined);
     }
   }
 }

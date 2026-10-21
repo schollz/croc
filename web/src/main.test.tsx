@@ -24,12 +24,12 @@ describe("web bootstrap", () => {
     document.body.innerHTML = '<div id="root"></div>';
   });
 
-  it("preloads WASM on the transfer app", async () => {
+  it("does not preload WASM before the user chooses a transfer", async () => {
     window.history.replaceState({}, "", "/");
 
     await import("./main");
 
-    expect(mocks.preloadWasm).toHaveBeenCalledOnce();
+    expect(mocks.preloadWasm).not.toHaveBeenCalled();
     expect(mocks.render).toHaveBeenCalledOnce();
   });
 

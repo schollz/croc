@@ -397,6 +397,7 @@ type staticHandler struct {
 	files              fs.FS
 	fileServer         http.Handler
 	index              []byte
+	shareIndex         []byte
 	htmlPages          map[string][]byte
 	installer          []byte
 	trackCurlInstaller func()
@@ -412,8 +413,13 @@ func newStaticHandler(
 	if files == nil {
 		return nil, errors.New("static file system cannot be empty")
 	}
+	// Third-party scripts can read the decryption key in a share URL fragment.
+	shareIndex, err := fs.ReadFile(files, "index.html")
+	if err != nil {
+		return nil, fmt.Errorf("read stored-share entry point: %w", err)
+	}
 	htmlPages := make(map[string][]byte)
-	err := fs.WalkDir(files, ".", func(filePath string, entry fs.DirEntry, walkErr error) error {
+	err = fs.WalkDir(files, ".", func(filePath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -444,6 +450,7 @@ func newStaticHandler(
 		files:              files,
 		fileServer:         http.FileServer(http.FS(files)),
 		index:              index,
+		shareIndex:         shareIndex,
 		htmlPages:          htmlPages,
 		installer:          installer,
 		trackCurlInstaller: trackCurlInstaller,
@@ -515,6 +522,16 @@ func (h *staticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.URL.Path == "/s" || strings.HasPrefix(r.URL.Path, "/s/") {
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Content-Length", strconv.Itoa(len(h.shareIndex)))
+		if r.Method == http.MethodGet {
+			_, _ = w.Write(h.shareIndex)
+		}
+		return
+	}
 	if r.URL.Path == "/__croc_download__" ||
 		strings.HasPrefix(r.URL.Path, "/__croc_download__/") {
 		// This namespace is handled entirely by the download service worker. If

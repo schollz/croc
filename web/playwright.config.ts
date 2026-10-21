@@ -28,8 +28,7 @@ const allocatedPorts = await Promise.all(
 const relayPorts =
   process.env.CROC_E2E_RELAY_PORTS ?? allocatedPorts.slice(0, 5).join(",");
 const vitePort = process.env.CROC_E2E_VITE_PORT ?? String(allocatedPorts[5]);
-const binaryName =
-  process.env.CROC_E2E_BINARY_NAME ?? `croc-${vitePort}`;
+const binaryName = process.env.CROC_E2E_BINARY_NAME ?? `croc-${vitePort}`;
 
 process.env.CROC_E2E_RELAY_PORTS = relayPorts;
 process.env.CROC_E2E_VITE_PORT = vitePort;
@@ -46,6 +45,24 @@ export default defineConfig({
     timeout: 20_000,
   },
   reporter: [["line"]],
+  projects: [
+    { name: "chromium", use: { browserName: "chromium" } },
+    {
+      name: "firefox-store",
+      testMatch: "stored-native.spec.ts",
+      use: { browserName: "firefox" },
+    },
+    {
+      name: "webkit-store",
+      testMatch: "stored-native.spec.ts",
+      use: {
+        browserName: "webkit",
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+      },
+    },
+  ],
   use: {
     baseURL: `http://127.0.0.1:${vitePort}`,
     acceptDownloads: true,

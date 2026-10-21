@@ -294,6 +294,35 @@ func TestGoogleAdSenseConfig(t *testing.T) {
 	}
 }
 
+func TestStoredShareHTMLExcludesThirdPartyScripts(t *testing.T) {
+	handler, err := Handler(Config{
+		RelayHost: "127.0.0.1", AllowedPorts: []string{"9009"}, StaticFiles: testSite(),
+		UmamiURL: "https://analytics.example.test", UmamiWebsiteID: "website-id",
+		GoogleAdSense: "ca-pub-test",
+	})
+	require.NoError(t, err)
+	for _, route := range []string{"/s", "/s/invalid", "/s/AwMDAwMDAwMDAwMDAwMDAw", "/s/missing-key/"} {
+		for _, method := range []string{http.MethodGet, http.MethodHead} {
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, httptest.NewRequest(method, route, nil))
+			require.Equal(t, http.StatusOK, recorder.Code)
+			require.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
+			require.Equal(t, "no-referrer", recorder.Header().Get("Referrer-Policy"))
+			require.NotContains(t, recorder.Body.String(), "analytics.example.test")
+			require.NotContains(t, recorder.Body.String(), "googlesyndication")
+			if method == http.MethodHead {
+				require.Empty(t, recorder.Body.String())
+			}
+		}
+	}
+	for _, route := range []string{"/", "/blog", "/blog/pake-step-by-step"} {
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, route, nil))
+		require.Contains(t, recorder.Body.String(), "analytics.example.test")
+		require.Contains(t, recorder.Body.String(), "googlesyndication")
+	}
+}
+
 func TestGoogleAdsTXT(t *testing.T) {
 	const contents = "google.com, pub-4947875154879707, DIRECT, f08c47fec0942fa0\n"
 	handler, err := Handler(Config{

@@ -18,6 +18,35 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  browser-store-tests:
+    name: Native browser Store (Chromium, Firefox, WebKit)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '^1.27.1'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm test
+        working-directory: web
+      - run: npm run embed
+        working-directory: web
+      - run: npx playwright install --with-deps chromium firefox webkit
+        working-directory: web
+      - run: npx playwright test stored-native.spec.ts
+        working-directory: web
+        env:
+          CROC_E2E_PRIVACY: '1'
+
   security-regressions:
     name: Security portability regressions (${{ matrix.os }})
     strategy:
