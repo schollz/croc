@@ -57,11 +57,9 @@ import {
   type StoredUploadResult,
 } from "./protocol/stored";
 import {
-  DownloadDestination,
   TextDestination,
   chooseStoredReceiveDestination,
   chooseReceiveDestination,
-  supportsDirectoryDestination,
 } from "./protocol/storage";
 import type {
   FileProgress,
@@ -1342,17 +1340,15 @@ export function App() {
     }
   }
 
-  async function acceptOffer(downloadSeparately = false) {
+  async function acceptOffer() {
     if (!offer || !offerResolver.current) return;
     try {
       const destination =
         offer.kind === "text"
           ? new TextDestination(setReceivedText)
-          : downloadSeparately
-            ? new DownloadDestination()
-            : storedReceiveActive
-              ? await chooseStoredReceiveDestination(offer)
-              : await chooseReceiveDestination(offer);
+          : storedReceiveActive
+            ? await chooseStoredReceiveDestination(offer)
+            : await chooseReceiveDestination(offer);
       const resolve = offerResolver.current;
       offerResolver.current = undefined;
       setOffer(undefined);
@@ -1365,12 +1361,6 @@ export function App() {
       offerResolver.current = undefined;
       setOffer(undefined);
     }
-  }
-
-  function refuseOffer() {
-    offerResolver.current?.(false);
-    offerResolver.current = undefined;
-    setOffer(undefined);
   }
 
   function startTour() {
@@ -1425,8 +1415,9 @@ export function App() {
           element: '[data-tour="receive"]',
           popover: {
             title: "Receive and review",
-            description:
-              "Paste the sender’s croc code, encrypted browser link, or CLI token. Review incoming files or text before choosing whether to save, display, or refuse it.",
+            description: receiveOnly
+              ? "Review the incoming files, then select Download files to save them. For text transfers, select Display text to receive and verify the message."
+              : "Paste the sender’s croc code, encrypted browser link, or CLI token. Review incoming files or text, then select Download files to save them or Display text to view the message.",
             side: receiveOnly ? "top" : "left",
             align: "start",
           },
@@ -2067,39 +2058,47 @@ export function App() {
             </span>
             <div>
               <h2>Receive</h2>
-              <p>
-                Enter a croc code or encrypted stored link. Review before saving
-                or displaying.
-              </p>
+              {!receiveOnly && (
+                <p>
+                  Enter a croc code or encrypted stored link. Review before saving
+                  or displaying.
+                </p>
+              )}
             </div>
           </div>
 
-          <label className="field-label" htmlFor="receive-code">
-            Croc code or stored link
-          </label>
-          <input
-            id="receive-code"
-            value={receiveCode}
-            disabled={receiveBusy}
-            placeholder="word-word-word or encrypted link"
-            spellCheck={false}
-            autoComplete="off"
-            autoCapitalize="none"
-            autoCorrect="off"
-            enterKeyHint="go"
-            onChange={(event) => setReceiveCode(event.target.value.replace(/\s+/g, '-'))}
-          />
-          <p className="field-help">
-            Paste or type the code, stored link, or CLI token, then press Enter
-            or select Receive.
-          </p>
+          {!receiveOnly && (
+            <>
+              <label className="field-label" htmlFor="receive-code">
+                Croc code or stored link
+              </label>
+              <input
+                id="receive-code"
+                value={receiveCode}
+                disabled={receiveBusy}
+                placeholder="word-word-word or encrypted link"
+                spellCheck={false}
+                autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                enterKeyHint="go"
+                onChange={(event) => setReceiveCode(event.target.value.replace(/\s+/g, '-'))}
+              />
+              <p className="field-help">
+                Paste or type the code, stored link, or CLI token, then press Enter
+                or select Receive.
+              </p>
+            </>
+          )}
 
           {offer && (
             <div className="offer" aria-live="polite">
-              <div className="offer-heading">
-                <span>{offer.kind === "text" ? "Incoming text" : "Incoming transfer"}</span>
-                <span>{formatBytes(offer.totalSize)}</span>
-              </div>
+              {offer.kind === "text" && (
+                <div className="offer-heading">
+                  <span>Incoming text</span>
+                  <span>{formatBytes(offer.totalSize)}</span>
+                </div>
+              )}
               {offer.kind === "files" ? (
                 <>
                   <ul className="file-list offer-list">
@@ -2127,11 +2126,6 @@ export function App() {
                       verified download consumes one allowed download.
                     </p>
                   )}
-                  <p>
-                    {supportsDirectoryDestination()
-                      ? "Choose a destination folder. Existing files require confirmation."
-                      : "Your browser will download each file separately."}
-                  </p>
                 </>
               ) : (
                 <p>
@@ -2139,25 +2133,7 @@ export function App() {
                   verified. Nothing will be downloaded.
                 </p>
               )}
-              <div
-                className={`button-pair ${offer.kind === "files" && supportsDirectoryDestination() ? "three" : ""}`}
-              >
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={refuseOffer}
-                >
-                  Refuse
-                </button>
-                {offer.kind === "files" && supportsDirectoryDestination() && (
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    onClick={() => void acceptOffer(true)}
-                  >
-                    Download
-                  </button>
-                )}
+              <div className="offer-action">
                 <button
                   className="primary-button"
                   type="button"
@@ -2169,8 +2145,7 @@ export function App() {
                     </>
                   ) : (
                     <>
-                      <Download />{" "}
-                      {supportsDirectoryDestination() ? "Choose folder" : "Accept files"}
+                      <Download /> Download files
                     </>
                   )}
                 </button>

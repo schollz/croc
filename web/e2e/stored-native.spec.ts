@@ -132,28 +132,20 @@ async function remaining(page: Page, url: string) {
 async function receive(
   page: Page,
   contents: Map<string, Buffer>,
-  streaming = false,
 ) {
   const downloads: Download[] = [];
   page.on("download", (download) => downloads.push(download));
   const panel = page.locator(".receive-panel");
-  await expect(panel.getByText("Incoming transfer")).toBeVisible();
-  if (streaming) {
-    await page.evaluate(() =>
-      Object.defineProperty(window, "showDirectoryPicker", {
-        configurable: true,
-        value: undefined,
-      }),
-    );
-    // Re-render the offer after changing destination support.
-    await page.getByRole("button", { name: /Switch to .* mode/ }).click();
-  }
-  const download = panel.getByRole("button", { name: "Download", exact: true });
-  if (await download.isVisible()) await download.click();
-  else
-    await panel
-      .getByRole("button", { name: "Accept files", exact: true })
-      .click();
+  const accept = panel.getByRole("button", { name: "Download files", exact: true });
+  await expect(accept).toBeVisible();
+  // Exercise browser downloads rather than an interactive native folder picker.
+  await page.evaluate(() =>
+    Object.defineProperty(window, "showDirectoryPicker", {
+      configurable: true,
+      value: undefined,
+    }),
+  );
+  await accept.click();
   await expect(panel).toContainText(/All files received and verified/, {
     timeout: 30_000,
   });
@@ -191,7 +183,7 @@ test("native browser Store → browser and CLI, with WASM blocked", async ({
     const receivedRequests = await isolate(receiver),
       incoming = await receiver.newPage();
     await incoming.goto(url);
-    await receive(incoming, files.contents, true);
+    await receive(incoming, files.contents);
     expect(receivedRequests.wasm).toEqual([]);
     expect(receivedRequests.tracking).toEqual([]);
     expect(await remaining(page, url)).toBe(1);
@@ -221,7 +213,7 @@ test("native CLI Store → browser with WASM blocked", async ({
   expect(requests.wasm).toEqual([]);
 });
 
-test("cold preview is fast and refresh, refusal, cancellation spend nothing", async ({
+test("cold preview is simple and fast; refresh, leaving, and cancellation spend nothing", async ({
   page,
   context,
 }, info) => {
@@ -242,7 +234,9 @@ test("cold preview is fast and refresh, refusal, cancellation spend nothing", as
   requests.tracking.length = 0;
   const started = Date.now();
   const response = await page.goto(url);
-  await expect(page.getByText("Incoming transfer")).toBeVisible({
+  const panel = page.locator(".receive-panel");
+  const accept = panel.getByRole("button", { name: "Download files", exact: true });
+  await expect(accept).toBeVisible({
     timeout: 2000,
   });
   const previewMs = Date.now() - started;
@@ -256,16 +250,28 @@ test("cold preview is fast and refresh, refusal, cancellation spend nothing", as
   expect(await response!.text()).not.toMatch(
     /googlesyndication|analytics\.example/,
   );
-  await page.getByRole("button", { name: "Refuse", exact: true }).click();
+  await expect(panel.locator("input")).toHaveCount(0);
+  await expect(panel.getByText(/Enter a croc code|Paste or type the code/)).toHaveCount(0);
+  await expect(panel.getByText("Incoming transfer", { exact: true })).toHaveCount(0);
+  await expect(panel.getByText("Your browser will download each file separately.")).toHaveCount(0);
+  await expect(panel.getByRole("button")).toHaveCount(1);
+  const widths = await accept.evaluate((button) => ({
+    button: button.getBoundingClientRect().width,
+    container: button.parentElement!.getBoundingClientRect().width,
+  }));
+  expect(widths.button).toBeCloseTo(widths.container, 0);
+  await page.reload();
+  await expect(accept).toBeVisible();
+  await page.goto("about:blank");
   hold = true;
-  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.goto(url, { waitUntil: "domcontentloaded" });
   await page
     .getByRole("button", { name: "Cancel receive", exact: true })
     .click();
   await expect(page.getByText("Transfer cancelled")).toBeVisible();
   release?.();
   await page.waitForTimeout(300);
-  await expect(page.getByText("Incoming transfer")).toHaveCount(0);
+  await expect(accept).toHaveCount(0);
   expect(await remaining(page, url)).toBe(1);
   expect(requests.claims).toEqual([]);
   expect(requests.wasm).toEqual([]);
@@ -287,6 +293,9 @@ for (const corruption of ["chunk", "hash"])
     // successful streaming destination is exercised by the round-trip tests.
     await page.addInitScript(() => Object.defineProperty(navigator, "brave", {
       configurable: true, value: { isBrave: async () => true },
+    }));
+    await page.addInitScript(() => Object.defineProperty(window, "showDirectoryPicker", {
+      configurable: true, value: undefined,
     }));
     let corrupted = false;
     await page.route(
@@ -334,16 +343,7 @@ for (const corruption of ["chunk", "hash"])
       },
     );
     await page.goto(url);
-    await expect(page.getByText("Incoming transfer")).toBeVisible();
-    const download = page.getByRole("button", {
-      name: "Download",
-      exact: true,
-    });
-    if (await download.isVisible()) await download.click();
-    else
-      await page
-        .getByRole("button", { name: "Accept files", exact: true })
-        .click();
+    await page.getByRole("button", { name: "Download files", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText(
       /authentication failed|SHA-256 verification/,
     );
