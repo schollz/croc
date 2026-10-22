@@ -1,0 +1,150 @@
+{
+  "date": "2026-10-22",
+  "platform": "Darwin arm64",
+  "benchmark": {
+    "baseline": {
+      "engine": "go-wasm",
+      "baselineRef": "a5f4c54a7576e88911b7cb293fcfc6f8a431f8be",
+      "browser": "149.0.7827.55",
+      "runs": [
+        {
+          "startupMs": 45.30000001192093,
+          "hashMiBps": 1350.2109694454155,
+          "chunkRoundtripMiBps": 16.3382007554429,
+          "wasmLinearMemoryBytes": 9830400,
+          "workerMemory": {
+            "usedSize": 988960,
+            "totalSize": 3932160,
+            "embedderHeapUsedSize": 647568,
+            "backingStorageSize": 4674230
+          },
+          "workerMemoryAfterGC": {
+            "usedSize": 717348,
+            "totalSize": 1572864,
+            "embedderHeapUsedSize": 22840,
+            "backingStorageSize": 215811
+          }
+        },
+        {
+          "startupMs": 44.39999997615814,
+          "hashMiBps": 1523.8095238095239,
+          "chunkRoundtripMiBps": 16.640665626625065,
+          "wasmLinearMemoryBytes": 9830400,
+          "workerMemory": {
+            "usedSize": 989200,
+            "totalSize": 3932160,
+            "embedderHeapUsedSize": 590000,
+            "backingStorageSize": 4674230
+          },
+          "workerMemoryAfterGC": {
+            "usedSize": 717348,
+            "totalSize": 1572864,
+            "embedderHeapUsedSize": 22840,
+            "backingStorageSize": 215811
+          }
+        },
+        {
+          "startupMs": 35,
+          "hashMiBps": 1662.3376623376623,
+          "chunkRoundtripMiBps": 16.53575857853593,
+          "wasmLinearMemoryBytes": 9830400,
+          "workerMemory": {
+            "usedSize": 989128,
+            "totalSize": 3932160,
+            "embedderHeapUsedSize": 590000,
+            "backingStorageSize": 4674230
+          },
+          "workerMemoryAfterGC": {
+            "usedSize": 717348,
+            "totalSize": 1572864,
+            "embedderHeapUsedSize": 22840,
+            "backingStorageSize": 215811
+          }
+        }
+      ]
+    },
+    "native": {
+      "engine": "native",
+      "browser": "149.0.7827.55",
+      "runs": [
+        {
+          "startupMs": 34.5,
+          "hashMiBps": 249.41543261465233,
+          "chunkRoundtripMiBps": 327.86885237892415,
+          "wasmLinearMemoryBytes": 0,
+          "workerMemory": {
+            "usedSize": 1920076,
+            "totalSize": 19251200,
+            "embedderHeapUsedSize": 694104,
+            "backingStorageSize": 14381937
+          },
+          "workerMemoryAfterGC": {
+            "usedSize": 1566296,
+            "totalSize": 2473984,
+            "embedderHeapUsedSize": 39656,
+            "backingStorageSize": 1202425
+          }
+        },
+        {
+          "startupMs": 18.899999976158142,
+          "hashMiBps": 252.6648243070983,
+          "chunkRoundtripMiBps": 291.9708028561941,
+          "wasmLinearMemoryBytes": 0,
+          "workerMemory": {
+            "usedSize": 2079520,
+            "totalSize": 19251200,
+            "embedderHeapUsedSize": 707552,
+            "backingStorageSize": 20774973
+          },
+          "workerMemoryAfterGC": {
+            "usedSize": 1566328,
+            "totalSize": 2473984,
+            "embedderHeapUsedSize": 40144,
+            "backingStorageSize": 1202425
+          }
+        },
+        {
+          "startupMs": 21.80000001192093,
+          "hashMiBps": 254.16997615953161,
+          "chunkRoundtripMiBps": 325.20325171733947,
+          "wasmLinearMemoryBytes": 0,
+          "workerMemory": {
+            "usedSize": 1947100,
+            "totalSize": 19513344,
+            "embedderHeapUsedSize": 692560,
+            "backingStorageSize": 15463813
+          },
+          "workerMemoryAfterGC": {
+            "usedSize": 1566296,
+            "totalSize": 2473984,
+            "embedderHeapUsedSize": 39712,
+            "backingStorageSize": 1202425
+          }
+        }
+      ]
+    }
+  },
+  "transfer": {
+    "baseline": {
+      "bytes": 16777216,
+      "elapsedMs": 1200.864,
+      "MiBps": 13.323740240360275
+    },
+    "native": {
+      "bytes": 16777216,
+      "elapsedMs": 569.2780830000002,
+      "MiBps": 28.105771990522943
+    }
+  },
+  "directProtocolRawAssetBytes": {
+    "baseline": {
+      "croc.wasm": 6470880,
+      "croc-worker.js": 1796,
+      "wasm_exec.js": 16992
+    },
+    "native": {
+      "engine-worker.js": 75683
+    }
+  },
+  "transferFixtureSHA256": "486692853f1d2a318df9bddf8db20dd038c0e0f285058c499b99e6e4db9bf3d6"
+}

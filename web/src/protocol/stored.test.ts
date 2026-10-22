@@ -16,7 +16,7 @@ const cryptoMocks = vi.hoisted(() => ({
   ) => new Uint8Array(plainSize)),
 }));
 
-vi.mock("../wasm/client", () => ({ wasm: () => { throw new Error("Store must not use WASM"); } }));
+vi.mock("./engine", () => ({ protocolEngine: () => { throw new Error("Store must not start the direct protocol engine"); } }));
 vi.mock("./stored-crypto", async (importOriginal) => ({
   ...await importOriginal<typeof import("./stored-crypto")>(),
   generateStoredKey: () => cryptoMocks.storeGenerateKey(),

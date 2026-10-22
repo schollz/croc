@@ -9,9 +9,9 @@ import {
   verifySinkSHA256,
 } from "./storage";
 
-vi.mock("../wasm/client", () => ({
-  wasm: () => {
-    throw new Error("SHA-256 destinations must not use WASM");
+vi.mock("./engine", () => ({
+  protocolEngine: () => {
+    throw new Error("SHA-256 destinations must not start the direct protocol engine");
   },
 }));
 

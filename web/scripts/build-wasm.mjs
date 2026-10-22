@@ -1,4 +1,4 @@
-import { chmod, copyFile, mkdir, stat } from "node:fs/promises";
+import { chmod, copyFile, mkdir, rm, stat } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
@@ -14,6 +14,12 @@ const goEnvironment = {
 };
 
 await mkdir(publicDir, { recursive: true });
+// Remove old direct-transfer output before Vite copies public assets.
+await Promise.all(
+  ["croc.wasm", "croc-worker.js"].map((name) =>
+    rm(path.join(publicDir, name), { force: true }),
+  ),
+);
 
 const { stdout } = await execFileAsync("go", ["env", "GOROOT"], {
   cwd: webRoot,
@@ -49,28 +55,6 @@ try {
 }
 await copyFile(wasmExecSource, wasmExecDestination);
 await chmod(wasmExecDestination, 0o644);
-await execFileAsync(
-  "go",
-  [
-    "build",
-    "-buildvcs=false",
-    "-trimpath",
-    "-ldflags=-s -w",
-    "-o",
-    path.join(publicDir, "croc.wasm"),
-    "./wasm",
-  ],
-  {
-    cwd: webRoot,
-    env: {
-      ...goEnvironment,
-      GOOS: "js",
-      GOARCH: "wasm",
-    },
-  },
-);
-await chmod(path.join(publicDir, "croc.wasm"), 0o644);
-
 await execFileAsync(
   "go",
   [

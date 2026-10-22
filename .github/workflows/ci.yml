@@ -18,8 +18,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  browser-store-tests:
-    name: Native browser Store (Chromium, Firefox, WebKit)
+  browser-transfer-tests:
+    name: Native browser transfers (Chromium, Firefox, WebKit)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -36,13 +36,14 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
         working-directory: web
+      - run: go test ./web/testdata/oracle
       - run: npm test
         working-directory: web
       - run: npm run embed
         working-directory: web
       - run: npx playwright install --with-deps chromium firefox webkit
         working-directory: web
-      - run: npx playwright test stored-native.spec.ts
+      - run: npx playwright test
         working-directory: web
         env:
           CROC_E2E_PRIVACY: '1'
@@ -50,7 +51,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: browser-store-failures
+          name: browser-transfer-failures
           path: web/.e2e/test-results/
           include-hidden-files: true
           retention-days: 7

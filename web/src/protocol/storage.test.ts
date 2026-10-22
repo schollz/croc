@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-const wasmMocks = vi.hoisted(() => ({
+const engineMocks = vi.hoisted(() => ({
+  hashRelease: vi.fn(async () => undefined),
   hashInit: vi.fn(async () => 1),
   hashUpdate: vi.fn(async () => undefined),
   hashFinal: vi.fn(async () => Uint8Array.of(1, 2, 3)),
 }));
 
-vi.mock("../wasm/client", () => ({
-  wasm: () => wasmMocks,
+vi.mock("./engine", () => ({
+  protocolEngine: () => engineMocks,
 }));
 
 import { TextDestination, verifySink } from "./storage";

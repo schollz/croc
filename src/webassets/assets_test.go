@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestEmbeddedClientContainsEntryPointAndWasm(t *testing.T) {
+func TestEmbeddedClientContainsNativeWorkersAndSSHWasm(t *testing.T) {
 	files := Files()
 	index, err := fs.ReadFile(files, "index.html")
 	if errors.Is(err, fs.ErrNotExist) {
@@ -79,12 +79,19 @@ func TestEmbeddedClientContainsEntryPointAndWasm(t *testing.T) {
 	if v114Image.Size() < 50_000 {
 		t.Fatalf("embedded v11.4 share image is unexpectedly small: %d", v114Image.Size())
 	}
-	wasm, err := fs.Stat(files, "croc.wasm")
-	if err != nil {
-		t.Fatalf("stat embedded WASM: %v", err)
+	for _, name := range []string{"croc.wasm", "croc-worker.js"} {
+		if _, err := fs.Stat(files, name); !errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("obsolete direct-transfer asset %s is embedded: %v", name, err)
+		}
 	}
-	if wasm.Size() == 0 {
-		t.Fatal("embedded WASM is empty")
+	protocolWorkers, err := fs.Glob(files, "assets/engine-worker-*.js")
+	if err != nil || len(protocolWorkers) != 1 {
+		t.Fatalf("expected one native protocol worker: %v, %v", protocolWorkers, err)
+	}
+	for _, name := range []string{"croc-ssh-worker.js", "wasm_exec.js"} {
+		if info, err := fs.Stat(files, name); err != nil || info.Size() == 0 {
+			t.Fatalf("missing retained SSH runtime asset %s: %v", name, err)
+		}
 	}
 	hashWorkers, err := fs.Glob(files, "assets/sha256-worker-*.js")
 	if err != nil || len(hashWorkers) != 1 {

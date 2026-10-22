@@ -1,3 +1,4 @@
+import { checkProtocolCapabilities } from "./compression";
 import {
   base64ToBytes,
   bytesEqual,
@@ -34,7 +35,7 @@ import type {
   WireFileInfo,
 } from "./types";
 import { maxTextTransferBytes } from "./types";
-import { wasm } from "../wasm/client";
+import { protocolEngine } from "./engine";
 
 const CHUNK_SIZE = 32 * 1024;
 const MAX_DECOMPRESSED_CHUNK_SIZE = CHUNK_SIZE + 8;
@@ -54,7 +55,7 @@ function checkAbort(signal?: AbortSignal) {
   if (signal?.aborted) throw abortError();
 }
 
-function requirePakeVersion(version: number | undefined) {
+export function requirePakeVersion(version: number | undefined) {
   if (version !== PAKE_PROTOCOL_VERSION) {
     throw new Error(
       `Peer uses unsupported PAKE protocol version ${version ?? 0}; upgrade both croc clients`,
@@ -104,7 +105,7 @@ async function waitForHandshake(
   passphrase: string,
   signal?: AbortSignal,
 ) {
-  const engine = wasm();
+  const engine = protocolEngine();
   let localKey: Uint8Array | undefined;
   for (;;) {
     checkAbort(signal);
@@ -149,6 +150,7 @@ async function waitForHandshake(
       probe.Curve,
       PAKE_PURPOSE_LOCAL_PROBE,
       room,
+      signal,
     );
     const finished = await engine.pakeUpdate(pake.handle, initiator);
     const salt = randomBytes(PAKE_SALT_SIZE);
@@ -222,6 +224,7 @@ export async function prepareFiles(
   signal?: AbortSignal,
   hashProvider?: FileHashProvider,
 ) {
+  checkProtocolCapabilities();
   if (selected.length === 0) throw new Error("Choose at least one file");
   const names = new Set<string>();
   const outgoingNames = selected.map((file) =>
@@ -252,7 +255,7 @@ export async function prepareFiles(
       const sample = new Uint8Array(
         await file.slice(0, Math.min(file.size, 256 << 10)).arrayBuffer(),
       );
-      const compressedSample = await wasm().compress(sample);
+      const compressedSample = await protocolEngine().compress(sample);
       compressed = compressedSample.byteLength * 100 < sample.byteLength * 98;
     }
     prepared.push({
@@ -332,7 +335,7 @@ async function sendFileData(
   progress: (bytes: number) => void,
   signal?: AbortSignal,
 ) {
-  const engine = wasm();
+  const engine = protocolEngine();
   const chunkCount = Math.ceil(prepared.size / CHUNK_SIZE);
   let sent = 0;
 
@@ -355,11 +358,7 @@ async function sendFileData(
         new DataView(plain.buffer).setBigUint64(0, BigInt(position), true);
         plain.set(data, 8);
         await socket.send(
-          await engine.encodeChunk(
-            cipherHandle,
-            plain,
-            compressed,
-          ),
+          await engine.encodeChunk(cipherHandle, plain, compressed),
         );
         sent += data.byteLength;
         progress(sent);
@@ -384,18 +383,24 @@ export async function sendFiles(options: {
     callbacks = {},
     signal,
   } = options;
+  checkProtocolCapabilities();
+  const engine = protocolEngine();
   validateSecret(secret);
   if (files.length === 0) throw new Error("Choose at least one file");
   if (sendingText && files.length !== 1) {
     throw new Error("A text transfer must contain exactly one text payload");
   }
   const totalSize = files.reduce((total, file) => total + file.size, 0);
-  const { room, passphrase } = await wasm().codeComponents(secret);
-  const relayIndex = await wasm().relayIndex(secret, settings.relayAddresses.length);
+  const { room, passphrase } = await engine.codeComponents(secret);
+  const relayIndex = await engine.relayIndex(
+    secret,
+    settings.relayAddresses.length,
+  );
   let control: CrocSocket | undefined;
   let data: CrocSocket[] = [];
   let key: Uint8Array | undefined;
   let cipherHandle: number | undefined;
+  let pakeHandle: number | undefined;
   try {
     callbacks.onStatus?.("Connecting to relay…");
     const relay = await connectRelay(
@@ -415,16 +420,18 @@ export async function sendFiles(options: {
     }
     requirePakeVersion(peerPake.v);
     const curve = textDecoder.decode(peerPake.b2);
-    const pake = await wasm().pakeInitWithIdentities(
+    const pake = await engine.pakeInitWithIdentities(
       textEncoder.encode(passphrase),
       1,
       curve,
       PAKE_PURPOSE_TRANSFER,
       room,
+      signal,
     );
-    const finished = await wasm().pakeUpdate(pake.handle, peerPake.b);
+    pakeHandle = pake.handle;
+    const finished = await engine.pakeUpdate(pake.handle, peerPake.b);
     const salt = randomBytes(PAKE_SALT_SIZE);
-    const peerKeys = await wasm().derivePeerKeys(
+    const peerKeys = await engine.derivePeerKeys(
       finished.key,
       salt,
       PAKE_PURPOSE_TRANSFER,
@@ -445,7 +452,7 @@ export async function sendFiles(options: {
     }
     requirePakeVersion(confirmationA.v);
     if (
-      !(await wasm().confirmPeerKey(peerKeys.confirmationA, confirmationA.b))
+      !(await engine.confirmPeerKey(peerKeys.confirmationA, confirmationA.b))
     ) {
       throw new Error("Recipient PAKE confirmation failed");
     }
@@ -455,7 +462,7 @@ export async function sendFiles(options: {
       b: peerKeys.confirmationB,
     });
     key = peerKeys.key;
-    cipherHandle = await wasm().cipherInit(key);
+    cipherHandle = await engine.cipherInit(key);
 
     callbacks.onStatus?.("Opening encrypted data channels…");
     data = await openDataConnections(
@@ -555,10 +562,10 @@ export async function sendFiles(options: {
     await reportPeerError(control, key, error);
     throw error;
   } finally {
+    if (pakeHandle !== undefined)
+      await engine.pakeRelease(pakeHandle).catch(() => undefined);
     if (cipherHandle !== undefined) {
-      await wasm()
-        .cipherRelease(cipherHandle)
-        .catch(() => {});
+      await engine.cipherRelease(cipherHandle).catch(() => {});
     }
     closeAll(control, data);
   }
@@ -618,7 +625,7 @@ export class DataReceiver {
   }
 
   private async read(socket: CrocSocket) {
-    const engine = wasm();
+    const engine = protocolEngine();
     while (!this.stopped) {
       try {
         const encrypted = await socket.receive();
@@ -655,7 +662,7 @@ export class DataReceiver {
   }
 
   private async decodeLegacy(
-    engine: ReturnType<typeof wasm>,
+    engine: ReturnType<typeof protocolEngine>,
     encrypted: Uint8Array,
     compressed: boolean,
   ) {
@@ -715,13 +722,19 @@ export async function receiveFiles(options: {
   signal?: AbortSignal;
 }) {
   const { secret, settings, callbacks, signal } = options;
+  checkProtocolCapabilities();
+  const engine = protocolEngine();
   validateSecret(secret);
-  const { room, passphrase } = await wasm().codeComponents(secret);
-  const relayIndex = await wasm().relayIndex(secret, settings.relayAddresses.length);
+  const { room, passphrase } = await engine.codeComponents(secret);
+  const relayIndex = await engine.relayIndex(
+    secret,
+    settings.relayAddresses.length,
+  );
   let control: CrocSocket | undefined;
   let data: CrocSocket[] = [];
   let key: Uint8Array | undefined;
   let cipherHandle: number | undefined;
+  let pakeHandle: number | undefined;
   let receiver: DataReceiver | undefined;
   try {
     callbacks.onStatus?.("Connecting to relay…");
@@ -738,13 +751,15 @@ export async function receiveFiles(options: {
 
     callbacks.onStatus?.("Authenticating code…");
     const curve = "p256";
-    const pake = await wasm().pakeInitWithIdentities(
+    const pake = await engine.pakeInitWithIdentities(
       textEncoder.encode(passphrase),
       0,
       curve,
       PAKE_PURPOSE_TRANSFER,
       room,
+      signal,
     );
+    pakeHandle = pake.handle;
     await sendControl(control, {
       t: "pake",
       v: PAKE_PROTOCOL_VERSION,
@@ -761,8 +776,8 @@ export async function receiveFiles(options: {
         `Sender provided an invalid ${peerPake.b2.byteLength}-byte PAKE salt`,
       );
     }
-    const finished = await wasm().pakeUpdate(pake.handle, peerPake.b);
-    const peerKeys = await wasm().derivePeerKeys(
+    const finished = await engine.pakeUpdate(pake.handle, peerPake.b);
+    const peerKeys = await engine.derivePeerKeys(
       finished.key,
       peerPake.b2,
       PAKE_PURPOSE_TRANSFER,
@@ -782,14 +797,20 @@ export async function receiveFiles(options: {
     }
     requirePakeVersion(confirmationB.v);
     if (
-      !(await wasm().confirmPeerKey(peerKeys.confirmationB, confirmationB.b))
+      !(await engine.confirmPeerKey(peerKeys.confirmationB, confirmationB.b))
     ) {
       throw new Error("Sender PAKE confirmation failed");
     }
     key = peerKeys.key;
-    cipherHandle = await wasm().cipherInit(key);
+    cipherHandle = await engine.cipherInit(key);
     callbacks.onStatus?.("Opening transfer channels…");
-    data = await openDataConnections(settings, room, dataPorts(relay.banner), relayIndex, signal);
+    data = await openDataConnections(
+      settings,
+      room,
+      dataPorts(relay.banner),
+      relayIndex,
+      signal,
+    );
     await sendControl(
       control,
       {
@@ -834,7 +855,7 @@ export async function receiveFiles(options: {
         try {
           await sink.finalize();
           callbacks.onStatus?.(`Verifying ${displayName}`);
-          await verifySink(sink, file.hash);
+          await verifySink(sink, file.hash, signal);
           await sink.commit();
           callbacks.onFileComplete?.(displayName);
         } catch (error) {
@@ -898,7 +919,7 @@ export async function receiveFiles(options: {
           throw new Error(`Expected sender to close the file, got ${close.t}`);
         }
         callbacks.onStatus?.(`Verifying ${displayName}`);
-        await verifySink(sink, file.hash);
+        await verifySink(sink, file.hash, signal);
         await sink.commit();
         totalTransferred = beforeFile + file.size;
         callbacks.onFileComplete?.(displayName);
@@ -920,10 +941,10 @@ export async function receiveFiles(options: {
     throw error;
   } finally {
     receiver?.stop();
+    if (pakeHandle !== undefined)
+      await engine.pakeRelease(pakeHandle).catch(() => undefined);
     if (cipherHandle !== undefined) {
-      await wasm()
-        .cipherRelease(cipherHandle)
-        .catch(() => {});
+      await engine.cipherRelease(cipherHandle).catch(() => {});
     }
     closeAll(control, data);
   }

@@ -7,7 +7,7 @@ import {
   sendControl,
 } from "./relay";
 import type { CrocMessage, TransferSettings } from "./types";
-import { wasm } from "../wasm/client";
+import { protocolEngine } from "./engine";
 import { SSHWasmClient, type SSHWorkerEvent } from "../wasm/ssh-client";
 
 const PAKE_PROTOCOL_VERSION = 2;
@@ -72,16 +72,17 @@ function validatePakeMessage(
   message: Awaited<ReturnType<typeof receiveControl>>,
   expected: "pake" | "pake-confirm",
 ) {
-  if (message.t !== expected || message.v !== PAKE_PROTOCOL_VERSION || !message.b) {
+  if (
+    message.t !== expected ||
+    message.v !== PAKE_PROTOCOL_VERSION ||
+    !message.b
+  ) {
     throw new Error(`SSH host sent an invalid ${expected} response`);
   }
   if (message.b.byteLength === 0 || message.b.byteLength > MAX_PAKE_SIZE) {
     throw new Error(`SSH host sent an invalid ${expected} value`);
   }
-  if (
-    expected === "pake" &&
-    !message.f?.includes(SSH_RENDEZVOUS_FEATURE)
-  ) {
+  if (expected === "pake" && !message.f?.includes(SSH_RENDEZVOUS_FEATURE)) {
     throw new Error("SSH host does not support SSH rendezvous");
   }
 }
@@ -126,12 +127,15 @@ async function authorize(
   settings: TransferSettings,
   signal: AbortSignal,
 ) {
-  const engine = wasm();
+  const engine = protocolEngine();
   const components = await engine.sshCodeComponents(code);
   if (settings.relayAddresses.length === 0) {
     throw new Error("No croc relay is configured");
   }
-  const relayIndex = await engine.relayIndex(code, settings.relayAddresses.length);
+  const relayIndex = await engine.relayIndex(
+    code,
+    settings.relayAddresses.length,
+  );
   const relay = await connectRelay(
     settings,
     components.room,
@@ -140,6 +144,7 @@ async function authorize(
     signal,
   );
   const socket = relay.socket;
+  let pakeHandle: number | undefined;
   let trafficKey: Uint8Array | undefined;
   let clientAuth: Uint8Array | undefined;
   try {
@@ -149,7 +154,9 @@ async function authorize(
       PAKE_CURVE,
       PAKE_PURPOSE_SSH,
       components.room,
+      signal,
     );
+    pakeHandle = initiator.handle;
     await sendControl(socket, {
       t: "pake",
       v: PAKE_PROTOCOL_VERSION,
@@ -214,6 +221,8 @@ async function authorize(
     socket.close();
     throw error;
   } finally {
+    if (pakeHandle !== undefined)
+      await engine.pakeRelease(pakeHandle).catch(() => undefined);
     trafficKey?.fill(0);
   }
 }
@@ -238,7 +247,11 @@ export class SSHJoinSession {
 
   sendInput(bytes: Uint8Array) {
     const active = this.active;
-    if (!active || active.role === "read-only" || this.controller.signal.aborted) {
+    if (
+      !active ||
+      active.role === "read-only" ||
+      this.controller.signal.aborted
+    ) {
       return;
     }
     this.inputQueue = this.inputQueue
@@ -269,7 +282,9 @@ export class SSHJoinSession {
       for (;;) {
         if (this.controller.signal.aborted) throw abortError();
         this.options.callbacks?.onStatus?.(
-          this.attached ? "Reconnecting to shared terminal…" : "Connecting to relay…",
+          this.attached
+            ? "Reconnecting to shared terminal…"
+            : "Connecting to relay…",
         );
         try {
           const clean = await this.runAttempt();
@@ -283,7 +298,9 @@ export class SSHJoinSession {
           if (!this.attached) throw error;
           if (!this.disconnectedAt) this.disconnectedAt = Date.now();
           if (Date.now() - this.disconnectedAt >= RECONNECT_WINDOW_MS) {
-            throw new Error(`SSH reconnect window expired: ${errorMessage(error)}`);
+            throw new Error(
+              `SSH reconnect window expired: ${errorMessage(error)}`,
+            );
           }
           this.failedAttempts += 1;
           this.options.callbacks?.onConnected?.(false);
@@ -312,7 +329,10 @@ export class SSHJoinSession {
     const authController = new AbortController();
     const abortAuth = () => authController.abort();
     this.controller.signal.addEventListener("abort", abortAuth, { once: true });
-    const authTimer = window.setTimeout(() => authController.abort(), AUTH_TIMEOUT_MS);
+    const authTimer = window.setTimeout(
+      () => authController.abort(),
+      AUTH_TIMEOUT_MS,
+    );
     let socket: Awaited<ReturnType<typeof authorize>>["socket"] | undefined;
     let worker: SSHWasmClient | undefined;
     let handle: number | undefined;
@@ -384,7 +404,11 @@ export class SSHJoinSession {
       if (networkFailure) throw networkFailure;
       throw new Error(outcome.message || "SSH connection closed");
     } catch (error) {
-      if (authController.signal.aborted && !this.controller.signal.aborted && !connected) {
+      if (
+        authController.signal.aborted &&
+        !this.controller.signal.aborted &&
+        !connected
+      ) {
         throw new Error("SSH authentication or handshake timed out");
       }
       throw error;

@@ -52,7 +52,8 @@ one allowed download. Its partial state allows completed chunks to resume.
 The web client performs the same inspection before asking the user to accept.
 Stored encryption and decryption use native Web Crypto; streaming SHA-256 runs
 in a small JavaScript worker. Store operations do not download or initialize
-the Go WebAssembly runtime used by direct transfers.
+the Go WebAssembly runtime retained for SSH transport. Direct files and text
+also use native browser primitives.
 It writes through the File System Access API where available. Otherwise a
 service worker streams the download without keeping the complete file in page
 memory. Blob fallback is limited to 256 MiB; for larger files on browsers that

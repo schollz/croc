@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  preloadWasm: vi.fn(),
+  protocolEngine: vi.fn(),
   render: vi.fn(),
 }));
 
-vi.mock("./wasm/client", () => ({
-  preloadWasm: mocks.preloadWasm,
+vi.mock("./protocol/engine", () => ({
+  protocolEngine: mocks.protocolEngine,
 }));
 vi.mock("./App", () => ({ App: () => null }));
 vi.mock("./Blog", () => ({ Blog: () => null }));
@@ -19,26 +19,26 @@ vi.mock("react-dom/client", () => ({
 describe("web bootstrap", () => {
   beforeEach(() => {
     vi.resetModules();
-    mocks.preloadWasm.mockClear();
+    mocks.protocolEngine.mockClear();
     mocks.render.mockClear();
     document.body.innerHTML = '<div id="root"></div>';
   });
 
-  it("does not preload WASM before the user chooses a transfer", async () => {
+  it("does not start the protocol engine before the user chooses a transfer", async () => {
     window.history.replaceState({}, "", "/");
 
     await import("./main");
 
-    expect(mocks.preloadWasm).not.toHaveBeenCalled();
+    expect(mocks.protocolEngine).not.toHaveBeenCalled();
     expect(mocks.render).toHaveBeenCalledOnce();
   });
 
-  it("does not preload WASM on blog-only pages", async () => {
+  it("does not start the protocol engine on blog-only pages", async () => {
     window.history.replaceState({}, "", "/blog/pake-step-by-step");
 
     await import("./main");
 
-    expect(mocks.preloadWasm).not.toHaveBeenCalled();
+    expect(mocks.protocolEngine).not.toHaveBeenCalled();
     expect(mocks.render).toHaveBeenCalledOnce();
   });
 });

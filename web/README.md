@@ -2,7 +2,7 @@
 
 The croc web client is a React/Vite app that sends and receives files, joins
 shared `croc ssh` terminals, and exchanges short direct text messages with
-ordinary `croc` CLI peers. Its production build and WebAssembly runtime are embedded in
+ordinary `croc` CLI peers. Its production build and SSH WebAssembly runtime are embedded in
 the separate `croc-web` binary. `croc-web` serves the website, runtime
 configuration, health check, and opaque WebSocket-to-TCP bridge from one HTTP
 address. File metadata and contents remain encrypted between the browser and
@@ -17,8 +17,8 @@ normal direct-transfer mode remains the default.
 
 Stored transfers use native Web Crypto (HKDF-SHA-256 and AES-256-GCM) and a
 small SHA-256 module worker. Uploading, inspecting, downloading, and verifying
-stored files do not load the Go WASM runtime. Direct transfers load that runtime
-when needed, rather than preloading it on every visit.
+stored files use no WebAssembly. Direct files and text also run without
+WebAssembly; only SSH transport uses the Go runtime.
 
 Both send modes can display a QR code for the browser receive URL. Direct-mode
 codes open the receive page with the croc code filled in and connecting, while
@@ -29,19 +29,26 @@ Direct mode also offers a secondary text composer compatible with
 never downloaded or placed in temporary storage. Text payloads are limited to
 1 MiB of UTF-8 content.
 
-The security-sensitive protocol operations are compiled from this repository's
-Go packages into WebAssembly:
+Direct protocol operations use a lazily started TypeScript module worker:
 
-- croc PAKE for both relay and peer handshakes
-- identity- and session-bound HKDF plus mutual confirmation for peer channels
-- PBKDF2 for the legacy-compatible relay hop and AES-GCM encryption
-- raw DEFLATE compression
-- xxhash verification
-- EFF three-word code generation and compatibility parsing
-- SHA-256 code-to-relay routing shared with the native client
+- PAKE over exactly pinned `@noble/curves` 2.4.0, with all five Go curves
+- lossless Go-compatible PAKE JSON through `lossless-json` 4.3.3
+- Web Crypto PBKDF2-SHA-256, identity-bound HKDF using HMAC, mutual confirmation,
+  and AES-GCM with reusable imported keys per transfer
+- browser Compression Streams for raw DEFLATE with bounded decompression
+- incremental zero-seed XXH64 using paired 32-bit words
+
+Code generation uses the existing EFF list and `crypto.getRandomValues`.
+Code parsing and SHA-256 relay selection do not start the protocol worker.
+Files/text require current evergreen browsers on HTTPS or localhost with Web
+Crypto and raw DEFLATE Compression Streams. Missing capabilities produce an
+error before connecting. There is no WASM fallback. The Go interoperability
+oracle and shared vectors live in `testdata/`; `npm test` builds the oracle
+with the repository's pinned Go dependencies.
 
 SSH mode accepts a pasted six-word invitation and joins through the ordinary
-croc relay fallback. PAKE and the pinned SSH client run in browser WASM, while
+croc relay fallback. Shared PAKE authentication uses the native engine; the
+pinned SSH client runs in browser WASM, while
 the terminal uses xterm.js. The SSH UI, xterm.js, and the separate
 `croc-ssh.wasm` module are loaded only after SSH mode is selected. A host's
 role-specific browser links carry the invitation in the URL fragment, which is
@@ -86,7 +93,8 @@ make build-web
 go test ./...
 ```
 
-`npm run embed` builds the WASM and Vite client and copies the result into
+`npm run embed` builds only SSH WASM and the Vite client and copies the result
+into
 the ignored `src/webassets/dist` directory, where Go's embed package includes
 it only in `croc-web`. The generated files are not committed. A deployed
 `croc-web` binary does not need this directory or any external static files.
@@ -95,9 +103,11 @@ The Playwright suite builds real `croc` and `croc-web` binaries, starts an
 isolated local croc relay and unified embedded server on temporary ports, then
 verifies file transfers byte-for-byte and a real CLI-hosted SSH session through
 the browser. Install the browsers once with
-`npx playwright install chromium firefox webkit`. Existing live-transfer and SSH
-tests use Chromium; the native Store suite also runs in Firefox and mobile-sized
-WebKit. To test Store with ads and analytics configured, run
+`npx playwright install chromium firefox webkit`. Files, text, and Store run
+in Chromium, Firefox, and mobile-sized WebKit with WebAssembly disabled in
+pages and workers and all WASM/Go glue requests blocked. SSH integration runs
+separately in Chromium with WASM enabled. To test Store with ads and analytics
+configured, run
 `CROC_E2E_PRIVACY=1 npx playwright test stored-native.spec.ts` after `npm run embed`.
 Test processes use an isolated
 `CROC_CONFIG_DIR` and storage directory and do not read or change remembered
@@ -216,4 +226,7 @@ there unless `--bind` is explicitly provided.
   resume after the tab closes.
 - Browser SSH is join-only and relay-only. It cannot host a shell or connect to
   an arbitrary SSH server; mobile terminal interaction is best-effort.
-- Current evergreen desktop browsers are targeted.
+- Current evergreen browsers are targeted; directory access depends on browser support.
+
+See [native transfer implementation and performance evidence](../src/docs/NATIVE_BROWSER_TRANSFERS.md)
+for protocol details, interoperability checks, and benchmark methods.

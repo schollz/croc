@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { decodeMessage, encodeMessage } from "./codec";
 import { MAX_FRAME_SIZE } from "./framing";
-import type { CrocWasm } from "../wasm/client";
+import type { CrocProtocolEngine } from "./engine";
 
 function identityWasm() {
   return {
@@ -9,7 +9,7 @@ function identityWasm() {
     decompress: vi.fn(async (bytes: Uint8Array) => bytes),
     encrypt: vi.fn(async (bytes: Uint8Array) => bytes),
     decrypt: vi.fn(async (bytes: Uint8Array) => bytes),
-  } as unknown as CrocWasm;
+  } as unknown as CrocProtocolEngine;
 }
 
 describe("control message codec", () => {

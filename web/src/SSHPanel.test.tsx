@@ -211,7 +211,7 @@ describe("SSH homepage mode", () => {
     render(<Harness />);
 
     expect(screen.getByText("Join a shared terminal")).toBeVisible();
-    expect(screen.getByRole("navigation", { name: "Current task" })).toHaveTextContent("Join SSH");
+    expect(screen.getByRole("navigation", { name: "Join SSH navigation" })).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "All tasks" }));
 

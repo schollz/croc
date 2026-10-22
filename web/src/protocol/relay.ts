@@ -1,3 +1,4 @@
+import { checkProtocolCapabilities } from "./compression";
 import { decodeMessage, encodeMessage } from "./codec";
 import {
   bytesEqual,
@@ -8,7 +9,7 @@ import {
 } from "./bytes";
 import { CrocSocket } from "./transport";
 import type { CrocMessage, TransferSettings } from "./types";
-import { wasm } from "../wasm/client";
+import { protocolEngine } from "./engine";
 
 const CONTROL_PORT = "9009";
 const RELAY_PING = textEncoder.encode("ping");
@@ -56,8 +57,10 @@ export async function connectRelay(
   relayIndex: number,
   signal?: AbortSignal,
 ) {
-  const engine = wasm();
+  checkProtocolCapabilities();
+  const engine = protocolEngine();
   let socket: CrocSocket | undefined;
+  let pakeHandle: number | undefined;
   try {
     socket = await CrocSocket.connect(
       settings.gatewayURL,
@@ -65,7 +68,8 @@ export async function connectRelay(
       port,
       signal,
     );
-    const pake = await engine.pakeInit(WEAK_RELAY_KEY, 0, "siec");
+    const pake = await engine.pakeInit(WEAK_RELAY_KEY, 0, "siec", signal);
+    pakeHandle = pake.handle;
     await socket.send(pake.bytes);
     const peer = await socket.receive();
     const finished = await engine.pakeUpdate(pake.handle, peer);
@@ -100,6 +104,9 @@ export async function connectRelay(
       `Could not establish the croc relay connection: ${errorMessage(error)}`,
       error,
     );
+  } finally {
+    if (pakeHandle !== undefined)
+      await engine.pakeRelease(pakeHandle).catch(() => undefined);
   }
 }
 
@@ -141,7 +148,7 @@ export async function sendControl(
   message: CrocMessage,
   key?: Uint8Array,
 ) {
-  await socket.send(await encodeMessage(wasm(), message, key));
+  await socket.send(await encodeMessage(protocolEngine(), message, key));
 }
 
 export async function receiveControl(
@@ -149,5 +156,5 @@ export async function receiveControl(
   key?: Uint8Array,
   maxSize?: number,
 ) {
-  return decodeMessage(wasm(), await socket.receive(), key, maxSize);
+  return decodeMessage(protocolEngine(), await socket.receive(), key, maxSize);
 }

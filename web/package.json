@@ -20,10 +20,12 @@
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "@noble/curves": "2.4.0",
     "@noble/hashes": "2.4.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "arrival-time": "^1.0.6",
+    "lossless-json": "4.3.3",
     "lucide-react": "^1.26.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
