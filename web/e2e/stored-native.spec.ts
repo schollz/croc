@@ -167,7 +167,7 @@ test("native browser Store → browser and CLI, with WASM blocked", async ({
     files = await fixtures(info);
   await page.goto("/");
   const panel = page.locator(".send-panel");
-  await panel.getByRole("button", { name: "Store for 1 day" }).click();
+  await page.getByRole("button", { name: "Store files", exact: true }).click();
   await panel.getByLabel("Verified downloads").fill("2");
   await panel.locator('input[type="file"]').setInputFiles(files.paths);
   await panel.getByRole("button", { name: "Store 3 files" }).click();

@@ -16,7 +16,6 @@ import {
   File as FileIcon,
   Heart,
   MessageSquareText,
-  Settings2,
   SquareTerminal,
   Upload,
   X,
@@ -70,7 +69,6 @@ import {
 import {
   formatStoredExpiration,
   StoredExpirationControl,
-  StoredModeSwitch,
   StoredShareCard,
   storedExpirationParts,
   storedExpirationSeconds,
@@ -95,114 +93,13 @@ import {
   type GitHubRelease,
 } from "./releases";
 import { blogPosts } from "./blog-posts";
+import { TaskLauncher, taskFromHash, useTaskNavigation } from "./TaskLauncher";
 
 type Activity = "idle" | "working" | "done" | "error";
 type Theme = "dark" | "light";
 type CopyState = "idle" | "copied" | "error";
-type MobileTransferPanel = "send" | "receive";
 type SendContent = "files" | "text";
-type WorkspaceMode = "files" | "ssh";
-
-const sshWorkspaceHash = "#ssh";
-
-export function workspaceModeFromHash(
-  hash = window.location.hash,
-): WorkspaceMode {
-  return hash.split("?", 1)[0] === sshWorkspaceHash ? "ssh" : "files";
-}
-
-export function sshInvitationFromHash(hash = window.location.hash) {
-  if (workspaceModeFromHash(hash) !== "ssh") return "";
-  const queryAt = hash.indexOf("?");
-  if (queryAt < 0) return "";
-  return new URLSearchParams(hash.slice(queryAt + 1)).get("code")?.trim() ?? "";
-}
-
-function scrubSSHInvitationFromURL() {
-  if (!sshInvitationFromHash()) return;
-  const url = new URL(window.location.href);
-  url.hash = sshWorkspaceHash;
-  window.history.replaceState(window.history.state, "", url);
-}
-
-export function useWorkspaceMode() {
-  const [mode, setMode] = useState<WorkspaceMode>(() => workspaceModeFromHash());
-  const [sshInvitation, setSSHInvitation] = useState(() =>
-    sshInvitationFromHash(),
-  );
-
-  useEffect(() => {
-    const syncModeFromURL = () => {
-      setMode(workspaceModeFromHash());
-      setSSHInvitation(sshInvitationFromHash());
-      scrubSSHInvitationFromURL();
-    };
-    window.addEventListener("hashchange", syncModeFromURL);
-    scrubSSHInvitationFromURL();
-    return () => {
-      window.removeEventListener("hashchange", syncModeFromURL);
-    };
-  }, []);
-
-  function changeMode(nextMode: WorkspaceMode) {
-    setMode(nextMode);
-    setSSHInvitation("");
-
-    const url = new URL(window.location.href);
-    if (nextMode === "ssh") {
-      url.hash = sshWorkspaceHash;
-    } else if (url.hash === sshWorkspaceHash) {
-      url.hash = "";
-    } else {
-      return;
-    }
-
-    if (url.href !== window.location.href) {
-      window.history.pushState(null, "", url);
-    }
-  }
-
-  return [mode, changeMode, sshInvitation] as const;
-}
-
 const SSHPanel = lazy(() => import("./SSHPanel"));
-
-export function WorkspaceSwitch({
-  mode,
-  disabled,
-  onChange,
-}: {
-  mode: WorkspaceMode;
-  disabled: boolean;
-  onChange(mode: WorkspaceMode): void;
-}) {
-  return (
-    <div
-      className="workspace-switch"
-      role="tablist"
-      aria-label="Choose croc tool"
-    >
-      <button
-        type="button"
-        role="tab"
-        aria-selected={mode === "files"}
-        disabled={disabled}
-        onClick={() => onChange("files")}
-      >
-        <Upload aria-hidden="true" /> Files
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={mode === "ssh"}
-        disabled={disabled}
-        onClick={() => onChange("ssh")}
-      >
-        <SquareTerminal aria-hidden="true" /> SSH
-      </button>
-    </div>
-  );
-}
 
 function sendHashAlgorithm(mode: SendMode): FileHashAlgorithm {
   return mode === "stored" ? "sha256" : "xxhash";
@@ -239,7 +136,6 @@ const storeExpiresSeconds =
   storeMaxExpiresSeconds > 0
     ? Math.min(configuredStoreExpiresSeconds, storeMaxExpiresSeconds)
     : configuredStoreExpiresSeconds;
-const crocWebsite = "https://infinitedigits.co/croc/";
 const crocRepository = "https://github.com/schollz/croc";
 const otherTools = [
   {
@@ -627,7 +523,6 @@ function CliDownload() {
       aria-labelledby="cli-download-title"
     >
       <div>
-        <p className="eyebrow">croc CLI</p>
         <h2 id="cli-download-title">Download croc for {platformLabel}.</h2>
         {platform === "other" && (
           <p>Choose the latest build for your device on GitHub.</p>
@@ -695,7 +590,6 @@ function BlogTeaser() {
     >
       <div className="home-blog-heading">
         <div>
-          <p className="eyebrow">Notes &amp; updates</p>
           <h2 id="home-blog-title">What happens after you press Send?</h2>
           <p>
             Notes about how croc works, commonly asked questions about croc,
@@ -792,15 +686,12 @@ export function App() {
   const [sendContent, setSendContent] = useState<SendContent>("files");
   const [sendText, setSendText] = useState("");
   const [sendMode, setSendMode] = useState<SendMode>(
-    restoredStoredUpload ? "stored" : "direct",
+    restoredStoredUpload || taskFromHash() === "store" ? "stored" : "direct",
   );
-  const [mobileTransferPanel, setMobileTransferPanel] =
-    useState<MobileTransferPanel>(receiveOnly ? "receive" : "send");
-  const [workspaceMode, setWorkspaceMode, sshInvitation] = useWorkspaceMode();
   const [sshActive, setSSHActive] = useState(false);
   const [sendCode, setSendCode] = useState("");
   const [sendDetailsVisible, setSendDetailsVisible] = useState(false);
-  const [sendActivity, setSendActivity] = useState<Activity>("idle");
+  const [sendActivity, setSendActivity] = useState<Activity>(restoredStoredUpload ? "done" : "idle");
   const [sendStatus, setSendStatus] = useState("");
   const [sendProgress, setSendProgress] = useState<FileProgress>();
   const [completedSend, setCompletedSend] = useState<string[]>([]);
@@ -837,12 +728,31 @@ export function App() {
   const sendProgressSampledAt = useRef<number>(undefined);
   const receiveProgressSampledAt = useRef<number>(undefined);
   const fileInput = useRef<HTMLInputElement>(null);
-  const transferGrid = useRef<HTMLElement>(null);
   const receivePanel = useRef<HTMLFormElement>(null);
+  const relaySettingsDialog = useRef<HTMLDialogElement>(null);
   const codeCopyReset = useRef<number>(undefined);
   const directLinkCopyReset = useRef<number>(undefined);
   const receivedTextCopyReset = useRef<number>(undefined);
   const receiveOfferKind = useRef<TransferOffer["kind"]>("files");
+
+  const navigationLocked = sendActivity === "working" || receiveActivity === "working" || sshActive;
+  const [task, navigateTask, sshInvitation] = useTaskNavigation({
+    initialTask: receiveOnly ? "receive" : restoredStoredUpload ? "store" : "home",
+    storeEnabled,
+    locked: navigationLocked,
+  });
+  const sendTask = !receiveOnly && (task === "send" || task === "store");
+  const receiveTask = receiveOnly || task === "receive";
+
+  useEffect(() => {
+    if (!sendTask) return;
+    const nextMode = task === "store" ? "stored" : "direct";
+    if (nextMode === sendMode) return;
+    setSendMode(nextMode);
+    if (nextMode === "stored") setSendContent("files");
+    resetSendPresentation();
+    if (nextMode === "stored" && storedUpload) setSendActivity("done");
+  }, [task, sendTask, sendMode, storedUpload]);
 
   const totalSelectedSize = useMemo(
     () => selectedFiles.reduce((total, file) => total + file.size, 0),
@@ -895,7 +805,7 @@ export function App() {
   }, [settings, rememberPassword]);
 
   useEffect(() => {
-    if (receiveOnly) return;
+    if (receiveOnly || task !== "send") return;
     const controller = new AbortController();
     void relayPreloader
       .preload(settings, { signal: controller.signal })
@@ -904,7 +814,7 @@ export function App() {
       controller.abort();
       relayPreloader.clear();
     };
-  }, [relayPreloader, settings.gatewayURL, settings.relayAddresses]);
+  }, [relayPreloader, settings.gatewayURL, settings.relayAddresses, task]);
 
   useEffect(() => {
     fileHashes.retain(selectedFiles);
@@ -970,13 +880,6 @@ export function App() {
       receivePanel.current?.scrollIntoView({ block: "start" });
     }
   }, []);
-
-  function showMobileTransferPanel(panel: MobileTransferPanel) {
-    setMobileTransferPanel(panel);
-    window.requestAnimationFrame(() => {
-      transferGrid.current?.scrollIntoView({ block: "start" });
-    });
-  }
 
   function resetSendPresentation() {
     setSendActivity("idle");
@@ -1388,74 +1291,33 @@ export function App() {
           />
         </a>
         <div>
-          <p className="eyebrow">
-            <strong>croc</strong> is a free and open-source tool to
-          </p>
           <h1>
-            {receiveOnly
+            {receiveTask
               ? "Receive files, secured end-to-end."
-              : workspaceMode === "ssh"
+              : task === "ssh"
                 ? "Join a terminal, secured end-to-end."
-                : "Send files, secured end-to-end."}
+                : "croc: end-to-end encrypted transfers."}
           </h1>
         </div>
       </header>
 
-      {!receiveOnly && (
-        <WorkspaceSwitch
-          mode={workspaceMode}
-          disabled={sendBusy || receiveBusy || sshActive}
-          onChange={setWorkspaceMode}
-        />
+      {!receiveOnly && task === "home" && (
+        <TaskLauncher storeEnabled={storeEnabled} onSelect={navigateTask} />
       )}
 
-      {(receiveOnly || workspaceMode === "files") && (
+      {(sendTask || receiveTask) && (
         <section
-          ref={transferGrid}
-          className={`transfer-grid${receiveOnly ? " receive-only" : ""}`}
+          className={`transfer-grid task-workspace${receiveOnly ? " receive-only" : ""}`}
           aria-label="File transfer controls"
         >
-        {!receiveOnly && (
-          <div
-            className="mobile-transfer-switch"
-            role="tablist"
-            aria-label="Choose transfer direction"
-          >
-            <button
-              id="mobile-send-tab"
-              type="button"
-              role="tab"
-              aria-controls="send-panel"
-              aria-selected={mobileTransferPanel === "send"}
-              onClick={() => showMobileTransferPanel("send")}
-            >
-              <Upload aria-hidden="true" />
-              Send
-            </button>
-            <button
-              id="mobile-receive-tab"
-              type="button"
-              role="tab"
-              aria-controls="receive"
-              aria-selected={mobileTransferPanel === "receive"}
-              onClick={() => showMobileTransferPanel("receive")}
-            >
-              <Download aria-hidden="true" />
-              Receive
-            </button>
-          </div>
-        )}
-        {!receiveOnly && (
-          <article
-            id="send-panel"
-            className={`panel send-panel${mobileTransferPanel === "send" ? " mobile-active" : ""}`}
-          >
+        {sendTask && (
+          <article id="send-panel" className="panel send-panel">
           <div className="panel-heading">
             <span className="step">
               <Upload aria-hidden="true" />
             </span>
             <div>
-              <h2>Send</h2>
+              <h2>{sendMode === "stored" ? "Store files" : "Send live"}</h2>
               {sendMode === "stored" && (
                 <p>
                   {`Upload encrypted files for ${formatStoredExpiration(
@@ -1468,24 +1330,6 @@ export function App() {
               )}
             </div>
           </div>
-
-          {storeEnabled && (
-            <StoredModeSwitch
-              mode={sendMode}
-              disabled={sendBusy || storedUpload !== undefined}
-              durationLabel={formatStoredExpiration(
-                storedExpiration.value,
-                storedExpiration.unit,
-              )}
-              onChange={(mode) => {
-                fileHashes.prime(selectedFiles, sendHashAlgorithm(mode));
-                setSendMode(mode);
-                if (mode === "stored") setSendContent("files");
-                setStoredUpload(undefined);
-                resetSendPresentation();
-              }}
-            />
-          )}
 
           {sendContent === "files" || sendMode === "stored" ? (
             <>
@@ -1808,10 +1652,11 @@ export function App() {
           </article>
         )}
 
+        {receiveTask && (
         <form
           id="receive"
           ref={receivePanel}
-          className={`panel receive-panel${mobileTransferPanel === "receive" ? " mobile-active" : ""}`}
+          className="panel receive-panel"
           onSubmit={(event) => {
             event.preventDefault();
             if (receiveBusy || receiveCode.trim().length < 6) return;
@@ -2005,10 +1850,11 @@ export function App() {
               </button>
             ))}
         </form>
+        )}
         </section>
       )}
 
-      {!receiveOnly && workspaceMode === "ssh" && (
+      {!receiveOnly && task === "ssh" && (
         <Suspense
           fallback={
             <section className="ssh-workspace" aria-live="polite">
@@ -2028,66 +1874,81 @@ export function App() {
         </Suspense>
       )}
 
-      <details className="settings">
-        <summary>
-          <span>
-            <Settings2 /> Relay settings
-          </span>
-          <span>advanced</span>
-        </summary>
-        <form
-          className="settings-grid"
-          autoComplete="off"
-          onSubmit={(event) => event.preventDefault()}
-        >
-          <label>
-            <span>WebSocket gateway</span>
-            <input
-              value={settings.gatewayURL}
-              disabled={sendBusy || receiveBusy || sshActive}
-              spellCheck={false}
-              onChange={(event) =>
-                setSettings((current) => ({
-                  ...current,
-                  gatewayURL: event.target.value,
-                }))
-              }
-            />
-          </label>
-          <label>
-            <span>CLI relay addresses</span>
-            <input
-              value={settings.relayAddresses.join(", ")}
-              readOnly
-              spellCheck={false}
-            />
-          </label>
-          <label>
-            <span>Relay password</span>
-            <input
-              type="password"
-              name="relay-password"
-              autoComplete="off"
-              value={settings.relayPassword}
-              disabled={sendBusy || receiveBusy || sshActive}
-              onChange={(event) =>
-                setSettings((current) => ({
-                  ...current,
-                  relayPassword: event.target.value,
-                }))
-              }
-            />
-          </label>
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={rememberPassword}
-              onChange={(event) => setRememberPassword(event.target.checked)}
-            />
-            <span>Remember relay password on this device</span>
-          </label>
-        </form>
-      </details>
+      <dialog
+        ref={relaySettingsDialog}
+        id="relay-settings"
+        className="relay-settings-modal"
+        aria-labelledby="relay-settings-title"
+        onClick={(event) => {
+          if (event.target === event.currentTarget) event.currentTarget.close();
+        }}
+      >
+        <div className="relay-settings-content">
+          <header className="relay-settings-header">
+            <h2 id="relay-settings-title">Relay settings</h2>
+            <button
+              className="relay-settings-close"
+              type="button"
+              aria-label="Close relay settings"
+              onClick={() => relaySettingsDialog.current?.close()}
+            >
+              <X aria-hidden="true" />
+            </button>
+          </header>
+          <form
+            className="settings-grid"
+            autoComplete="off"
+            onSubmit={(event) => event.preventDefault()}
+          >
+            <label>
+              <span>WebSocket gateway</span>
+              <input
+                value={settings.gatewayURL}
+                disabled={sendBusy || receiveBusy || sshActive}
+                spellCheck={false}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    gatewayURL: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label>
+              <span>CLI relay addresses</span>
+              <input
+                value={settings.relayAddresses.join(", ")}
+                readOnly
+                spellCheck={false}
+              />
+            </label>
+            <label>
+              <span>Relay password</span>
+              <input
+                type="password"
+                name="relay-password"
+                autoComplete="off"
+                value={settings.relayPassword}
+                disabled={sendBusy || receiveBusy || sshActive}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    relayPassword: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={rememberPassword}
+                onChange={(event) => setRememberPassword(event.target.checked)}
+              />
+              <span>Remember relay password on this device</span>
+            </label>
+          </form>
+        </div>
+      </dialog>
 
       <CliDownload />
 
@@ -2116,7 +1977,15 @@ export function App() {
             github
           </a>
           <span aria-hidden="true">·</span>
-          <a href="/blog">blog</a>
+          <button
+            className="footer-relay-link"
+            type="button"
+            aria-haspopup="dialog"
+            aria-controls="relay-settings"
+            onClick={() => relaySettingsDialog.current?.showModal()}
+          >
+            relay
+          </button>
           <span aria-hidden="true">·</span>
           <button
             className="footer-theme-toggle"
@@ -2128,14 +1997,6 @@ export function App() {
           >
             {theme === "dark" ? "light mode" : "dark mode"}
           </button>
-          <span aria-hidden="true">·</span>
-          <a
-            href={crocWebsite}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            croc website
-          </a>
           <span aria-hidden="true">·</span>
           <span>
             hosted with{" "}

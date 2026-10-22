@@ -433,7 +433,6 @@ function BlogFooter() {
       <span>croc field notes · written in the open</span>
       <nav aria-label="Blog footer navigation">
         <a href="/">transfer files</a>
-        <a href={site.projectUrl}>croc website</a>
         <a href={site.repositoryUrl}>source code</a>
         <a href="https://github.com/sponsors/schollz">support croc</a>
       </nav>
@@ -753,7 +752,6 @@ function BlogIndex() {
       <main className="blog-main">
         <section className="blog-index-hero">
           <div>
-            <p className="blog-kicker"><BookOpenText /> Notes &amp; updates</p>
             <h1>Notes from inside the transfer.</h1>
           </div>
           <p>
@@ -780,7 +778,6 @@ function BlogIndex() {
         <section id="updates" className="blog-kind-section" aria-labelledby="updates-title">
           <div className="blog-section-heading">
             <div>
-              <p className="blog-kicker"><FileText /> Updates</p>
               <h2 id="updates-title">What changed in croc</h2>
             </div>
             <span>
@@ -798,7 +795,6 @@ function BlogIndex() {
                   <BlogVisualCard visual={post.visual} large />
                 </a>
                 <div className="featured-note-copy">
-                  <span className="note-number">{postNumberLabel(post)}</span>
                   <PostMeta post={post} />
                   <h2><a href={`/blog/${post.slug}`}>{post.title}</a></h2>
                   <p>{post.description}</p>
@@ -814,7 +810,6 @@ function BlogIndex() {
         <section id="notes" className="blog-kind-section" aria-labelledby="notes-title">
           <div className="blog-section-heading">
             <div>
-              <p className="blog-kicker"><BookOpenText /> Notes</p>
               <h2 id="notes-title">From inside the transfer</h2>
             </div>
             <span>{String(notes.length).padStart(2, "0")} notes</span>
@@ -829,7 +824,6 @@ function BlogIndex() {
               <BlogVisualCard visual={featured.visual} large />
             </a>
             <div className="featured-note-copy">
-              <span className="note-number">{postNumberLabel(featured)}</span>
               <PostMeta post={featured} />
               <h2><a href={`/blog/${featured.slug}`}>{featured.title}</a></h2>
               <p>{featured.description}</p>
@@ -842,7 +836,6 @@ function BlogIndex() {
           <section className="blog-notes-section" aria-labelledby="more-notes-title">
             <div className="blog-section-heading">
               <div>
-                <p className="blog-kicker"><FileText /> The notebook</p>
                 <h2 id="more-notes-title">More ways into croc</h2>
               </div>
               <span>{String(morePosts.length).padStart(2, "0")} more notes</span>
@@ -875,7 +868,6 @@ function BlogIndex() {
         <section className="blog-transfer-cta">
           <span><Check aria-hidden="true" /></span>
           <div>
-            <p className="blog-kicker">Enough reading?</p>
             <h2>Move the file.</h2>
             <p>No account. No port forwarding. The browser is already a croc peer.</p>
           </div>
@@ -1032,7 +1024,6 @@ function BlogBlockView({ block, index }: { block: BlogBlock; index: number }) {
   if (block.type === "aside") {
     return (
       <aside className="blog-callout">
-        <span>{block.eyebrow}</span>
         <h3>{block.title}</h3>
         <p><BlogRichText text={block.text} links={block.links} /></p>
       </aside>
@@ -1221,11 +1212,6 @@ function BlogArticle({ post }: { post: BlogPost }) {
         <a className="back-to-blog" href="/blog"><ArrowLeft /> All posts</a>
         <article className="blog-article">
           <header className="blog-article-header">
-            <p className="blog-kicker">
-              {post.kind === "update" ? <FileText /> : <ShieldCheck />}
-              {postKindLabel(post)} · {post.category}
-            </p>
-            <span className="note-number">{postNumberLabel(post)}</span>
             <h1>{post.title}</h1>
             <p className="article-dek">{post.description}</p>
             <div className="article-byline">
@@ -1272,7 +1258,6 @@ function BlogArticle({ post }: { post: BlogPost }) {
                 <BlogBlockView block={block} index={blockIndex} key={`${block.type}-${blockIndex}`} />
               ))}
               <section className="blog-related-notes" aria-labelledby={`related-${post.slug}`}>
-                <p className="blog-kicker"><BookOpenText /> Related field notes</p>
                 <h2 id={`related-${post.slug}`}>Keep following the transfer.</h2>
                 <div>
                   {relatedPosts.map((related) => (
@@ -1287,7 +1272,6 @@ function BlogArticle({ post }: { post: BlogPost }) {
               </section>
               <section className="article-transfer-card">
                 <div>
-                  <p className="blog-kicker"><Upload /> Try the protocol</p>
                   <h2>Send something small.</h2>
                   <p>The quickest explanation is still a transfer between two devices.</p>
                 </div>

@@ -136,6 +136,16 @@ function commonCLIArgs() {
   ];
 }
 
+async function chooseTask(page: Page, name: "Send live" | "Store files" | "Receive files" | "Join SSH") {
+  const launcher = page.locator(".task-launcher");
+  if (!(await launcher.isVisible())) {
+    const current = page.getByRole("navigation", { name: "Current task" });
+    if ((await current.locator("span").textContent()) === name) return;
+    await current.getByRole("button", { name: "All tasks" }).click();
+  }
+  await page.getByRole("button", { name, exact: true }).click();
+}
+
 async function configurePage(page: Page) {
   await page.goto(webAddress);
   await page.locator("details.settings > summary").click();
@@ -144,6 +154,7 @@ async function configurePage(page: Page) {
     .getByRole("textbox", { name: "Relay password", exact: true })
     .fill(relayPassword);
   await expect(page.getByLabel("CLI relay addresses")).toHaveValue(relayAddress);
+  await chooseTask(page, "Send live");
 }
 
 async function prepareWebSender(
@@ -163,9 +174,10 @@ async function readGeneratedSecret(panel: Locator) {
 }
 
 async function connectWebReceiver(page: Page, secret: string) {
+  await chooseTask(page, "Receive files");
   const panel = page.locator(".receive-panel");
-  await panel.getByLabel("Croc code").fill(secret);
-  await panel.getByLabel("Croc code").press("Enter");
+  await panel.getByLabel("Croc code or stored link").fill(secret);
+  await panel.getByLabel("Croc code or stored link").press("Enter");
   return panel;
 }
 
@@ -482,6 +494,7 @@ test("publishes rich metadata and project links", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Download croc for macOS." }),
   ).toBeVisible();
+  await chooseTask(page, "Receive files");
   const receivePanel = page.locator(".receive-panel");
   await expect(
     receivePanel.getByRole("button", { name: "Receive", exact: true }),
@@ -544,61 +557,31 @@ test("opens directly without an analytics popover", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("mobile puts both transfer directions within one tap", async ({ page }) => {
+test("mobile task launcher opens focused screens and preserves selected content", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-
-  const sendTab = page.getByRole("tab", { name: "Send" });
-  const receiveTab = page.getByRole("tab", { name: "Receive" });
-  await expect(sendTab).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator(".send-panel")).toBeVisible();
-  await expect(page.locator(".receive-panel")).not.toBeVisible();
+  const cards = page.locator(".task-card");
+  await expect(cards).toHaveCount(4);
+  for (const card of await cards.all()) expect((await card.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await chooseTask(page, "Send live");
   const sendPanel = page.locator(".send-panel");
-  await expect(sendPanel.getByLabel("Text to send")).toHaveCount(0);
-  await expect(sendPanel.getByRole("button", { name: "Send text instead" }))
-    .toBeVisible();
+  await expect(page.locator(".receive-panel")).toHaveCount(0);
+  await expect(page.getByRole("tablist")).toHaveCount(0);
   await sendPanel.getByRole("button", { name: "Send text instead" }).click();
-  const textComposer = sendPanel.getByLabel("Text to send");
-  await expect(textComposer).toBeVisible();
-  await expect(textComposer).toHaveCSS("font-size", "16px");
-  await expect(sendPanel.getByRole("button", { name: "Send text" })).toBeDisabled();
-  await textComposer.fill("hello from mobile");
-  await expect(sendPanel.getByRole("button", { name: "Send text" })).toBeEnabled();
-  await sendPanel.getByRole("button", { name: "Send files instead" }).click();
-  await expect(sendPanel.locator(".drop-zone")).toBeVisible();
-
-  await receiveTab.click();
-  await expect(receiveTab).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator(".receive-panel")).toBeVisible();
-  await expect(page.locator(".send-panel")).not.toBeVisible();
-
-  await page.evaluate(() => window.scrollBy(0, 120));
-  await sendTab.click();
-  await expect(sendTab).toHaveAttribute("aria-selected", "true");
-  await expect
-    .poll(() =>
-      page.locator(".transfer-grid").evaluate((element) =>
-        Math.abs(element.getBoundingClientRect().top),
-      ),
-    )
-    .toBeLessThanOrEqual(1);
-
-  await receiveTab.click();
-
-  const mobileLayout = await page.evaluate(() => ({
-    inputFontSize: Number.parseFloat(
-      getComputedStyle(document.querySelector("#receive-code")!).fontSize,
-    ),
-    overflow: document.documentElement.scrollWidth - window.innerWidth,
-    targets: [...document.querySelectorAll(".mobile-transfer-switch button")].map(
-      (element) => element.getBoundingClientRect().height,
-    ),
-  }));
-  expect(mobileLayout.overflow).toBeLessThanOrEqual(0);
-  expect(mobileLayout.inputFontSize).toBeGreaterThanOrEqual(16);
-  for (const height of mobileLayout.targets) {
-    expect(height).toBeGreaterThanOrEqual(44);
-  }
+  const composer = sendPanel.getByLabel("Text to send");
+  await expect(composer).toHaveCSS("font-size", "16px");
+  await composer.fill("hello from mobile");
+  await expect(sendPanel.getByRole("button", { name: "Send text", exact: true })).toBeEnabled();
+  await chooseTask(page, "Receive files");
+  await expect(page.locator(".send-panel")).toHaveCount(0);
+  const input = page.getByLabel("Croc code or stored link");
+  await expect(input).toHaveCSS("font-size", "16px");
+  await input.fill("acid-acorn-acre");
+  await chooseTask(page, "Send live");
+  await expect(composer).toHaveValue("hello from mobile");
+  await chooseTask(page, "Receive files");
+  await expect(input).toHaveValue("acid-acorn-acre");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
 });
 
 test("receive links open with the Receive panel top edge visible", async ({
@@ -628,67 +611,48 @@ test("receive links open with the Receive panel top edge visible", async ({
     .toBeLessThanOrEqual(16);
 });
 
-test("workspace tabs stay focused while secondary controls live in the footer", async ({
-  page,
-}) => {
+test("task launcher replaces stacked toggles and keeps secondary controls in the footer", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
-  await page.route(
-    "https://api.github.com/repos/schollz/croc/releases/latest",
-    async (route) => {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          tag_name: "v99.0.0",
-          html_url: "https://github.com/schollz/croc/releases/tag/v99.0.0",
-          assets: [],
-        }),
-      });
-    },
-  );
+  await page.route("https://api.github.com/repos/schollz/croc/releases/latest", route => route.fulfill({
+    contentType: "application/json", body: JSON.stringify({ tag_name: "v99.0.0", assets: [] }),
+  }));
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "How to use croc web" }))
-    .toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Read croc field notes" }))
-    .toHaveCount(0);
-  await expect(page.getByRole("link", { name: "View croc on GitHub" }))
-    .toHaveCount(0);
-
-  const tabs = page.getByRole("tablist", { name: "Choose croc tool" });
-  const files = tabs.getByRole("tab", { name: "Files", exact: true });
-  const ssh = tabs.getByRole("tab", { name: "SSH", exact: true });
-  await expect(tabs.getByRole("tab")).toHaveCount(2);
   for (const width of [1280, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
-    await expect(files).toHaveAttribute("aria-selected", "true");
-    const [filesBox, sshBox] = await Promise.all([
-      files.boundingBox(),
-      ssh.boundingBox(),
-    ]);
-    expect(filesBox!.height).toBeGreaterThanOrEqual(44);
-    expect(sshBox!.height).toBe(filesBox!.height);
-    expect(sshBox!.width).toBeCloseTo(filesBox!.width, 0);
-    await ssh.click();
-    await expect(ssh).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByLabel("SSH invitation", { exact: true })).toBeEditable();
-    await files.click();
-    await expect(page.locator(".send-panel")).toBeVisible();
-    expect(await page.evaluate(() =>
-      document.documentElement.scrollWidth - window.innerWidth,
-    )).toBeLessThanOrEqual(0);
+    await expect(page.locator(".task-card")).toHaveCount(4);
+    await expect(page.getByRole("tablist")).toHaveCount(0);
+    for (const task of ["Send live", "Store files", "Receive files", "Join SSH"] as const) {
+      await chooseTask(page, task);
+      await expect(page.getByRole("navigation", { name: "Current task" })).toContainText(task);
+      await expect(page.getByRole("tablist")).toHaveCount(0);
+      await expect(page.getByRole("group", { name: "Send mode" })).toHaveCount(0);
+      if (task === "Store files") {
+        await expect(page.getByLabel("Storage lifetime", { exact: true })).toBeVisible();
+        const [valueBox, unitBox] = await Promise.all([
+          page.getByLabel("Storage lifetime", { exact: true }).boundingBox(),
+          page.getByLabel("Storage lifetime unit").boundingBox(),
+        ]);
+        expect(unitBox!.height).toBe(valueBox!.height);
+        expect(unitBox!.y).toBe(valueBox!.y);
+        await expect(page.getByRole("button", { name: "Send text instead" })).toHaveCount(0);
+      }
+      if (task === "Join SSH") await expect(page.getByLabel("SSH invitation", { exact: true })).toBeEditable();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+      await page.getByRole("button", { name: "All tasks", exact: true }).click();
+    }
   }
-
+  await chooseTask(page, "Receive files");
+  await page.goBack();
+  await expect(page.locator(".task-launcher")).toBeVisible();
+  await page.goForward();
+  await expect(page.locator(".receive-panel")).toBeVisible();
   const footer = page.locator(".site-footer");
-  await expect(footer.getByRole("link", { name: "blog", exact: true }))
-    .toHaveAttribute("href", "/blog");
-  await expect(footer.getByRole("link", { name: "github", exact: true }))
-    .toHaveAttribute("href", "https://github.com/schollz/croc");
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(footer.getByRole("link", { name: "blog", exact: true })).toHaveAttribute("href", "/blog");
+  await expect(footer.getByRole("link", { name: "github", exact: true })).toHaveAttribute("href", "https://github.com/schollz/croc");
   await footer.getByRole("button", { name: "Switch to dark mode" }).click();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  await expect(footer.getByRole("button", { name: "Switch to light mode" }))
-    .toBeVisible();
+  await expect(page.locator(".receive-panel")).toBeVisible();
 });
 
 test("copying a croc code shows confirmation", async ({ page }) => {
@@ -724,8 +688,8 @@ test("copying a croc code shows confirmation", async ({ page }) => {
   await expect(panel.getByRole("button", { name: "Code copied" })).toHaveClass(
     /copied/,
   );
-  await expect(panel.getByLabel("Croc code")).toHaveClass(/copied/);
-  await expect(panel.getByLabel("Croc code")).toHaveCSS(
+  await expect(panel.getByLabel("Croc code or stored link")).toHaveClass(/copied/);
+  await expect(panel.getByLabel("Croc code or stored link")).toHaveCSS(
     "animation-name",
     "copy-confirmed-code",
   );
@@ -787,6 +751,7 @@ test("loads WASM on direct file selection and reveals a mobile-sized code after 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await expect(page.locator('link[rel="preload"][href="/croc.wasm"]')).toHaveCount(0);
+  await chooseTask(page, "Send live");
   const panel = page.locator(".send-panel");
   const sendButton = panel.getByRole("button", { name: "Send file" });
   await expect(sendButton).toBeDisabled();
@@ -1078,7 +1043,7 @@ test("Web stored upload → CLI download consumes the transfer", async ({
   ]);
   await configurePage(page);
   const panel = page.locator(".send-panel");
-  await panel.getByRole("button", { name: "Store for 1 day" }).click();
+  await chooseTask(page, "Store files");
   await panel.locator('input[type="file"]').setInputFiles(fixtures.paths);
   await expect(panel.getByText("Storage lifetime", { exact: true })).toBeVisible();
   await expect(panel.getByText("Verified downloads", { exact: true })).toBeVisible();
@@ -1109,7 +1074,7 @@ test("Web stored upload → CLI download consumes the transfer", async ({
 test("stored settings return after an upload is revoked", async ({ page }) => {
   await configurePage(page);
   const panel = page.locator(".send-panel");
-  await panel.getByRole("button", { name: "Store for 1 day" }).click();
+  await chooseTask(page, "Store files");
   await panel.locator('input[type="file"]').setInputFiles({
     name: "revoke-test.txt",
     mimeType: "text/plain",
@@ -1156,9 +1121,10 @@ test("CLI stored upload → Web download verifies and consumes files", async ({
       /https?:\/\/\S+\/s\/[A-Za-z0-9_-]{22}#v1\.[A-Za-z0-9_-]+/,
     )?.[0];
     expect(browserURL, sender.output()).toBeTruthy();
+    await chooseTask(page, "Receive files");
     const panel = page.locator(".receive-panel");
-    await panel.getByLabel("Croc code").fill(browserURL!);
-    await panel.getByLabel("Croc code").press("Enter");
+    await panel.getByLabel("Croc code or stored link").fill(browserURL!);
+    await panel.getByLabel("Croc code or stored link").press("Enter");
     await expect(panel.getByRole("button", { name: "Download files" })).toBeVisible();
     const network = await page.context().newCDPSession(page);
     await network.send("Network.enable");
@@ -1240,7 +1206,7 @@ for (const entry of ["invitation link", "typed invitation"] as const) {
           localBrowserURL.hash.split("?", 2)[1],
         ).get("code");
         expect(invitation).toBeTruthy();
-        await page.getByRole("tab", { name: "SSH", exact: true }).click();
+        await chooseTask(page, "Join SSH");
         const input = page.getByLabel("SSH invitation", { exact: true });
         await expect(input).toBeEditable();
         await input.pressSequentially(invitation!);

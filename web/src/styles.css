@@ -169,70 +169,135 @@ h1 {
   line-height: 0.95;
 }
 
-.workspace-switch {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.task-launcher {
   border: 1px solid var(--foreground);
-  border-bottom: 0;
+  padding: 30px;
   background: var(--background);
 }
 
-.workspace-switch button {
-  display: inline-flex;
+.task-launcher-heading {
+  margin-bottom: 24px;
+}
+
+.task-launcher-heading h2 {
+  margin: 0;
+  font-size: clamp(23px, 3vw, 30px);
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 1.2;
+}
+
+.task-launcher-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.task-card {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 18px;
   min-width: 0;
-  min-height: 52px;
-  gap: 8px;
+  min-height: 132px;
+  gap: 18px;
   align-items: center;
-  justify-content: center;
-  border: 0;
-  padding: 12px 16px;
-  color: var(--muted);
-  background: transparent;
-  font-size: 12px;
-  font-weight: 750;
+  border: 1px solid var(--soft-border);
+  padding: 24px;
+  color: var(--foreground);
+  background: var(--background);
+  text-align: left;
   cursor: pointer;
 }
 
-.workspace-switch button + button {
-  border-left: 1px solid var(--soft-border);
-}
-
-.workspace-switch button:hover:not(:disabled) {
-  color: var(--foreground);
+.task-card:hover {
+  border-color: var(--foreground);
   background: var(--panel-tint);
 }
 
-.workspace-switch button:focus-visible {
-  outline-offset: -4px;
+.task-card-icon {
+  width: 26px;
+  height: 26px;
 }
 
-.workspace-switch button[aria-selected="true"] {
+.task-card-arrow {
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+}
+
+.task-card strong {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
+.task-card small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.task-navigation {
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  margin: 0 auto 12px;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.task-navigation button {
+  display: inline-flex;
+  min-height: 44px;
+  gap: 8px;
+  align-items: center;
+  border: 0;
+  padding: 8px 0;
   color: var(--foreground);
-  background: var(--panel-tint);
-  box-shadow: inset 0 -3px var(--foreground);
+  background: transparent;
+  font-size: 12px;
+  cursor: pointer;
 }
 
-.workspace-switch svg {
+.task-navigation button:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.task-navigation button svg {
   width: 16px;
   height: 16px;
 }
 
-.transfer-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  border-top: 1px solid var(--foreground);
-  border-left: 1px solid var(--foreground);
+.task-workspace,
+.ssh-workspace {
+  width: 100%;
+  margin-right: auto;
+  margin-left: auto;
 }
 
-.transfer-grid.receive-only {
+.task-workspace .panel {
+  min-height: 0;
+}
+
+.task-workspace .panel > .primary-button {
+  margin-top: 24px;
+}
+
+.transfer-grid {
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
+  border-top: 1px solid var(--foreground);
+  border-left: 1px solid var(--foreground);
 }
 
 .receive-panel {
   scroll-margin-top: 16px;
 }
 
-.mobile-transfer-switch,
 .drop-mobile-copy {
   display: none;
 }
@@ -624,7 +689,6 @@ select:disabled {
 
 .stored-expiration-control select {
   min-width: 0;
-  height: 42px;
   border: 1px solid var(--subtle);
   padding: 0 11px;
   color: var(--foreground);
@@ -834,39 +898,6 @@ select:disabled {
 
 .text-composer .field-help {
   margin-top: 0;
-}
-
-.send-mode-switch {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  margin-bottom: 16px;
-  border: 1px solid var(--foreground);
-}
-
-.send-mode-switch button {
-  min-height: 38px;
-  border: 0;
-  padding: 8px 10px;
-  color: var(--foreground);
-  background: var(--background);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.send-mode-switch button + button {
-  border-left: 1px solid var(--foreground);
-}
-
-.send-mode-switch button.active {
-  color: var(--background);
-  background: var(--foreground);
-}
-
-.stored-privacy-note {
-  margin-top: 4px;
-  border-top: 1px dashed var(--soft-border);
-  border-bottom: 1px dashed var(--soft-border);
-  padding: 10px 0;
 }
 
 .stored-share {
@@ -1392,55 +1423,67 @@ a.cli-download-primary:hover {
   color: var(--foreground);
 }
 
-.settings {
-  margin-top: 16px;
+.relay-settings-modal {
+  width: min(1080px, calc(100% - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  margin: auto;
   border: 1px solid var(--soft-border);
+  padding: 0;
+  overflow-y: auto;
+  color: var(--foreground);
   background: var(--background);
 }
 
-.settings summary {
+.relay-settings-modal::backdrop {
+  background: rgb(0 0 0 / 65%);
+}
+
+body:has(.relay-settings-modal[open]) {
+  overflow: hidden;
+}
+
+.relay-settings-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 13px 15px;
-  color: var(--muted);
-  font-size: 11px;
-  cursor: pointer;
-  list-style: none;
-}
-
-.settings summary::-webkit-details-marker {
-  display: none;
-}
-
-.settings summary > span {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.settings summary > span:last-child {
-  color: var(--subtle);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.settings summary svg {
-  width: 14px;
-  height: 14px;
-  color: var(--foreground);
-}
-
-.settings[open] summary {
+  gap: 16px;
   border-bottom: 1px solid var(--soft-border);
+  padding: 16px 20px;
+}
+
+.relay-settings-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.relay-settings-close {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--soft-border);
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.relay-settings-close:hover {
+  background: var(--panel-tint);
+}
+
+.relay-settings-close svg {
+  width: 18px;
+  height: 18px;
 }
 
 .settings-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
-  padding: 16px;
+  margin: 0;
+  padding: 20px;
 }
 
 .settings-grid label > span {
@@ -1631,6 +1674,7 @@ a.cli-download-primary:hover {
 }
 
 .site-footer a,
+.footer-relay-link,
 .footer-theme-toggle,
 .tools-menu summary {
   color: var(--foreground);
@@ -1641,6 +1685,8 @@ a.cli-download-primary:hover {
 
 .site-footer a:hover,
 .site-footer a:focus-visible,
+.footer-relay-link:hover,
+.footer-relay-link:focus-visible,
 .footer-theme-toggle:hover,
 .footer-theme-toggle:focus-visible,
 .tools-menu summary:hover,
@@ -1655,7 +1701,8 @@ a.cli-download-primary:hover {
   flex-wrap: wrap;
 }
 
-.footer-theme-toggle {
+.footer-theme-toggle,
+.footer-relay-link {
   border: 0;
   padding: 0;
   background: none;
@@ -3611,6 +3658,10 @@ a.cli-download-primary:hover {
     padding-bottom: max(24px, env(safe-area-inset-bottom));
   }
 
+  .relay-settings-modal {
+    width: calc(100% - max(10px, env(safe-area-inset-left)) - max(10px, env(safe-area-inset-right)));
+  }
+
   .site-header {
     grid-template-columns: 96px minmax(0, 1fr);
     gap: 12px;
@@ -3661,62 +3712,45 @@ a.cli-download-primary:hover {
     line-height: 1.02;
   }
 
-  .workspace-switch button {
-    min-height: 48px;
+  .task-launcher {
+    padding: 20px;
   }
 
-  .transfer-grid {
-    grid-template-columns: 1fr;
+  .task-launcher-heading {
+    margin-bottom: 20px;
+  }
+
+  .task-launcher-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .task-card {
+    min-height: 96px;
+    grid-template-columns: 22px minmax(0, 1fr) 16px;
+    gap: 14px;
+    padding: 18px 16px;
+  }
+
+  .task-card-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .task-card strong {
+    font-size: 16px;
+  }
+
+  .task-card small {
+    font-size: 11px;
+  }
+
+  .task-navigation {
+    margin-bottom: 8px;
   }
 
   .transfer-links {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .mobile-transfer-switch {
-    position: sticky;
-    z-index: 30;
-    top: 0;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    border-right: 1px solid var(--foreground);
-    border-bottom: 1px solid var(--foreground);
-    background: color-mix(in srgb, var(--background) 96%, transparent);
-    box-shadow: 0 8px 22px color-mix(in srgb, #000 16%, transparent);
-    backdrop-filter: blur(12px);
-  }
-
-  .mobile-transfer-switch button {
-    display: inline-flex;
-    min-height: 52px;
-    gap: 8px;
-    align-items: center;
-    justify-content: center;
-    border: 0;
-    padding: 8px 12px;
-    color: var(--muted);
-    background: transparent;
-    font-size: 13px;
-    font-weight: 750;
-    cursor: pointer;
-  }
-
-  .mobile-transfer-switch button + button {
-    border-left: 1px solid var(--foreground);
-  }
-
-  .mobile-transfer-switch button[aria-selected="true"] {
-    color: var(--background);
-    background: var(--foreground);
-  }
-
-  .mobile-transfer-switch svg {
-    width: 17px;
-    height: 17px;
-  }
-
-  .transfer-grid:not(.receive-only) .panel:not(.mobile-active) {
-    display: none;
   }
 
   .panel {
@@ -3803,6 +3837,10 @@ a.cli-download-primary:hover {
     font-size: 16px;
   }
 
+  .stored-expiration-control select {
+    font-size: 16px;
+  }
+
   textarea {
     min-height: 160px;
     font-size: 16px;
@@ -3848,11 +3886,6 @@ a.cli-download-primary:hover {
     line-height: 1.6;
   }
 
-  .send-mode-switch button {
-    min-height: 48px;
-    font-size: 12px;
-  }
-
   .primary-button,
   .secondary-button {
     min-height: 48px;
@@ -3876,10 +3909,6 @@ a.cli-download-primary:hover {
   .completed-files,
   .progress-block {
     font-size: 11px;
-  }
-
-  .settings summary {
-    min-height: 48px;
   }
 
   .settings-grid input {
@@ -3910,6 +3939,7 @@ a.cli-download-primary:hover {
 
   .other-releases,
   .site-footer a,
+  .footer-relay-link,
   .footer-theme-toggle,
   .tools-menu summary {
     display: inline-flex;

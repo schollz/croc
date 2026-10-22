@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useWorkspaceMode, WorkspaceSwitch } from "./App";
+import { TaskLauncher, TaskNavigation, useTaskNavigation } from "./TaskLauncher";
 import SSHPanel from "./SSHPanel";
 import type { SSHJoinCallbacks } from "./protocol/ssh";
 
@@ -91,14 +91,16 @@ afterEach(() => {
 });
 
 function Harness() {
-  const [mode, setMode, initialCode] = useWorkspaceMode();
   const [active, setActive] = useState(false);
+  const [task, navigate, initialCode] = useTaskNavigation({ locked: active });
   return (
     <>
-      <WorkspaceSwitch mode={mode} disabled={active} onChange={setMode} />
-      {mode === "files" ? (
-        <div>File transfer workspace</div>
+      {task === "home" ? (
+        <TaskLauncher storeEnabled onSelect={navigate} />
       ) : (
+        <TaskNavigation task={task} disabled={active} onBack={() => navigate("home")} />
+      )}
+      {task === "ssh" && (
         <SSHPanel
           key={initialCode}
           initialCode={initialCode}
@@ -169,15 +171,15 @@ describe("SSH homepage mode", () => {
     expect(
       screen.getByRole("button", { name: "Show SSH invitation" }),
     ).toBeDisabled();
-    expect(screen.getByRole("tab", { name: "Files" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "All tasks" })).toBeDisabled();
   });
 
   it("switches from files and suppresses local input for read-only access", async () => {
     const track = vi.fn();
     window.umami = { track };
     render(<Harness />);
-    expect(screen.getByText("File transfer workspace")).toBeVisible();
-    fireEvent.click(screen.getByRole("tab", { name: "SSH" }));
+    expect(screen.getByText("What would you like to do?")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Join SSH" }));
     expect(window.location.hash).toBe("#ssh");
     expect(await screen.findByText("Join a shared terminal")).toBeVisible();
 
@@ -189,7 +191,7 @@ describe("SSH homepage mode", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Join terminal" }));
     expect(mocks.joinCode).toBe("acid-acorn-acre-acts-ahead-alien");
-    expect(screen.getByRole("tab", { name: "Files" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "All tasks" })).toBeDisabled();
 
     act(() => {
       mocks.callbacks?.onRole?.("read-only");
@@ -209,15 +211,12 @@ describe("SSH homepage mode", () => {
     render(<Harness />);
 
     expect(screen.getByText("Join a shared terminal")).toBeVisible();
-    expect(screen.getByRole("tab", { name: "SSH" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    expect(screen.getByRole("navigation", { name: "Current task" })).toHaveTextContent("Join SSH");
 
-    fireEvent.click(screen.getByRole("tab", { name: "Files" }));
+    fireEvent.click(screen.getByRole("button", { name: "All tasks" }));
 
     expect(window.location.hash).toBe("");
-    expect(screen.getByText("File transfer workspace")).toBeVisible();
+    expect(screen.getByText("What would you like to do?")).toBeVisible();
   });
 
   it("auto-joins invitation links and removes the secret from the address bar", async () => {
@@ -230,7 +229,7 @@ describe("SSH homepage mode", () => {
 
     await waitFor(() => {
       expect(mocks.joinCode).toBe("acid-acorn-acre-acts-ahead-alien");
-      expect(screen.getByRole("tab", { name: "Files" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "All tasks" })).toBeDisabled();
     });
     expect(window.location.hash).toBe("#ssh");
   });
@@ -245,5 +244,18 @@ describe("SSH homepage mode", () => {
     });
 
     expect(screen.getByText("Join a shared terminal")).toBeVisible();
+  });
+
+  it("auto-joins invitation links followed from another task", async () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "Send live" }));
+    act(() => {
+      window.history.replaceState({}, "", "/#ssh?code=acid-acorn-acre-acts-ahead-alien");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    await waitFor(() => expect(mocks.joinCode).toBe("acid-acorn-acre-acts-ahead-alien"));
+    expect(window.location.hash).toBe("#ssh");
+    expect(screen.getByRole("button", { name: "All tasks" })).toBeDisabled();
   });
 });
