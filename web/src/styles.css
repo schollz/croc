@@ -405,7 +405,6 @@ h1 {
 .ssh-code-input button {
   display: grid;
   width: 42px;
-  height: 42px;
   place-items: center;
   border: 1px solid var(--subtle);
   padding: 0;

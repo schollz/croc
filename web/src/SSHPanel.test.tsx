@@ -7,7 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useWorkspaceMode, WorkspaceSwitch } from "./App";
 import SSHPanel from "./SSHPanel";
 import type { SSHJoinCallbacks } from "./protocol/ssh";
@@ -68,9 +68,26 @@ vi.mock("./protocol/ssh", () => ({
   },
 }));
 
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.callbacks = undefined;
+  mocks.onData = undefined;
+  mocks.options = undefined;
+  mocks.joinCode = undefined;
+  window.history.replaceState({}, "", "/");
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+});
+
 afterEach(() => {
   cleanup();
   delete window.umami;
+  vi.unstubAllGlobals();
 });
 
 function Harness() {
@@ -100,15 +117,62 @@ function Harness() {
 }
 
 describe("SSH homepage mode", () => {
+  it("allows manual invitation edits while hiding and revealing the code", () => {
+    window.history.replaceState({}, "", "/#ssh");
+    render(<Harness />);
+
+    const input = screen.getByLabelText("SSH invitation");
+    const join = screen.getByRole("button", { name: "Join terminal" });
+    expect(input).toBeEnabled();
+    expect(input).not.toHaveAttribute("readonly");
+    expect(input).toHaveAttribute("type", "password");
+    expect(join).toBeDisabled();
+
+    fireEvent.change(input, { target: { value: "   " } });
+    expect(join).toBeDisabled();
+    fireEvent.click(join);
+    expect(mocks.joinCode).toBeUndefined();
+
+    const invitation = "acid-acorn-acre-acts-ahead-alien";
+    fireEvent.change(input, { target: { value: `${invitation}-typo` } });
+    expect(join).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Show SSH invitation" }));
+    expect(input).toHaveAttribute("type", "text");
+    expect(input).toHaveValue(`${invitation}-typo`);
+
+    fireEvent.change(input, { target: { value: invitation } });
+    fireEvent.click(screen.getByRole("button", { name: "Hide SSH invitation" }));
+    expect(input).toHaveAttribute("type", "password");
+    expect(input).toHaveValue(invitation);
+    expect(mocks.joinCode).toBeUndefined();
+
+    fireEvent.change(input, { target: { value: "" } });
+    expect(input).toHaveValue("");
+    expect(join).toBeDisabled();
+  });
+
+  it("joins with the current trimmed invitation and disables edits while connecting", () => {
+    window.history.replaceState({}, "", "/#ssh");
+    render(<Harness />);
+
+    const input = screen.getByLabelText("SSH invitation");
+    const join = screen.getByRole("button", { name: "Join terminal" });
+    const invitation = "acid-acorn-acre-acts-ahead-alien";
+    fireEvent.change(input, { target: { value: `${invitation}-typo` } });
+    fireEvent.change(input, { target: { value: `  ${invitation}  ` } });
+    expect(input).toHaveValue(`  ${invitation}  `);
+    fireEvent.click(join);
+
+    expect(mocks.joinCode).toBe(invitation);
+    expect(input).toBeDisabled();
+    expect(join).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Show SSH invitation" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("tab", { name: "Files" })).toBeDisabled();
+  });
+
   it("switches from files and suppresses local input for read-only access", async () => {
-    window.history.replaceState({}, "", "/");
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        observe() {}
-        disconnect() {}
-      },
-    );
     const track = vi.fn();
     window.umami = { track };
     render(<Harness />);
@@ -120,7 +184,11 @@ describe("SSH homepage mode", () => {
     fireEvent.paste(screen.getByLabelText("SSH invitation"), {
       clipboardData: { getData: () => "acid-acorn-acre-acts-ahead-alien" },
     });
+    expect(screen.getByLabelText("SSH invitation")).toHaveValue(
+      "acid-acorn-acre-acts-ahead-alien",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Join terminal" }));
+    expect(mocks.joinCode).toBe("acid-acorn-acre-acts-ahead-alien");
     expect(screen.getByRole("tab", { name: "Files" })).toBeDisabled();
 
     act(() => {

@@ -1211,56 +1211,71 @@ test("CLI stored upload → Web download verifies and consumes files", async ({
   }
 });
 
-test("CLI SSH host → Web terminal runs an interactive command", async ({
-  page,
-}, testInfo) => {
-  const configDirectory = testInfo.outputPath("ssh-host-config");
-  await fs.mkdir(configDirectory, { recursive: true });
-  const host = runCroc(
-    [
-      "--relay",
-      relayAddress,
-      "--pass",
-      relayPassword,
-      "--disable-clipboard",
-      "ssh",
-      "--headless",
-      "--duration",
-      "2m",
-    ],
-    "",
-    configDirectory,
-  );
-  try {
-    await expect.poll(() => host.output(), { timeout: transferTimeout }).toContain(
-      "Shared SSH terminal is ready",
+for (const entry of ["invitation link", "typed invitation"] as const) {
+  test(`CLI SSH host → Web terminal runs an interactive command via ${entry}`, async ({
+    page,
+  }, testInfo) => {
+    const configDirectory = testInfo.outputPath("ssh-host-config");
+    await fs.mkdir(configDirectory, { recursive: true });
+    const host = runCroc(
+      [
+        "--relay",
+        relayAddress,
+        "--pass",
+        relayPassword,
+        "--disable-clipboard",
+        "ssh",
+        "--headless",
+        "--duration",
+        "2m",
+      ],
+      "",
+      configDirectory,
     );
-    const browserURL = host
-      .output()
-      .match(/Browser read\/write:\s+(https:\/\/\S+)/)?.[1];
-    expect(browserURL, host.output()).toBeTruthy();
+    try {
+      await expect.poll(() => host.output(), { timeout: transferTimeout }).toContain(
+        "Shared SSH terminal is ready",
+      );
+      const browserURL = host
+        .output()
+        .match(/Browser read\/write:\s+(https:\/\/\S+)/)?.[1];
+      expect(browserURL, host.output()).toBeTruthy();
 
-    await configurePage(page);
-    const localBrowserURL = new URL(browserURL!);
-    const configuredURL = new URL(page.url());
-    localBrowserURL.protocol = configuredURL.protocol;
-    localBrowserURL.host = configuredURL.host;
-    await page.goto(localBrowserURL.href);
-    const panel = page.locator(".ssh-panel");
-    await expect(panel).toContainText("Connected with read-write access", {
-      timeout: transferTimeout,
-    });
+      await configurePage(page);
+      const localBrowserURL = new URL(browserURL!);
+      if (entry === "invitation link") {
+        const configuredURL = new URL(page.url());
+        localBrowserURL.protocol = configuredURL.protocol;
+        localBrowserURL.host = configuredURL.host;
+        await page.goto(localBrowserURL.href);
+      } else {
+        const invitation = new URLSearchParams(
+          localBrowserURL.hash.split("?", 2)[1],
+        ).get("code");
+        expect(invitation).toBeTruthy();
+        await page.getByRole("tab", { name: "SSH", exact: true }).click();
+        const input = page.getByLabel("SSH invitation", { exact: true });
+        await expect(input).toBeEditable();
+        await input.pressSequentially(invitation!);
+        await expect(input).toHaveValue(invitation!);
+        await input.press("Enter");
+      }
+      const panel = page.locator(".ssh-panel");
+      await expect(panel).toContainText("Connected with read-write access", {
+        timeout: transferTimeout,
+      });
 
-    await panel.locator(".xterm-helper-textarea").focus();
-    await page.keyboard.type("printf 'CROC_BROWSER_%s\\n' 'SSH_OK'");
-    await page.keyboard.press("Enter");
-    await expect(panel.locator(".xterm-rows")).toContainText(
-      "CROC_BROWSER_SSH_OK",
-      { timeout: transferTimeout },
-    );
-    await panel.getByRole("button", { name: "Disconnect" }).click();
-  } finally {
-    host.stop();
-    await host.done.catch(() => undefined);
-  }
-});
+      await panel.locator(".xterm-helper-textarea").focus();
+      await page.keyboard.type("printf 'CROC_BROWSER_%s\\n' 'SSH_OK'");
+      await page.keyboard.press("Enter");
+      await expect(panel.locator(".xterm-rows")).toContainText(
+        "CROC_BROWSER_SSH_OK",
+        { timeout: transferTimeout },
+      );
+      await panel.getByRole("button", { name: "Disconnect" }).click();
+    } finally {
+      host.stop();
+      await host.done.catch(() => undefined);
+    }
+  });
+}
