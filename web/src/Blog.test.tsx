@@ -59,7 +59,7 @@ describe("Blog", () => {
     expect(
       screen.getByRole("heading", { name: "Share a terminal with croc ssh" }),
     ).toBeVisible();
-    expect(screen.getByText("FIELD NOTE 11")).toBeVisible();
+    expect(document.querySelector(".article-byline time")).toBeVisible();
     expect(screen.getByRole("heading", { name: "The tmate-shaped hole" })).toBeVisible();
     expect(
       screen.getByRole("heading", { name: "The browser can play, too" }),
@@ -91,7 +91,7 @@ describe("Blog", () => {
         name: "How fast is croc?",
       }),
     ).toBeVisible();
-    expect(screen.getByText("FIELD NOTE 10")).toBeVisible();
+    expect(document.querySelector(".article-byline time")).toBeVisible();
     expect(
       screen.getByText(/the alternatives took 1\.3× to 21\.7× as long/),
     ).toBeVisible();
@@ -166,7 +166,7 @@ describe("Blog", () => {
     expect(
       screen.getByRole("heading", { name: "From croc v10 to v11" }),
     ).toBeVisible();
-    expect(screen.getByText("UPDATE 01")).toBeVisible();
+    expect(document.querySelector(".article-byline time")).toBeVisible();
     expect(
       screen.getByRole("navigation", { name: "In this update" }),
     ).toBeVisible();
@@ -192,7 +192,7 @@ describe("Blog", () => {
     expect(
       screen.getByRole("heading", { name: "croc v11.3 goes peer-to-peer" }),
     ).toBeVisible();
-    expect(screen.getByText("UPDATE 02")).toBeVisible();
+    expect(document.querySelector(".article-byline time")).toBeVisible();
     expect(
       screen.getByRole("heading", {
         name: "A server can make the introduction without carrying the file",

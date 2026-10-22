@@ -4,7 +4,7 @@ import {
   measureRelayLatency,
 } from "./protocol/client";
 import type { TransferSettings } from "./protocol/types";
-import { wasm } from "./wasm/client";
+import { protocolEngine } from "./protocol/engine";
 
 export const relayProbeTimeoutMs = 5_000;
 export const bestRelayCookieName = "croc-best-relay";
@@ -219,7 +219,7 @@ export async function generateCodeForRelay(
   relayCount: number,
   generator: () => string = generateCode,
   indexer: (code: string, count: number) => Promise<number> = (code, count) =>
-    wasm().relayIndex(code, count),
+    protocolEngine().relayIndex(code, count),
 ) {
   if (!Number.isSafeInteger(relayCount) || relayCount < 1) {
     throw new Error("Relay count must be positive");

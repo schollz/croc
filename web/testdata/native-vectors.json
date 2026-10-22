@@ -1,0 +1,154 @@
+[
+  {
+    "request": {
+      "Method": "derive",
+      "Password": "cGFzc3BocmFzZQ==",
+      "Salt": "AAECAwQFBgc="
+    },
+    "expected": "veeXnxVNGwyqn1YvbCGqYacVUE3AY/mBY8DPIiZi7bM="
+  },
+  {
+    "request": {
+      "Method": "peer",
+      "Key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+      "Salt": "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=",
+      "Purpose": "peer-transfer",
+      "Room": "room-123",
+      "Curve": "p256",
+      "Initiator": "ZXhhY3QgaW5pdGlhdG9yIHdpcmU=",
+      "Responder": "ZXhhY3QgcmVzcG9uZGVyIHdpcmU="
+    },
+    "expected": {
+      "confirmationA": "y4XBipdBB0WATDl+0HjvmkHC3LZ3I6wuZVS7/Ephpos=",
+      "confirmationB": "6pR5fFwUUh6a+H3EC9E8MxXaKqhGG2HAL5P/FVu6iA8=",
+      "key": "ohNDTbwJW9i2QucCKVVU+m2YNp3JhZssTG36BCJnBCE="
+    }
+  },
+  {
+    "request": {
+      "Method": "seal",
+      "Key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+      "Salt": "AAECAwQFBgcICQoL",
+      "Bytes": "bXVsdGlsaW5lClVuaWNvZGUg8J+Qig=="
+    },
+    "expected": "AAECAwQFBgcICQoLKne6b6yJq3XoS8Ll2IoXCeb2d6tg8XcjtY++236F5GG5yf38IDg="
+  },
+  {
+    "request": {
+      "Method": "hashPattern",
+      "Count": 0
+    },
+    "expected": "70bbN1HY6Zk="
+  },
+  {
+    "request": {
+      "Method": "hashPattern",
+      "Count": 1
+    },
+    "expected": "6TSoStsFJ2g="
+  },
+  {
+    "request": {
+      "Method": "hashPattern",
+      "Count": 31
+    },
+    "expected": "xtRgGrZFxc8="
+  },
+  {
+    "request": {
+      "Method": "hashPattern",
+      "Count": 32
+    },
+    "expected": "yeN29ahFoX4="
+  },
+  {
+    "request": {
+      "Method": "hashPattern",
+      "Count": 33
+    },
+    "expected": "V6/CNVr/eqU="
+  },
+  {
+    "request": {
+      "Method": "hashPattern",
+      "Count": 32768
+    },
+    "expected": "5e6ngvh4Nhg="
+  },
+  {
+    "request": {
+      "Method": "code",
+      "Code": "1234-abcd"
+    },
+    "expected": {
+      "format": "legacy",
+      "passphrase": "abcd",
+      "room": "12e3e4f3c9d8f5a97d5640ce24721652c4e909ab279618778aad54980f935cf9"
+    }
+  },
+  {
+    "request": {
+      "Method": "relay",
+      "Code": "1234-abcd",
+      "Count": 7
+    },
+    "expected": 2
+  },
+  {
+    "request": {
+      "Method": "code",
+      "Code": "abc-def-ghi"
+    },
+    "expected": {
+      "format": "three-word",
+      "passphrase": "def-ghi",
+      "room": "aeb08bd382d1018e9369dcda6e10630fa1766be6c196ae02e2b52e21a40bef82"
+    }
+  },
+  {
+    "request": {
+      "Method": "relay",
+      "Code": "abc-def-ghi",
+      "Count": 7
+    },
+    "expected": 5
+  },
+  {
+    "request": {
+      "Method": "code",
+      "Code": "alpha-beta-gamma-delta"
+    },
+    "expected": {
+      "format": "four-word",
+      "passphrase": "gamma-delta",
+      "room": "ce78ad9e5653f41b894231c00c72928bf7b9d5b208cf4c0739526236e60519ee"
+    }
+  },
+  {
+    "request": {
+      "Method": "relay",
+      "Code": "alpha-beta-gamma-delta",
+      "Count": 7
+    },
+    "expected": 4
+  },
+  {
+    "request": {
+      "Method": "code",
+      "Code": "yo-yo-yo-yo-yo-yo"
+    },
+    "expected": {
+      "format": "three-word",
+      "passphrase": "yo-yo-yo-yo",
+      "room": "f8fbf63e42e2aaebb9962a27896c7c9fcd5ad3c3d3457bbc23a60e5cf4384266"
+    }
+  },
+  {
+    "request": {
+      "Method": "relay",
+      "Code": "yo-yo-yo-yo-yo-yo",
+      "Count": 7
+    },
+    "expected": 1
+  }
+]

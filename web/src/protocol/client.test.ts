@@ -1,17 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const wasmMocks = vi.hoisted(() => ({
+const engineMocks = vi.hoisted(() => ({
   decrypt: vi.fn(),
   decompress: vi.fn(),
   compress: vi.fn(async (input: Uint8Array) => input),
 }));
 
-// Keep receiver tests off the (jsdom-less) Worker path.
-vi.mock("../wasm/client", () => ({
-  wasm: () => wasmMocks,
+vi.mock("./compression", () => ({
+  checkProtocolCapabilities: () => undefined,
 }));
 
-import { DataReceiver, prepareFiles, prepareText } from "./client";
+// Keep receiver tests off the (jsdom-less) Worker path.
+vi.mock("./engine", () => ({
+  protocolEngine: () => engineMocks,
+}));
+
+import {
+  DataReceiver,
+  prepareFiles,
+  prepareText,
+  requirePakeVersion,
+} from "./client";
 import type { CrocSocket } from "./transport";
 import type { OfferedFile, ReceiveSink } from "./types";
 
@@ -46,8 +55,8 @@ const sink = {
 } satisfies ReceiveSink;
 
 beforeEach(() => {
-  wasmMocks.decrypt.mockReset().mockRejectedValue(new Error("unused"));
-  wasmMocks.decompress.mockReset().mockRejectedValue(new Error("unused"));
+  engineMocks.decrypt.mockReset().mockRejectedValue(new Error("unused"));
+  engineMocks.decompress.mockReset().mockRejectedValue(new Error("unused"));
 });
 
 describe("DataReceiver failure handling", () => {
@@ -88,8 +97,8 @@ describe("DataReceiver failure handling", () => {
     const compressed = new Uint8Array([2]);
     const chunk = new Uint8Array(12);
     chunk.set([1, 2, 3, 4], 8);
-    wasmMocks.decrypt.mockResolvedValueOnce(compressed);
-    wasmMocks.decompress.mockResolvedValueOnce(chunk);
+    engineMocks.decrypt.mockResolvedValueOnce(compressed);
+    engineMocks.decompress.mockResolvedValueOnce(chunk);
 
     const socket = {
       receive: vi
@@ -101,7 +110,7 @@ describe("DataReceiver failure handling", () => {
 
     await receiver.receive(file, sink, () => {});
 
-    expect(wasmMocks.decompress).toHaveBeenCalledWith(
+    expect(engineMocks.decompress).toHaveBeenCalledWith(
       compressed,
       32 * 1024 + 8,
     );
@@ -154,5 +163,13 @@ describe("outgoing file preparation", () => {
     await expect(prepareText("x".repeat(1024 * 1024 + 1))).rejects.toThrow(
       /1 MiB/i,
     );
+  });
+});
+
+describe("peer protocol version", () => {
+  it("rejects missing, incompatible and future versions before accepting metadata", () => {
+    for (const version of [undefined, 0, 1, 3, NaN])
+      expect(() => requirePakeVersion(version)).toThrow();
+    expect(() => requirePakeVersion(2)).not.toThrow();
   });
 });

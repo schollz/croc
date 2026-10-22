@@ -1,3 +1,4 @@
+import { disableWasm } from "./no-wasm";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { promises as fs } from "node:fs";
@@ -20,6 +21,7 @@ const wasmPath =
   /\/(?:croc(?:-ssh)?\.wasm|croc(?:-ssh)?-worker\.js|wasm_exec\.js)$/;
 
 async function isolate(context: BrowserContext) {
+  const verifyNative = await disableWasm(context);
   const wasm: string[] = [],
     tracking: string[] = [],
     claims: string[] = [];
@@ -41,9 +43,9 @@ async function isolate(context: BrowserContext) {
         body: "{}",
       });
     }
-    return route.continue();
+    return route.fallback();
   });
-  return { wasm, tracking, claims };
+  return { wasm, tracking, claims, verifyNative };
 }
 
 async function fixtures(info: TestInfo, large = true) {
@@ -184,6 +186,7 @@ test("native browser Store → browser and CLI, with WASM blocked", async ({
       incoming = await receiver.newPage();
     await incoming.goto(url);
     await receive(incoming, files.contents);
+    await receivedRequests.verifyNative();
     expect(receivedRequests.wasm).toEqual([]);
     expect(receivedRequests.tracking).toEqual([]);
     expect(await remaining(page, url)).toBe(1);
@@ -193,6 +196,7 @@ test("native browser Store → browser and CLI, with WASM blocked", async ({
     for (const [name, expected] of files.contents)
       expect(await fs.readFile(join(destination, name))).toEqual(expected);
     expect(await remaining(page, url)).toBe(0);
+    await requests.verifyNative();
     expect(requests.wasm).toEqual([]);
   } finally {
     await receiver.close();
@@ -210,6 +214,7 @@ test("native CLI Store → browser with WASM blocked", async ({
   await page.goto(url);
   await receive(page, files.contents);
   expect(await remaining(page, url)).toBe(0);
+  await requests.verifyNative();
   expect(requests.wasm).toEqual([]);
 });
 
@@ -274,6 +279,7 @@ test("cold preview is simple and fast; refresh, leaving, and cancellation spend 
   await expect(accept).toHaveCount(0);
   expect(await remaining(page, url)).toBe(1);
   expect(requests.claims).toEqual([]);
+  await requests.verifyNative();
   expect(requests.wasm).toEqual([]);
   expect(requests.tracking).toEqual([]);
 });
@@ -352,5 +358,6 @@ for (const corruption of ["chunk", "hash"])
       false,
     );
     expect(await remaining(page, url)).toBe(1);
+    await requests.verifyNative();
     expect(requests.wasm).toEqual([]);
   });

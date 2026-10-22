@@ -6,7 +6,7 @@ import type {
   TransferOffer,
 } from "./types";
 import { maxTextTransferBytes } from "./types";
-import { wasm } from "../wasm/client";
+import { protocolEngine } from "./engine";
 import { hashSHA256Blob, SHA256Hasher } from "./sha256";
 
 declare global {
@@ -29,18 +29,24 @@ async function hashBlob(
   signal?: AbortSignal,
 ) {
   if (algorithm === "sha256") return hashSHA256Blob(blob, signal);
-  const engine = wasm();
-  const handle = await engine.hashInit();
+  const engine = protocolEngine();
+  const handle = await engine.hashInit(signal);
   const reader = blob.stream().getReader();
   try {
     for (;;) {
+      if (signal?.aborted)
+        throw new DOMException("Transfer cancelled", "AbortError");
       const { done, value } = await reader.read();
+      if (signal?.aborted)
+        throw new DOMException("Transfer cancelled", "AbortError");
       if (done) break;
       await engine.hashUpdate(handle, value);
     }
     return await engine.hashFinal(handle);
   } finally {
+    await reader.cancel().catch(() => undefined);
     reader.releaseLock();
+    await engine.hashRelease(handle).catch(() => undefined);
   }
 }
 
@@ -230,10 +236,16 @@ class TextSink implements ReceiveSink {
         hasher.dispose();
       }
     }
-    const engine = wasm();
-    const handle = await engine.hashInit();
-    await engine.hashUpdate(handle, this.bytes);
-    return engine.hashFinal(handle);
+    const engine = protocolEngine();
+    const handle = await engine.hashInit(signal);
+    try {
+      if (signal?.aborted)
+        throw new DOMException("Transfer cancelled", "AbortError");
+      await engine.hashUpdate(handle, this.bytes);
+      return await engine.hashFinal(handle);
+    } finally {
+      await engine.hashRelease(handle).catch(() => undefined);
+    }
   }
 
   async commit() {
@@ -592,8 +604,14 @@ export async function chooseStoredReceiveDestination(offer: TransferOffer) {
   return blobDownloadDestination(offer);
 }
 
-export async function verifySink(sink: ReceiveSink, expected: Uint8Array) {
-  const actual = await sink.hash();
+export async function verifySink(
+  sink: ReceiveSink,
+  expected: Uint8Array,
+  signal?: AbortSignal,
+) {
+  const actual = await sink.hash("xxhash", signal);
+  if (signal?.aborted)
+    throw new DOMException("Transfer cancelled", "AbortError");
   if (!bytesEqual(actual, expected)) {
     throw new Error(
       `The sender advertised xxhash ${hex(expected)}, but the received file hashes to ${hex(actual)}`,

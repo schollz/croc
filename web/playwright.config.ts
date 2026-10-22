@@ -48,13 +48,15 @@ export default defineConfig({
   projects: [
     { name: "chromium", use: { browserName: "chromium" } },
     {
-      name: "firefox-store",
-      testMatch: "stored-native.spec.ts",
+      name: "firefox",
+      grepInvert:
+        /CLI SSH host|publishes rich metadata|CLI stored upload → Web download/,
       use: { browserName: "firefox" },
     },
     {
-      name: "webkit-store",
-      testMatch: "stored-native.spec.ts",
+      name: "webkit",
+      grepInvert:
+        /CLI SSH host|publishes rich metadata|CLI stored upload → Web download/,
       use: {
         browserName: "webkit",
         viewport: { width: 390, height: 844 },

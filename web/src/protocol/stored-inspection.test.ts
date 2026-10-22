@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fixture from "../../../src/storecrypto/testdata/browser-v1.json";
 import { inspectStoredTransfer, manifestTimeoutMs } from "./stored";
 
-vi.mock("../wasm/client", () => ({
-  wasm: () => {
-    throw new Error("Store must not use WASM");
+vi.mock("./engine", () => ({
+  protocolEngine: () => {
+    throw new Error("Store must not start the direct protocol engine");
   },
 }));
 const ciphertext = Uint8Array.from(

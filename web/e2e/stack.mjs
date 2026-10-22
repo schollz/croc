@@ -128,6 +128,9 @@ start("relay", crocBinaryPath, [
   "--pass",
   "pass123",
   "relay",
+  // The full browser matrix repeatedly joins the same fixtures from localhost.
+  "--source-join-limit", "10000",
+  "--room-join-limit", "10000",
   "--host",
   "127.0.0.1",
   "--ports",
