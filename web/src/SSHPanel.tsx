@@ -249,11 +249,13 @@ export default function SSHPanel({
                   type={showCode ? "text" : "password"}
                   name="croc-ssh-invitation"
                   autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
                   spellCheck={false}
-                  readOnly
                   value={code}
                   disabled={busy}
                   placeholder="six-word-invitation"
+                  onChange={(event) => setCode(event.target.value)}
                   onPaste={(event) => {
                     event.preventDefault();
                     setCode(event.clipboardData.getData("text"));
