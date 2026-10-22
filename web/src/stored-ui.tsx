@@ -64,47 +64,6 @@ export function formatStoredExpiration(
   return `${value} ${value === 1 ? singular : unit}`;
 }
 
-type StoredModeSwitchProps = {
-  mode: SendMode;
-  disabled: boolean;
-  durationLabel: string;
-  onChange(mode: SendMode): void;
-};
-
-export function StoredModeSwitch({
-  mode,
-  disabled,
-  durationLabel,
-  onChange,
-}: StoredModeSwitchProps) {
-  return (
-    <div
-      className="send-mode-switch"
-      role="group"
-      aria-label="Send mode"
-    >
-      <button
-        type="button"
-        className={mode === "direct" ? "active" : ""}
-        aria-pressed={mode === "direct"}
-        disabled={disabled}
-        onClick={() => onChange("direct")}
-      >
-        Direct
-      </button>
-      <button
-        type="button"
-        className={mode === "stored" ? "active" : ""}
-        aria-pressed={mode === "stored"}
-        disabled={disabled}
-        onClick={() => onChange("stored")}
-      >
-        Store for {durationLabel}
-      </button>
-    </div>
-  );
-}
-
 type StoredExpirationControlProps = {
   value: number;
   unit: StoredExpirationUnit;

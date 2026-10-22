@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
   formatStoredExpiration,
   StoredExpirationControl,
-  StoredModeSwitch,
   StoredShareCard,
   storedExpirationParts,
   storedExpirationSeconds,
@@ -100,17 +99,4 @@ describe("stored expiration controls", () => {
     expect(storedExpirationValueLimit("days", 90 * 60)).toBe(0);
   });
 
-  it("uses the selected duration in stored-mode copy", () => {
-    render(
-      <StoredModeSwitch
-        mode="stored"
-        disabled={false}
-        durationLabel="3 days"
-        onChange={vi.fn()}
-      />,
-    );
-    expect(
-      screen.getByRole("button", { name: "Store for 3 days" }),
-    ).toBeVisible();
-  });
 });
