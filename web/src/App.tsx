@@ -7,28 +7,21 @@ import {
   useRef,
   useState,
 } from "react";
-import { flushSync } from "react-dom";
 import {
   AlertTriangle,
   ArrowRight,
-  BookOpenText,
   Check,
-  CircleHelp,
   Copy,
   Download,
   File as FileIcon,
   Heart,
   MessageSquareText,
-  Moon,
   Settings2,
   SquareTerminal,
-  Sun,
   Upload,
   X,
 } from "lucide-react";
-import { FaGithub } from "react-icons/fa";
 import crocIllustration from "./assets/croc.jpg?inline";
-import { driver, type DriveStep, type Driver } from "driver.js";
 import {
   trackTransferEvent,
   transferEvents,
@@ -192,7 +185,6 @@ export function WorkspaceSwitch({
       <button
         type="button"
         role="tab"
-        data-tour="files"
         aria-selected={mode === "files"}
         disabled={disabled}
         onClick={() => onChange("files")}
@@ -202,7 +194,6 @@ export function WorkspaceSwitch({
       <button
         type="button"
         role="tab"
-        data-tour="ssh"
         aria-selected={mode === "ssh"}
         disabled={disabled}
         onClick={() => onChange("ssh")}
@@ -634,7 +625,6 @@ function CliDownload() {
       id="cli-download"
       className="cli-download"
       aria-labelledby="cli-download-title"
-      data-tour="cli"
     >
       <div>
         <p className="eyebrow">croc CLI</p>
@@ -702,7 +692,6 @@ function BlogTeaser() {
     <section
       className="home-blog-teaser"
       aria-labelledby="home-blog-title"
-      data-tour="blog"
     >
       <div className="home-blog-heading">
         <div>
@@ -854,7 +843,6 @@ export function App() {
   const directLinkCopyReset = useRef<number>(undefined);
   const receivedTextCopyReset = useRef<number>(undefined);
   const receiveOfferKind = useRef<TransferOffer["kind"]>("files");
-  const tour = useRef<Driver>(undefined);
 
   const totalSelectedSize = useMemo(
     () => selectedFiles.reduce((total, file) => total + file.size, 0),
@@ -931,7 +919,6 @@ export function App() {
         window.clearTimeout(directLinkCopyReset.current);
       if (receivedTextCopyReset.current !== undefined)
         window.clearTimeout(receivedTextCopyReset.current);
-      tour.current?.destroy();
       sendAbort.current?.abort();
       receiveAbort.current?.abort();
       fileHashes.clear();
@@ -1363,183 +1350,6 @@ export function App() {
     }
   }
 
-  function startTour() {
-    tour.current?.destroy();
-    const sshTour = !receiveOnly && workspaceMode === "ssh";
-
-    const steps: DriveStep[] = [
-      {
-        popover: {
-          title: "Welcome to croc web",
-          description: receiveOnly
-            ? requestedStoredURL
-              ? "This encrypted stored link is opening its manifest. Review the incoming files, then choose where to save them before claiming an allowed download."
-              : "This receive link already filled its croc code and started connecting. You only need to review the incoming files and choose where to save them."
-            : sshTour
-              ? "Join a shared croc terminal from your browser. This tour explains invitations, access, and how to return to file transfers."
-              : "Use Files to send and receive with a croc browser or command-line peer, or SSH to join a shared terminal. This tour walks through the controls on this page.",
-        },
-      },
-    ];
-
-    if (!receiveOnly && !sshTour) {
-      steps.push({
-        element: '[data-tour="send"]',
-        popover: {
-          title: "Send one or several files",
-          description:
-            (storeEnabled ? "Choose Direct for a live transfer. " : "") +
-            "Choose files or drag them here, then press Send file. Share the croc code, browser link, or QR code with your receiver. Keep this page open until the transfer finishes; both peers need to be online. Use Send text instead for a short message or URL.",
-          side: "right",
-          align: "start",
-        },
-      });
-
-      if (storeEnabled) {
-        steps.push({
-          element: '[data-tour="store"]',
-          popover: {
-            title: "Store now, download later",
-            description:
-              "Choose Store to upload encrypted files so the receiver can download later, even after you close this page. Set the expiration and verified-download allowance, then press Store file and wait for the upload to finish. Share the browser link, QR code, or CLI token. Files are deleted when the time or download allowance runs out, whichever comes first; Revoke now removes them sooner. Store accepts files; text uses Direct.",
-            side: "right",
-            align: "start",
-          },
-        });
-      }
-    }
-
-    if (!sshTour) {
-      steps.push(
-        {
-          element: '[data-tour="receive"]',
-          popover: {
-            title: "Receive and review",
-            description: receiveOnly
-              ? "Review the incoming files, then select Download files to save them. For text transfers, select Display text to receive and verify the message."
-              : "Paste the sender’s croc code, encrypted browser link, or CLI token. Review incoming files or text, then select Download files to save them or Display text to view the message.",
-            side: receiveOnly ? "top" : "left",
-            align: "start",
-          },
-        },
-        {
-          element: ".transfer-grid",
-          popover: {
-            title: "The code or link provides the key",
-            description:
-              "Direct transfers use password-authenticated key exchange (PAKE) so both peers derive a strong shared key from the croc code. Stored links carry a separate random key after #, which is not sent to the server. File metadata and chunks are encrypted before leaving the browser.",
-            side: "bottom",
-            align: "start",
-          },
-        },
-      );
-    }
-
-    if (!receiveOnly) {
-      steps.push({
-        element: sshTour ? ".ssh-workspace" : '[data-tour="ssh"]',
-        popover: {
-          title: "SSH: join a shared terminal",
-          description:
-            "The host starts a terminal with <code>croc ssh</code> and shares a browser link or six-word invitation. Open their link, or select SSH, paste the invitation, and press Join terminal. A read/write invitation lets you type; a read-only invitation lets you watch. Everyone sees the same terminal. The browser joins croc sessions; it cannot host a shell or connect to an arbitrary SSH server.",
-          side: "bottom",
-          align: "start",
-        },
-      });
-
-      if (sshTour) {
-        steps.push(
-          {
-            element: ".ssh-workspace",
-            popover: {
-              title: "Your invitation sets your access",
-              description:
-                "The connection is encrypted end-to-end. Share invitations only with people you trust: read/write guests use the host account’s privileges, and read-only guests can see terminal output. Disconnect or Ctrl-] leaves the session; Ctrl-C is sent to the shared shell. The host can stop the session to revoke both invitations.",
-              side: "bottom",
-              align: "start",
-            },
-          },
-          {
-            element: '[data-tour="files"]',
-            popover: {
-              title: "Switch to Files for transfers",
-              description: storeEnabled
-                ? "After disconnecting, choose Files to send files or short text live with Direct, upload encrypted files for later with Store, or receive a croc code or stored link. Store lets you choose an expiration and verified-download allowance; files are deleted when either limit is reached."
-                : "After disconnecting, choose Files to send files or short text with a croc code, or receive from another browser or command-line peer. Keep both peers online until a live transfer finishes.",
-              side: "bottom",
-              align: "start",
-            },
-          },
-        );
-      }
-    }
-
-    steps.push(
-      {
-        element: '[data-tour="settings"]',
-        popover: {
-          title: "Use another relay when needed",
-          description:
-            "The defaults work for most people. Expand Relay settings to change the WebSocket gateway or relay password for a self-hosted setup. CLI relay addresses are supplied by this server and shown here for reference. For SSH, the browser and host must use the same relay pool and password.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
-        element: '[data-tour="cli"]',
-        popover: {
-          title: "Works with the croc CLI",
-          description:
-            "Download croc for your detected platform here, or use Other releases to choose a build on GitHub. The CLI works with browser transfers: <code>croc send</code> sends files live, <code>croc store</code> creates encrypted stored links, and <code>croc ssh</code> hosts a shared terminal. Paste a stored CLI token into the prompt after running <code>croc</code> to receive it.",
-          side: "top",
-          align: "start",
-        },
-      },
-      {
-        element: '[data-tour="blog"]',
-        popover: {
-          title: "Read the field notes",
-          description:
-            "Browse Notes &amp; updates for walkthroughs of browser transfers, stored sharing, shared terminals, PAKE, and encryption, plus the latest croc release notes. The book icon beside Help also opens the blog.",
-          side: "top",
-          align: "start",
-        },
-      },
-    );
-
-    tour.current = driver({
-      steps,
-      showProgress: true,
-      progressText: "{{current}} / {{total}}",
-      nextBtnText: "Next",
-      prevBtnText: "Back",
-      doneBtnText: "Done",
-      popoverClass: "croc-tour",
-      stagePadding: 8,
-      stageRadius: 0,
-      overlayOpacity: 0.76,
-      animate: !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
-      smoothScroll: true,
-      allowKeyboardControl: true,
-      disableActiveInteraction: true,
-      skipMissingElement: true,
-      onHighlightStarted: (element) => {
-        const panel = element
-          ?.closest('[data-tour="send"], [data-tour="receive"]')
-          ?.getAttribute("data-tour");
-        if (panel === "send" || panel === "receive") {
-          // Reveal the mobile tab before Driver measures its target.
-          flushSync(() => setMobileTransferPanel(panel));
-        }
-      },
-      onDestroyed: () => {
-        tour.current = undefined;
-        setMobileTransferPanel(mobileTransferPanel);
-      },
-    });
-    tour.current.drive();
-  }
-
   const sendBusy = sendActivity === "working";
   const receiveBusy = receiveActivity === "working";
   const storedShareReady =
@@ -1591,55 +1401,13 @@ export function App() {
         </div>
       </header>
 
-      <div className="workspace-toolbar" aria-label="Workspace controls">
-        {!receiveOnly && (
-          <WorkspaceSwitch
-            mode={workspaceMode}
-            disabled={sendBusy || receiveBusy || sshActive}
-            onChange={setWorkspaceMode}
-          />
-        )}
-        <div className="workspace-toolbar-actions">
-          <button
-            className="icon-button"
-            type="button"
-            aria-label="How to use croc web"
-            title="How to use croc web"
-            onClick={startTour}
-          >
-            <CircleHelp aria-hidden="true" />
-          </button>
-          <a
-            className="icon-button blog-header-link"
-            href="/blog"
-            aria-label="Read croc field notes"
-            title="Read croc field notes"
-          >
-            <BookOpenText aria-hidden="true" />
-          </a>
-          <a
-            className="icon-button"
-            href="https://github.com/schollz/croc"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="View croc on GitHub"
-            title="View croc on GitHub"
-          >
-            <FaGithub aria-hidden="true" />
-          </a>
-          <button
-            className="icon-button theme-toggle"
-            type="button"
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            onClick={() =>
-              setTheme((current) => (current === "dark" ? "light" : "dark"))
-            }
-          >
-            {theme === "dark" ? <Sun /> : <Moon />}
-          </button>
-        </div>
-      </div>
+      {!receiveOnly && (
+        <WorkspaceSwitch
+          mode={workspaceMode}
+          disabled={sendBusy || receiveBusy || sshActive}
+          onChange={setWorkspaceMode}
+        />
+      )}
 
       {(receiveOnly || workspaceMode === "files") && (
         <section
@@ -1681,7 +1449,6 @@ export function App() {
           <article
             id="send-panel"
             className={`panel send-panel${mobileTransferPanel === "send" ? " mobile-active" : ""}`}
-            data-tour="send"
           >
           <div className="panel-heading">
             <span className="step">
@@ -2045,7 +1812,6 @@ export function App() {
           id="receive"
           ref={receivePanel}
           className={`panel receive-panel${mobileTransferPanel === "receive" ? " mobile-active" : ""}`}
-          data-tour="receive"
           onSubmit={(event) => {
             event.preventDefault();
             if (receiveBusy || receiveCode.trim().length < 6) return;
@@ -2262,7 +2028,7 @@ export function App() {
         </Suspense>
       )}
 
-      <details className="settings" data-tour="settings">
+      <details className="settings">
         <summary>
           <span>
             <Settings2 /> Relay settings
@@ -2351,6 +2117,17 @@ export function App() {
           </a>
           <span aria-hidden="true">·</span>
           <a href="/blog">blog</a>
+          <span aria-hidden="true">·</span>
+          <button
+            className="footer-theme-toggle"
+            type="button"
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            onClick={() =>
+              setTheme((current) => (current === "dark" ? "light" : "dark"))
+            }
+          >
+            {theme === "dark" ? "light mode" : "dark mode"}
+          </button>
           <span aria-hidden="true">·</span>
           <a
             href={crocWebsite}
