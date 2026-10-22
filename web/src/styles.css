@@ -77,33 +77,6 @@ a:focus-visible {
   padding: 52px 0 24px;
 }
 
-.workspace-toolbar {
-  display: flex;
-  gap: 18px;
-  align-items: center;
-  justify-content: space-between;
-  border-top: 1px solid var(--foreground);
-  border-right: 1px solid var(--foreground);
-  border-left: 1px solid var(--foreground);
-  padding: 12px;
-  background: var(--background);
-}
-
-.workspace-toolbar .workspace-switch {
-  margin-bottom: 0;
-}
-
-.workspace-toolbar-actions {
-  display: flex;
-  gap: 0;
-  align-items: center;
-  margin-left: auto;
-}
-
-.workspace-toolbar-actions > * + * {
-  border-left: 0;
-}
-
 .donation-banner {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -196,46 +169,23 @@ h1 {
   line-height: 0.95;
 }
 
-.icon-button {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  padding: 0;
-  place-items: center;
-  border: 1px solid var(--foreground);
-  color: var(--foreground);
-  background: var(--background);
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.icon-button:hover {
-  color: var(--background);
-  background: var(--foreground);
-}
-
-.icon-button svg {
-  width: 18px;
-  height: 18px;
-}
-
 .workspace-switch {
-  display: inline-grid;
-  grid-template-columns: 1fr 1fr;
-  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   border: 1px solid var(--foreground);
+  border-bottom: 0;
   background: var(--background);
 }
 
 .workspace-switch button {
   display: inline-flex;
-  min-width: 116px;
-  min-height: 42px;
+  min-width: 0;
+  min-height: 52px;
   gap: 8px;
   align-items: center;
   justify-content: center;
   border: 0;
-  padding: 9px 16px;
+  padding: 12px 16px;
   color: var(--muted);
   background: transparent;
   font-size: 12px;
@@ -244,12 +194,22 @@ h1 {
 }
 
 .workspace-switch button + button {
-  border-left: 1px solid var(--foreground);
+  border-left: 1px solid var(--soft-border);
+}
+
+.workspace-switch button:hover:not(:disabled) {
+  color: var(--foreground);
+  background: var(--panel-tint);
+}
+
+.workspace-switch button:focus-visible {
+  outline-offset: -4px;
 }
 
 .workspace-switch button[aria-selected="true"] {
-  color: var(--background);
-  background: var(--foreground);
+  color: var(--foreground);
+  background: var(--panel-tint);
+  box-shadow: inset 0 -3px var(--foreground);
 }
 
 .workspace-switch svg {
@@ -1671,6 +1631,7 @@ a.cli-download-primary:hover {
 }
 
 .site-footer a,
+.footer-theme-toggle,
 .tools-menu summary {
   color: var(--foreground);
   text-decoration: underline;
@@ -1680,6 +1641,8 @@ a.cli-download-primary:hover {
 
 .site-footer a:hover,
 .site-footer a:focus-visible,
+.footer-theme-toggle:hover,
+.footer-theme-toggle:focus-visible,
 .tools-menu summary:hover,
 .tools-menu summary:focus-visible {
   text-decoration-color: currentcolor;
@@ -1690,6 +1653,15 @@ a.cli-download-primary:hover {
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.footer-theme-toggle {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
 }
 
 .tools-menu {
@@ -3630,85 +3602,6 @@ a.cli-download-primary:hover {
   font-size: 13px;
 }
 
-.driver-popover.croc-tour {
-  min-width: min(320px, calc(100vw - 24px));
-  max-width: min(380px, calc(100vw - 24px));
-  border: 1px solid var(--foreground);
-  border-radius: 0;
-  padding: 17px;
-  color: var(--foreground);
-  background: var(--background);
-  box-shadow: none;
-  font-family:
-    "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
-}
-
-.driver-popover.croc-tour .driver-popover-title {
-  padding-right: 27px;
-  font-size: 15px;
-  font-weight: 750;
-  letter-spacing: -0.025em;
-  line-height: 1.35;
-}
-
-.driver-popover.croc-tour .driver-popover-description {
-  margin-top: 9px;
-  color: var(--foreground);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.65;
-}
-
-.driver-popover.croc-tour .driver-popover-close-btn {
-  top: 7px;
-  right: 6px;
-  color: var(--muted);
-  font-family: inherit;
-}
-
-.driver-popover.croc-tour .driver-popover-close-btn:hover,
-.driver-popover.croc-tour .driver-popover-close-btn:focus {
-  color: var(--foreground);
-}
-
-.driver-popover.croc-tour .driver-popover-footer {
-  margin-top: 18px;
-}
-
-.driver-popover.croc-tour .driver-popover-progress-text {
-  color: var(--subtle);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-}
-
-.driver-popover.croc-tour .driver-popover-footer-btn {
-  min-width: 58px;
-  border: 1px solid var(--foreground);
-  border-radius: 0;
-  padding: 7px 10px;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: inherit;
-  font-size: 10px;
-  font-weight: 700;
-  text-align: center;
-  text-shadow: none;
-}
-
-.driver-popover.croc-tour .driver-popover-footer-btn:hover,
-.driver-popover.croc-tour .driver-popover-footer-btn:focus {
-  color: var(--background);
-  background: var(--foreground);
-}
-
-.driver-popover.croc-tour .driver-popover-navigation-btns button + button {
-  margin-left: 6px;
-}
-
-.driver-popover.croc-tour .driver-popover-arrow {
-  display: none;
-}
-
 @media (max-width: 760px) {
   .site-shell {
     width: auto;
@@ -3716,15 +3609,6 @@ a.cli-download-primary:hover {
     margin-left: max(10px, env(safe-area-inset-left));
     padding-top: max(12px, env(safe-area-inset-top));
     padding-bottom: max(24px, env(safe-area-inset-bottom));
-  }
-
-  .workspace-toolbar {
-    gap: 12px;
-    padding: 10px;
-  }
-
-  .workspace-toolbar .workspace-switch {
-    width: auto;
   }
 
   .site-header {
@@ -3775,11 +3659,6 @@ a.cli-download-primary:hover {
     font-size: clamp(24px, 7.2vw, 30px);
     letter-spacing: -0.055em;
     line-height: 1.02;
-  }
-
-  .workspace-switch {
-    display: grid;
-    width: 100%;
   }
 
   .workspace-switch button {
@@ -4031,6 +3910,7 @@ a.cli-download-primary:hover {
 
   .other-releases,
   .site-footer a,
+  .footer-theme-toggle,
   .tools-menu summary {
     display: inline-flex;
     min-height: 44px;
@@ -4051,16 +3931,6 @@ a.cli-download-primary:hover {
   .site-header {
     position: relative;
     grid-template-columns: 88px minmax(0, 1fr);
-  }
-
-  .workspace-toolbar .workspace-switch button {
-    min-width: 52px;
-    padding-right: 8px;
-    padding-left: 8px;
-  }
-
-  .workspace-toolbar .workspace-switch svg {
-    display: none;
   }
 
   .cli-download {

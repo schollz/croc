@@ -440,7 +440,7 @@ test("publishes rich metadata and project links", async ({ page }) => {
     })),
   );
   await expect(
-    page.getByRole("link", { name: "View croc on GitHub" }),
+    page.locator(".site-footer").getByRole("link", { name: "github", exact: true }),
   ).toHaveAttribute("href", "https://github.com/schollz/croc");
   await expect(
     page.getByRole("link", { name: /Read all \d+ posts/i }),
@@ -628,7 +628,7 @@ test("receive links open with the Receive panel top edge visible", async ({
     .toBeLessThanOrEqual(16);
 });
 
-test("help tour explains browser transfers and end-to-end encryption", async ({
+test("workspace tabs stay focused while secondary controls live in the footer", async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: "light" });
@@ -646,62 +646,49 @@ test("help tour explains browser transfers and end-to-end encryption", async ({
     },
   );
   await page.goto("/");
-  const helpButton = page.getByRole("button", { name: "How to use croc web" });
-  const githubButton = page.getByRole("link", { name: "View croc on GitHub" });
-  const themeButton = page.getByRole("button", { name: /Switch to .* mode/ });
-  const [helpBox, githubBox, themeBox] = await Promise.all([
-    helpButton.boundingBox(),
-    githubButton.boundingBox(),
-    themeButton.boundingBox(),
-  ]);
-  expect([helpBox?.width, githubBox?.width, themeBox?.width]).toEqual([
-    42, 42, 42,
-  ]);
-  expect([helpBox?.height, githubBox?.height, themeBox?.height]).toEqual([
-    42, 42, 42,
-  ]);
-  await expect(
-    helpButton.locator("svg.lucide-circle-question-mark"),
-  ).toHaveCount(1);
-  await helpButton.click();
+  await expect(page.getByRole("button", { name: "How to use croc web" }))
+    .toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Read croc field notes" }))
+    .toHaveCount(0);
+  await expect(page.getByRole("link", { name: "View croc on GitHub" }))
+    .toHaveCount(0);
 
-  const tour = page.locator(".driver-popover.croc-tour");
-  const title = tour.locator(".driver-popover-title");
-  const description = tour.locator(".driver-popover-description");
-  await expect(description).toHaveCSS("font-size", "12px");
-  await expect(description).toHaveCSS("font-weight", "500");
-  await expect(description).toHaveCSS("color", "rgb(0, 0, 0)");
-  const next = tour.getByRole("button", { name: "Next" });
-  const steps = [
-    "Welcome to croc web",
-    "Send one or several files",
-    "Store now, download later",
-    "Receive and review",
-    "The code or link provides the key",
-    "SSH: join a shared terminal",
-    "Use another relay when needed",
-    "Works with the croc CLI",
-    "Read the field notes",
-  ];
-
-  for (const [index, expectedTitle] of steps.entries()) {
-    await expect(title).toHaveText(expectedTitle);
-    if (expectedTitle === "The code or link provides the key") {
-      await expect(tour).toContainText(
-        "password-authenticated key exchange (PAKE)",
-      );
-      await expect(tour).toContainText(
-        "encrypted before leaving the browser",
-      );
-      await expect(tour).toContainText("not sent to the server");
-    }
-    if (index < steps.length - 1) {
-      await next.click();
-    }
+  const tabs = page.getByRole("tablist", { name: "Choose croc tool" });
+  const files = tabs.getByRole("tab", { name: "Files", exact: true });
+  const ssh = tabs.getByRole("tab", { name: "SSH", exact: true });
+  await expect(tabs.getByRole("tab")).toHaveCount(2);
+  for (const width of [1280, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(files).toHaveAttribute("aria-selected", "true");
+    const [filesBox, sshBox] = await Promise.all([
+      files.boundingBox(),
+      ssh.boundingBox(),
+    ]);
+    expect(filesBox!.height).toBeGreaterThanOrEqual(44);
+    expect(sshBox!.height).toBe(filesBox!.height);
+    expect(sshBox!.width).toBeCloseTo(filesBox!.width, 0);
+    await ssh.click();
+    await expect(ssh).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByLabel("SSH invitation", { exact: true })).toBeEditable();
+    await files.click();
+    await expect(page.locator(".send-panel")).toBeVisible();
+    expect(await page.evaluate(() =>
+      document.documentElement.scrollWidth - window.innerWidth,
+    )).toBeLessThanOrEqual(0);
   }
 
-  await tour.getByRole("button", { name: "Done" }).click();
-  await expect(tour).toHaveCount(0);
+  const footer = page.locator(".site-footer");
+  await expect(footer.getByRole("link", { name: "blog", exact: true }))
+    .toHaveAttribute("href", "/blog");
+  await expect(footer.getByRole("link", { name: "github", exact: true }))
+    .toHaveAttribute("href", "https://github.com/schollz/croc");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await footer.getByRole("button", { name: "Switch to dark mode" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(footer.getByRole("button", { name: "Switch to light mode" }))
+    .toBeVisible();
 });
 
 test("copying a croc code shows confirmation", async ({ page }) => {

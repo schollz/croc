@@ -82,7 +82,6 @@ export function StoredModeSwitch({
       className="send-mode-switch"
       role="group"
       aria-label="Send mode"
-      data-tour="store"
     >
       <button
         type="button"
