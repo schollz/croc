@@ -1689,16 +1689,16 @@ export function App() {
             </span>
             <div>
               <h2>Send</h2>
-              <p>
-                {sendMode === "stored"
-                  ? `Upload encrypted files for ${formatStoredExpiration(
-                      storedExpiration.value,
-                      storedExpiration.unit,
-                    )} or ${storedDownloads} ${
-                      storedDownloads === 1 ? "download" : "downloads"
-                    }.`
-                  : "Choose several files. Share one croc code."}
-              </p>
+              {sendMode === "stored" && (
+                <p>
+                  {`Upload encrypted files for ${formatStoredExpiration(
+                    storedExpiration.value,
+                    storedExpiration.unit,
+                  )} or ${storedDownloads} ${
+                    storedDownloads === 1 ? "download" : "downloads"
+                  }.`}
+                </p>
+              )}
             </div>
           </div>
 
