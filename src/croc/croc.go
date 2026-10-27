@@ -51,8 +51,9 @@ import (
 )
 
 var (
-	ipRequest        = []byte("ips?")
-	handshakeRequest = []byte("handshake")
+	ipRequest            = []byte("ips?")
+	handshakeRequest     = []byte("handshake")
+	errLocalProbeExpired = errors.New("local probe exceeded discovery budget")
 )
 
 const defaultAlternateSenderRouteTimeout = 10 * time.Second
@@ -372,6 +373,7 @@ const (
 	selectedTransportUnset      = 0
 	selectedTransportRelay      = 2
 	localProbeResponseTimeout   = 500 * time.Millisecond
+	localProbeReadTimeout       = 5 * time.Second
 	// Keep in sync with web/src/protocol/types.ts maxTextTransferBytes.
 	maxTextTransferBytes = 1 << 20
 )
@@ -1625,8 +1627,14 @@ func (c *Client) senderWaitForHandshake(conn *comm.Comm) error {
 // receiveControlFrame ignores relay keepalives while a pre-transfer control
 // exchange is waiting for its next application frame. A keepalive may be
 // queued immediately after room admission, before the peer's PAKE response.
+// Always consume the whole reply before reporting an expired discovery budget:
+// abandoning a read can leave a late reply or partial frame in the connection
+// that will next be used for compressed transfer messages. An actual read error
+// makes the connection unusable and must abort the transfer.
 func receiveControlFrame(conn *comm.Comm) ([]byte, error) {
-	deadline := time.Now().Add(localProbeResponseTimeout)
+	started := time.Now()
+	budget := started.Add(localProbeResponseTimeout)
+	deadline := started.Add(localProbeReadTimeout)
 	for {
 		data, err := conn.ReceiveWithDeadline(deadline)
 		if err != nil {
@@ -1635,6 +1643,9 @@ func receiveControlFrame(conn *comm.Comm) ([]byte, error) {
 		if bytes.Equal(data, []byte{1}) {
 			log.Trace("got ping")
 			continue
+		}
+		if time.Now().After(budget) {
+			return nil, errLocalProbeExpired
 		}
 		return data, nil
 	}
@@ -2025,6 +2036,9 @@ func (c *Client) Receive() (err error) {
 	if usingLocal {
 		c.ExternalIPConnected = route.address
 	}
+	stopClose := context.AfterFunc(c.stop.ctx, route.connection.Close)
+	defer stopClose()
+	defer route.connection.Close()
 	c.setConnection(0, route.connection)
 	c.setRelayControlRoute(route.address, route.capability, usingLocal || isIPset)
 	log.Debugf("receiver connection established: %+v", c.connection(0))
@@ -2111,6 +2125,7 @@ func (c *Client) Receive() (err error) {
 			log.Debug("sending ips?")
 			if err = c.connection(0).Send(data); err != nil {
 				log.Errorf("ips send error: %v", err)
+				return
 			}
 			data, err = receiveControlFrame(c.connection(0))
 			if err != nil {
@@ -2126,6 +2141,12 @@ func (c *Client) Receive() (err error) {
 			}
 			return
 		}()
+		if err != nil {
+			if !errors.Is(err, errLocalProbeExpired) {
+				return fmt.Errorf("local discovery failed: %w", err)
+			}
+			log.Debug("local discovery exceeded its budget; using relay")
+		}
 
 		if len(ips) > 1 {
 			port := ips[0]
