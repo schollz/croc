@@ -744,6 +744,7 @@ func (c *Client) sendParallelReceiveReady(batch *batchReceiveState, reqs []Paral
 	}
 	c.updateLifecycle(func(state *transferLifecycle) { state.RecipientRequested = true })
 	c.markTransferStarted()
+	batch.perf.send(c)
 	log.Debugf("parallel: receive batch %d files=%d bytes=%d", batch.id, len(reqs), totalBytes)
 	return nil
 }
@@ -857,9 +858,7 @@ func (batch *batchReceiveState) startVerify(state *receiveFileState) {
 		return
 	}
 	batch.mu.Unlock()
-	batch.wg.Add(1)
-	go func() {
-		defer batch.wg.Done()
+	batch.wg.Go(func() {
 		select {
 		case batch.verifySem <- struct{}{}:
 		case <-batch.ctx.Done():
@@ -872,7 +871,7 @@ func (batch *batchReceiveState) startVerify(state *receiveFileState) {
 			}
 			batch.abort(nil)
 		}
-	}()
+	})
 }
 
 func (batch *batchReceiveState) verifyFile(state *receiveFileState) error {

@@ -261,14 +261,8 @@ func (c *Client) startParallelSendBatch(attempt *transferAttemptState, ready *Pa
 	}
 	batch.queue = newParallelChunkQueue(queueFiles)
 	limits := c.parallelLimits(c.parallelAvailableConnections())
-	batch.inFlight = limits.InFlight
-	if batch.inFlight < 1 {
-		batch.inFlight = 1
-	}
-	batch.maxWorkers = limits.Connections
-	if batch.maxWorkers < 1 {
-		batch.maxWorkers = 1
-	}
+	batch.inFlight = max(limits.InFlight, 1)
+	batch.maxWorkers = max(limits.Connections, 1)
 	c.setParallelSend(batch)
 	c.startParallelProgress(totalBytes, len(ready.Files))
 	c.statsPeakConnections(limits.Connections)
@@ -288,6 +282,9 @@ func (c *Client) startParallelSendBatch(attempt *transferAttemptState, ready *Pa
 		return fmt.Errorf("no data connections available for parallel transfer")
 	}
 	go c.runParallelSendSampler(batch)
+	// Send one probe immediately so RTT is available even if the sampler
+	// goroutine is delayed on a busy or low-core runner.
+	batch.perf.send(c)
 	return nil
 }
 
@@ -322,16 +319,14 @@ func (c *Client) startParallelWorker(conn *comm.Comm) {
 	}
 	batch.workers[conn] = struct{}{}
 	batch.mu.Unlock()
-	batch.wg.Add(1)
-	go func() {
-		defer batch.wg.Done()
+	batch.wg.Go(func() {
 		defer func() {
 			if r := recover(); r != nil {
 				batch.cancel(fmt.Errorf("parallel send panic: %v", r))
 			}
 		}()
 		batch.runWorker(c, conn)
-	}()
+	})
 }
 
 func (b *batchSendState) runWorker(c *Client, conn *comm.Comm) {

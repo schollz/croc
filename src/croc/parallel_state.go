@@ -64,22 +64,13 @@ func (c *Client) parallelMaxFiles() int {
 	if c.Options.ParallelFiles > 0 {
 		return min(c.Options.ParallelFiles, parallelMaxBatchFiles)
 	}
-	workers := runtime.NumCPU() / 2
-	if workers < 2 {
-		workers = 2
-	}
-	if workers > 8 {
-		workers = 8
-	}
+	workers := min(max(runtime.NumCPU()/2, 2), 8)
 	return min(workers, parallelMaxBatchFiles)
 }
 
 func (c *Client) parallelAvailableConnections() int {
 	connections := c.connectionsSnapshot()
-	available := len(connections) - 1
-	if available < 1 {
-		available = 1
-	}
+	available := max(len(connections)-1, 1)
 	if c.parallelNoMultiplexing() {
 		return 1
 	}

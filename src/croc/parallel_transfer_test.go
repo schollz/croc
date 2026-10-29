@@ -67,7 +67,7 @@ func TestParallelMultiFileBatch(t *testing.T) {
 	sourceDir := t.TempDir()
 	var sources []string
 	want := map[string][]byte{}
-	for i := 0; i < 12; i++ {
+	for i := range 12 {
 		size := 1 + i*17 + i*i*997
 		data := bytes.Repeat([]byte{byte('a' + i)}, size)
 		name := fmt.Sprintf("file-%02d.bin", i)
@@ -133,7 +133,7 @@ func TestParallelResumeUsesJournal(t *testing.T) {
 		StateVersion:  1,
 	}
 	journal := resume.New(meta)
-	for i := int64(0); i < 2; i++ {
+	for i := range int64(2) {
 		start := i * chunkSize
 		end := start + chunkSize
 		journal.MarkComplete(i, xxhash.Sum64(data[start:end]))
@@ -176,7 +176,7 @@ func TestParallelProgressiveHashBatch(t *testing.T) {
 	sourceDir := t.TempDir()
 	var sources []string
 	want := map[string][]byte{}
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		data := bytes.Repeat([]byte{byte('A' + i%26)}, 4096+i*311)
 		name := fmt.Sprintf("progressive-%02d.bin", i)
 		path := filepath.Join(sourceDir, name)
@@ -251,7 +251,7 @@ func TestParallelSmallFileResumeRenamesTemp(t *testing.T) {
 		StateVersion:  1,
 	}
 	journal := resume.New(meta)
-	for i := int64(0); i < 2; i++ {
+	for i := range int64(2) {
 		start := i * chunkSize
 		end := start + chunkSize
 		journal.MarkComplete(i, xxhash.Sum64(data[start:end]))

@@ -34,7 +34,7 @@ func TestBitmapSetClearAndRanges(t *testing.T) {
 func TestBitmapAllMissingAndNone(t *testing.T) {
 	b := NewBitmap(4)
 	assert.Equal(t, []int64{1024, 0, 4}, b.MissingRanges(1024, 4096))
-	for i := int64(0); i < 4; i++ {
+	for i := range int64(4) {
 		b.Set(i)
 	}
 	assert.Nil(t, b.MissingRanges(1024, 4096))

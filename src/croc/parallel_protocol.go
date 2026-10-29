@@ -160,7 +160,7 @@ func missingRangesFromBitmap(bitmap []byte, chunkSize, fileSize int64) ([]int64,
 		ranges = append(ranges, start, run)
 		run = 0
 	}
-	for i := int64(0); i < count; i++ {
+	for i := range count {
 		missing := bitmap[i/8]&(1<<uint(i%8)) != 0
 		if !missing {
 			flush()

@@ -35,7 +35,7 @@ func NewBitmapFromBytes(data []byte, count int64) (*Bitmap, error) {
 		}
 	}
 	b := &Bitmap{bits: append([]byte(nil), data...), count: count}
-	for i := int64(0); i < count; i++ {
+	for i := range count {
 		if b.IsSet(i) {
 			b.set++
 		}

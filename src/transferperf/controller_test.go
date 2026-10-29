@@ -17,7 +17,7 @@ func TestControllerConservativeStartAndClamp(t *testing.T) {
 
 	now := time.Now()
 	limits := initial
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		limits = c.Observe(Sample{
 			At:       now.Add(time.Duration(i) * 500 * time.Millisecond),
 			Bytes:    10 << 20,

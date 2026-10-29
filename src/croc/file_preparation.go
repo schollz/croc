@@ -129,9 +129,7 @@ func (c *Client) startRemainingFilePreparation() {
 			results := make(chan prepResult, workers)
 			var wg sync.WaitGroup
 			for range workers {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					var scratch filePreparationScratch
 					for index := range jobs {
 						if ctx.Err() != nil {
@@ -144,7 +142,7 @@ func (c *Client) startRemainingFilePreparation() {
 							return
 						}
 					}
-				}()
+				})
 			}
 			go func() {
 				defer close(jobs)

@@ -230,20 +230,8 @@ func (c *Client) runParallelReceiveSampler(batch *batchReceiveState) {
 }
 
 func (c *Client) applyParallelSendLimits(batch *batchSendState, limits transferperf.Limits) {
-	connections := limits.Connections
-	if connections < 1 {
-		connections = 1
-	}
-	if connections > 8 {
-		connections = 8
-	}
-	inFlight := limits.InFlight
-	if inFlight < 1 {
-		inFlight = 1
-	}
-	if inFlight > 4 {
-		inFlight = 4
-	}
+	connections := min(max(limits.Connections, 1), 8)
+	inFlight := min(max(limits.InFlight, 1), 4)
 	batch.mu.Lock()
 	if batch.finished {
 		batch.mu.Unlock()
