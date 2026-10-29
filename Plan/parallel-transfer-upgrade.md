@@ -6,8 +6,8 @@
 | 版本策略 | 保持 v11.5.5，不升级 major、不迁移 module path |
 | 基线提交 | ebcdc31b |
 | 文档日期 | 2026-10-28 |
-| 文档版本 | 0.5 |
-| 状态 | 设计稿，未实现 |
+| 文档版本 | 0.6 |
+| 状态 | 已实现（Phase 1-3；Phase 4 初始自适应；4b/5 部分） |
 | 适用范围 | croc 点对点传输（relay / Tailcat），不包含 store 服务协议 |
 
 ### 变更记录
@@ -19,6 +19,8 @@
 | 0.3 | 增加 batchID 帧校验、parallel-batch-reset、checkpoint 临界区、hash 失败重置、动态连接/活跃 worker 修正、FilePreparedBatch、单控制写者、精确哈希瓶颈处理等 |
 | 0.4 | 增加协议状态机边界审计（批次/文件两级状态、非法事件、过期帧、重试/重连/取消/降级） |
 | 0.5 | 按用户决定保持 v11.5.5：撤销 v12.0.0 major bump 与 module path /v12 迁移；保留 v2 feature negotiation 与发布门禁 |
+| 0.6 | 实现落地：src/resume、src/transferperf、v2 协议/队列/收发引擎、多文件批次、chunk journal 续传、FilePreparedBatch、CLI 与测试；补充 src/docs/PARALLEL_TRANSFERS.md |
+| 0.7 | 补充：运行中 500ms 采样与 1s RTT probe、控制器动态 worker/in-flight；小文件 `.crocpart` 临时文件+rename；跨平台 CI 与 Web 接收端并行文档 |
 
 > 阅读顺序建议：0-2 节看结论与现状；3-8 节看设计；9-15 节看落地；16-22 节看实现级细化、任务拆解与实验/灰度；23-24 节看协议边界审计与版本/发布策略。
 

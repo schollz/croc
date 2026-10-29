@@ -108,6 +108,15 @@ func newApp() *cli.App {
 				&cli.StringFlag{Name: "socks5", Value: "", Usage: "SOCKS5 proxy address (relay DNS is resolved by the proxy)", EnvVars: []string{"SOCKS5_PROXY"}},
 				&cli.StringFlag{Name: "connect", Value: "", Usage: "add a http proxy", EnvVars: []string{"HTTP_PROXY"}},
 				&cli.BoolFlag{Name: "store", Usage: "upload encrypted files for a finite lifetime or a limited number of verified downloads"},
+				&cli.StringFlag{Name: "parallel-data", Value: "auto", Usage: "parallel data plane (auto, off, force)"},
+				&cli.BoolFlag{Name: "no-parallel-data", Usage: "force the legacy data plane"},
+				&cli.IntFlag{Name: "parallel-connections", Value: 0, Usage: "maximum active data workers (0 = auto)"},
+				&cli.StringFlag{Name: "chunk-size", Value: "", Usage: "parallel chunk size in bytes (0 = auto)"},
+				&cli.IntFlag{Name: "parallel-files", Value: 0, Usage: "maximum files per batch (0 = auto)"},
+				&cli.BoolFlag{Name: "no-autotune", Usage: "use fixed conservative parallel parameters"},
+				&cli.BoolFlag{Name: "no-resume", Usage: "disable chunk-level resume journals"},
+				&cli.StringFlag{Name: "resume-verify", Value: "full", Usage: "resume verification (full, sample, none)"},
+				&cli.BoolFlag{Name: "stats", Usage: "print transfer statistics"},
 			}, storedUploadFlags("store-")...),
 			HelpName: "croc send",
 			Action:   send,
@@ -218,6 +227,15 @@ func newApp() *cli.App {
 		&cli.StringFlag{Name: "socks5", Value: "", Usage: "SOCKS5 proxy address (relay DNS is resolved by the proxy)", EnvVars: []string{"SOCKS5_PROXY"}},
 		&cli.StringFlag{Name: "connect", Value: "", Usage: "add a http proxy", EnvVars: []string{"HTTP_PROXY"}},
 		&cli.StringFlag{Name: "throttleUpload", Value: "", Usage: "throttle the upload speed e.g. 500k"},
+		&cli.StringFlag{Name: "parallel-data", Value: "auto", Usage: "parallel data plane (auto, off, force)"},
+		&cli.BoolFlag{Name: "no-parallel-data", Usage: "force the legacy data plane"},
+		&cli.IntFlag{Name: "parallel-connections", Value: 0, Usage: "maximum active data workers (0 = auto)"},
+		&cli.StringFlag{Name: "chunk-size", Value: "", Usage: "parallel chunk size in bytes (0 = auto)"},
+		&cli.IntFlag{Name: "parallel-files", Value: 0, Usage: "maximum files per batch (0 = auto)"},
+		&cli.BoolFlag{Name: "no-autotune", Usage: "use fixed conservative parallel parameters"},
+		&cli.BoolFlag{Name: "no-resume", Usage: "disable chunk-level resume journals"},
+		&cli.StringFlag{Name: "resume-verify", Value: "full", Usage: "resume verification (full, sample, none)"},
+		&cli.BoolFlag{Name: "stats", Usage: "print transfer statistics"},
 	}
 	app.EnableBashCompletion = true
 	app.HideHelp = false
@@ -382,6 +400,37 @@ func getReceiveConfigFile(requireValidPath bool) (string, error) {
 		return "", err
 	}
 	return path.Join(configFile, "receive.json"), nil
+}
+
+func parallelDataOption(c *cli.Context) string {
+	if c.Bool("no-parallel-data") {
+		return "off"
+	}
+	return c.String("parallel-data")
+}
+
+// parseChunkSize parses a byte count with an optional k/K or m/M suffix.
+// Zero means auto. Invalid values return -1 so croc options validation rejects
+// them with a clear range error.
+func parseChunkSize(value string) int64 {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "0" {
+		return 0
+	}
+	multiplier := int64(1)
+	switch value[len(value)-1] {
+	case 'k', 'K':
+		multiplier = 1024
+		value = value[:len(value)-1]
+	case 'm', 'M':
+		multiplier = 1024 * 1024
+		value = value[:len(value)-1]
+	}
+	n, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || n <= 0 {
+		return -1
+	}
+	return n * multiplier
 }
 
 func determinePass(c *cli.Context) (pass string) {
@@ -647,37 +696,45 @@ func send(c *cli.Context) (err error) {
 	}
 
 	crocOptions := croc.Options{
-		SharedSecret:      c.String("code"),
-		IsSender:          true,
-		Debug:             c.Bool("debug"),
-		NoPrompt:          c.Bool("yes"),
-		RelayAddress:      c.String("relay"),
-		RelayAddress6:     c.String("relay6"),
-		Stdout:            c.Bool("stdout"),
-		DisableLocal:      c.Bool("no-local"),
-		OnlyLocal:         c.Bool("local"),
-		IgnoreStdin:       c.Bool("ignore-stdin"),
-		RelayPorts:        ports,
-		Ask:               c.Bool("ask"),
-		NoMultiplexing:    c.Bool("no-multi"),
-		RelayPassword:     determinePass(c),
-		SendingText:       c.String("text") != "",
-		NoCompress:        c.Bool("no-compress"),
-		Overwrite:         c.Bool("overwrite"),
-		Rename:            c.Bool("rename"),
-		Curve:             c.String("curve"),
-		HashAlgorithm:     c.String("hash"),
-		ThrottleUpload:    c.String("throttleUpload"),
-		ZipFolder:         c.Bool("zip"),
-		GitIgnore:         c.Bool("git"),
-		ShowQrCode:        c.Bool("qrcode"),
-		MulticastAddress:  c.String("multicast"),
-		Exclude:           excludeStrings,
-		ExcludeFile:       excludeFiles,
-		Quiet:             c.Bool("quiet"),
-		DisableClipboard:  c.Bool("disable-clipboard"),
-		ExtendedClipboard: c.Bool("extended-clipboard"),
-		Transport:         transport,
+		SharedSecret:        c.String("code"),
+		IsSender:            true,
+		Debug:               c.Bool("debug"),
+		NoPrompt:            c.Bool("yes"),
+		RelayAddress:        c.String("relay"),
+		RelayAddress6:       c.String("relay6"),
+		Stdout:              c.Bool("stdout"),
+		DisableLocal:        c.Bool("no-local"),
+		OnlyLocal:           c.Bool("local"),
+		IgnoreStdin:         c.Bool("ignore-stdin"),
+		RelayPorts:          ports,
+		Ask:                 c.Bool("ask"),
+		NoMultiplexing:      c.Bool("no-multi"),
+		RelayPassword:       determinePass(c),
+		SendingText:         c.String("text") != "",
+		NoCompress:          c.Bool("no-compress"),
+		Overwrite:           c.Bool("overwrite"),
+		Rename:              c.Bool("rename"),
+		Curve:               c.String("curve"),
+		HashAlgorithm:       c.String("hash"),
+		ThrottleUpload:      c.String("throttleUpload"),
+		ZipFolder:           c.Bool("zip"),
+		GitIgnore:           c.Bool("git"),
+		ShowQrCode:          c.Bool("qrcode"),
+		MulticastAddress:    c.String("multicast"),
+		Exclude:             excludeStrings,
+		ExcludeFile:         excludeFiles,
+		Quiet:               c.Bool("quiet"),
+		DisableClipboard:    c.Bool("disable-clipboard"),
+		ExtendedClipboard:   c.Bool("extended-clipboard"),
+		Transport:           transport,
+		ParallelData:        parallelDataOption(c),
+		ParallelConnections: c.Int("parallel-connections"),
+		ChunkSize:           parseChunkSize(c.String("chunk-size")),
+		ParallelFiles:       c.Int("parallel-files"),
+		NoAutotune:          c.Bool("no-autotune"),
+		NoResume:            c.Bool("no-resume"),
+		ResumeVerify:        c.String("resume-verify"),
+		Stats:               c.Bool("stats"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
@@ -980,26 +1037,34 @@ func receive(c *cli.Context) (err error) {
 		return receiveStored(c, storedToken)
 	}
 	crocOptions := croc.Options{
-		SharedSecret:      c.String("code"),
-		IsSender:          false,
-		Debug:             c.Bool("debug"),
-		NoPrompt:          c.Bool("yes"),
-		RelayAddress:      c.String("relay"),
-		RelayAddress6:     c.String("relay6"),
-		Stdout:            c.Bool("stdout"),
-		Ask:               c.Bool("ask"),
-		RelayPassword:     determinePass(c),
-		OnlyLocal:         c.Bool("local"),
-		IP:                c.String("ip"),
-		Overwrite:         c.Bool("overwrite"),
-		Rename:            c.Bool("rename"),
-		Curve:             c.String("curve"),
-		TestFlag:          c.Bool("testing"),
-		MulticastAddress:  c.String("multicast"),
-		Quiet:             c.Bool("quiet"),
-		DisableClipboard:  c.Bool("disable-clipboard"),
-		ExtendedClipboard: c.Bool("extended-clipboard"),
-		Transport:         croc.TransportAuto,
+		SharedSecret:        c.String("code"),
+		IsSender:            false,
+		Debug:               c.Bool("debug"),
+		NoPrompt:            c.Bool("yes"),
+		RelayAddress:        c.String("relay"),
+		RelayAddress6:       c.String("relay6"),
+		Stdout:              c.Bool("stdout"),
+		Ask:                 c.Bool("ask"),
+		RelayPassword:       determinePass(c),
+		OnlyLocal:           c.Bool("local"),
+		IP:                  c.String("ip"),
+		Overwrite:           c.Bool("overwrite"),
+		Rename:              c.Bool("rename"),
+		Curve:               c.String("curve"),
+		TestFlag:            c.Bool("testing"),
+		MulticastAddress:    c.String("multicast"),
+		Quiet:               c.Bool("quiet"),
+		DisableClipboard:    c.Bool("disable-clipboard"),
+		ExtendedClipboard:   c.Bool("extended-clipboard"),
+		Transport:           croc.TransportAuto,
+		ParallelData:        parallelDataOption(c),
+		ParallelConnections: c.Int("parallel-connections"),
+		ChunkSize:           parseChunkSize(c.String("chunk-size")),
+		ParallelFiles:       c.Int("parallel-files"),
+		NoAutotune:          c.Bool("no-autotune"),
+		NoResume:            c.Bool("no-resume"),
+		ResumeVerify:        c.String("resume-verify"),
+		Stats:               c.Bool("stats"),
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
 		crocOptions.RelayAddress6 = ""
