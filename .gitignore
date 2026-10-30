@@ -40,3 +40,8 @@ tmp/
 /src/webassets/dist/*
 !/src/webassets/dist/.gitkeep
 croc2
+
+# Resume journals and atomic-write temporaries
+*.crocstate
+*.crocpart-*
+.croc-write-*

@@ -111,6 +111,10 @@ func (c *Client) startLateSenderWorker(dataConn *comm.Comm) {
 	if dataConn == nil {
 		return
 	}
+	if c.currentParallelSend() != nil {
+		c.startParallelWorker(dataConn)
+		return
+	}
 	c.senderDataMu.Lock()
 	queue, file, attempt := c.senderChunkQueue, c.senderDataFile, c.senderDataAttempt
 	if queue == nil || file == nil || attempt == nil {

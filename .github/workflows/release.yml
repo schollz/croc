@@ -114,6 +114,31 @@ jobs:
 
           echo "sha=${release_sha}" >> "${GITHUB_OUTPUT}"
 
+  detect-signing:
+    name: Detect Azure signing credentials
+    runs-on: ubuntu-24.04
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - name: Check signing secrets
+        id: check
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_CODE_SIGNING_ENDPOINT: ${{ secrets.AZURE_CODE_SIGNING_ENDPOINT }}
+          AZURE_CODE_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          AZURE_CERT_PROFILE_NAME: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+        run: |
+          if [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_CLIENT_SECRET" ] && \
+             [ -n "$AZURE_CODE_SIGNING_ENDPOINT" ] && [ -n "$AZURE_CODE_SIGNING_ACCOUNT" ] && [ -n "$AZURE_CERT_PROFILE_NAME" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Azure Trusted Signing is enabled."
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Azure Trusted Signing secrets are incomplete; Windows 64-bit artifacts will be unsigned."
+          fi
+
   prepare-source:
     needs: prepare
     runs-on: ubuntu-24.04
@@ -144,7 +169,7 @@ jobs:
           path: "*.tar.gz"
 
   build:
-    needs: prepare
+    needs: [prepare, detect-signing]
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -326,12 +351,19 @@ jobs:
           fi
 
       - name: Upload unsigned Windows 64-bit artifact for signing
-        if: matrix.goos == 'windows' && matrix.goarch == 'amd64'
+        if: matrix.goos == 'windows' && matrix.goarch == 'amd64' && needs['detect-signing'].outputs.enabled == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: unsigned-Windows-64bit
           path: "*.zip"
           retention-days: 1
+
+      - name: Upload unsigned Windows 64-bit release artifact
+        if: matrix.goos == 'windows' && matrix.goarch == 'amd64' && needs['detect-signing'].outputs.enabled != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-Windows-64bit
+          path: "*.zip"
 
       - name: Upload build artifact
         if: matrix.goos != 'windows' || matrix.goarch != 'amd64'
@@ -412,7 +444,8 @@ jobs:
 
   sign-windows-amd64:
     name: Sign Windows 64-bit release
-    needs: build
+    needs: [build, detect-signing]
+    if: needs['detect-signing'].outputs.enabled == 'true'
     runs-on: windows-latest
     steps:
       - name: Download unsigned Windows 64-bit artifact
@@ -541,6 +574,15 @@ jobs:
   release:
     name: Create draft release
     needs: [prepare, prepare-source, build, build-web, sign-windows-amd64, linux-packages, package-lifecycle]
+    if: |
+      always() &&
+      needs.prepare.result == 'success' &&
+      needs['prepare-source'].result == 'success' &&
+      needs.build.result == 'success' &&
+      needs['build-web'].result == 'success' &&
+      needs['linux-packages'].result == 'success' &&
+      needs['package-lifecycle'].result == 'success' &&
+      (needs['sign-windows-amd64'].result == 'success' || needs['sign-windows-amd64'].result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout tagged commit
