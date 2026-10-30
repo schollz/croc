@@ -62,6 +62,38 @@ jobs:
       - name: Test malicious peer and historical protocol regressions
         run: go test ./src/croc -run 'Test(HostilePortable|MarkedArchive|UnmarkedArchive|LocalIPExchange|FailedPakeConfirmation|ClientErrorsRedact)'
 
+  parallel-cross-platform:
+    name: Parallel transfers (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '^1.27.1'
+
+      - name: Build all packages
+        run: go build ./...
+
+      - name: Test resume, performance controller, and v2 protocol units
+        run: go test ./src/resume ./src/transferperf ./src/croc -run 'Test(Bitmap|Journal|ProcessSampler|Controller|DataFrameV2|ValidParallel|ParallelBatchReady|ParallelQueue)'
+
+      - name: Test parallel transfer regressions
+        run: go test ./src/croc -run 'TestParallel'
+
+      - name: Test reconnect resume regressions
+        if: runner.os == 'Linux'
+        run: go test ./src/croc -run 'TestReconnectResumes'
+
   security-race-tests:
     name: Security race tests
     runs-on: ubuntu-24.04
