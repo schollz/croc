@@ -1,6 +1,8 @@
 package message
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"testing"
@@ -11,6 +13,26 @@ import (
 	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestBundleEnvelopeBoundBeforeContentDecode(t *testing.T) {
+	oversized := bytes.Repeat([]byte("x"), 16<<10)
+	if _, err := Encode(nil, Message{Type: TypeBundleRequest, Bytes: oversized}); !errors.Is(err, ErrMessageTooLarge) {
+		t.Fatalf("oversized bundle encode = %v", err)
+	}
+	// Invalid base64 must not be decoded before the bundle-specific JSON limit.
+	raw := append([]byte(`{"t":"bundle-request","b":"`), oversized...)
+	raw = append(raw, []byte(`!"}`)...)
+	if _, err := Decode(nil, compress.Compress(raw)); !errors.Is(err, ErrMessageTooLarge) {
+		t.Fatalf("oversized bundle decode = %v", err)
+	}
+	frame, err := Encode(nil, Message{Type: TypeFileInfo, Bytes: oversized})
+	if err != nil {
+		t.Fatal("changed manifest limit", err)
+	}
+	if _, err = Decode(nil, frame); err != nil {
+		t.Fatal("changed manifest decode limit", err)
+	}
+}
 
 var TypeMessage Type = "message"
 

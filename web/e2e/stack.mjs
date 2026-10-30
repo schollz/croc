@@ -9,10 +9,8 @@ const artifactDirectory = join(webDirectory, ".e2e");
 const binaryName = process.env.CROC_E2E_BINARY_NAME;
 const crocBinaryPath = join(artifactDirectory, binaryName ?? "croc");
 const webBinaryPath = `${crocBinaryPath}-web`;
-const storeDirectory = join(
-  artifactDirectory,
-  `${binaryName ?? "croc"}-store`,
-);
+const frozenWebBinaryPath = `${crocBinaryPath}-frozen-web`;
+const storeDirectory = join(artifactDirectory, `${binaryName ?? "croc"}-store`);
 const relayPorts = process.env.CROC_E2E_RELAY_PORTS;
 const vitePort = process.env.CROC_E2E_VITE_PORT;
 
@@ -82,7 +80,10 @@ function waitForTCP(port, timeoutMs = 20_000) {
   const deadline = Date.now() + timeoutMs;
   return new Promise((resolve, reject) => {
     const attempt = () => {
-      const socket = createConnection({ host: "127.0.0.1", port: Number(port) });
+      const socket = createConnection({
+        host: "127.0.0.1",
+        port: Number(port),
+      });
       socket.once("connect", () => {
         socket.destroy();
         resolve();
@@ -120,7 +121,9 @@ process.once("SIGHUP", () => shutdown(0));
 process.once("exit", () => {
   rmSync(crocBinaryPath, { force: true });
   rmSync(webBinaryPath, { force: true });
+  rmSync(frozenWebBinaryPath, { force: true });
   rmSync(storeDirectory, { recursive: true, force: true });
+  rmSync(`${storeDirectory}-frozen`, { recursive: true, force: true });
 });
 
 const [controlPort] = relayPorts.split(",");
@@ -129,8 +132,10 @@ start("relay", crocBinaryPath, [
   "pass123",
   "relay",
   // The full browser matrix repeatedly joins the same fixtures from localhost.
-  "--source-join-limit", "10000",
-  "--room-join-limit", "10000",
+  "--source-join-limit",
+  "10000",
+  "--room-join-limit",
+  "10000",
   "--host",
   "127.0.0.1",
   "--ports",
@@ -138,25 +143,61 @@ start("relay", crocBinaryPath, [
 ]);
 await waitForTCP(controlPort);
 
-start("server", webBinaryPath, [
-  "--pass",
-  "pass123",
-  "--relays",
-  "127.0.0.1",
-  "--ports",
-  relayPorts,
-  "--store-dir",
-  storeDirectory,
-  "--store-min-free",
-  "1B",
-  "--store-create-rate",
-  "1000",
-  "--store-downloads",
-  "3",
-  `127.0.0.1:${vitePort}`,
-], process.env.CROC_E2E_PRIVACY === "1" ? {
-  env: { ...process.env, UMAMI_URL: "https://analytics.example.invalid", UMAMI_WEBSITE_ID: "test-site", GOOGLE_ADSENSE: "ca-pub-test" },
-} : {});
+start(
+  "server",
+  webBinaryPath,
+  [
+    "--pass",
+    "pass123",
+    "--relays",
+    "127.0.0.1",
+    "--ports",
+    relayPorts,
+    "--store-dir",
+    storeDirectory,
+    "--store-min-free",
+    "1B",
+    "--store-create-rate",
+    "1000",
+    "--store-downloads",
+    "3",
+    `127.0.0.1:${vitePort}`,
+  ],
+  process.env.CROC_E2E_PRIVACY === "1"
+    ? {
+        env: {
+          ...process.env,
+          UMAMI_URL: "https://analytics.example.invalid",
+          UMAMI_WEBSITE_ID: "test-site",
+          GOOGLE_ADSENSE: "ca-pub-test",
+        },
+      }
+    : {},
+);
 await waitForHTTP(`http://127.0.0.1:${vitePort}/healthz`);
+
+if (process.env.CROC_E2E_FROZEN_SOURCE) {
+  const source = process.env.CROC_E2E_FROZEN_SOURCE;
+  execFileSync(
+    "go",
+    ["build", "-buildvcs=false", "-o", frozenWebBinaryPath, "./cmd/croc-web"],
+    { cwd: source, stdio: "inherit" },
+  );
+  const port = process.env.CROC_E2E_FROZEN_WEB_PORT;
+  start("frozen-server", frozenWebBinaryPath, [
+    "--pass",
+    "pass123",
+    "--relays",
+    "127.0.0.1",
+    "--ports",
+    relayPorts,
+    "--store-dir",
+    `${storeDirectory}-frozen`,
+    "--store-min-free",
+    "1B",
+    `127.0.0.1:${port}`,
+  ]);
+  await waitForHTTP(`http://127.0.0.1:${port}/healthz`);
+}
 
 await new Promise(() => {});

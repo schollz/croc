@@ -360,7 +360,7 @@ func (c *Client) commitStagedRelayReceiver(attempt *transferAttemptState) error 
 	c.selectedDataTransport.Store(selectedTransportRelay)
 	for i, connection := range c.connectionsSnapshot()[1:] {
 		if connection != nil {
-			go c.receiveData(i, connection, attempt)
+			c.startReceiveData(i, connection, attempt)
 		}
 	}
 	attempt.finishTailcatSetup()

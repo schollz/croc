@@ -1,12 +1,52 @@
 package receivefs
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
 	"testing"
 )
+
+func TestPublishNewRefusesLateConflict(t *testing.T) {
+	directory := t.TempDir()
+	root, err := OpenRoot(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	staged, name, err := root.CreateTemp(".", ".stage-", 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = staged.Write([]byte("verified")); err != nil {
+		t.Fatal(err)
+	}
+	if err = staged.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(directory, "target"), []byte("existing"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err = root.PublishNew(name, "target"); !errors.Is(err, os.ErrExist) {
+		t.Fatalf("late conflict = %v", err)
+	}
+	got, _ := os.ReadFile(filepath.Join(directory, "target"))
+	if string(got) != "existing" {
+		t.Fatal("replaced late destination")
+	}
+	if err = root.PublishNew(name, "fresh"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = root.Lstat(name); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("staging name retained", err)
+	}
+	got, _ = os.ReadFile(filepath.Join(directory, "fresh"))
+	if string(got) != "verified" {
+		t.Fatal("published contents differ")
+	}
+}
 
 func TestRootAtomicWriteAndRename(t *testing.T) {
 	directory := t.TempDir()

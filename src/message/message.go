@@ -5,11 +5,20 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/schollz/croc/v11/src/bundle"
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/compress"
 	"github.com/schollz/croc/v11/src/crypt"
 	log "github.com/schollz/croc/v11/src/logger"
 )
+
+func isBundle(kind Type) bool {
+	switch kind {
+	case TypeBundleRequest, TypeBundleOffer, TypeBundleReady, TypeBundleDone, TypeBundleClosed:
+		return true
+	}
+	return false
+}
 
 const maxDecompressedMessageSize = 64 * 1024 * 1024
 
@@ -21,6 +30,11 @@ var ErrMessageTooLarge = errors.New("message too large after decompression")
 type Type string
 
 const (
+	TypeBundleRequest    Type = "bundle-request"
+	TypeBundleOffer      Type = "bundle-offer"
+	TypeBundleReady      Type = "bundle-ready"
+	TypeBundleDone       Type = "bundle-done"
+	TypeBundleClosed     Type = "bundle-closed"
 	TypePAKE             Type = "pake"
 	TypePAKEConfirm      Type = "pake-confirm"
 	TypeTailcatOffer     Type = "tailcat-offer"
@@ -89,6 +103,9 @@ func encodeWithLimit(key []byte, m Message, maxJSONSize int) (b []byte, err erro
 	if len(b) > maxJSONSize {
 		return nil, fmt.Errorf("%w: %d > %d", ErrMessageTooLarge, len(b), maxJSONSize)
 	}
+	if isBundle(m.Type) && len(b) > bundle.MaxControlBytes {
+		return nil, fmt.Errorf("%w: bundle control exceeds 16 KiB", ErrMessageTooLarge)
+	}
 	b = compress.Compress(b)
 	if key != nil {
 		log.Debugf("writing %s message (encrypted)", m.Type)
@@ -116,6 +133,18 @@ func DecodeWithLimit(key []byte, b []byte, maxJSONSize int64) (m Message, err er
 	if err != nil {
 		err = fmt.Errorf("decompress message: %w", err)
 		return
+	}
+	if len(b) > bundle.MaxControlBytes {
+		// Inspect only the type before decoding base64 fields or inner JSON.
+		var header struct {
+			Type Type `json:"t"`
+		}
+		if err = json.Unmarshal(b, &header); err != nil {
+			return
+		}
+		if isBundle(header.Type) {
+			return m, fmt.Errorf("%w: bundle control exceeds 16 KiB", ErrMessageTooLarge)
+		}
 	}
 	err = json.Unmarshal(b, &m)
 	if err == nil {

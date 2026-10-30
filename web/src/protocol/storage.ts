@@ -3,6 +3,7 @@ import type {
   OfferedFile,
   ReceiveDestination,
   ReceiveSink,
+  ReceivePayload,
   TransferOffer,
 } from "./types";
 import { maxTextTransferBytes } from "./types";
@@ -148,7 +149,7 @@ class DownloadSink implements ReceiveSink {
 
   constructor(
     private name: string,
-    private onDownload: (name: string, blob: Blob) => void,
+    private onDownload: (name: string, blob: Blob) => void | Promise<void>,
   ) {}
 
   async writeAt(position: number, bytes: Uint8Array) {
@@ -178,7 +179,7 @@ class DownloadSink implements ReceiveSink {
       throw new Error("Destination must be finalized before download");
     if (this.committed) return;
     this.committed = true;
-    this.onDownload(this.name, this.blob);
+    await this.onDownload(this.name, this.blob);
   }
 
   async abort() {
@@ -486,15 +487,16 @@ export class StreamingDownloadDestination implements ReceiveDestination {
 }
 
 export class DownloadDestination implements ReceiveDestination {
+  private lastDownloadAt = -Infinity;
   private usedNames = new Set<string>();
 
   async createEmptyFolder() {
     // Browser downloads cannot represent an empty folder.
   }
 
-  async openFile(file: OfferedFile) {
+  async openFile(file: OfferedFile, signal?: AbortSignal) {
     return new DownloadSink(this.uniqueName(file.name), (name, blob) =>
-      this.download(name, blob),
+      this.download(name, blob, signal),
     );
   }
 
@@ -516,7 +518,15 @@ export class DownloadDestination implements ReceiveDestination {
     return candidate;
   }
 
-  private download(name: string, blob: Blob) {
+  private async download(name: string, blob: Blob, signal?: AbortSignal) {
+    // Chromium drops automatic download bursts after ten files per second.
+    // Bundles still save individual files, with a bounded gap between clicks.
+    const delay = Math.max(0, 150 - (performance.now() - this.lastDownloadAt));
+    if (delay > 0)
+      await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
+    if (signal?.aborted)
+      throw new DOMException("Transfer cancelled", "AbortError");
+    this.lastDownloadAt = performance.now();
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -605,7 +615,7 @@ export async function chooseStoredReceiveDestination(offer: TransferOffer) {
 }
 
 export async function verifySink(
-  sink: ReceiveSink,
+  sink: ReceivePayload,
   expected: Uint8Array,
   signal?: AbortSignal,
 ) {

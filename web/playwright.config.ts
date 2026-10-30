@@ -23,7 +23,7 @@ async function freePort() {
 }
 
 const allocatedPorts = await Promise.all(
-  Array.from({ length: 6 }, () => freePort()),
+  Array.from({ length: 7 }, () => freePort()),
 );
 const relayPorts =
   process.env.CROC_E2E_RELAY_PORTS ?? allocatedPorts.slice(0, 5).join(",");
@@ -33,6 +33,10 @@ const binaryName = process.env.CROC_E2E_BINARY_NAME ?? `croc-${vitePort}`;
 process.env.CROC_E2E_RELAY_PORTS = relayPorts;
 process.env.CROC_E2E_VITE_PORT = vitePort;
 process.env.CROC_E2E_BINARY_NAME = binaryName;
+if (process.env.CROC_E2E_FROZEN_SOURCE) {
+  process.env.CROC_E2E_FROZEN_WEB_PORT ??= String(allocatedPorts[6]);
+  process.env.CROC_E2E_FROZEN_WEB_URL = `http://127.0.0.1:${process.env.CROC_E2E_FROZEN_WEB_PORT}`;
+}
 
 export default defineConfig({
   testDir: "./e2e",
@@ -73,7 +77,9 @@ export default defineConfig({
   },
   webServer: {
     command: "node e2e/stack.mjs",
-    url: `http://127.0.0.1:${vitePort}`,
+    url: process.env.CROC_E2E_FROZEN_WEB_URL
+      ? `${process.env.CROC_E2E_FROZEN_WEB_URL}/healthz`
+      : `http://127.0.0.1:${vitePort}`,
     reuseExistingServer: false,
     timeout: 120_000,
     env: {

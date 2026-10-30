@@ -75,6 +75,19 @@ func (r *Root) Lstat(name string) (fs.FileInfo, error) {
 	return r.root.Lstat(clean)
 }
 
+// Readlink reads the link itself without following its target.
+func (r *Root) Readlink(name string) (string, error) {
+	clean, err := native(name, false)
+	if err != nil {
+		return "", err
+	}
+	if err = r.RejectSymlinkPath(path.Dir(name)); err != nil {
+		return "", err
+	}
+	target, err := r.root.Readlink(clean)
+	return filepath.ToSlash(target), err
+}
+
 func (r *Root) Stat(name string) (fs.FileInfo, error) {
 	clean, err := native(name, true)
 	if err != nil {
@@ -126,6 +139,30 @@ func (r *Root) Rename(oldName, newName string) error {
 		return err
 	}
 	return r.root.Rename(oldClean, newClean)
+}
+
+// PublishNew publishes a staged regular file without replacing a destination
+// that appeared after preflight. Link supplies an atomic no-replace operation;
+// both names remain scoped to the receive root.
+func (r *Root) PublishNew(staged, destination string) error {
+	oldClean, err := native(staged, false)
+	if err != nil {
+		return err
+	}
+	newClean, err := native(destination, false)
+	if err != nil {
+		return err
+	}
+	if err = r.RejectSymlinkPath(staged); err != nil {
+		return err
+	}
+	if err = r.RejectSymlinkPath(destination); err != nil {
+		return err
+	}
+	if err = r.root.Link(oldClean, newClean); err != nil {
+		return err
+	}
+	return r.root.Remove(oldClean)
 }
 
 func (r *Root) Symlink(target, name string) error {

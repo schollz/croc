@@ -4,8 +4,8 @@ on:
   pull_request:
     paths:
       - 'packaging/**'
-      - 'src/**'
-      - 'internal/**'
+      - 'src/cli/**'
+      - 'src/version/**'
       - 'main.go'
       - 'go.mod'
       - 'go.sum'
@@ -15,6 +15,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: packages-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -54,6 +58,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: linux-packages
+          retention-days: 7
           path: |
             dist/*.deb
             dist/*.rpm

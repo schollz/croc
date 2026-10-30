@@ -1,3 +1,4 @@
+import { BUNDLE_FEATURE, validateBundleLimits } from "./bundle";
 import { base64ToBytes } from "./bytes";
 import type {
   OfferedFile,
@@ -26,15 +27,16 @@ export function collisionKey(value: string) {
 function isWindowsDeviceName(component: string) {
   const dot = component.indexOf(".");
   const stem = (dot === -1 ? component : component.slice(0, dot)).toUpperCase();
-  return (
-    windowsDeviceNames.has(stem) ||
-    /^(?:COM|LPT)(?:[1-9¹²³])$/.test(stem)
-  );
+  return windowsDeviceNames.has(stem) || /^(?:COM|LPT)(?:[1-9¹²³])$/.test(stem);
 }
 
 function validateSegment(raw: string, value: string) {
   const segment = raw.normalize("NFC");
-  if ([...segment].some((character) => !/^[\p{L}\p{M}\p{N}\p{P}\p{S} ]$/u.test(character))) {
+  if (
+    [...segment].some(
+      (character) => !/^[\p{L}\p{M}\p{N}\p{P}\p{S} ]$/u.test(character),
+    )
+  ) {
     throw new Error(`Remote path contains a non-printable character: ${value}`);
   }
   if (segment.includes(":")) {
@@ -128,11 +130,10 @@ function addDestination(
   destinations.set(key, { path, kind });
 }
 
-function validateDestinationAncestors(
-  destinations: Map<string, Destination>,
-) {
+function validateDestinationAncestors(destinations: Map<string, Destination>) {
   for (const destination of destinations.values()) {
-    const segments = destination.path === "." ? [] : destination.path.split("/");
+    const segments =
+      destination.path === "." ? [] : destination.path.split("/");
     for (let length = 1; length < segments.length; length += 1) {
       const ancestorPath = segments.slice(0, length).join("/");
       const ancestor = destinations.get(collisionKey(ancestorPath));
@@ -146,6 +147,10 @@ function validateDestinationAncestors(
 }
 
 export function validateSenderInfo(info: SenderInfoWire): TransferOffer {
+  const bundleAdvertised = (info.Features ?? []).includes(BUNDLE_FEATURE);
+  if (info.BundleLimits !== undefined) validateBundleLimits(info.BundleLimits);
+  if (bundleAdvertised && !info.BundleLimits)
+    throw new Error("Bundle capability without limits");
   if (info.HashAlgorithm && info.HashAlgorithm !== "xxhash") {
     throw new Error(`Hash algorithm "${info.HashAlgorithm}" is not supported`);
   }
@@ -172,6 +177,17 @@ export function validateSenderInfo(info: SenderInfoWire): TransferOffer {
       modified: wire.m,
       mode: wire.md,
       compressed: perFileCompression ? Boolean(wire.c) : !info.NoCompress,
+      bundleEligible:
+        Boolean(wire.p) &&
+        !wire.tf &&
+        !wire.sy &&
+        Number.isInteger(wire.md ?? 0) &&
+        (wire.md ?? 0) >= 0 &&
+        (wire.md ?? 0) <= 0xffffffff &&
+        // Go's fs.ModeType bits, including directory/symlink/device types.
+        ((wire.md ?? 0) & 0x8f280000) === 0 &&
+        size > 0 &&
+        size <= 1 << 20,
     });
   }
 
@@ -215,5 +231,9 @@ export function validateSenderInfo(info: SenderInfoWire): TransferOffer {
     senderMachineID: info.MachineID || "unknown",
     noCompress: Boolean(info.NoCompress),
     perFileCompression,
+    bundleLimits:
+      bundleAdvertised && !info.SendingText && !info.Ask
+        ? info.BundleLimits
+        : undefined,
   };
 }

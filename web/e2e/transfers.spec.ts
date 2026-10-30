@@ -157,8 +157,8 @@ async function chooseTask(page: Page, name: "Send live" | "Store files" | "Recei
   await expect(page.locator(panels[name])).toBeVisible();
 }
 
-async function configurePage(page: Page) {
-  await page.goto(webAddress);
+async function configurePage(page: Page, address=webAddress) {
+  await page.goto(address);
   await page.getByRole("button", {name: "relay", exact: true}).click();
   await page.getByLabel("WebSocket gateway").fill("/ws");
   await page
@@ -175,7 +175,7 @@ async function prepareWebSender(
 ) {
   const panel = page.locator(".send-panel");
   await panel.locator('input[type="file"]').setInputFiles(fixtures.paths);
-  await expect(panel.getByText("3 files", { exact: true })).toBeVisible();
+  await expect(panel.getByText(`${fixtures.contents.size} files`, { exact: true })).toBeVisible();
   return panel;
 }
 
@@ -1405,25 +1405,517 @@ test("cancels a pending handshake and starts another receive without reloading",
 });
 
 
-test("Web → Web repeats exact multiline Unicode text transfers in the same pages",async({browser},info)=>{
-  const options={acceptDownloads:true,viewport:info.project.use.viewport,isMobile:info.project.use.isMobile,hasTouch:info.project.use.hasTouch};
-  const sender=await browser.newContext(options),receiver=await browser.newContext(options);
-  const verifySender=await disableWasm(sender),verifyReceiver=await disableWasm(receiver);
+test("Web → Web repeats exact multiline Unicode text transfers in the same pages", async ({
+  browser,
+}, info) => {
+  const options = {
+    acceptDownloads: true,
+    viewport: info.project.use.viewport,
+    isMobile: info.project.use.isMobile,
+    hasTouch: info.project.use.hasTouch,
+  };
+  const sender = await browser.newContext(options),
+    receiver = await browser.newContext(options);
+  const verifySender = await disableWasm(sender),
+    verifyReceiver = await disableWasm(receiver);
   try {
-    const from=await sender.newPage(),to=await receiver.newPage();
-    await Promise.all([configurePage(from),configurePage(to)]);
-    const sendPanel=from.locator(".send-panel");
-    await sendPanel.getByRole("button",{name:"Send text instead"}).click();
-    for(const message of ["hello 🐊\n\n世界\nfinal line\n","second transfer\n\tindented text 🦀\n"]) {
+    const from = await sender.newPage(),
+      to = await receiver.newPage();
+    await Promise.all([configurePage(from), configurePage(to)]);
+    const sendPanel = from.locator(".send-panel");
+    await sendPanel.getByRole("button", { name: "Send text instead" }).click();
+    for (const message of [
+      "hello 🐊\n\n世界\nfinal line\n",
+      "second transfer\n\tindented text 🦀\n",
+    ]) {
       await sendPanel.getByLabel("Text to send").fill(message);
-      await sendPanel.getByRole("button",{name:"Send text",exact:true}).click();
-      const code=await readGeneratedSecret(sendPanel);
-      const receivePanel=await connectWebReceiver(to,code);
-      await receivePanel.getByRole("button",{name:"Display text"}).click();
-      await expect(sendPanel).toContainText("Text arrived safely",{timeout:transferTimeout});
-      await expect(receivePanel).toContainText("Text received and verified",{timeout:transferTimeout});
-      expect(await receivePanel.getByLabel("Received text").textContent()).toBe(message);
+      await sendPanel
+        .getByRole("button", { name: "Send text", exact: true })
+        .click();
+      const code = await readGeneratedSecret(sendPanel);
+      const receivePanel = await connectWebReceiver(to, code);
+      await receivePanel.getByRole("button", { name: "Display text" }).click();
+      await expect(sendPanel).toContainText("Text arrived safely", {
+        timeout: transferTimeout,
+      });
+      await expect(receivePanel).toContainText("Text received and verified", {
+        timeout: transferTimeout,
+      });
+      expect(await receivePanel.getByLabel("Received text").textContent()).toBe(
+        message,
+      );
     }
-    await verifySender();await verifyReceiver();
-  } finally {await Promise.all([sender.close(),receiver.close()]);}
+    await verifySender();
+    await verifyReceiver();
+  } finally {
+    await Promise.all([sender.close(), receiver.close()]);
+  }
+});
+
+async function createBundleFixtures(
+  info: TestInfo,
+  count = 12,
+): Promise<FixtureSet> {
+  const directory = info.outputPath("bundle-fixtures");
+  await fs.mkdir(directory, { recursive: true });
+  const contents = new Map<string, Buffer>();
+  for (let i = 0; i < count; i++) {
+    const name = `bundle-${String(i).padStart(3, "0")}.bin`;
+    const bytes = patternedBytes(32768 + i * 177, i);
+    contents.set(name, bytes);
+    await fs.writeFile(join(directory, name), bytes);
+  }
+  return {
+    paths: [...contents.keys()].map((name) => join(directory, name)),
+    contents,
+  };
+}
+
+test("small-file bundles CLI → Web preserve individual downloads", async ({
+  page,
+}, info) => {
+  const fixtures = await createBundleFixtures(info);
+  const config = info.outputPath("config");
+  await fs.mkdir(config, { recursive: true });
+  await configurePage(page);
+  const panel = await connectWebReceiver(page, "2111-bundled-downloads");
+  const cli = runCroc(
+    [...commonCLIArgs(), "--debug", "send", "--no-local", ...fixtures.paths],
+    "2111-bundled-downloads",
+    config,
+  );
+  try {
+    const downloads = await acceptAsDownloads(page, panel);
+    await expect(panel).toContainText("All files received and verified", {
+      timeout: transferTimeout,
+    });
+    await cli.done;
+    await expectDownloads(downloads, fixtures);
+    expect(cli.output()).toContain("bundle-request");
+    expect(cli.output()).toContain("bundle-closed");
+  } finally {
+    cli.stop();
+    await cli.done.catch(() => undefined);
+  }
+});
+
+test("small-file bundles Web → CLI verify original files", async ({
+  page,
+}, info) => {
+  const fixtures = await createBundleFixtures(info);
+  const destination = info.outputPath("received"),
+    config = info.outputPath("config");
+  await Promise.all([
+    fs.mkdir(destination, { recursive: true }),
+    fs.mkdir(config, { recursive: true }),
+  ]);
+  await configurePage(page);
+  const panel = await prepareWebSender(page, fixtures);
+  await panel.getByRole("button", { name: "Send 12 files" }).click();
+  const secret = await readGeneratedSecret(panel);
+  const cli = runCroc(
+    [...commonCLIArgs(), "--debug", "--out", destination],
+    secret,
+    config,
+  );
+  try {
+    await expect(panel).toContainText("All files arrived safely", {
+      timeout: transferTimeout,
+    });
+    await cli.done;
+    await expectDirectory(destination, fixtures);
+    expect(cli.output()).toContain("bundle-request");
+    expect(cli.output()).toContain("bundle-closed");
+  } finally {
+    cli.stop();
+    await cli.done.catch(() => undefined);
+  }
+});
+
+test("small-file bundles Web → Web preserve individual downloads", async ({
+  browser,
+}, info) => {
+  const fixtures = await createBundleFixtures(info);
+  const options = {
+    acceptDownloads: true,
+    viewport: info.project.use.viewport,
+    isMobile: info.project.use.isMobile,
+    hasTouch: info.project.use.hasTouch,
+  };
+  const a = await browser.newContext(options),
+    b = await browser.newContext(options);
+  const verifyA = await disableWasm(a),
+    verifyB = await disableWasm(b);
+  const sender = await a.newPage(),
+    receiver = await b.newPage();
+  try {
+    await configurePage(sender);
+    await configurePage(receiver);
+    const send = await prepareWebSender(sender, fixtures);
+    await send.getByRole("button", { name: "Send 12 files" }).click();
+    const receive = await connectWebReceiver(
+      receiver,
+      await readGeneratedSecret(send),
+    );
+    const downloads = await acceptAsDownloads(receiver, receive);
+    await Promise.all([
+      expect(send).toContainText("All files arrived safely", {
+        timeout: transferTimeout,
+      }),
+      expect(receive).toContainText("All files received and verified", {
+        timeout: transferTimeout,
+      }),
+    ]);
+    await expectDownloads(downloads, fixtures);
+    await verifyA();
+    await verifyB();
+  } finally {
+    await a.close();
+    await b.close();
+  }
+});
+
+async function observeBundleControls(page: Page) {
+  await page.addInitScript(() => {
+    const controls: string[] = [];
+    Object.assign(window, { __bundleControlTypes: controls });
+    const original = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message, options) {
+      if (
+        message?.method === "compress" &&
+        message.args?.[0] instanceof Uint8Array
+      ) {
+        try {
+          const decoded = JSON.parse(new TextDecoder().decode(message.args[0]));
+          if (typeof decoded.t === "string") controls.push(decoded.t);
+        } catch {
+          /* Payload samples are not JSON control frames. */
+        }
+      }
+      return Reflect.apply(original, this, [message, options]);
+    };
+  });
+}
+async function bundleControls(page: Page) {
+  return page.evaluate(() =>
+    (
+      (window as typeof window & { __bundleControlTypes: string[] })
+        .__bundleControlTypes ?? []
+    ).filter((type) => type.startsWith("bundle-")),
+  );
+}
+
+for (const [label, oldBrowser, oldCLI] of [
+  ["new browser and frozen CLI", false, true],
+  ["frozen browser and new CLI", true, false],
+] as const) {
+  for (const direction of ["CLI → Web", "Web → CLI"] as const)
+    test(`frozen bundle compatibility ${label} ${direction}`, async ({
+      page,
+    }, info) => {
+      test.skip(
+        !process.env.CROC_E2E_FROZEN_SOURCE || !process.env.CROC_E2E_OLD_BINARY,
+        "Build the frozen ebcdc31b artifacts first",
+      );
+      const fixtures = await createBundleFixtures(info, 4),
+        config = info.outputPath("config"),
+        destination = info.outputPath("received");
+      await Promise.all([
+        fs.mkdir(config, { recursive: true }),
+        fs.mkdir(destination, { recursive: true }),
+      ]);
+      await observeBundleControls(page);
+      await configurePage(
+        page,
+        oldBrowser ? process.env.CROC_E2E_FROZEN_WEB_URL! : webAddress,
+      );
+      const binary = oldCLI ? process.env.CROC_E2E_OLD_BINARY : crocBinary;
+      let cli: RunningCroc;
+      if (direction === "CLI → Web") {
+        const code = "3111-frozen-compatibility";
+        const panel = await connectWebReceiver(page, code);
+        cli = runCroc(
+          [
+            ...commonCLIArgs(),
+            "--debug",
+            "send",
+            "--no-local",
+            ...fixtures.paths,
+          ],
+          code,
+          config,
+          binary,
+        );
+        try {
+          const downloads = await acceptAsDownloads(page, panel);
+          await expect(panel).toContainText("All files received and verified", {
+            timeout: transferTimeout,
+          });
+          await cli.done;
+          await expectDownloads(downloads, fixtures);
+        } finally {
+          cli.stop();
+          await cli.done.catch(() => undefined);
+        }
+      } else {
+        const panel = await prepareWebSender(page, fixtures);
+        await panel.getByRole("button", { name: "Send 4 files" }).click();
+        cli = runCroc(
+          [...commonCLIArgs(), "--debug", "--out", destination],
+          await readGeneratedSecret(panel),
+          config,
+          binary,
+        );
+        try {
+          await expect(panel).toContainText("All files arrived safely", {
+            timeout: transferTimeout,
+          });
+          await cli.done;
+          await expectDirectory(destination, fixtures);
+        } finally {
+          cli.stop();
+          await cli.done.catch(() => undefined);
+        }
+      }
+      expect(cli!.output()).not.toMatch(/(?:writing|read) bundle-/);
+      expect(await bundleControls(page)).toEqual([]);
+    });
+}
+
+for (const oldSender of [true, false])
+  test(`frozen bundle compatibility ${oldSender ? "frozen → new" : "new → frozen"} browser`, async ({
+    browser,
+  }, info) => {
+    test.skip(
+      !process.env.CROC_E2E_FROZEN_SOURCE,
+      "Build the frozen ebcdc31b artifacts first",
+    );
+    const fixtures = await createBundleFixtures(info, 4);
+    const options = {
+      acceptDownloads: true,
+      viewport: info.project.use.viewport,
+      isMobile: info.project.use.isMobile,
+      hasTouch: info.project.use.hasTouch,
+    };
+    const a = await browser.newContext(options),
+      b = await browser.newContext(options);
+    const verifyA = await disableWasm(a),
+      verifyB = await disableWasm(b);
+    const sender = await a.newPage(),
+      receiver = await b.newPage();
+    try {
+      await observeBundleControls(sender);
+      await observeBundleControls(receiver);
+      await configurePage(
+        sender,
+        oldSender ? process.env.CROC_E2E_FROZEN_WEB_URL! : webAddress,
+      );
+      await configurePage(
+        receiver,
+        oldSender ? webAddress : process.env.CROC_E2E_FROZEN_WEB_URL!,
+      );
+      const send = await prepareWebSender(sender, fixtures);
+      await send.getByRole("button", { name: "Send 4 files" }).click();
+      const receive = await connectWebReceiver(
+        receiver,
+        await readGeneratedSecret(send),
+      );
+      const downloads = await acceptAsDownloads(receiver, receive);
+      await Promise.all([
+        expect(send).toContainText("All files arrived safely", {
+          timeout: transferTimeout,
+        }),
+        expect(receive).toContainText("All files received and verified", {
+          timeout: transferTimeout,
+        }),
+      ]);
+      await expectDownloads(downloads, fixtures);
+      expect(await bundleControls(sender)).toEqual([]);
+      expect(await bundleControls(receiver)).toEqual([]);
+      await verifyA();
+      await verifyB();
+    } finally {
+      await a.close();
+      await b.close();
+    }
+  });
+
+test("small-file bundles repeat into real folder destinations without reloading", async ({
+  browser,
+  playwright,
+}, info) => {
+  const fixtures = await createBundleFixtures(info);
+  const options = {
+    acceptDownloads: true,
+    viewport: info.project.use.viewport,
+    isMobile: info.project.use.isMobile,
+    hasTouch: info.project.use.hasTouch,
+  };
+  const a = await browser.newContext(options);
+  const b =
+    info.project.name === "webkit"
+      ? await playwright.webkit.launchPersistentContext(
+          info.outputPath("folder-profile"),
+          { headless: true, ...options },
+        )
+      : await browser.newContext(options);
+  const verifyA = await disableWasm(a),
+    verifyB = await disableWasm(b);
+  const sender = await a.newPage(),
+    receiver = await b.newPage();
+  try {
+    await configurePage(sender);
+    await configurePage(receiver);
+    await receiver.evaluate(async () => {
+      await navigator.storage.getDirectory();
+      Object.defineProperty(window, "showDirectoryPicker", {
+        configurable: true,
+        value: () => navigator.storage.getDirectory(),
+      });
+    });
+    receiver.on("dialog", (dialog) => dialog.accept());
+    const send = await prepareWebSender(sender, fixtures);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await send.getByRole("button", { name: "Send 12 files" }).click();
+      const receive = await connectWebReceiver(
+        receiver,
+        await readGeneratedSecret(send),
+      );
+      await receive.getByRole("button", { name: "Download files" }).click();
+      await Promise.all([
+        expect(send).toContainText("All files arrived safely", {
+          timeout: transferTimeout,
+        }),
+        expect(receive).toContainText("All files received and verified", {
+          timeout: transferTimeout,
+        }),
+      ]);
+      const actual = await receiver.evaluate(async () => {
+        const root = await navigator.storage.getDirectory();
+        const entries: Record<string, { size: number; sha256: string }> = {};
+        for await (const [name, handle] of root.entries())
+          if (handle.kind === "file") {
+            const file = await handle.getFile();
+            const digest = await crypto.subtle.digest(
+              "SHA-256",
+              await file.arrayBuffer(),
+            );
+            entries[name] = {
+              size: file.size,
+              sha256: [...new Uint8Array(digest)]
+                .map((b) => b.toString(16).padStart(2, "0"))
+                .join(""),
+            };
+          }
+        return entries;
+      });
+      expect(Object.keys(actual).sort()).toEqual(
+        [...fixtures.contents.keys()].sort(),
+      );
+      for (const [name, bytes] of fixtures.contents)
+        expect(actual[name]).toEqual({
+          size: bytes.length,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+        });
+    }
+    await verifyA();
+    await verifyB();
+  } finally {
+    await a.close();
+    await b.close();
+  }
+});
+
+test("small-file bundles cancel an active payload and retry without reloading", async ({
+  browser,
+}, info) => {
+  const fixtures = await createBundleFixtures(info);
+  const options = {
+    acceptDownloads: true,
+    viewport: info.project.use.viewport,
+    isMobile: info.project.use.isMobile,
+    hasTouch: info.project.use.hasTouch,
+  };
+  const a = await browser.newContext(options),
+    b = await browser.newContext(options);
+  const verifyA = await disableWasm(a),
+    verifyB = await disableWasm(b);
+  const sender = await a.newPage(),
+    receiver = await b.newPage();
+  await sender.addInitScript(() => {
+    Object.assign(window, {
+      __delayBundleChunks: true,
+      __bundleEncodingStarted: false,
+    });
+    const original = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message, options) {
+      const state = window as typeof window & {
+        __delayBundleChunks: boolean;
+        __bundleEncodingStarted: boolean;
+      };
+      if (message?.method === "encodeChunk" && state.__delayBundleChunks) {
+        state.__bundleEncodingStarted = true;
+        setTimeout(
+          () => Reflect.apply(original, this, [message, options]),
+          200,
+        );
+        return;
+      }
+      return Reflect.apply(original, this, [message, options]);
+    };
+  });
+  try {
+    await configurePage(sender);
+    await configurePage(receiver);
+    const send = await prepareWebSender(sender, fixtures);
+    await send.getByRole("button", { name: "Send 12 files" }).click();
+    const receive = await connectWebReceiver(
+      receiver,
+      await readGeneratedSecret(send),
+    );
+    await acceptAsDownloads(receiver, receive);
+    await expect
+      .poll(() =>
+        sender.evaluate(
+          () =>
+            (window as typeof window & { __bundleEncodingStarted: boolean })
+              .__bundleEncodingStarted,
+        ),
+      )
+      .toBe(true);
+    await send.getByRole("button", { name: "Cancel send" }).click();
+    const cancelReceive = receive.getByRole("button", { name: "Cancel receive" });
+    // The sender's cancellation can remove this button between locating and
+    // clicking it. Either a local click or peer shutdown ends the receive.
+    await cancelReceive.click({ timeout: 1000 }).catch(async (error) => {
+      if (await cancelReceive.isVisible()) throw error;
+    });
+    await expect(send).toContainText(/cancelled/i);
+    await expect(
+      send.getByRole("button", { name: "Send 12 files" }),
+    ).toBeEnabled();
+    await sender.evaluate(() =>
+      Object.assign(window, { __delayBundleChunks: false }),
+    );
+    await send.getByRole("button", { name: "Send 12 files" }).click();
+    const again = await connectWebReceiver(
+      receiver,
+      await readGeneratedSecret(send),
+    );
+    const downloads = await acceptAsDownloads(receiver, again);
+    await Promise.all([
+      expect(send).toContainText("All files arrived safely", {
+        timeout: transferTimeout,
+      }),
+      expect(again).toContainText("All files received and verified", {
+        timeout: transferTimeout,
+      }),
+    ]);
+    await expectDownloads(downloads, fixtures);
+    await verifyA();
+    await verifyB();
+  } finally {
+    await a.close();
+    await b.close();
+  }
 });
