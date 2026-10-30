@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 
 	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/schollz/croc/v11/src/message"
@@ -117,29 +119,98 @@ func (c *Client) finalizeHashNegotiation() error {
 func (c *Client) startRemainingFilePreparation() {
 	c.remainingPreparationOnce.Do(func() {
 		go func() {
-			var scratch filePreparationScratch
-			for i := range c.FilesToTransfer {
-				if c.FilesToTransfer[i].Prepared {
-					continue
-				}
-				if err := c.prepareFile(i, c.preparedHashAlgorithm, &scratch); err != nil {
-					_ = message.Send(c.connection(0), c.Key, message.Message{Type: message.TypeError, Message: "file preparation failed"})
-					c.recordPreparationFailure(err)
-					return
-				}
-				prepared, err := json.Marshal(filePrepared{
-					Index:        i,
-					Hash:         c.FilesToTransfer[i].Hash,
-					IsCompressed: c.FilesToTransfer[i].IsCompressed,
+			ctx := c.clientContext()
+			workers := min(4, max(1, runtime.NumCPU()/2))
+			jobs := make(chan int)
+			type prepResult struct {
+				index int
+				err   error
+			}
+			results := make(chan prepResult, workers)
+			var wg sync.WaitGroup
+			for range workers {
+				wg.Go(func() {
+					var scratch filePreparationScratch
+					for index := range jobs {
+						if ctx.Err() != nil {
+							return
+						}
+						err := c.prepareFile(index, c.preparedHashAlgorithm, &scratch)
+						select {
+						case results <- prepResult{index: index, err: err}:
+						case <-ctx.Done():
+							return
+						}
+					}
 				})
-				if err != nil {
-					c.recordPreparationFailure(err)
+			}
+			go func() {
+				defer close(jobs)
+				for i := range c.FilesToTransfer {
+					if c.FilesToTransfer[i].Prepared {
+						continue
+					}
+					select {
+					case jobs <- i:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}()
+			go func() {
+				wg.Wait()
+				close(results)
+			}()
+
+			useBatch := c.peerSmallFiles && c.peerParallelData
+			batch := make([]filePrepared, 0, 64)
+			flush := func() error {
+				if len(batch) == 0 {
+					return nil
+				}
+				if useBatch {
+					body, err := json.Marshal(filePreparedBatch{Files: batch})
+					if err != nil {
+						return err
+					}
+					if err := c.sendParallelMessage(message.Message{Type: message.TypeFilePreparedBatch, Bytes: body}); err != nil {
+						return err
+					}
+					batch = batch[:0]
+					return nil
+				}
+				for _, prepared := range batch {
+					body, err := json.Marshal(prepared)
+					if err != nil {
+						return err
+					}
+					if err := c.sendParallelMessage(message.Message{Type: message.TypeFilePrepared, Bytes: body}); err != nil {
+						return err
+					}
+				}
+				batch = batch[:0]
+				return nil
+			}
+			for result := range results {
+				if result.err != nil {
+					_ = c.sendParallelMessage(message.Message{Type: message.TypeError, Message: "file preparation failed"})
+					c.recordPreparationFailure(result.err)
 					return
 				}
-				if err = message.Send(c.connection(0), c.Key, message.Message{Type: message.TypeFilePrepared, Bytes: prepared}); err != nil {
-					c.recordPreparationFailure(err)
-					return
+				batch = append(batch, filePrepared{
+					Index:        result.index,
+					Hash:         c.FilesToTransfer[result.index].Hash,
+					IsCompressed: c.FilesToTransfer[result.index].IsCompressed,
+				})
+				if len(batch) >= 64 {
+					if err := flush(); err != nil {
+						c.recordPreparationFailure(err)
+						return
+					}
 				}
+			}
+			if err := flush(); err != nil {
+				c.recordPreparationFailure(err)
 			}
 		}()
 	})
