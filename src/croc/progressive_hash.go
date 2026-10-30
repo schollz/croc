@@ -37,6 +37,47 @@ func (c *Client) progressiveHashActive() bool {
 	return c.peerProgressiveHash && c.Options.HashAlgorithm == progressiveHashAlgorithm
 }
 
+type filePreparedBatch struct {
+	Files []filePrepared `json:"f"`
+}
+
+func (c *Client) processMessageFilePreparedBatch(m message.Message) error {
+	if c.Options.IsSender || !c.progressiveHashActive() {
+		return errors.New("unexpected file-prepared-batch message")
+	}
+	if len(m.Bytes) > 8<<20 {
+		return errors.New("file-prepared-batch message too large")
+	}
+	var batch filePreparedBatch
+	if err := json.Unmarshal(m.Bytes, &batch); err != nil {
+		return err
+	}
+	if len(batch.Files) == 0 || len(batch.Files) > 256 {
+		return fmt.Errorf("invalid prepared batch length %d", len(batch.Files))
+	}
+	seen := make(map[int]struct{}, len(batch.Files))
+	for _, prepared := range batch.Files {
+		if prepared.Index < 0 || prepared.Index >= len(c.FilesToTransfer) {
+			return fmt.Errorf("invalid prepared file index %d", prepared.Index)
+		}
+		if len(prepared.Hash) == 0 {
+			return errors.New("prepared file digest is empty")
+		}
+		if _, ok := seen[prepared.Index]; ok {
+			return fmt.Errorf("duplicate prepared file index %d in batch", prepared.Index)
+		}
+		seen[prepared.Index] = struct{}{}
+		file := &c.FilesToTransfer[prepared.Index]
+		if file.Prepared {
+			return fmt.Errorf("duplicate prepared file index %d", prepared.Index)
+		}
+		file.Hash = append([]byte(nil), prepared.Hash...)
+		file.IsCompressed = prepared.IsCompressed
+		file.Prepared = true
+	}
+	return nil
+}
+
 func (c *Client) processMessageFilePrepared(m message.Message) error {
 	if c.Options.IsSender || !c.progressiveHashActive() {
 		return errors.New("unexpected file-prepared message")
