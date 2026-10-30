@@ -270,6 +270,7 @@ type Client struct {
 
 	barMu              sync.RWMutex
 	bar                *progressbar.ProgressBar
+	progressDisplay    *transferProgressDisplay
 	longestFilename    int
 	firstSend          bool
 	receiveStatusWidth int
@@ -2281,6 +2282,12 @@ func (c *Client) transfer() (err error) {
 			}
 			err = bundleVisibleError(err)
 		}
+		if display := c.progressDisplaySnapshot(); display != nil {
+			display.close(err == nil && c.lifecycleSnapshot().Successful)
+			c.barMu.Lock()
+			c.progressDisplay = nil
+			c.barMu.Unlock()
+		}
 	}()
 
 	// if recipient, initialize with sending pake information
@@ -2522,7 +2529,9 @@ func (c *Client) createEmptyFolder(i int) (err error) {
 		return
 	}
 	output, colorEnabled := termui.Output(os.Stderr)
-	fmt.Fprintln(output, termui.Filename(c.EmptyFoldersToTransfer[i].FolderRemote, colorEnabled))
+	if c.ensureProgressDisplay(false) == nil {
+		fmt.Fprintln(output, termui.Filename(c.EmptyFoldersToTransfer[i].FolderRemote, colorEnabled))
+	}
 	c.setProgressBar(c.newProgressBar(1, " ", 0))
 	c.finishProgress()
 	return
@@ -3552,6 +3561,10 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 
 func (c *Client) fmtPrintUpdate() {
 	c.finishedNum++
+	if display := c.progressDisplaySnapshot(); display != nil {
+		display.completeFile(c.finishedNum)
+		return
+	}
 	if c.TotalNumberOfContents > 1 {
 		output, colorEnabled := termui.Output(os.Stderr)
 		fmt.Fprintln(output, termui.Success(fmt.Sprintf(" %d/%d", c.finishedNum, c.TotalNumberOfContents), colorEnabled))

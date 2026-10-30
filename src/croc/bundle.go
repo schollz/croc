@@ -739,38 +739,26 @@ func (c *Client) newBundleProgress(indices []int, offsets []int64) func(int64, i
 	// Render only original names and sizes. The payload ID and temporary filename
 	// never become visible in normal output, including sender progress.
 	var mu sync.Mutex
+	display := c.ensureProgressDisplay(true)
 	sizes := make([]int64, len(indices))
 	done := make([]int64, len(indices))
 	current := 0
 	for i, index := range indices {
 		sizes[i] = c.FilesToTransfer[index].Size
 	}
-	show := func(i int) {
-		c.setProgressBar(c.newDataUnitProgressBar(sizes[i], formatDescription(c.FilesToTransfer[indices[i]].Name), 0, nil))
-	}
-	show(0)
+	last := len(indices) - 1
+	display.begin(offsets[last]+sizes[last], c.FilesToTransfer[indices[0]].Name, indices[0]+1)
+	c.setProgressBar(nil)
 	return func(position int64, length int) {
 		mu.Lock()
 		defer mu.Unlock()
 		for i := range indices {
 			done[i] += max(int64(0), min(offsets[i]+sizes[i], position+int64(length))-max(offsets[i], position))
 		}
-		for current < len(indices) {
-			c.barMu.RLock()
-			bar := c.bar
-			c.barMu.RUnlock()
-			if bar != nil {
-				_ = bar.Set64(done[current])
-			}
-			if done[current] != sizes[current] {
-				break
-			}
-			c.finishProgress()
+		for current < last && done[current] == sizes[current] {
 			current++
-			if current < len(indices) {
-				show(current)
-			}
 		}
+		display.advance(c.FilesToTransfer[indices[current]].Name, indices[current]+1, int64(length))
 	}
 }
 

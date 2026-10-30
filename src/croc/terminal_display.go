@@ -55,6 +55,13 @@ func (c *Client) clearReceiveStatus() {
 }
 
 func (c *Client) newProgressBar(max int64, description string, throttle time.Duration) *progressbar.ProgressBar {
+	if display := c.ensureProgressDisplay(false); display != nil {
+		display.begin(max, description, c.finishedNum+1)
+		return progressbar.NewOptions64(max,
+			progressbar.OptionSetWriter(io.Discard),
+			progressbar.OptionOnCompletion(c.fmtPrintUpdate),
+		)
+	}
 	return c.newDataUnitProgressBar(max, description, throttle, c.fmtPrintUpdate)
 }
 
