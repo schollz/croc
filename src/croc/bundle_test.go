@@ -184,7 +184,7 @@ func TestBundleCommitConflictRetainsCompletedPrefix(t *testing.T) {
 	if err := c.verifyAndCommitBundle(c.bundleState().spool); err == nil {
 		t.Fatal("late destination collision accepted")
 	}
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if _, err := os.Stat(c.FilesToTransfer[i].Name); err != nil {
 			t.Fatal("committed prefix lost", err)
 		}

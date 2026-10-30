@@ -616,8 +616,7 @@ func reconnectBackoff(attempt int) time.Duration {
 }
 
 func isTransferDisconnectError(err error) bool {
-	var cleanup bundleCleanupError
-	if errors.As(err, &cleanup) {
+	if _, ok := errors.AsType[bundleCleanupError](err); ok {
 		return false
 	}
 	var disconnect transferDisconnectError
