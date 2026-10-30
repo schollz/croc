@@ -7,6 +7,7 @@ import {
 import { MAX_FRAME_SIZE } from "./framing";
 import type { CrocMessage } from "./types";
 import type { CrocProtocolEngine } from "./engine";
+import { BUNDLE_MAX_CONTROL_BYTES } from "./bundle";
 
 type WireMessage = {
   t: CrocMessage["t"];
@@ -30,7 +31,13 @@ export async function encodeMessage(
   if (message.b2?.byteLength) wire.b2 = bytesToBase64(message.b2);
   if (message.n) wire.n = message.n;
   if (message.f?.length) wire.f = message.f;
-  let bytes = await protocolEngine.compress(textEncoder.encode(JSON.stringify(wire)));
+  let bytes: Uint8Array = textEncoder.encode(JSON.stringify(wire));
+  if (
+    wire.t.startsWith("bundle-") &&
+    bytes.byteLength > BUNDLE_MAX_CONTROL_BYTES
+  )
+    throw new Error("Bundle control exceeds 16 KiB");
+  bytes = await protocolEngine.compress(bytes);
   if (key) bytes = await protocolEngine.encrypt(bytes, key);
   return bytes;
 }
@@ -46,6 +53,11 @@ export async function decodeMessage(
   bytes = await protocolEngine.decompress(bytes, maxOutputSize);
   const wire = JSON.parse(textDecoder.decode(bytes)) as WireMessage;
   if (!wire.t) throw new Error("Peer message did not include a type");
+  if (
+    wire.t.startsWith("bundle-") &&
+    bytes.byteLength > BUNDLE_MAX_CONTROL_BYTES
+  )
+    throw new Error("Bundle control exceeds 16 KiB");
   return {
     t: wire.t,
     v: wire.v,

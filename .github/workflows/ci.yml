@@ -14,10 +14,72 @@ permissions:
 
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  small-file-bundles:
+    name: Frozen bundle compatibility (${{ matrix.os }})
+    # Historical builds and browser installation are opt-in. Routine bundle
+    # coverage shares the existing unit, portability, and race jobs below.
+    if: github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '^1.27.1'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Test bundle contract, filesystem, and native lifecycle
+        run: go test ./src/bundle ./src/croc ./src/receivefs ./src/message -run 'Bundle|SharedFixtures|LimitsAndSkippedFiles|ExactUniqueChunks|ControlBoundsAndOffer|PublishNew|PublicationCapability|ReceiveRename'
+      - name: Test real frozen native clients in both directions
+        run: python scripts/test-bundle-compatibility.py --artifacts "${{ runner.temp }}/croc-bundles"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --prefix web
+      - name: Test shared TypeScript contract and browser destinations
+        run: npm --prefix web test -- --run src/protocol/bundle.test.ts src/protocol/bundle-storage.test.ts src/protocol/client.test.ts
+      - name: Install browser engines
+        if: runner.os == 'Linux'
+        run: npx --prefix web playwright install --with-deps chromium firefox webkit
+      - name: Build the frozen browser from ebcdc31b
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          BUNDLE_ARTIFACTS: ${{ runner.temp }}/croc-bundles
+        run: |
+          ln -s "$GITHUB_WORKSPACE/web/node_modules" "$BUNDLE_ARTIFACTS/frozen-ebcdc31b/web/node_modules"
+          npm --prefix "$BUNDLE_ARTIFACTS/frozen-ebcdc31b/web" run embed
+      - name: Test bundles and real frozen browsers in all three engines
+        if: runner.os == 'Linux'
+        env:
+          CROC_E2E_FROZEN_SOURCE: ${{ runner.temp }}/croc-bundles/frozen-ebcdc31b
+          CROC_E2E_OLD_BINARY: ${{ runner.temp }}/croc-bundles/bin/old
+        run: npm --prefix web run test:e2e -- --grep 'small-file bundles|frozen bundle compatibility'
+      - name: Retain compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bundle-compatibility-${{ matrix.os }}
+          retention-days: 7
+          path: |
+            ${{ runner.temp }}/croc-bundles/compatibility.json
+            ${{ runner.temp }}/croc-bundles/base-revision.txt
+            ${{ runner.temp }}/croc-bundles/*/result.json
+            ${{ runner.temp }}/croc-bundles/*/*.log
+
   security-regressions:
     name: Security portability regressions (${{ matrix.os }})
     strategy:
@@ -62,6 +124,11 @@ jobs:
       - name: Test malicious peer and historical protocol regressions
         run: go test ./src/croc -run 'Test(HostilePortable|MarkedArchive|UnmarkedArchive|LocalIPExchange|FailedPakeConfirmation|ClientErrorsRedact)'
 
+      - name: Test bundle contract and native lifecycle
+        run: |
+          go test ./src/bundle
+          go test ./src/croc ./src/message ./src/receivefs -run 'Bundle|ReceiveRename|PublicationCapability'
+
   security-race-tests:
     name: Security race tests
     runs-on: ubuntu-24.04
@@ -94,16 +161,18 @@ jobs:
         run: |
           go test -race ./src/sshshare
           go test -race ./src/comm -run 'Test(ReceiveWithDeadlineLimit|NewConnectionContext)'
-          go test -race ./src/message -run 'TestDecodeWithLimit'
+          go test -race ./src/message -run 'Test(DecodeWithLimit|Bundle)'
 
       - name: Race-test Croc and Tailcat transport lifecycle
         run: |
           go test -race ./src/logger ./src/tailcattransport
           go test -race ./internal/tailcat -run 'HalfClose|ConnBlob|FetchDERPMapMemoryCache|Wire|ExpandWideDERPRegion|PeerConfig'
-          go test -race ./src/croc -run 'Tailcat|Staged|Transport'
+          go test -race ./src/croc -run 'Tailcat|Staged|Transport|Bundle'
 
   security-fuzz-smoke:
     name: Security fuzz smoke tests
+    # The regular Go suite still runs the fuzz seed corpus on every change.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -150,7 +219,7 @@ jobs:
       - name: Run unit tests
         run: go test -v ./...
 
-      - name: Build pull-request smoke targets
+      - name: Build common smoke targets
         run: |
           go version
           COMMON='-buildvcs=false -trimpath -tags netgo,osusergo'
@@ -158,26 +227,18 @@ jobs:
           SMALL='-s -w -buildid= -extldflags "-static"'
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $COMMON -ldflags "$SMALL" -o croc-linux-amd64
           CGO_ENABLED=0 GOOS=linux GOARCH=386 go build $COMMON -ldflags "$SMALL" -o croc-linux-386
-          GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go build $COMMON -ldflags "$SMALL" -o croc-linux-arm5
           CGO_ENABLED=0 go test -tags croc_no_tailcat ./src/croc ./src/cli ./src/sshshare ./src/tailcattransport
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $RELAY_ONLY -ldflags "$SMALL" -o croc-linux-amd64-relay-only
-          CGO_ENABLED=0 GOOS=dragonfly GOARCH=amd64 go build $COMMON -ldflags "$SMALL" -o croc-dragonfly-amd64
-          CGO_ENABLED=0 GOOS=netbsd GOARCH=386 go build $COMMON -ldflags "$SMALL" -o croc-netbsd-386
-          CGO_ENABLED=0 GOOS=netbsd GOARCH=amd64 go build $COMMON -ldflags "$SMALL" -o croc-netbsd-amd64
-          CGO_ENABLED=0 GOOS=netbsd GOARCH=arm64 go build $COMMON -ldflags "$SMALL" -o croc-netbsd-arm64
-          CGO_ENABLED=0 GOOS=illumos GOARCH=amd64 go test -c -o /tmp/tailcattransport-illumos-amd64.test ./src/tailcattransport
-          CGO_ENABLED=0 GOOS=linux GOARCH=386 go test -c -o /tmp/tailcattransport-linux-386.test ./src/tailcattransport
-          GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go test -c -o /tmp/tailcattransport-linux-arm5.test ./src/tailcattransport
-          go test -tags croc_tailcat_bench ./src/croc -run '^$'
 
-      - name: Build remaining platform targets
-        if: github.event_name != 'pull_request'
+      - name: Build exhaustive platform targets
+        if: github.event_name == 'workflow_dispatch'
         run: |
           COMMON='-buildvcs=false -trimpath -tags netgo,osusergo'
           SMALL='-s -w -buildid= -extldflags "-static"'
           DARWIN='-s -w -buildid= -extldflags "-sectcreate __TEXT __info_plist Info.plist"'
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $COMMON -ldflags "$SMALL" -o croc-windows-amd64.exe
           CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build $COMMON -ldflags "$SMALL" -o croc-windows-arm64.exe
+          GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go build $COMMON -ldflags "$SMALL" -o croc-linux-arm5
           CGO_ENABLED=0 GOOS=linux GOARCH=arm go build $COMMON -ldflags "$SMALL" -o croc-linux-arm
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $COMMON -ldflags "$SMALL" -o croc-linux-arm64
           CGO_ENABLED=0 GOOS=linux GOARCH=riscv64 go build $COMMON -ldflags "$SMALL" -o croc-linux-riscv64
@@ -191,6 +252,10 @@ jobs:
           CGO_ENABLED=0 GOOS=netbsd GOARCH=arm64 go build $COMMON -ldflags "$SMALL" -o croc-netbsd-arm64
           CGO_ENABLED=0 GOOS=openbsd GOARCH=amd64 go build $COMMON -ldflags "$SMALL" -o croc-openbsd-amd64
           CGO_ENABLED=0 GOOS=openbsd GOARCH=arm64 go build $COMMON -ldflags "$SMALL" -o croc-openbsd-arm64
+          CGO_ENABLED=0 GOOS=illumos GOARCH=amd64 go test -c -o /tmp/tailcattransport-illumos-amd64.test ./src/tailcattransport
+          CGO_ENABLED=0 GOOS=linux GOARCH=386 go test -c -o /tmp/tailcattransport-linux-386.test ./src/tailcattransport
+          GOARM=5 CGO_ENABLED=0 GOOS=linux GOARCH=arm go test -c -o /tmp/tailcattransport-linux-arm5.test ./src/tailcattransport
+          go test -tags croc_tailcat_bench ./src/croc -run '^$'
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -202,6 +267,7 @@ jobs:
       - name: Build standalone croc-web
         run: |
           npm ci --prefix web
+          npm test --prefix web
           npm run embed --prefix web
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
             go build -buildvcs=false -trimpath -tags netgo,osusergo \

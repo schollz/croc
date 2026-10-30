@@ -60,6 +60,103 @@ beforeEach(() => {
 });
 
 describe("DataReceiver failure handling", () => {
+  function plainFrames(frames: Uint8Array[]) {
+    engineMocks.decrypt.mockImplementation(async (bytes: Uint8Array) => bytes);
+    const receive = vi.fn();
+    for (const frame of frames) receive.mockResolvedValueOnce(frame);
+    receive.mockImplementation(() => new Promise<Uint8Array>(() => {}));
+    return { receive } as unknown as CrocSocket;
+  }
+  function frame(position: number, length: number) {
+    const bytes = new Uint8Array(8 + length);
+    new DataView(bytes.buffer).setBigUint64(0, BigInt(position), true);
+    return bytes;
+  }
+
+  it("verifies exact unique bundle chunks in out-of-order arrival", async () => {
+    const socket = plainFrames([
+      frame(32768, 32768),
+      frame(65536, 1),
+      frame(0, 32768),
+    ]);
+    const receiver = new DataReceiver([socket], key, true),
+      write = vi.fn(async (_position: number, _bytes: Uint8Array) => {}),
+      progress = vi.fn();
+    await receiver.receive(
+      { ...file, size: 65537 },
+      { ...sink, writeAt: write },
+      progress,
+      undefined,
+      true,
+    );
+    expect(write.mock.calls.map((call) => call[0])).toEqual([32768, 65536, 0]);
+    expect(progress.mock.calls).toEqual([[32768], [32769], [65537]]);
+    receiver.assertHealthy();
+    receiver.stop();
+  });
+
+  it("rejects duplicate and short middle bundle chunks", async () => {
+    for (const frames of [
+      [frame(0, 32768), frame(0, 32768)],
+      [frame(32768, 1)],
+    ]) {
+      const receiver = new DataReceiver([plainFrames(frames)], key, true);
+      await expect(
+        receiver.receive(
+          { ...file, size: 65537 },
+          sink,
+          () => {},
+          undefined,
+          true,
+        ),
+      ).rejects.toThrow(/duplicate|outside/);
+      expect(() => receiver.assertHealthy()).toThrow();
+      receiver.stop();
+    }
+  });
+
+  it("does not complete a bundle with a missing chunk", async () => {
+    const receiver = new DataReceiver(
+      [plainFrames([frame(32768, 32768), frame(65536, 1)])],
+      key,
+      true,
+    );
+    const progress = vi.fn();
+    let completed = false;
+    const pending = receiver.receive(
+      { ...file, size: 65537 },
+      sink,
+      progress,
+      undefined,
+      true,
+    );
+    void pending.then(
+      () => {
+        completed = true;
+      },
+      () => undefined,
+    );
+    await vi.waitFor(() => expect(progress).toHaveBeenCalledTimes(2));
+    expect(completed).toBe(false);
+    receiver.stop();
+    await expect(pending).rejects.toThrow(/stopped/);
+  });
+
+  it("retains a late duplicate failure after the payload promise resolves", async () => {
+    const receiver = new DataReceiver(
+      [plainFrames([frame(0, 4), frame(0, 4)])],
+      key,
+      true,
+    );
+    await receiver.receive(file, sink, () => {}, undefined, true);
+    await vi.waitFor(() =>
+      expect(() => receiver.assertHealthy()).toThrow(
+        /before it was requested|duplicate/,
+      ),
+    );
+    receiver.stop();
+  });
+
   it("rejects a receive requested after a socket already failed", async () => {
     const receiver = new DataReceiver(
       [failingSocket(new Error("relay closed"))],

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/schollz/croc/v11/src/bundle"
 	"github.com/schollz/croc/v11/src/comm"
 	"github.com/schollz/croc/v11/src/message"
 )
@@ -32,18 +33,19 @@ var defaultFileInfoManifestLimits = fileInfoManifestLimits{
 }
 
 type fileInfoManifestHeader struct {
-	FileCount          int      `json:"fc"`
-	EmptyFolderCount   int      `json:"ec"`
-	TotalNumberFolders int      `json:"tf"`
-	MachineID          string   `json:"mi"`
-	ExternalIP         string   `json:"ip,omitempty"`
-	Ask                bool     `json:"a"`
-	SendingText        bool     `json:"st"`
-	NoCompress         bool     `json:"nc"`
-	HashAlgorithm      string   `json:"ha"`
-	ReconnectVersion   int      `json:"rv"`
-	NextReconnectRoom  string   `json:"nr,omitempty"`
-	Features           []string `json:"f,omitempty"`
+	BundleLimits       *bundle.Limits `json:"bl,omitempty"`
+	FileCount          int            `json:"fc"`
+	EmptyFolderCount   int            `json:"ec"`
+	TotalNumberFolders int            `json:"tf"`
+	MachineID          string         `json:"mi"`
+	ExternalIP         string         `json:"ip,omitempty"`
+	Ask                bool           `json:"a"`
+	SendingText        bool           `json:"st"`
+	NoCompress         bool           `json:"nc"`
+	HashAlgorithm      string         `json:"ha"`
+	ReconnectVersion   int            `json:"rv"`
+	NextReconnectRoom  string         `json:"nr,omitempty"`
+	Features           []string       `json:"f,omitempty"`
 }
 
 type fileInfoManifestBatch struct {
@@ -74,6 +76,7 @@ func fileInfoManifestHeaderFromSenderInfo(info SenderInfo) fileInfoManifestHeade
 		ReconnectVersion:   info.ReconnectVersion,
 		NextReconnectRoom:  info.NextReconnectRoom,
 		Features:           info.Features,
+		BundleLimits:       info.BundleLimits,
 	}
 }
 
@@ -91,6 +94,7 @@ func (h fileInfoManifestHeader) senderInfo(files, emptyFolders []FileInfo) Sende
 		ReconnectVersion:       h.ReconnectVersion,
 		NextReconnectRoom:      h.NextReconnectRoom,
 		Features:               h.Features,
+		BundleLimits:           h.BundleLimits,
 	}
 }
 

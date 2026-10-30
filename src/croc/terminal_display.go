@@ -55,6 +55,10 @@ func (c *Client) clearReceiveStatus() {
 }
 
 func (c *Client) newProgressBar(max int64, description string, throttle time.Duration) *progressbar.ProgressBar {
+	return c.newDataUnitProgressBar(max, description, throttle, c.fmtPrintUpdate)
+}
+
+func (c *Client) newDataUnitProgressBar(max int64, description string, throttle time.Duration, completed func()) *progressbar.ProgressBar {
 	output, colorEnabled := termui.Output(os.Stderr)
 	return termui.NewProgress(termui.ProgressConfig{
 		Max:          max,
@@ -63,9 +67,7 @@ func (c *Client) newProgressBar(max int64, description string, throttle time.Dur
 		ColorEnabled: colorEnabled,
 		Hidden:       c.Options.SendingText,
 		Throttle:     throttle,
-		OnCompletion: func() {
-			c.fmtPrintUpdate()
-		},
+		OnCompletion: completed,
 	})
 }
 
@@ -162,4 +164,27 @@ func formatNoTransferSummary(files []FileInfo, unchanged int, colorEnabled bool)
 		return "\rAlready up to date: " + detail + "\n"
 	}
 	return "\rNo files transferred.\n"
+}
+
+func (c *Client) startSendProgress() {
+	if c.firstSend {
+		return
+	}
+	output, _ := termui.Output(os.Stderr)
+	fmt.Fprintf(output, "\nSending (%s)\n", c.transferDirection())
+	c.firstSend = true
+	// if there are empty files, show them as already have been transferred now
+	for i := range c.FilesToTransfer {
+		if c.FilesToTransfer[i].Size == 0 {
+			// setup the progressbar and takedown the progress bar for empty files
+			description := fmt.Sprintf("%-*s", c.longestFilename, c.FilesToTransfer[i].Name)
+			if len(c.FilesToTransfer) == 1 {
+				description = c.FilesToTransfer[i].Name
+				// description = ""
+			}
+
+			c.setProgressBar(c.newProgressBar(1, formatDescription(description), 0))
+			c.finishProgress()
+		}
+	}
 }

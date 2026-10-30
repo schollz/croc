@@ -13,6 +13,21 @@ function identityWasm() {
 }
 
 describe("control message codec", () => {
+  it("bounds bundle envelopes before base64 content decoding", async () => {
+    const engine = identityWasm();
+    await expect(
+      encodeMessage(engine, { t: "bundle-request", b: new Uint8Array(16384) }),
+    ).rejects.toThrow(/16 KiB/);
+    const invalid = new TextEncoder().encode(
+      JSON.stringify({ t: "bundle-request", b: "!".repeat(16384) }),
+    );
+    await expect(decodeMessage(engine, invalid)).rejects.toThrow(/16 KiB/);
+    const legacy = await encodeMessage(engine, {
+      t: "fileinfo",
+      b: new Uint8Array(16384),
+    });
+    expect((await decodeMessage(engine, legacy)).b?.byteLength).toBe(16384);
+  });
   it("round trips croc's compact JSON and base64 byte fields", async () => {
     const engine = identityWasm();
     const encoded = await encodeMessage(
