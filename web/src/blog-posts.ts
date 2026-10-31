@@ -1817,7 +1817,7 @@ const drafts: DraftBlogPost[] = [
       { type: "heading", text: "One audio file" },
       {
         type: "table",
-        caption: "303 MB audio file from US West to US East",
+        caption: "Audio file transfer times",
         headers: ["Tool", "Elapsed", "Effective rate", "Relative time"],
         rows: [
           {
@@ -1842,6 +1842,10 @@ const drafts: DraftBlogPost[] = [
             href: "https://github.com/psanford/wormhole-william",
           },
           {
+            cells: ["DashBeam (Sendme CLI)", "109.5 s", "2.90 MB/s", "—"],
+            href: "https://github.com/tonyantony300/dashbeam",
+          },
+          {
             cells: ["AirPipe", "110.0 s", "2.75 MB/s", "15.3× croc time"],
             href: "https://github.com/Sanyam-G/Airpipe",
           },
@@ -1857,7 +1861,17 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "The effective rate is just 303 MB divided by the time. It includes connection setup, protocol overhead, and possibly compression, so it is not the raw speed of the network. Still, it makes the wait easy to compare.",
+        text: "The effective rate is the file size divided by the time. It includes connection setup, protocol overhead, and possibly compression, so it is not the raw speed of the network. Still, it makes the wait easy to compare.",
+      },
+      {
+        type: "paragraph",
+        text: "DashBeam recommends Sendme for command-line transfers. I tried Sendme 0.37.1 on October 31, 2026, sending a 317.5 MB audio.wav from my Mac to a Toronto server. It took 109.5 seconds, and the received file matched the source's SHA-256.",
+        links: [
+          {
+            label: "DashBeam",
+            href: "https://www.dashbeam.net/en/downloads",
+          },
+        ],
       },
       { type: "heading", text: "A folder of photos" },
       {
@@ -1950,6 +1964,13 @@ const drafts: DraftBlogPost[] = [
               "iroh QUIC over a hole-punched direct path or encrypted relay, with verified blobs",
             ],
             href: "https://github.com/n0-computer/sendme",
+          },
+          {
+            cells: [
+              "DashBeam (Sendme CLI)",
+              "iroh QUIC over a hole-punched direct path or encrypted relay, with verified blobs",
+            ],
+            href: "https://github.com/tonyantony300/dashbeam",
           },
           {
             cells: [
@@ -2104,6 +2125,19 @@ const drafts: DraftBlogPost[] = [
           "",
           "# Receiver",
           "$ time derphole receive YOUR-CODE",
+        ],
+      },
+      {
+        type: "details",
+        summary: "DashBeam (Sendme CLI) — 109.5 seconds",
+        lines: [
+          "$ curl -fsSL https://iroh.computer/sendme.sh | sh",
+          "",
+          "# Sender",
+          "$ ./sendme send audio.wav",
+          "",
+          "# Receiver",
+          "$ time ./sendme receive 'YOUR-TICKET'",
         ],
       },
     ],

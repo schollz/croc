@@ -152,8 +152,8 @@
       "description": "I timed eight command-line file-transfer tools between two servers using a 303 MB audio file and a folder of 64 photos.",
       "category": "Benchmarks",
       "publishedAt": "2026-08-23",
-      "modifiedAt": "2026-08-23",
-      "wordCount": 1127,
+      "modifiedAt": "2026-10-31",
+      "wordCount": 1208,
       "readingMinutes": 6,
       "relatedSlugs": [
         "compare-file-transfer-tools",
@@ -164,6 +164,7 @@
         "CLI file transfer benchmark",
         "croc vs Magic Wormhole",
         "croc vs Sendme",
+        "croc vs DashBeam",
         "WebWormhole speed",
         "Floe speed",
         "AirPipe speed",

@@ -119,6 +119,17 @@ describe("Blog", () => {
       screen.getAllByRole("rowheader", { name: "derphole" }),
     ).toHaveLength(3);
     expect(
+      screen.getAllByRole("rowheader", { name: "DashBeam (Sendme CLI)" }),
+    ).toHaveLength(2);
+    expect(screen.getByRole("link", { name: "DashBeam" })).toHaveAttribute(
+      "href",
+      "https://www.dashbeam.net/en/downloads",
+    );
+    expect(
+      screen.getByText(/I tried Sendme 0\.37\.1 on October 31, 2026/),
+    ).toBeVisible();
+    expect(screen.getByRole("cell", { name: "109.5 s" })).toBeVisible();
+    expect(
       screen.getByRole("heading", {
         name: "How the tools move a file",
       }),
@@ -141,8 +152,9 @@ describe("Blog", () => {
     const commandSummaries = document.querySelectorAll(
       "details.blog-code-details > summary",
     );
-    expect(commandSummaries).toHaveLength(8);
+    expect(commandSummaries).toHaveLength(9);
     expect(commandSummaries[0]).toHaveTextContent("croc — 7.2 seconds");
+    expect(commandSummaries[8]).toHaveTextContent("DashBeam (Sendme CLI) — 109.5 seconds");
     expect(commandSummaries[7]).toHaveTextContent(
       "derphole — 9.6 seconds for audio; 34.9 seconds for photos",
     );
