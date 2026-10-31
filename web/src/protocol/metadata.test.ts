@@ -1,6 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { collisionKey, normalizeOutgoingFileName, validateSenderInfo } from "./metadata";
+import {
+  collisionKey,
+  normalizeOutgoingFileName,
+  validateSenderInfo,
+} from "./metadata";
 import type { SenderInfoWire } from "./types";
+import { BUNDLE_FEATURE, BUNDLE_LIMITS } from "./bundle";
+
+it("uses Go file-mode type bits when selecting bundle members", () => {
+  for (const [mode, eligible] of [
+    [0o644, true],
+    [0x10000000 | 0o600, true],
+    [0x80000000, false],
+    [0x04000000, false],
+    [0x01000000, false],
+    [0x00080000, false],
+  ] as const) {
+    const info = sender([
+      { n: "file", s: 4, h: "AAAAAAAAAAA=", md: mode, p: true },
+    ]);
+    info.Features = [BUNDLE_FEATURE];
+    info.BundleLimits = BUNDLE_LIMITS;
+    expect(validateSenderInfo(info).files[0].bundleEligible).toBe(eligible);
+  }
+});
 
 function sender(
   files: SenderInfoWire["FilesToTransfer"],
@@ -20,15 +43,18 @@ function sender(
 
 describe("incoming croc metadata", () => {
   it("matches Go case folding for Unicode 16 and 17 letters", () => {
-    expect(collisionKey("\u1c89\u{10d50}\u{16ea0}"))
-      .toBe("\u1c8a\u{10d70}\u{16ebb}");
+    expect(collisionKey("\u1c89\u{10d50}\u{16ea0}")).toBe(
+      "\u1c8a\u{10d70}\u{16ebb}",
+    );
   });
 
   it("normalizes Unicode separators in outgoing filenames for Go compatibility", () => {
     expect(
       normalizeOutgoingFileName("Screenshot 2026-07-22 at 8.59.57\u202fAM.png"),
     ).toBe("Screenshot 2026-07-22 at 8.59.57 AM.png");
-    expect(normalizeOutgoingFileName("two\u00a0spaces.txt")).toBe("two spaces.txt");
+    expect(normalizeOutgoingFileName("two\u00a0spaces.txt")).toBe(
+      "two spaces.txt",
+    );
     expect(() => normalizeOutgoingFileName("hidden\u200bmark.txt")).toThrow(
       /non-printable/i,
     );
@@ -40,14 +66,17 @@ describe("incoming croc metadata", () => {
 
   it("normalizes safe nested paths", () => {
     const offer = validateSenderInfo(
-      sender([
-        {
-          n: "hello.txt",
-          fr: "docs/notes/",
-          s: 5,
-          h: "AQID",
-        },
-      ], [{ fr: "empty/folder/" }]),
+      sender(
+        [
+          {
+            n: "hello.txt",
+            fr: "docs/notes/",
+            s: 5,
+            h: "AQID",
+          },
+        ],
+        [{ fr: "empty/folder/" }],
+      ),
     );
     expect(offer.files[0]).toMatchObject({
       name: "hello.txt",
@@ -145,9 +174,7 @@ describe("incoming croc metadata", () => {
 
     expect(() =>
       validateSenderInfo(
-        sender([{ n: "parent", fr: ".", s: 1, h: "AA==" }], [
-          { fr: "parent" },
-        ]),
+        sender([{ n: "parent", fr: ".", s: 1, h: "AA==" }], [{ fr: "parent" }]),
       ),
     ).toThrow(/duplicate/i);
   });
@@ -164,10 +191,7 @@ describe("incoming croc metadata", () => {
         { n: "croc-stdin-one", s: 1, h: "AA==" },
         { n: "croc-stdin-two", s: 1, h: "AA==" },
       ]),
-      sender(
-        [{ n: "croc-stdin-folder", s: 1, h: "AA==" }],
-        [{ fr: "folder" }],
-      ),
+      sender([{ n: "croc-stdin-folder", s: 1, h: "AA==" }], [{ fr: "folder" }]),
       {
         ...sender([{ n: "croc-stdin-folder-count", s: 1, h: "AA==" }]),
         TotalNumberFolders: 1,

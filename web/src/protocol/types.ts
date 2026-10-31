@@ -1,4 +1,9 @@
 export type MessageType =
+  | "bundle-request"
+  | "bundle-offer"
+  | "bundle-ready"
+  | "bundle-done"
+  | "bundle-closed"
   | "pake"
   | "pake-confirm"
   | "ssh-authorize"
@@ -34,6 +39,7 @@ export interface WireFileInfo {
   md?: number;
   tf?: boolean;
   ig?: boolean;
+  p?: boolean;
 }
 
 export interface SenderInfoWire {
@@ -48,6 +54,7 @@ export interface SenderInfoWire {
   ReconnectVersion?: number;
   NextReconnectRoom?: string;
   Features?: string[];
+  BundleLimits?: import("./bundle").BundleLimits;
 }
 
 export interface RemoteFileRequestWire {
@@ -67,6 +74,7 @@ export interface OfferedFile {
   modified?: string;
   mode?: number;
   compressed?: boolean;
+  bundleEligible?: boolean;
 }
 
 export interface TransferOffer {
@@ -77,6 +85,7 @@ export interface TransferOffer {
   senderMachineID: string;
   noCompress: boolean;
   perFileCompression: boolean;
+  bundleLimits?: import("./bundle").BundleLimits;
 }
 
 export const maxTextTransferBytes = 1024 * 1024;
@@ -113,12 +122,21 @@ export interface TransferCallbacks {
   onFileComplete?(fileName: string): void;
 }
 
-export interface ReceiveSink {
+export interface WritablePayload {
   writeAt(position: number, bytes: Uint8Array): Promise<void>;
+}
+
+export interface ReceivePayload extends WritablePayload {
   finalize(): Promise<void>;
-  hash(algorithm?: "xxhash" | "sha256", signal?: AbortSignal): Promise<Uint8Array>;
-  commit(): Promise<void>;
+  hash(
+    algorithm?: "xxhash" | "sha256",
+    signal?: AbortSignal,
+  ): Promise<Uint8Array>;
   abort(): Promise<void>;
+}
+
+export interface ReceiveSink extends ReceivePayload {
+  commit(): Promise<void>;
 }
 
 export interface ReceiveDestination {

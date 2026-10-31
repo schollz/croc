@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/schollz/croc/v11/src/bundle"
 	"github.com/schollz/croc/v11/src/comm"
 	log "github.com/schollz/croc/v11/src/logger"
 	"github.com/schollz/croc/v11/src/message"
@@ -209,7 +210,7 @@ func (c *Client) activateSecureChannel(attempt *transferAttemptState) (err error
 }
 
 func (c *Client) pakeFeatures() []string {
-	features := []string{inlinePeerMetadataFeature, progressiveFileHashFeature, chunkedFileInfoFeature, stagedTransportFeature, implicitTailcatReadyFeature}
+	features := []string{inlinePeerMetadataFeature, progressiveFileHashFeature, chunkedFileInfoFeature, stagedTransportFeature, implicitTailcatReadyFeature, bundle.Feature}
 	if !c.localTailcatSupported() {
 		return features
 	}
@@ -365,7 +366,7 @@ func (c *Client) installTailcatBundle(bundle *tailcatDataBundle, cleanup func(),
 	attempt.finishTailcatSetup()
 	if !c.Options.IsSender {
 		for i := range bundle.connections {
-			go c.receiveData(i, c.connection(i+1), attempt)
+			c.startReceiveData(i, c.connection(i+1), attempt)
 		}
 	}
 	return nil

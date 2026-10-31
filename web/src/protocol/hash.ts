@@ -24,7 +24,7 @@ function checkAbort(signal?: AbortSignal) {
 }
 
 export async function hashFileContents(
-  file: File,
+  file: Blob,
   algorithm: FileHashAlgorithm,
   signal?: AbortSignal,
 ) {
