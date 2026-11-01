@@ -145,12 +145,13 @@ func newApp() *cli.App {
 		{
 			Name:        "update",
 			Aliases:     []string{"upgrade"},
-			Usage:       "check for and safely install a newer croc release",
-			Description: "self-update official standalone installs; show package-manager guidance for other installs",
+			Usage:       "prepare croc-update to install the latest croc release",
+			Description: "install or update the adjacent croc-update utility, then print the command to update croc; package-managed installs use their package manager",
 			Flags: []cli.Flag{
 				&cli.BoolFlag{Name: "check", Usage: "check for a newer release without installing it"},
-				&cli.BoolFlag{Name: "yes", Usage: "install without prompting when self-update is safe"},
+				&cli.BoolFlag{Name: "yes", Usage: "install the updater without confirmation (OS authentication may still be required)"},
 				&cli.BoolFlag{Name: "register-installer", Hidden: true},
+				&cli.StringFlag{Name: "internal-install-version", Hidden: true},
 			},
 			HelpName: "croc update",
 			Action:   updateCommand,

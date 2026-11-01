@@ -1,5 +1,6 @@
 BINARY := croc
 WEB_BINARY := croc-web
+UPDATE_BINARY := croc-update
 AIR_VERSION := v1.65.1
 BUILD_FLAGS := -buildvcs=false -trimpath -tags netgo,osusergo
 LDFLAGS := -s -w -buildid=
@@ -10,6 +11,7 @@ STORE_DOWNLOADS ?= 100
 
 build:
 	CGO_ENABLED=0 go build $(BUILD_FLAGS) -ldflags="$(LDFLAGS)" -o $(BINARY) .
+	CGO_ENABLED=0 go build $(BUILD_FLAGS) -ldflags="$(LDFLAGS)" -o $(UPDATE_BINARY) ./cmd/croc-update
 
 web-assets:
 	cd web && if [ ! -d node_modules ]; then npm install; fi && npm run embed

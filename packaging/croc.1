@@ -60,7 +60,11 @@ An invitation grants the access described by the host until the session ends.
 Run a relay explicitly. Installing this package does not start a relay service.
 .TP
 .B update
-Check for newer upstream releases. Package-managed installations must be updated
+Install or refresh the adjacent croc-update utility, then print the command to
+update croc. Use croc-update to install the latest stable croc beside itself.
+Both commands accept --check to report availability without installation and
+--yes to skip confirmation. Protected locations may require sudo/doas or
+Windows UAC authentication. Package-managed installations must be updated
 with their owning package manager.
 .SH OPTIONS
 .TP

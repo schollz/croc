@@ -179,6 +179,10 @@ const drafts: DraftBlogPost[] = [
     blocks: [
       {
         type: "paragraph",
+        text: "Correction: installer registration alone did not make root-owned installations writable. This article describes the original v11.5 updater. Current standalone releases include a separate croc-update binary: croc update installs or refreshes that helper, then croc-update replaces croc, requesting sudo/doas or Windows UAC approval when needed. The curl installer installs both binaries into the same directory, and manually extracted archives need no registration. If your older updater reports that the executable is not writable, run the installer once to obtain the pair. Package-managed installations still use their package manager.",
+      },
+      {
+        type: "paragraph",
         text: "The usual way to update croc has been to install croc again. This works, but it is a funny errand to repeat for a program whose main appeal is doing useful things with one small command. v11.5 adds another one: croc update.",
       },
       {

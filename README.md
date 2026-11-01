@@ -41,15 +41,39 @@ You can download [the latest release for your system](https://github.com/schollz
 curl https://getcroc.com | bash
 ```
 
+The installer places **croc** and **croc-update** in the same directory. Standalone
+release archives include both binaries too. To upgrade:
+
+```bash
+croc update       # install or refresh croc-update, then print its exact path
+croc-update       # install the latest stable croc beside the updater
+```
+
+The updater shows download progress with transferred bytes. Each command asks
+before changing a binary. Pass `--yes` to each command to skip
+its confirmation. Protected directories such as `/usr/local/bin` may still
+require authentication: the command requests `sudo` or `doas` on Unix, or UAC
+approval on Windows. Writable custom prefixes work without elevation:
+
+```bash
+curl https://getcroc.com | bash -s -- -p "$HOME/.local/bin"
+```
+
+`croc update --check` reports croc and updater availability without installing;
+`croc-update --check` checks the adjacent croc. The updater can also be run
+directly, while `croc update` keeps the updater itself current. `croc upgrade`
+is an alias for `croc update`. Neither binary overwrites itself or automatically
+downgrades a newer installed version.
+
+If an older `croc update` reports that the running executable is not writable,
+run the installer once to obtain this pair. Subsequent upgrades use the commands
+above. Manually extracted standalone archives do not need installer registration.
+Package-managed installations use their owning package manager instead.
+
 When the CLI sends or receives a transfer, it checks for a newer croc release at
 most once every 24 hours. The check runs in the background and any update notice
-is shown after the transfer finishes. Run `croc update --check` at any time to
-check explicitly. Installations made by the command above can use `croc update`
-(`croc upgrade` is an alias) to verify and install a stable release when the
-executable is user-writable; pass `--yes` to skip confirmation.
-Package-managed and other installations are never overwritten; the command
-prints the appropriate upgrade guidance instead. Network and release-service
-failures in background checks are ignored; `--quiet` suppresses the notice.
+is shown after the transfer finishes. Network and release-service failures in
+background checks are ignored; `--quiet` suppresses the notice.
 
 ### On macOS
 

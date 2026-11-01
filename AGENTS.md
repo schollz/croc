@@ -35,8 +35,8 @@ Publishing the draft triggers the Docker workflow. A failed workflow may be
 rerun with the same tag while the release is absent or still a draft; the
 workflow rejects a mismatched tag or a release that has already been published.
 
-Before publishing, verify that the workflow's native binary checks report both
-`croc version X.Y.Z` and `croc-web version X.Y.Z` for the requested tag.
+Before publishing, verify that the workflow's native binary checks report
+`croc version X.Y.Z`, `croc-update version X.Y.Z`, and `croc-web version X.Y.Z` for the requested tag.
 
 ### Command-line release with `gh`
 
@@ -83,6 +83,10 @@ test "$(gh release view "${RELEASE_TAG}" --json assets --jq '.assets | length')"
 ```
 
 Download the draft assets and run `python3 packaging/release.py verify-assets --version "${RELEASE_TAG}" --artifacts DIRECTORY` to validate their exact names and checksums.
+
+Verify that every standalone platform archive contains both executables. Before
+publishing the first updater release, complete the Windows UAC consent and
+cancellation smoke test in `packaging/README.md`.
 
 Review the generated notes and asset names before publishing. Publishing is the
 point that triggers the Docker workflow:

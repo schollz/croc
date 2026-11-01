@@ -5,6 +5,8 @@ on:
     paths:
       - 'packaging/**'
       - 'src/cli/**'
+      - 'internal/update/**'
+      - 'cmd/croc-update/**'
       - 'src/version/**'
       - 'main.go'
       - 'go.mod'
