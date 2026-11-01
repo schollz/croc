@@ -1,14 +1,140 @@
 package main
 
 import (
+	"archive/tar"
+	"archive/zip"
 	"bytes"
+	"compress/gzip"
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 )
+
+func TestInstallerInstallsVerifiedPair(t *testing.T) {
+	for _, state := range []string{"success", "Windows", "missing helper", "wrong helper version", "bad checksum", "symlink destination", "install failure"} {
+		t.Run(state, func(t *testing.T) {
+			work := t.TempDir()
+			prefix := filepath.Join(work, "prefix with spaces")
+			if err := os.Mkdir(prefix, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			bin := filepath.Join(work, "bin")
+			if err := os.Mkdir(bin, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			suffix := ""
+			platform := "Linux"
+			extension := "tar.gz"
+			if state == "Windows" {
+				suffix = ".exe"
+				platform = "Windows"
+				extension = "zip"
+			}
+			asset := "croc_v11.6.0_" + platform + "-64bit." + extension
+			files := map[string][]byte{}
+			for _, tool := range []string{"croc", "croc-update"} {
+				if state == "missing helper" && tool == "croc-update" {
+					continue
+				}
+				version := "11.6.0"
+				if state == "wrong helper version" && tool == "croc-update" {
+					version = "11.5.0"
+				}
+				files[tool+suffix] = []byte("#!/bin/sh\necho '" + tool + " version " + version + "'\n")
+			}
+			var archive bytes.Buffer
+			if extension == "zip" {
+				writer := zip.NewWriter(&archive)
+				for name, data := range files {
+					entry, _ := writer.Create(name)
+					entry.Write(data)
+				}
+				writer.Close()
+			} else {
+				gz := gzip.NewWriter(&archive)
+				writer := tar.NewWriter(gz)
+				for name, data := range files {
+					writer.WriteHeader(&tar.Header{Name: name, Mode: 0o755, Size: int64(len(data)), Typeflag: tar.TypeReg})
+					writer.Write(data)
+				}
+				writer.Close()
+				gz.Close()
+			}
+			archivePath := filepath.Join(work, asset)
+			if err := os.WriteFile(archivePath, archive.Bytes(), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			sum := sha256.Sum256(archive.Bytes())
+			if state == "bad checksum" {
+				sum[0] ^= 1
+			}
+			checksums := filepath.Join(work, "checksums.txt")
+			if err := os.WriteFile(checksums, fmt.Appendf(nil, "%x  %s\n", sum, asset), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			stubs := map[string]string{
+				"uname": "#!/bin/sh\nif [ \"$1\" = -m ]; then echo x86_64; else echo \"$MOCK_OS\"; fi\n",
+				"curl":  "#!/bin/bash\ncase \"$*\" in\n *api.github.com*) echo '{\"tag_name\":\"v11.6.0\"}';;\n *) for ((i=1;i<=$#;i++)); do if [[ \"${!i}\" == -o ]]; then j=$((i+1)); dest=\"${!j}\"; fi; done\n case \"$*\" in *_checksums.txt*) cp \"$MOCK_CHECKSUMS\" \"$dest\";; *) cp \"$MOCK_ARCHIVE\" \"$dest\";; esac;;\nesac\n",
+				"sudo":  "#!/bin/sh\necho 'unexpected elevation' >&2\nexit 99\n",
+				"doas":  "#!/bin/sh\necho 'unexpected elevation' >&2\nexit 99\n",
+			}
+			if state == "install failure" {
+				stubs["install"] = "#!/bin/sh\nexit 1\n"
+			}
+			for name, data := range stubs {
+				if err := os.WriteFile(filepath.Join(bin, name), []byte(data), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			croc := filepath.Join(prefix, "croc"+suffix)
+			const original = "original binary"
+			if state == "symlink destination" {
+				if err := os.Symlink(archivePath, croc); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.WriteFile(croc, []byte(original), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			command := exec.Command("/bin/bash", "default.txt", "-p", prefix)
+			mockOS := "Linux"
+			if state == "Windows" {
+				mockOS = "MINGW64_NT"
+			}
+			command.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "MOCK_OS="+mockOS, "MOCK_CHECKSUMS="+checksums, "MOCK_ARCHIVE="+archivePath)
+			output, err := command.CombinedOutput()
+			if state == "success" || state == "Windows" {
+				if err != nil {
+					t.Fatalf("%v\n%s", err, output)
+				}
+				for name, expected := range files {
+					got, err := os.ReadFile(filepath.Join(prefix, name))
+					if err != nil || !bytes.Equal(got, expected) {
+						t.Fatalf("%s was not installed: %v", name, err)
+					}
+				}
+				if !strings.Contains(string(output), "Installation complete") {
+					t.Fatal(string(output))
+				}
+			} else {
+				if err == nil || strings.Contains(string(output), "Installation complete") {
+					t.Fatalf("bad installation succeeded: %s", output)
+				}
+				if state != "symlink destination" {
+					got, _ := os.ReadFile(croc)
+					if string(got) != original {
+						t.Fatal("failed installation replaced croc")
+					}
+				}
+			}
+		})
+	}
+}
 
 func TestInstallerDeterminesLatestVersion(t *testing.T) {
 	tests := []struct {
@@ -88,7 +214,7 @@ func TestInstallerBuildsReleaseAssetURLsFromDynamicVersion(t *testing.T) {
 		`croc_checksum_file="${croc_bin_name}_v${croc_version}_checksums.txt"`,
 		`croc_url="${croc_base_url}/v${croc_version}/${croc_file}"`,
 		`croc_checksum_url="${croc_base_url}/v${croc_version}/${croc_checksum_file}"`,
-		`"${prefix}/${croc_bin_name}" update --register-installer`,
+		`for name in croc-update croc; do`,
 	} {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("installer does not contain URL construction %q", fragment)
@@ -105,7 +231,7 @@ func TestLinux32BitTargetsRemainInInstallerAndReleaseBuilds(t *testing.T) {
 		t.Fatal(err)
 	}
 	script := string(contents)
-	for _, fragment := range []string{`"armv5l" ) croc_arch="ARMv5"`, `"i386"|"i486"|"i586"|"i686" ) croc_arch="32bit"`} {
+	for _, fragment := range []string{`armv5l) croc_arch=ARMv5`, `i386|i486|i586|i686) croc_arch=32bit`} {
 		if !strings.Contains(script, fragment) {
 			t.Fatalf("installer does not map Linux target %q", fragment)
 		}

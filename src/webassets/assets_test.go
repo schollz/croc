@@ -116,6 +116,8 @@ func TestEmbeddedClientContainsNativeWorkersAndSSHWasm(t *testing.T) {
 		[]byte("curl https://getcroc.com | bash"),
 		[]byte("https://api.github.com/repos/schollz/croc/releases/latest"),
 		[]byte("determine_latest_version"),
+		[]byte("for name in croc-update croc; do"),
+		[]byte("Unexpected ${name} version"),
 	} {
 		if !bytes.Contains(installer, fragment) {
 			t.Fatalf("embedded installer does not contain %q", fragment)

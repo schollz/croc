@@ -8,11 +8,12 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import shutil
 import subprocess
 import tarfile
+import zipfile
 import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -75,7 +76,34 @@ def check_assets(directory, v, write=False):
         (directory / checksum).write_text(content)
     elif (directory / checksum).read_text() != content:
         raise ValueError("checksums do not match the complete release payload")
+    for name in sorted(expected):
+        if re.fullmatch(r"croc_v[0-9.]+_(?:Windows|Linux|macOS|DragonFlyBSD|FreeBSD|NetBSD|OpenBSD)-.+\.(?:tar\.gz|zip)", name):
+            check_cli_archive(directory / name)
     print(f"Verified {len(expected)} release assets")
+
+
+def check_cli_archive(archive):
+    """Both named regular executables must survive building and signing."""
+    is_zip = archive.suffix == ".zip"
+    required = {"croc.exe", "croc-update.exe"} if is_zip else {"croc", "croc-update"}
+    seen = set()
+    binaries = set()
+    with (zipfile.ZipFile(archive) if is_zip else tarfile.open(archive)) as stream:
+        members = stream.infolist() if is_zip else stream.getmembers()
+        for entry in members:
+            name = entry.filename if is_zip else entry.name
+            path = PurePosixPath(name)
+            if name in seen or "\\" in name or path.is_absolute() or ".." in path.parts:
+                raise ValueError(f"{archive}: unsafe or duplicate member {name}")
+            seen.add(name)
+            regular = (not entry.is_dir() and (entry.external_attr >> 16) & 0o170000 in (0, 0o100000)) if is_zip else entry.isfile()
+            size = entry.file_size if is_zip else entry.size
+            if name in required:
+                if not regular or size <= 0:
+                    raise ValueError(f"{archive}: expected a regular nonempty {name}")
+                binaries.add(name)
+    if binaries != required:
+        raise ValueError(f"{archive}: missing standalone executables {sorted(required - binaries)}")
 
 
 def check_draft(metadata, v):
@@ -233,14 +261,21 @@ def build(args):
     run("go", "build", *flags, "-o", str(native), ".", env=env)
     if run(str(native), "--version", capture=True).strip() != f"croc version {args.version}":
         raise ValueError("source version does not match requested version")
+    native_helper = out / "native-croc-update"
+    run("go", "build", *flags, "-o", str(native_helper), "./cmd/croc-update", env=env)
+    if run(str(native_helper), "--version", capture=True).strip() != f"croc-update version {args.version}":
+        raise ValueError("source updater version does not match requested version")
     for target in TARGETS:
         binary = out / target["name"] / "croc"
+        helper = binary.with_name("croc-update")
         binary.parent.mkdir(exist_ok=True)
         target_env = dict(env, GOOS="linux", GOARCH=target["goarch"], GOARM=target.get("goarm", ""))
         run("go", "build", *flags, "-o", str(binary), ".", env=target_env)
+        run("go", "build", *flags, "-o", str(helper), "./cmd/croc-update", env=target_env)
         archive = out / f"croc_v{args.version}_{target['name']}.tar.gz"
         with tarfile.open(archive, "w:gz") as stream:
             stream.add(binary, arcname="croc")
+            stream.add(helper, arcname="croc-update")
             for name in ("LICENSE", "THIRD_PARTY_NOTICES.md", "src/codephrase/wordlists/LICENSE.txt"):
                 stream.add(ROOT / name, arcname=name)
         print(f"Built {target['name']}", flush=True)
@@ -268,11 +303,12 @@ def source_archive(args):
         if args.verify:
             env = dict(os.environ, CGO_ENABLED="0", GOTOOLCHAIN="local", GOPROXY="off",
                        GOSUMDB="off", GOMODCACHE=str(work / "empty-modcache"))
-            binary = work / "croc"
-            run("go", "build", "-mod=vendor", "-buildvcs=false", "-trimpath",
-                "-tags=netgo,osusergo", "-o", str(binary), ".", cwd=tree, env=env)
-            if run(str(binary), "--version", capture=True).strip() != f"croc version {args.version}":
-                raise ValueError("offline source binary reports wrong version")
+            for name, package in (("croc", "."), ("croc-update", "./cmd/croc-update")):
+                binary = work / name
+                run("go", "build", "-mod=vendor", "-buildvcs=false", "-trimpath",
+                    "-tags=netgo,osusergo", "-o", str(binary), package, cwd=tree, env=env)
+                if run(str(binary), "--version", capture=True).strip() != f"{name} version {args.version}":
+                    raise ValueError(f"offline source {name} reports wrong version")
         with out.open("wb") as raw, gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=timestamp) as compressed:
             with tarfile.open(fileobj=compressed, mode="w", format=tarfile.PAX_FORMAT) as stream:
                 for path in [tree, *sorted(tree.rglob("*"))]:

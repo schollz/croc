@@ -1,6 +1,7 @@
 """Regression checks for publication boundaries and command installation."""
 import contextlib
 import io
+import zipfile
 import json
 from pathlib import Path
 import tarfile
@@ -19,7 +20,19 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual(sum(n.endswith(".deb") for n in names), 6)
             self.assertEqual(sum(n.endswith(".rpm") for n in names), 6)
             for name in names - {"croc_v11.5.2_checksums.txt"}:
-                (path / name).write_bytes(b"test asset")
+                if name.endswith(".zip"):
+                    with zipfile.ZipFile(path / name, "w") as archive:
+                        archive.writestr("croc.exe", b"croc")
+                        archive.writestr("croc-update.exe", b"updater")
+                elif name.endswith(".tar.gz") and not name.endswith("_src.tar.gz") and not name.startswith("croc-web_"):
+                    with tarfile.open(path / name, "w:gz") as archive:
+                        for binary in ("croc", "croc-update"):
+                            entry = tarfile.TarInfo(binary)
+                            entry.size = 4
+                            entry.mode = 0o755
+                            archive.addfile(entry, io.BytesIO(b"test"))
+                else:
+                    (path / name).write_bytes(b"test asset")
             with contextlib.redirect_stdout(io.StringIO()):
                 release.check_assets(path, "11.5.2", write=True)
                 release.check_assets(path, "11.5.2")
@@ -67,6 +80,16 @@ class ReleaseTests(unittest.TestCase):
                     archive.addfile(entry)
                 with self.assertRaisesRegex(ValueError, "regular croc"):
                     release.unpack_binary(path / "archive.tar", path / "binary")
+
+    def test_standalone_archive_requires_both_binaries(self):
+        with tempfile.TemporaryDirectory() as temp:
+            archive = Path(temp) / "croc.tar.gz"
+            with tarfile.open(archive, "w:gz") as stream:
+                entry = tarfile.TarInfo("croc")
+                entry.size = 4
+                stream.addfile(entry, io.BytesIO(b"test"))
+            with self.assertRaisesRegex(ValueError, "croc-update"):
+                release.check_cli_archive(archive)
 
     def test_stable_versions_only(self):
         for bad in ("v01.2.3", "11.5.2-rc1", "11.5", "../11.5.2"):
