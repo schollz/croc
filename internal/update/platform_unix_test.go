@@ -76,22 +76,29 @@ func TestPermissionFailureEscalatesOnlyOnce(t *testing.T) {
 		fmt.Fprint(w, `{"tag_name":"v11.6.0"}`)
 	}))
 	defer server.Close()
+	elevationErr := errors.New("authentication denied")
 	for _, internal := range []string{"", "11.6.0"} {
 		calls := 0
 		var output bytes.Buffer
-		err := (Options{Tool: Croc, Version: "11.6.0", Executable: executable, Invoked: executable, Yes: true, Writer: &output, LatestEndpoint: server.URL + "/latest", InstallVersion: internal, Elevate: func(_ context.Context, exe string, args []string) error {
+		// Keep croc older than the release so the public command attempts installation.
+		err := (Options{Tool: Croc, Version: "11.5.0", Executable: executable, Invoked: executable, Yes: true, Writer: &output, LatestEndpoint: server.URL + "/latest", InstallVersion: internal, Elevate: func(_ context.Context, exe string, args []string) error {
 			calls++
 			if exe != executable || strings.Join(args, "|") != "update|--internal-install-version|11.6.0" {
 				t.Fatalf("wrong elevated operation: %s %q", exe, args)
 			}
-			return errors.New("authentication denied")
+			return elevationErr
 		}}).Run(t.Context())
 		if err == nil {
 			t.Fatal("permission failure ignored")
 		}
 		want := 1
+		wantErr := elevationErr
 		if internal != "" {
 			want = 0
+			wantErr = os.ErrPermission
+		}
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("internal version %q: got %v, want %v", internal, err, wantErr)
 		}
 		if calls != want {
 			t.Fatalf("elevation called %d times, wanted %d", calls, want)
