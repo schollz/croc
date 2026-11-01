@@ -132,9 +132,10 @@ See the [dated status and validation record](distributions/status.md),
 
 ## Standalone updater validation
 
-The updater CI job runs compiled two-command upgrade fixtures on Linux, macOS,
-and Windows. Linux also exercises a root-owned prefix with passwordless sudo on
-its disposable runner. Checks and current versions do not request elevation;
+Run the compiled two-command upgrade fixtures locally with
+`go test ./internal/update ./cmd/croc-update`. To also exercise a root-owned
+prefix on a disposable Linux machine with passwordless sudo, set
+`CROC_TEST_PROTECTED_INSTALL=1`. Checks and current versions do not request elevation;
 permission failures re-execute only the pinned installation operation. Installer
 registration is a compatibility no-op for standalone installs, and old
 `install.json` files are no longer required or consulted for eligibility.

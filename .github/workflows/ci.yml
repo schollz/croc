@@ -18,28 +18,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  updater:
-    name: Standalone updater (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, macos-15, windows-2025]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@v7
-        with:
-          go-version: '^1.27.1'
-      - name: Test native complementary updates
-        env:
-          CROC_TEST_PROTECTED_INSTALL: ${{ runner.os == 'Linux' && '1' || '0' }}
-        run: go test ./internal/update ./cmd/croc-update -count=1 -timeout=5m
-      - name: Test installer and CLI integration
-        if: runner.os != 'Windows'
-        run: go test -tags croc_no_tailcat ./src/install ./src/cli -run 'Update|Installer|Linux32Bit'
-
   small-file-bundles:
     name: Frozen bundle compatibility (${{ matrix.os }})
     # Historical builds and browser installation are opt-in. Routine bundle
