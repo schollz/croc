@@ -152,6 +152,32 @@ func TestPerFileCompressionNegotiationFallsBackForLegacyPeers(t *testing.T) {
 	assert.True(t, supportsFeature([]string{"other", perFileCompressionFeature}, perFileCompressionFeature))
 }
 
+func TestLargeFileCompressionUsesTheBody(t *testing.T) {
+	data := make([]byte, 34<<20)
+	_, _ = rand.New(rand.NewSource(42)).Read(data)
+	path := filepath.Join(t.TempDir(), "media.bin")
+	check := func(want bool) {
+		t.Helper()
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		got, _ := shouldCompressFile(path, make([]byte, compressionSampleSize), nil)
+		if got != want {
+			t.Fatalf("compress = %t, want %t", got, want)
+		}
+	}
+
+	// Quiet ends must not select a codec for an incompressible body.
+	clear(data[:compressionSampleSize])
+	clear(data[len(data)-compressionSampleSize:])
+	check(false)
+
+	// An incompressible header must not hide a compressible body either.
+	clear(data)
+	_, _ = rand.New(rand.NewSource(42)).Read(data[:compressionSampleSize])
+	check(true)
+}
+
 func TestWebReceiveURL(t *testing.T) {
 	assert.Equal(
 		t,

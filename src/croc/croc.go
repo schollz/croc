@@ -1392,15 +1392,37 @@ func (c *Client) sendCollectFiles(filesInfo []FileInfo) (err error) {
 
 const compressionSampleSize = 256 << 10
 
-// shouldCompressFile samples the beginning of a file. Deflate output within
-// two percent of the input is treated as incompressible, avoiding codec work
-// and slight wire expansion for archives, media, and encrypted files.
+// shouldCompressFile keeps the small-file probe cheap. Large files use the
+// same sample budget spread across five windows, so a quiet intro or a header
+// does not select compression for an otherwise incompressible media file.
 func shouldCompressFile(path string, sample, compressedOutput []byte) (bool, []byte) {
 	file, err := os.Open(path)
 	if err != nil {
 		return true, compressedOutput
 	}
 	defer file.Close()
+	if info, statErr := file.Stat(); statErr == nil && info.Size() > bundle.NativeMaxBytes && len(sample) >= 5 {
+		const windows = 5
+		windowSize := len(sample) / windows
+		compressible := 0
+		for i := range windows {
+			offset := (info.Size() - int64(windowSize)) / (windows - 1) * int64(i)
+			n, readErr := file.ReadAt(sample[:windowSize], offset)
+			if readErr != nil && readErr != io.EOF {
+				return true, compressedOutput
+			}
+			if n == 0 {
+				return true, compressedOutput
+			}
+			compressedOutput = compress.CompressTo(compressedOutput, sample[:n])
+			// Marginal byte savings do not justify decoding a large file on
+			// the receiver. Require five percent in most sampled windows.
+			if len(compressedOutput)*100 < n*95 {
+				compressible++
+			}
+		}
+		return compressible > windows/2, compressedOutput
+	}
 	n, err := file.Read(sample)
 	if err != nil && err != io.EOF {
 		return true, compressedOutput
