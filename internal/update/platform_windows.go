@@ -36,7 +36,13 @@ func lockDirectory(directory string) (func(), error) {
 	return func() { file.Close() }, nil
 }
 
-func setMetadata(file *os.File, info os.FileInfo) error { return file.Chmod(info.Mode().Perm()) }
+func setMetadata(file *os.File, info os.FileInfo) error {
+	mode := info.Mode().Perm()
+	if info.IsDir() {
+		mode = 0o755
+	}
+	return file.Chmod(mode)
+}
 
 func replaceFile(staged, target string, exists bool) error {
 	if !exists {
@@ -129,7 +135,7 @@ type shellExecuteInfo struct {
 }
 
 func elevate(ctx context.Context, executable string, args []string) error {
-	manual := "run in an Administrator PowerShell: " + ShellCommand(executable, args...)
+	manual := "run in an Administrator PowerShell: " + ShellCommand(executable, publicUpdateArgs(args)...)
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		return errors.New("interactive UAC authentication is unavailable; " + manual)
 	}

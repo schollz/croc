@@ -19,9 +19,10 @@ func run(ctx context.Context, args []string, writer io.Writer) error {
 	check := flags.Bool("check", false, "check for a newer croc release without installing")
 	yes := flags.Bool("yes", false, "install without confirmation (OS authentication may still be required)")
 	showVersion := flags.Bool("version", false, "print the updater version")
+	path := flags.String("path", "", "select a croc executable explicitly instead of using PATH")
 	installVersion := flags.String("internal-install-version", "", "")
 	flags.Usage = func() {
-		fmt.Fprintln(writer, "Usage: croc-update [--check] [--yes]\nInstall the latest stable croc beside this executable.\n\n  --check    check without installing\n  --yes      skip confirmation; OS authentication may still be required\n  --version  print the updater version")
+		fmt.Fprintln(writer, "Usage: croc-update [--check] [--yes] [--path EXECUTABLE]\nUpdate the croc active on PATH; otherwise install beside this executable.\n\n  --check    check without installing\n  --yes      skip confirmation; OS authentication may still be required\n  --path     select a croc executable explicitly\n  --version  print the updater version")
 	}
 	if err := flags.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -36,7 +37,7 @@ func run(ctx context.Context, args []string, writer io.Writer) error {
 		fmt.Fprintln(writer, "croc-update version "+version.Value)
 		return nil
 	}
-	return (update.Options{Tool: update.Helper, Version: version.Value, Check: *check, Yes: *yes, InstallVersion: *installVersion, Writer: writer}).Run(ctx)
+	return (update.Options{Tool: update.Helper, Version: version.Value, Check: *check, Yes: *yes, CrocPath: *path, InstallVersion: *installVersion, Writer: writer}).Run(ctx)
 }
 
 func main() {

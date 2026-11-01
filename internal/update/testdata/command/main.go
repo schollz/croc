@@ -33,6 +33,7 @@ func main() {
 	check := flags.Bool("check", false, "")
 	yes := flags.Bool("yes", false, "")
 	internal := flags.String("internal-install-version", "", "")
+	path := flags.String("path", "", "")
 	flags.Parse(args)
 	endpoint := os.Getenv("CROC_UPDATE_TEST_URL")
 	if endpoint == "" {
@@ -40,7 +41,7 @@ func main() {
 		data, _ := os.ReadFile(filepath.Join(filepath.Dir(executable), ".test-release-url"))
 		endpoint = string(data)
 	}
-	err := (update.Options{Tool: tool, Version: version, Check: *check, Yes: *yes, InstallVersion: *internal, LatestEndpoint: endpoint + "/latest", DownloadURLFormat: endpoint + "/v%s/%s"}).Run(context.Background())
+	err := (update.Options{Tool: tool, Version: version, Check: *check, Yes: *yes, CrocPath: *path, InstallVersion: *internal, LatestEndpoint: endpoint + "/latest", DownloadURLFormat: endpoint + "/v%s/%s"}).Run(context.Background())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

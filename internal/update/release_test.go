@@ -71,8 +71,8 @@ func TestDownloadProgress(t *testing.T) {
 				return &http.Response{StatusCode: 200, ContentLength: length, Body: io.NopCloser(source), Header: make(http.Header)}, nil
 			})}
 			var progress bytes.Buffer
-			got, err := downloadUpdate(t.Context(), client, "https://example.test/release.tar.gz", 4096, &progress)
-			if !strings.Contains(progress.String(), "Downloading release.tar.gz") || !strings.Contains(progress.String(), "Release archive") {
+			got, err := downloadUpdate(t.Context(), client, "https://example.test/release.tar.gz", 4096, downloadProgress{Writer: &progress, Description: "Downloading croc"})
+			if !strings.Contains(progress.String(), "Downloading croc") {
 				t.Fatal("download progress was not rendered")
 			}
 			if state == "interrupted" {

@@ -42,7 +42,11 @@ func setMetadata(file *os.File, info os.FileInfo) error {
 			}
 		}
 	}
-	return file.Chmod(info.Mode().Perm())
+	mode := info.Mode().Perm()
+	if info.IsDir() {
+		mode = 0o755
+	}
+	return file.Chmod(mode)
 }
 
 func replaceFile(staged, target string, _ bool) error { return os.Rename(staged, target) }
@@ -73,9 +77,9 @@ func elevateUnix(ctx context.Context, executable string, args []string, lookPath
 		arguments = append(arguments, "--", executable)
 		arguments = append(arguments, args...)
 		if err := run(ctx, tool, arguments); err != nil {
-			return fmt.Errorf("%s: %w; run manually in a terminal: %s", name, err, ShellCommand(tool, append([]string{"--", executable}, args...)...))
+			return fmt.Errorf("%s: %w; run manually in a terminal: %s", name, err, ShellCommand(tool, append([]string{"--", executable}, publicUpdateArgs(args)...)...))
 		}
 		return nil
 	}
-	return fmt.Errorf("sudo or doas is required; run as administrator: %s", ShellCommand(executable, args...))
+	return fmt.Errorf("sudo or doas is required; run as administrator: %s", ShellCommand(executable, publicUpdateArgs(args)...))
 }

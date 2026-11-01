@@ -36,9 +36,9 @@
       "kind": "update",
       "category": "Release notes",
       "publishedAt": "2026-09-05",
-      "modifiedAt": "2026-09-05",
-      "wordCount": 811,
-      "readingMinutes": 4,
+      "modifiedAt": "2026-11-01",
+      "wordCount": 847,
+      "readingMinutes": 5,
       "relatedSlugs": [
         "croc-v11-4-release-update",
         "share-terminal-with-croc-ssh"
@@ -48,6 +48,7 @@
         "croc release notes",
         "croc update",
         "croc self-update",
+        "croc-update",
         "safe software updates",
         "croc ssh",
         "shared terminal",
