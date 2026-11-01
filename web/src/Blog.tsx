@@ -6,7 +6,6 @@ import {
   BookOpenText,
   Check,
   Circle,
-  Clock3,
   Eye,
   FileText,
   KeyRound,
@@ -37,10 +36,6 @@ import { TransferLinks } from "./TransferLinks";
 const { site, index: indexSEO } = blogSEO;
 const siteURL = site.url;
 type BlogTheme = "dark" | "light";
-
-function postKindLabel(post: BlogPost) {
-  return post.kind === "update" ? "Update" : "Note";
-}
 
 function postSection(post: BlogPost) {
   return post.kind === "update" ? "Updates" : "Notes";
@@ -726,160 +721,37 @@ function BlogCoverImage({ post }: { post: BlogPost }) {
   );
 }
 
-function PostMeta({ post }: { post: BlogPost }) {
-  return (
-    <p className="blog-post-meta">
-      <span className={`blog-post-kind is-${post.kind}`}>{postKindLabel(post)}</span>
-      <span aria-hidden="true">·</span>
-      <span>{post.category}</span>
-      <span aria-hidden="true">·</span>
-      <time dateTime={post.publishedAt}>{post.publishedLabel}</time>
-      <span aria-hidden="true">·</span>
-      <span><Clock3 aria-hidden="true" />{post.readingMinutes} min read</span>
-    </p>
-  );
-}
-
 function BlogIndex() {
   useBlogMetadata();
-  const notes = blogPosts.filter((post) => post.kind === "note");
-  const updates = blogPosts.filter((post) => post.kind === "update");
-  const [featured, ...morePosts] = notes;
 
   return (
     <div className="blog-shell">
       <BlogHeader />
       <main className="blog-main">
-        <section className="blog-index-hero">
-          <div>
-            <h1>Notes from inside the transfer.</h1>
-          </div>
-          <p>
-            Plainspoken guides to the small code phrase, the relay in the
-            middle, the encryption around it, and the useful ways a file gets
-            from this computer to one person or a group, plus release updates
-            when the software changes underneath it.
-          </p>
-        </section>
-
-        <nav className="blog-kind-nav" aria-label="Blog post categories">
-          <a href="#updates">
-            <span>Updates</span>
-            <strong>{String(updates.length).padStart(2, "0")}</strong>
-            <small>What changed between releases</small>
-          </a>
-          <a href="#notes">
-            <span>Notes</span>
-            <strong>{String(notes.length).padStart(2, "0")}</strong>
-            <small>Guides from inside the transfer</small>
-          </a>
-        </nav>
-
-        <section id="updates" className="blog-kind-section" aria-labelledby="updates-title">
-          <div className="blog-section-heading">
-            <div>
-              <h2 id="updates-title">What changed in croc</h2>
-            </div>
-            <span>
-              {String(updates.length).padStart(2, "0")} {updates.length === 1 ? "update" : "updates"}
-            </span>
-          </div>
-          <div className="blog-updates-list">
-            {updates.map((post) => (
-              <article className="featured-note update-note" key={post.slug}>
-                <a
-                  className="featured-note-visual"
-                  href={`/blog/${post.slug}`}
-                  aria-label={`Read ${post.title}`}
-                >
-                  <BlogVisualCard visual={post.visual} large />
-                </a>
-                <div className="featured-note-copy">
-                  <PostMeta post={post} />
-                  <h2><a href={`/blog/${post.slug}`}>{post.title}</a></h2>
-                  <p>{post.description}</p>
-                  <a className="blog-read-link" href={`/blog/${post.slug}`}>
-                    Read the update <ArrowRight />
-                  </a>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section id="notes" className="blog-kind-section" aria-labelledby="notes-title">
-          <div className="blog-section-heading">
-            <div>
-              <h2 id="notes-title">From inside the transfer</h2>
-            </div>
-            <span>{String(notes.length).padStart(2, "0")} notes</span>
-          </div>
-
-          <article className="featured-note">
-            <a
-              className="featured-note-visual"
-              href={`/blog/${featured.slug}`}
-              aria-label={`Read ${featured.title}`}
-            >
-              <BlogVisualCard visual={featured.visual} large />
-            </a>
-            <div className="featured-note-copy">
-              <PostMeta post={featured} />
-              <h2><a href={`/blog/${featured.slug}`}>{featured.title}</a></h2>
-              <p>{featured.description}</p>
-              <a className="blog-read-link" href={`/blog/${featured.slug}`}>
-                Read the field note <ArrowRight />
-              </a>
-            </div>
-          </article>
-
-          <section className="blog-notes-section" aria-labelledby="more-notes-title">
-            <div className="blog-section-heading">
-              <div>
-                <h2 id="more-notes-title">More ways into croc</h2>
+        <header className="blog-index-header">
+          <h1>The croc blog</h1>
+          <p>Release notes, experiments, and guides to sending files with croc.</p>
+        </header>
+        <section className="blog-post-list" aria-label="All posts">
+          {blogPosts.map((post) => (
+            <article className="blog-entry" key={post.slug}>
+              <div className="blog-entry-meta">
+                <time dateTime={post.publishedAt}>{post.publishedLabel}</time>
+                <span aria-hidden="true">·</span>
+                <span>{post.category}</span>
+                <span aria-hidden="true">·</span>
+                <span>{post.readingMinutes} min read</span>
               </div>
-              <span>{String(morePosts.length).padStart(2, "0")} more notes</span>
-            </div>
-            <div className="blog-grid">
-              {morePosts.map((post) => (
-                <article className="blog-card" key={post.slug}>
-                  <a
-                    className="blog-card-visual"
-                    href={`/blog/${post.slug}`}
-                    aria-label={`Read ${post.title}`}
-                  >
-                    <BlogVisualCard visual={post.visual} />
-                    <span>{post.number}</span>
-                  </a>
-                  <div className="blog-card-copy">
-                    <PostMeta post={post} />
-                    <h3><a href={`/blog/${post.slug}`}>{post.title}</a></h3>
-                    <p>{post.description}</p>
-                    <a className="blog-read-link" href={`/blog/${post.slug}`}>
-                      Keep reading <ArrowRight />
-                    </a>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        </section>
-
-        <section className="blog-transfer-cta">
-          <span><Check aria-hidden="true" /></span>
-          <div>
-            <h2>Move the file.</h2>
-            <p>No account. No port forwarding. The browser is already a croc peer.</p>
-          </div>
-          <div className="blog-transfer-links">
-            <a href="/#send-panel">Send files <ArrowRight /></a>
-            <a href="/#receive">Receive files</a>
-            <a href={site.projectUrl}>Install croc</a>
-            <a href={site.repositoryUrl}>View source</a>
-          </div>
+              <h2>
+                <a href={`/blog/${post.slug}`}>
+                  {post.title}<ArrowRight aria-hidden="true" />
+                </a>
+              </h2>
+              <p>{post.description}</p>
+            </article>
+          ))}
         </section>
       </main>
-      <TransferLinks />
       <BlogFooter />
     </div>
   );
@@ -1117,7 +989,7 @@ function BlogBlockView({ block, index }: { block: BlogBlock; index: number }) {
           tabIndex={0}
         >
           <table
-            className="blog-comparison-table"
+            className={`blog-comparison-table${block.headers[1] === "Time" && block.headers[2] === "Effective rate" ? " is-timing-table" : ""}`}
             aria-describedby={block.indicatorLegend ? `${tableID}-legend` : undefined}
           >
             <caption className="blog-visually-hidden">{block.caption}</caption>
@@ -1200,6 +1072,7 @@ function BlogArticle({ post }: { post: BlogPost }) {
   const activeSectionID = useActiveArticleSection(
     sections.map((section) => section.id),
   );
+  const showArticleRail = sections.length > 3;
   const relatedPosts = post.relatedSlugs.flatMap((slug) => {
     const related = getBlogPost(slug);
     return related ? [related] : [];
@@ -1225,63 +1098,77 @@ function BlogArticle({ post }: { post: BlogPost }) {
 
           <BlogCoverImage post={post} />
 
-          <div className="blog-article-layout">
-            <aside className="article-rail">
-              <div className="article-rail-summary">
-                <span><KeyRound /></span>
-                <div>
-                  <p>IN ONE SENTENCE</p>
-                  <strong>{post.takeaway}</strong>
+          <div className={`blog-article-layout${showArticleRail ? "" : " is-short"}`}>
+            {showArticleRail && (
+              <aside className="article-rail">
+                <div className="article-rail-summary">
+                  <span><KeyRound /></span>
+                  <div>
+                    <p>IN ONE SENTENCE</p>
+                    <strong>{post.takeaway}</strong>
+                  </div>
                 </div>
-              </div>
-              <nav
-                className="article-toc"
-                aria-label={post.kind === "update" ? "In this update" : "In this field note"}
-              >
-                <p>{post.kind === "update" ? "IN THIS UPDATE" : "IN THIS NOTE"}</p>
-                <ol>
-                  {sections.map((section) => (
-                    <li key={section.id}>
-                      <a
-                        href={`#${section.id}`}
-                        aria-current={section.id === activeSectionID ? "location" : undefined}
-                      >
-                        {section.text}
-                      </a>
-                    </li>
-                  ))}
-                </ol>
-              </nav>
-            </aside>
+                <nav
+                  className="article-toc"
+                  aria-label={post.kind === "update" ? "In this update" : "In this field note"}
+                >
+                  <p>{post.kind === "update" ? "IN THIS UPDATE" : "IN THIS NOTE"}</p>
+                  <ol>
+                    {sections.map((section) => (
+                      <li key={section.id}>
+                        <a
+                          href={`#${section.id}`}
+                          aria-current={section.id === activeSectionID ? "location" : undefined}
+                        >
+                          {section.text}
+                        </a>
+                      </li>
+                    ))}
+                  </ol>
+                </nav>
+              </aside>
+            )}
             <div className="blog-article-body">
               {post.blocks.map((block, blockIndex) => (
                 <BlogBlockView block={block} index={blockIndex} key={`${block.type}-${blockIndex}`} />
               ))}
-              <section className="blog-related-notes" aria-labelledby={`related-${post.slug}`}>
-                <h2 id={`related-${post.slug}`}>Keep following the transfer.</h2>
-                <div>
+              {showArticleRail ? (
+                <section className="blog-related-notes" aria-labelledby={`related-${post.slug}`}>
+                  <h2 id={`related-${post.slug}`}>Keep following the transfer.</h2>
+                  <div>
+                    {relatedPosts.map((related) => (
+                      <a href={`/blog/${related.slug}`} key={related.slug}>
+                        <span>{postNumberLabel(related)}</span>
+                        <strong>{related.title}</strong>
+                        <small>{related.description}</small>
+                        <ArrowRight aria-hidden="true" />
+                      </a>
+                    ))}
+                  </div>
+                </section>
+              ) : (
+                <nav className="article-related-links" aria-label="Related posts">
                   {relatedPosts.map((related) => (
                     <a href={`/blog/${related.slug}`} key={related.slug}>
-                      <span>{postNumberLabel(related)}</span>
-                      <strong>{related.title}</strong>
-                      <small>{related.description}</small>
-                      <ArrowRight aria-hidden="true" />
+                      {related.title}<ArrowRight aria-hidden="true" />
                     </a>
                   ))}
-                </div>
-              </section>
-              <section className="article-transfer-card">
-                <div>
-                  <h2>Send something small.</h2>
-                  <p>The quickest explanation is still a transfer between two devices.</p>
-                </div>
-                <div className="article-transfer-actions">
-                  <a href="/#send-panel">Send files <ArrowRight /></a>
-                  <a href="/#receive">Receive files</a>
-                  <a href={site.projectUrl}>Install croc</a>
-                  <a href={site.repositoryUrl}>Browse source</a>
-                </div>
-              </section>
+                </nav>
+              )}
+              {showArticleRail && (
+                <section className="article-transfer-card">
+                  <div>
+                    <h2>Send something small.</h2>
+                    <p>The quickest explanation is still a transfer between two devices.</p>
+                  </div>
+                  <div className="article-transfer-actions">
+                    <a href="/#send-panel">Send files <ArrowRight /></a>
+                    <a href="/#receive">Receive files</a>
+                    <a href={site.projectUrl}>Install croc</a>
+                    <a href={site.repositoryUrl}>Browse source</a>
+                  </div>
+                </section>
+              )}
             </div>
           </div>
         </article>
@@ -1299,7 +1186,7 @@ function BlogArticle({ post }: { post: BlogPost }) {
           </a>
         </nav>
       </main>
-      <TransferLinks />
+      {showArticleRail && <TransferLinks />}
       <BlogFooter />
     </div>
   );

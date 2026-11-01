@@ -1,0 +1,892 @@
+{
+  "date": "2026-11-01",
+  "sender": {
+    "os": "macOS 26.5.2",
+    "architecture": "arm64",
+    "model": "Mac14,15",
+    "logical_cpus": 8,
+    "memory_bytes": 8589934592,
+    "python": "3.12.13 (Magic Wormhole); 3.15.2 (orchestrator)"
+  },
+  "receiver": {
+    "ssh": "root@134.122.43.205",
+    "provider": "DigitalOcean",
+    "region": "tor1",
+    "os": "Ubuntu 24.04.4 LTS",
+    "architecture": "x86_64",
+    "cpus": 1,
+    "memory": "961 MiB",
+    "python": "3.12.3"
+  },
+  "payload": {
+    "commit": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+    "files": 532,
+    "bytes": 20708906,
+    "manifest_sha256": "5f2140965030d1db1929c193e99867b74ac70db055e9edc41c749866f9313b88",
+    "git_files": 28,
+    "symlinks": []
+  },
+  "magic_wormhole_dependencies": {
+    "attrs": "26.1.0",
+    "autobahn": "26.10.2",
+    "automat": "25.4.16",
+    "cbor2": "6.2.0.post1",
+    "cffi": "2.1.1",
+    "click": "8.5.0",
+    "constantly": "23.10.4",
+    "cryptography": "50.0.2",
+    "humanize": "4.16.0",
+    "hyperlink": "21.0.0",
+    "idna": "3.20",
+    "incremental": "24.11.0",
+    "iterable-io": "1.0.4",
+    "magic-wormhole": "0.24.0",
+    "msgpack": "1.2.4",
+    "packaging": "26.3",
+    "pycparser": "3.12",
+    "pynacl": "1.6.2",
+    "pyopenssl": "26.4.0",
+    "qrcode": "8.2",
+    "service-identity": "26.1.0",
+    "spake2": "0.9",
+    "tqdm": "4.70.1",
+    "twisted": "26.10.0",
+    "txaio": "26.6.1",
+    "txtorcon": "26.6.0",
+    "typing-extensions": "4.16.0",
+    "ujson": "6.0.0",
+    "zipstream-ng": "1.9.3",
+    "zope-interface": "8.7"
+  },
+  "timing": {
+    "headline": "Local monotonic clock immediately before sender process launch through usable-folder notification, including preparation and unpacking.",
+    "ssh": "Control connection established before starting the timer.",
+    "completion": "Remote helper signals successful command exit and extraction before SHA-256 and git verification; local receipt of that signal stops the clock.",
+    "orchestration": "Automated code parsing and SSH control-message/notification transit after sender launch are included.",
+    "timeout_seconds": 900
+  },
+  "logging": "Sender and receiver stdout/stderr are pipes drained into retained files. No benchmarked process writes its progress directly to a regular logfile.",
+  "transport_policy": {
+    "croc_auto_tailcat_minimum_bytes": 134217728,
+    "croc_payload_transport_for_fixture": "croc TCP relay",
+    "source": "https://github.com/schollz/croc/blob/v11.6.1/src/croc/tailcat_negotiation.go#L26"
+  },
+  "installations": [
+    {
+      "tool": "derphole",
+      "repository": "shayne/derphole",
+      "version": "v0.18.2",
+      "release_url": "https://github.com/shayne/derphole/releases/tag/v0.18.2",
+      "platforms": {
+        "darwin-arm64": {
+          "url": "https://github.com/shayne/derphole/releases/download/v0.18.2/derphole-darwin-arm64.tar.gz",
+          "archive_sha256": "d6d21969f0398c95f7176e39b7e107ad359d8e7bb00f9eeb87d2865c92b2dd9d",
+          "upstream_digest": "sha256:d6d21969f0398c95f7176e39b7e107ad359d8e7bb00f9eeb87d2865c92b2dd9d",
+          "binary_sha256": "4cc43f7037848f99bf50a61cb44b56eaeb8956091a708ee6c719981349c9a0c2"
+        },
+        "linux-amd64": {
+          "url": "https://github.com/shayne/derphole/releases/download/v0.18.2/derphole-linux-amd64.tar.gz",
+          "archive_sha256": "a35d2cdc915513144cbbc5c6e1d712b479ca81322d71e9042f6cde80b9e9a991",
+          "upstream_digest": "sha256:a35d2cdc915513144cbbc5c6e1d712b479ca81322d71e9042f6cde80b9e9a991",
+          "binary_sha256": "e8958e4ae972eb96463a38c4b4666f3eb41abf9fd2787ab9cba6a703349026f4"
+        }
+      }
+    },
+    {
+      "tool": "sendme",
+      "repository": "n0-computer/sendme",
+      "version": "v0.37.1",
+      "release_url": "https://github.com/n0-computer/sendme/releases/tag/v0.37.1",
+      "platforms": {
+        "darwin-arm64": {
+          "url": "https://github.com/n0-computer/sendme/releases/download/v0.37.1/sendme-v0.37.1-darwin-aarch64.tar.gz",
+          "archive_sha256": "3c2502860b87cd2500a3295dbad6fbff3355318122e17f1a1f9638086e4a2bcd",
+          "upstream_digest": "sha256:3c2502860b87cd2500a3295dbad6fbff3355318122e17f1a1f9638086e4a2bcd",
+          "binary_sha256": "422eda74d65e70bdf4c772c1a3a2abcfdf19f477a3e88c7ba92d652e745ad2b4"
+        },
+        "linux-amd64": {
+          "url": "https://github.com/n0-computer/sendme/releases/download/v0.37.1/sendme-v0.37.1-linux-x86_64.tar.gz",
+          "archive_sha256": "6250f28ccf082a2f77a5bb2244c821783c8746b6cff4539be32cbcc03ef7d0a0",
+          "upstream_digest": "sha256:6250f28ccf082a2f77a5bb2244c821783c8746b6cff4539be32cbcc03ef7d0a0",
+          "binary_sha256": "5203634d8688495e972c7f8a988ff5a371619ace78d93d7eb9dcb062f269be71"
+        }
+      }
+    },
+    {
+      "tool": "wormhole-william",
+      "repository": "psanford/wormhole-william",
+      "version": "v1.0.8",
+      "release_url": "https://github.com/psanford/wormhole-william/releases/tag/v1.0.8",
+      "platforms": {
+        "darwin-arm64": {
+          "url": "https://github.com/psanford/wormhole-william/releases/download/v1.0.8/wormhole-william-darwin-arm64",
+          "archive_sha256": "2d1204a1cf6f3f73e16965b90aa6682cab28eae3d5411c4094a9b7e4b650a70c",
+          "upstream_digest": null,
+          "binary_sha256": "2d1204a1cf6f3f73e16965b90aa6682cab28eae3d5411c4094a9b7e4b650a70c"
+        },
+        "linux-amd64": {
+          "url": "https://github.com/psanford/wormhole-william/releases/download/v1.0.8/wormhole-william-linux-amd64",
+          "archive_sha256": "a6e501a9f3555617d980d8de49fb2f91783c27cfd875cb42a1ac5cf8fc11205d",
+          "upstream_digest": null,
+          "binary_sha256": "a6e501a9f3555617d980d8de49fb2f91783c27cfd875cb42a1ac5cf8fc11205d"
+        }
+      }
+    },
+    {
+      "tool": "floe",
+      "repository": "jannskiee/floe",
+      "version": "v1.11.7",
+      "release_url": "https://github.com/jannskiee/floe/releases/tag/v1.11.7",
+      "platforms": {
+        "darwin-arm64": {
+          "url": "https://github.com/jannskiee/floe/releases/download/v1.11.7/floe_1.11.7_darwin_arm64.tar.gz",
+          "archive_sha256": "953ff15dd3e481b89d363867b9081d5f8e76bbed6a479fc6c790a7fcf5954587",
+          "upstream_digest": "sha256:953ff15dd3e481b89d363867b9081d5f8e76bbed6a479fc6c790a7fcf5954587",
+          "binary_sha256": "0a068b1c808f3667aa54eebe4770811c9ae2dd3869bddcafd962d3a75a7ead5b"
+        },
+        "linux-amd64": {
+          "url": "https://github.com/jannskiee/floe/releases/download/v1.11.7/floe_1.11.7_linux_amd64.tar.gz",
+          "archive_sha256": "3f65e8b753ebf2deca28b245406b9152e22ad23676e8200599dc1ba3d6ef2107",
+          "upstream_digest": "sha256:3f65e8b753ebf2deca28b245406b9152e22ad23676e8200599dc1ba3d6ef2107",
+          "binary_sha256": "4f15fe0e30038df55b91a77500e8f738e47d3541a97c58bdaa87c92dd7054e41"
+        }
+      }
+    },
+    {
+      "tool": "airpipe",
+      "repository": "Sanyam-G/Airpipe",
+      "version": "v5.0.0",
+      "release_url": "https://github.com/Sanyam-G/Airpipe/releases/tag/v5.0.0",
+      "platforms": {
+        "darwin-arm64": {
+          "url": "https://github.com/Sanyam-G/Airpipe/releases/download/v5.0.0/airpipe-darwin-arm64",
+          "archive_sha256": "fcf4bbe5884dbddb17f7ff10d4744612eac549c02a8201625b94e97436833623",
+          "upstream_digest": "sha256:fcf4bbe5884dbddb17f7ff10d4744612eac549c02a8201625b94e97436833623",
+          "binary_sha256": "fcf4bbe5884dbddb17f7ff10d4744612eac549c02a8201625b94e97436833623"
+        },
+        "linux-amd64": {
+          "url": "https://github.com/Sanyam-G/Airpipe/releases/download/v5.0.0/airpipe-linux-amd64",
+          "archive_sha256": "dea41224a06a10d486ef85a784d105e892c5f4b08a8b05c73dcf70f6b8af154a",
+          "upstream_digest": "sha256:dea41224a06a10d486ef85a784d105e892c5f4b08a8b05c73dcf70f6b8af154a",
+          "binary_sha256": "dea41224a06a10d486ef85a784d105e892c5f4b08a8b05c73dcf70f6b8af154a"
+        }
+      }
+    },
+    {
+      "tool": "ww",
+      "repository": "saljam/webwormhole",
+      "version": "v0.0.0-20251222103517-abf852af0458",
+      "revision": "abf852af0458ba79772d9c26ef01434165f217d8",
+      "source_url": "https://github.com/saljam/webwormhole/tree/abf852af0458ba79772d9c26ef01434165f217d8",
+      "platforms": {
+        "darwin-arm64": {
+          "binary_sha256": "9c0540b99a42f9f8f1e08898e37b471d819e1c81da29427263716d1c1d695566"
+        },
+        "linux-amd64": {
+          "binary_sha256": "19200515d4238c5209d25693ceef21d90ce4c385aabca2cce57d7341cbace4c5"
+        }
+      }
+    },
+    {
+      "tool": "wormhole",
+      "version": "0.24.0",
+      "source_url": "https://pypi.org/project/magic-wormhole/0.24.0/",
+      "python_local": "Python 3.12.13",
+      "platforms": {
+        "darwin-arm64": {
+          "binary_sha256": "70be284db21725b0c914c82483dbcadbcad50019f91e33c9f4060554b4fd50b2"
+        },
+        "linux-amd64": {
+          "binary_sha256": "5c7668d0b2577c21fbd5151b07c1e8634365144f9bd435bfe6ba6cf2646cae8a"
+        }
+      },
+      "pypi_files": [
+        {
+          "name": "magic_wormhole-0.24.0-py3-none-any.whl",
+          "sha256": "312d7d55cba76fe443fd207b1e006d12b7c56699961ed6dce46bed765945e712",
+          "url": "https://files.pythonhosted.org/packages/fa/f4/e10f3fd5856f8d7172b56a02ec8312c5f472aa5f569701042da45faabc7b/magic_wormhole-0.24.0-py3-none-any.whl"
+        },
+        {
+          "name": "magic_wormhole-0.24.0.tar.gz",
+          "sha256": "c01b4815878e5fbcad7a22cfa190c529349bf271164189a0ad955a34a8d4cde0",
+          "url": "https://files.pythonhosted.org/packages/d7/8c/964308aeed7b828ca726da4bbfcc8f2bc89713b39ba768e24ce6331b30f3/magic_wormhole-0.24.0.tar.gz"
+        }
+      ]
+    }
+  ],
+  "croc_build": {
+    "source_commit": "f41e167877b0cb2900ef1c76b2ba02f9c259de23",
+    "version": "croc version 11.6.1",
+    "source_sha256": {
+      "src/croc/croc.go": "b2cd6a00b9cf17b0459370564ccd47528b48f8b58f5cefca18a13a59c3722012",
+      "src/croc/croc_test.go": "98caf9790f83c75e1fd326da0665a9127cfa086d9503bcb944573b3e11aa634d"
+    },
+    "binary_sha256": {
+      "mac": "6874d4bf37d18a8115d971527064cc04c9c9d27ccb75a631f09343931a4b6a9c",
+      "linux": "ee13875c09610e6c52ad3de5857e0168c577ff15efe1a3835ec8e181367d1372"
+    },
+    "local_binary": "/Users/zns/.cache/croc-audio-benchmark/20261101T173618Z/performance/croc-audio",
+    "remote_binary": "/root/croc-audio-benchmark-20261101T173618Z/performance/croc-audio"
+  },
+  "harness_sha256": {
+    "total_run.py": "6572d014ec0b8a8090a9a484494cc124fadfaba8658c6b3f8064873cb828aeab",
+    "total_remote.py": "d010e3b253811b00a15a1d48b310ec17710f905ff865d7511b69d5b4e1564d38",
+    "run.py": "d9706f29c287a4f0de2a942d912590de2d122155f8ddf106fd4699ea51d9c872"
+  },
+  "round_order_seeds": [
+    202611010401,
+    202611010402,
+    202611010403
+  ],
+  "round_orders": [
+    [
+      "wormhole-william",
+      "derphole",
+      "floe",
+      "airpipe",
+      "sendme",
+      "wormhole",
+      "croc"
+    ],
+    [
+      "wormhole",
+      "wormhole-william",
+      "sendme",
+      "floe",
+      "derphole",
+      "airpipe",
+      "croc"
+    ],
+    [
+      "floe",
+      "wormhole-william",
+      "derphole",
+      "sendme",
+      "wormhole",
+      "croc",
+      "airpipe"
+    ]
+  ],
+  "trials": [
+    {
+      "id": "folder-20261101T191225Z-r1-wormhole-william",
+      "tool": "wormhole-william",
+      "round": 1,
+      "started_at": "2026-11-01T19:14:27Z",
+      "seconds": 12.971378292015288,
+      "sender_ready_seconds": 0.5718456670292653,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 12.318424809724092,
+      "command_seconds": 12.318417333066463,
+      "extraction_seconds": 7.4766576290130615e-06,
+      "route": "Not exposed by default logs"
+    },
+    {
+      "id": "folder-20261101T191225Z-r1-derphole",
+      "tool": "derphole",
+      "round": 1,
+      "started_at": "2026-11-01T19:14:42Z",
+      "seconds": 4.608818500011694,
+      "sender_ready_seconds": 0.2569365840172395,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 4.28447300568223,
+      "command_seconds": 4.284464806318283,
+      "extraction_seconds": 8.199363946914673e-06,
+      "route": "Not exposed by default logs"
+    },
+    {
+      "id": "folder-20261101T191225Z-r1-floe",
+      "tool": "floe",
+      "round": 1,
+      "started_at": "2026-11-01T19:14:49Z",
+      "seconds": 57.839122291014064,
+      "sender_ready_seconds": 1.4519185830140486,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 56.3179474696517,
+      "command_seconds": 56.31793821230531,
+      "extraction_seconds": 9.257346391677856e-06,
+      "route": "Direct (reported by sender)"
+    },
+    {
+      "id": "folder-20261101T191225Z-r1-airpipe",
+      "tool": "airpipe",
+      "round": 1,
+      "started_at": "2026-11-01T19:15:50Z",
+      "seconds": 15.20701754197944,
+      "sender_ready_seconds": 0.9003157499828376,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 14.229665398597717,
+      "command_seconds": 14.031195610761642,
+      "extraction_seconds": 0.19846978783607483,
+      "route": "p2p mode reported; final network candidate not exposed"
+    },
+    {
+      "id": "folder-20261101T191225Z-r1-sendme",
+      "tool": "sendme",
+      "round": 1,
+      "started_at": "2026-11-01T19:16:08Z",
+      "seconds": 6.371758708031848,
+      "sender_ready_seconds": 0.45980112499091774,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 5.8445531241595745,
+      "command_seconds": 5.844543177634478,
+      "extraction_seconds": 9.94652509689331e-06,
+      "route": "Not exposed by default logs"
+    },
+    {
+      "id": "folder-20261101T191225Z-r1-wormhole",
+      "tool": "wormhole",
+      "round": 1,
+      "started_at": "2026-11-01T19:16:17Z",
+      "seconds": 6.665642292005941,
+      "sender_ready_seconds": 0.6534731670399196,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 5.94486540555954,
+      "command_seconds": 5.944856628775597,
+      "extraction_seconds": 8.77678394317627e-06,
+      "route": "Direct TCP (reported by receiver)"
+    },
+    {
+      "id": "folder-20261101T191225Z-r1-croc",
+      "tool": "croc",
+      "round": 1,
+      "started_at": "2026-11-01T19:16:26Z",
+      "seconds": 4.702181792003103,
+      "sender_ready_seconds": 0.19397154200123623,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 4.441571470350027,
+      "command_seconds": 4.441560469567776,
+      "extraction_seconds": 1.1000782251358032e-05,
+      "sender_selected_public_relay": "2.getcroc.com:9009",
+      "route": "croc TCP relay; input below automatic Tailcat size threshold"
+    },
+    {
+      "id": "folder-20261101T191225Z-r2-wormhole",
+      "tool": "wormhole",
+      "round": 2,
+      "started_at": "2026-11-01T19:16:33Z",
+      "seconds": 12.191651207976975,
+      "sender_ready_seconds": 0.5081433330196887,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 11.618028994649649,
+      "command_seconds": 11.618020165711641,
+      "extraction_seconds": 8.828938007354736e-06,
+      "route": "Direct TCP (reported by receiver)"
+    },
+    {
+      "id": "folder-20261101T191225Z-r2-wormhole-william",
+      "tool": "wormhole-william",
+      "round": 2,
+      "started_at": "2026-11-01T19:16:47Z",
+      "seconds": 10.692962333967444,
+      "sender_ready_seconds": 0.46340562496334314,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 10.161797441542149,
+      "command_seconds": 10.161791451275349,
+      "extraction_seconds": 5.990266799926758e-06,
+      "route": "Not exposed by default logs"
+    },
+    {
+      "id": "folder-20261101T191225Z-r2-sendme",
+      "tool": "sendme",
+      "round": 2,
+      "started_at": "2026-11-01T19:17:01Z",
+      "seconds": 4.350014208001085,
+      "sender_ready_seconds": 0.4850724159623496,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 3.7985003031790257,
+      "command_seconds": 3.7984917163848877,
+      "extraction_seconds": 8.586794137954712e-06,
+      "route": "Not exposed by default logs"
+    },
+    {
+      "id": "folder-20261101T191225Z-r2-floe",
+      "tool": "floe",
+      "round": 2,
+      "started_at": "2026-11-01T19:17:07Z",
+      "seconds": 66.78336937498534,
+      "sender_ready_seconds": 1.4571576670277864,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 65.26111116632819,
+      "command_seconds": 65.26110403984785,
+      "extraction_seconds": 7.126480340957642e-06,
+      "route": "Direct (reported by sender)"
+    },
+    {
+      "id": "folder-20261101T191225Z-r2-derphole",
+      "tool": "derphole",
+      "round": 2,
+      "started_at": "2026-11-01T19:18:17Z",
+      "seconds": 4.758591583056841,
+      "sender_ready_seconds": 0.2579483750159852,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 4.434771973639727,
+      "command_seconds": 4.43476302921772,
+      "extraction_seconds": 8.944422006607056e-06,
+      "route": "Not exposed by default logs"
+    },
+    {
+      "id": "folder-20261101T191225Z-r2-airpipe",
+      "tool": "airpipe",
+      "round": 2,
+      "started_at": "2026-11-01T19:18:25Z",
+      "seconds": 13.31714145798469,
+      "sender_ready_seconds": 0.8525559579720721,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 12.398139897733927,
+      "command_seconds": 12.216852437704802,
+      "extraction_seconds": 0.1812874600291252,
+      "route": "p2p mode reported; final network candidate not exposed"
+    },
+    {
+      "id": "folder-20261101T191225Z-r2-croc",
+      "tool": "croc",
+      "round": 2,
+      "started_at": "2026-11-01T19:18:41Z",
+      "seconds": 4.280002665997017,
+      "sender_ready_seconds": 0.17739020800217986,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 4.0344498082995415,
+      "command_seconds": 4.034439753741026,
+      "extraction_seconds": 1.0054558515548706e-05,
+      "sender_selected_public_relay": "2.getcroc.com:9009",
+      "route": "croc TCP relay; input below automatic Tailcat size threshold"
+    },
+    {
+      "id": "folder-20261101T191225Z-r3-floe",
+      "tool": "floe",
+      "round": 3,
+      "started_at": "2026-11-01T19:18:47Z",
+      "seconds": 53.253666208009236,
+      "sender_ready_seconds": 1.6805841669556685,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 51.507414188236,
+      "command_seconds": 51.507405169308186,
+      "extraction_seconds": 9.018927812576294e-06,
+      "route": "Direct (reported by sender)"
+    },
+    {
+      "id": "folder-20261101T191225Z-r3-wormhole-william",
+      "tool": "wormhole-william",
+      "round": 3,
+      "started_at": "2026-11-01T19:19:43Z",
+      "seconds": 10.008925875008572,
+      "sender_ready_seconds": 0.5357620419817977,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 9.40745059773326,
+      "command_seconds": 9.407438967376947,
+      "extraction_seconds": 1.1630356311798096e-05,
+      "route": "Not exposed by default logs"
+    },
+    {
+      "id": "folder-20261101T191225Z-r3-derphole",
+      "tool": "derphole",
+      "round": 3,
+      "started_at": "2026-11-01T19:19:56Z",
+      "seconds": 4.919216124981176,
+      "sender_ready_seconds": 0.2541005829698406,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 4.595415860414505,
+      "command_seconds": 4.595402743667364,
+      "extraction_seconds": 1.31167471408844e-05,
+      "route": "Not exposed by default logs"
+    },
+    {
+      "id": "folder-20261101T191225Z-r3-sendme",
+      "tool": "sendme",
+      "round": 3,
+      "started_at": "2026-11-01T19:20:04Z",
+      "seconds": 8.406795250019059,
+      "sender_ready_seconds": 0.4610700409975834,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 7.878217868506908,
+      "command_seconds": 7.878205988556147,
+      "extraction_seconds": 1.1879950761795044e-05,
+      "route": "Not exposed by default logs"
+    },
+    {
+      "id": "folder-20261101T191225Z-r3-wormhole",
+      "tool": "wormhole",
+      "round": 3,
+      "started_at": "2026-11-01T19:20:15Z",
+      "seconds": 9.138338082993869,
+      "sender_ready_seconds": 0.6000090829911642,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 8.47187428548932,
+      "command_seconds": 8.47186515852809,
+      "extraction_seconds": 9.12696123123169e-06,
+      "route": "Direct TCP (reported by receiver)"
+    },
+    {
+      "id": "folder-20261101T191225Z-r3-croc",
+      "tool": "croc",
+      "round": 3,
+      "started_at": "2026-11-01T19:20:27Z",
+      "seconds": 4.418808040965814,
+      "sender_ready_seconds": 0.19468891597352922,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 4.155527614057064,
+      "command_seconds": 4.155519165098667,
+      "extraction_seconds": 8.448958396911621e-06,
+      "sender_selected_public_relay": "2.getcroc.com:9009",
+      "route": "croc TCP relay; input below automatic Tailcat size threshold"
+    },
+    {
+      "id": "folder-20261101T191225Z-r3-airpipe",
+      "tool": "airpipe",
+      "round": 3,
+      "started_at": "2026-11-01T19:20:34Z",
+      "seconds": 19.46823845797917,
+      "sender_ready_seconds": 0.83065766596701,
+      "status": "ok",
+      "returncode": 0,
+      "verified": true,
+      "received_files": 532,
+      "received_bytes": 20708906,
+      "git_head": "cc781806baaa17d29d94209eecf0c85bc178d9e1",
+      "git_fsck_returncode": 0,
+      "receiver_seconds": 18.569872118532658,
+      "command_seconds": 18.35006022080779,
+      "extraction_seconds": 0.21981189772486687,
+      "route": "p2p mode reported; final network candidate not exposed"
+    }
+  ],
+  "summary": {
+    "croc": {
+      "status": "ok",
+      "attempts": 3,
+      "successful_trials": 3,
+      "median_seconds": 4.418808040965814,
+      "min_seconds": 4.280002665997017,
+      "max_seconds": 4.702181792003103,
+      "effective_MB_per_second": 4.686536687724882
+    },
+    "derphole": {
+      "status": "ok",
+      "attempts": 3,
+      "successful_trials": 3,
+      "median_seconds": 4.758591583056841,
+      "min_seconds": 4.608818500011694,
+      "max_seconds": 4.919216124981176,
+      "effective_MB_per_second": 4.351898169562377
+    },
+    "sendme": {
+      "status": "ok",
+      "attempts": 3,
+      "successful_trials": 3,
+      "median_seconds": 6.371758708031848,
+      "min_seconds": 4.350014208001085,
+      "max_seconds": 8.406795250019059,
+      "effective_MB_per_second": 3.2501083215683644
+    },
+    "wormhole": {
+      "status": "ok",
+      "attempts": 3,
+      "successful_trials": 3,
+      "median_seconds": 9.138338082993869,
+      "min_seconds": 6.665642292005941,
+      "max_seconds": 12.191651207976975,
+      "effective_MB_per_second": 2.2661566919414544
+    },
+    "wormhole-william": {
+      "status": "ok",
+      "attempts": 3,
+      "successful_trials": 3,
+      "median_seconds": 10.692962333967444,
+      "min_seconds": 10.008925875008572,
+      "max_seconds": 12.971378292015288,
+      "effective_MB_per_second": 1.9366855837709014
+    },
+    "airpipe": {
+      "status": "ok",
+      "attempts": 3,
+      "successful_trials": 3,
+      "median_seconds": 15.20701754197944,
+      "min_seconds": 13.31714145798469,
+      "max_seconds": 19.46823845797917,
+      "effective_MB_per_second": 1.3617993102745116
+    },
+    "floe": {
+      "status": "ok",
+      "attempts": 3,
+      "successful_trials": 3,
+      "median_seconds": 57.839122291014064,
+      "min_seconds": 53.253666208009236,
+      "max_seconds": 66.78336937498534,
+      "effective_MB_per_second": 0.3580432271396579
+    }
+  },
+  "unsupported": {
+    "ww": {
+      "status": "Folder transfer unsupported",
+      "preflight_id": "folder-20261101T191225Z-probe-ww",
+      "no_archive_workaround": true
+    }
+  },
+  "preflights": [
+    {
+      "id": "folder-20261101T191225Z-probe-croc",
+      "tool": "croc",
+      "status": "ok"
+    },
+    {
+      "id": "folder-20261101T191225Z-probe-derphole",
+      "tool": "derphole",
+      "status": "ok"
+    },
+    {
+      "id": "folder-20261101T191225Z-probe-sendme",
+      "tool": "sendme",
+      "status": "ok"
+    },
+    {
+      "id": "folder-20261101T191225Z-probe-wormhole",
+      "tool": "wormhole",
+      "status": "ok"
+    },
+    {
+      "id": "folder-20261101T191225Z-probe-wormhole-william",
+      "tool": "wormhole-william",
+      "status": "ok"
+    },
+    {
+      "id": "folder-20261101T191225Z-probe-airpipe",
+      "tool": "airpipe",
+      "status": "ok"
+    },
+    {
+      "id": "folder-20261101T191225Z-probe-floe",
+      "tool": "floe",
+      "status": "ok"
+    },
+    {
+      "id": "folder-20261101T191225Z-probe-ww",
+      "tool": "ww",
+      "status": "failed"
+    }
+  ],
+  "artifacts": {
+    "local": "/Users/zns/.cache/croc-cli-benchmark/20261101T151339Z",
+    "remote": "/root/croc-cli-benchmark-20261101T151339Z",
+    "current_run": "/Users/zns/.cache/croc-cli-benchmark/20261101T151339Z/folder-refresh-20261101T191225Z"
+  },
+  "previous_results": {
+    "summary": {
+      "croc": {
+        "median_seconds": 4.668847457971424,
+        "min_seconds": 4.439847583009396,
+        "max_seconds": 5.816173750034068,
+        "effective_MB_per_second": 4.435549926704577,
+        "successful_trials": 3
+      },
+      "croc-baseline": {
+        "median_seconds": 10.635153500013985,
+        "min_seconds": 10.547478209016845,
+        "max_seconds": 10.798133458010852,
+        "effective_MB_per_second": 1.947212703603457,
+        "successful_trials": 3
+      },
+      "sendme": {
+        "median_seconds": 4.502429749991279,
+        "min_seconds": 4.39029800001299,
+        "max_seconds": 5.137337166990619,
+        "effective_MB_per_second": 4.599495639002499,
+        "successful_trials": 3
+      },
+      "derphole": {
+        "median_seconds": 5.357182167004794,
+        "min_seconds": 5.0339263749774545,
+        "max_seconds": 6.549346124986187,
+        "effective_MB_per_second": 3.865634087925438,
+        "successful_trials": 3
+      },
+      "wormhole": {
+        "median_seconds": 15.436730624991469,
+        "min_seconds": 12.09028608299559,
+        "max_seconds": 15.577734249993227,
+        "effective_MB_per_second": 1.341534454612629,
+        "successful_trials": 3
+      },
+      "wormhole-william": {
+        "median_seconds": 10.657265707966872,
+        "min_seconds": 9.434536041982938,
+        "max_seconds": 11.04992416704772,
+        "effective_MB_per_second": 1.9431725329433227,
+        "successful_trials": 3
+      },
+      "airpipe": {
+        "median_seconds": 16.126537374977488,
+        "min_seconds": 7.484495582990348,
+        "max_seconds": 19.651418459019624,
+        "effective_MB_per_second": 1.2841508079801853,
+        "successful_trials": 3
+      },
+      "floe": {
+        "median_seconds": 58.5755415839958,
+        "min_seconds": 57.46009237499675,
+        "max_seconds": 60.34976408298826,
+        "effective_MB_per_second": 0.35354186132968085,
+        "successful_trials": 3
+      }
+    },
+    "full_record": "/Users/zns/.cache/croc-cli-benchmark/20261101T151339Z/folder-refresh-20261101T191225Z/previous-record.json",
+    "report": "/Users/zns/.cache/croc-cli-benchmark/20261101T151339Z/folder-refresh-20261101T191225Z/previous-record.md",
+    "raw_trials": "/Users/zns/.cache/croc-cli-benchmark/20261101T151339Z/performance/final-results.json"
+  },
+  "validation": {
+    "source_manifest_unchanged": true,
+    "source_git_integrity_passed": true,
+    "all_published_rates_have_three_verified_transfers": true,
+    "selected_attempts": 21,
+    "successful_attempts": 21,
+    "current_croc_binary_hashes_verified_on_both_computers": true,
+    "no_ci_changes": true,
+    "committed": false,
+    "pushed": false,
+    "deployed": false,
+    "website": {
+      "focused_test_files": 2,
+      "focused_tests": 12,
+      "focused_tests_passed": true,
+      "typescript_passed": true,
+      "production_build_passed": true,
+      "audio_section_unchanged": true,
+      "original_canonical_publication_and_artwork_preserved": true,
+      "word_count": 584,
+      "reading_minutes": 3,
+      "desktop": "1440x1000",
+      "mobile": "390x844",
+      "page_overflow": false,
+      "all_three_columns_visible_on_mobile": true,
+      "browser_errors": [],
+      "generated_static_metadata_verified": true,
+      "rendered_metadata_verified": true,
+      "screenshots": [
+        "/Users/zns/.cache/croc-cli-benchmark/20261101T151339Z/folder-refresh-20261101T191225Z/folder-desktop.png",
+        "/Users/zns/.cache/croc-cli-benchmark/20261101T151339Z/folder-refresh-20261101T191225Z/folder-mobile.png"
+      ],
+      "qa_record": "/Users/zns/.cache/croc-cli-benchmark/20261101T151339Z/folder-refresh-20261101T191225Z/web-qa.json",
+      "build_log": "/Users/zns/.cache/croc-cli-benchmark/20261101T151339Z/folder-refresh-20261101T191225Z/web-build.log"
+    }
+  }
+}

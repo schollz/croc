@@ -12,8 +12,8 @@
     "logo": "/croc.png"
   },
   "index": {
-    "title": "croc field notes: secure file transfer explained",
-    "description": "Notes and release updates from inside croc: safe self-updates, terminal sharing, speed tests, live relays, PAKE encryption, browser transfers, and what changed in each version.",
+    "title": "The croc blog: guides, experiments, and release notes",
+    "description": "Release notes, experiments, and practical guides to sending files with croc.",
     "keywords": [
       "croc blog",
       "croc release notes",
@@ -32,13 +32,13 @@
       "slug": "croc-v11-5-release-update",
       "title": "croc v11.5 can update itself",
       "seoTitle": "croc v11.5: Safe Self-Updates and Clearer SSH Sessions",
-      "description": "croc v11.5 adds safe self-updates and makes shared SSH sessions clearer when they start, reconnect, or end.",
+      "description": "croc v11.5 adds a verified standalone updater and clearer messages for shared SSH sessions.",
       "kind": "update",
       "category": "Release notes",
       "publishedAt": "2026-09-05",
       "modifiedAt": "2026-11-01",
-      "wordCount": 832,
-      "readingMinutes": 4,
+      "wordCount": 561,
+      "readingMinutes": 3,
       "relatedSlugs": [
         "croc-v11-4-release-update",
         "share-terminal-with-croc-ssh"
@@ -62,13 +62,13 @@
       "slug": "croc-v11-4-release-update",
       "title": "croc v11.4 shares the terminal",
       "seoTitle": "croc v11.4: Secure Terminal Sharing from CLI and Browser",
-      "description": "croc v11.4 adds secure collaborative terminals, separate read/write and read-only invitations, automatic reconnection, and browser joining.",
+      "description": "croc v11.4 shares one persistent terminal through separate read/write and read-only invitations, from the CLI or browser.",
       "kind": "update",
       "category": "Release notes",
       "publishedAt": "2026-09-03",
-      "modifiedAt": "2026-09-03",
-      "wordCount": 774,
-      "readingMinutes": 4,
+      "modifiedAt": "2026-11-01",
+      "wordCount": 560,
+      "readingMinutes": 3,
       "relatedSlugs": [
         "share-terminal-with-croc-ssh",
         "croc-v11-3-release-update"
@@ -91,12 +91,12 @@
       "slug": "share-terminal-with-croc-ssh",
       "title": "Share a terminal with croc ssh",
       "seoTitle": "croc v11.4 SSH: Share a Terminal with a Six-Word Code",
-      "description": "croc ssh turns a six-word invitation into one shared terminal with read/write or read-only access from the CLI or browser.",
+      "description": "Run croc ssh to share one terminal, with separate read/write and read-only invitations for CLI and browser guests.",
       "category": "Remote terminals",
       "publishedAt": "2026-09-03",
-      "modifiedAt": "2026-09-03",
-      "wordCount": 1138,
-      "readingMinutes": 6,
+      "modifiedAt": "2026-11-01",
+      "wordCount": 798,
+      "readingMinutes": 4,
       "relatedSlugs": [
         "croc-v11-4-release-update",
         "pake-step-by-step"
@@ -121,13 +121,13 @@
       "slug": "croc-v11-3-release-update",
       "title": "croc v11.3 goes peer-to-peer",
       "seoTitle": "croc v11.3: Tailcat WireGuard, DERP, and Relay Fallback",
-      "description": "croc v11.3 adds PAKE-bound Tailcat WireGuard streams, promotes them directly with magicsock, uses DERP as fallback, and retains croc relays.",
+      "description": "croc v11.3 adds direct WireGuard transfers, with public DERP and croc relays available when a direct route is blocked.",
       "kind": "update",
       "category": "Release notes",
       "publishedAt": "2026-08-24",
-      "modifiedAt": "2026-08-24",
-      "wordCount": 1450,
-      "readingMinutes": 7,
+      "modifiedAt": "2026-11-01",
+      "wordCount": 852,
+      "readingMinutes": 5,
       "relatedSlugs": [
         "croc-v11-release-update",
         "how-croc-moves-a-file"
@@ -150,12 +150,12 @@
       "slug": "croc-cli-speed-comparison",
       "title": "How fast is croc?",
       "seoTitle": "croc Speed Test: Eight CLI File-Transfer Tools Compared",
-      "description": "I timed eight command-line file-transfer tools between two servers using a 303 MB audio file and a folder of 64 photos.",
+      "description": "I timed a Git clone and a 317.52 MB audio file from my Mac to Toronto. croc sent the audio in 8.52 seconds.",
       "category": "Benchmarks",
       "publishedAt": "2026-08-23",
-      "modifiedAt": "2026-10-31",
-      "wordCount": 1208,
-      "readingMinutes": 6,
+      "modifiedAt": "2026-11-01",
+      "wordCount": 584,
+      "readingMinutes": 3,
       "relatedSlugs": [
         "compare-file-transfer-tools",
         "how-croc-moves-a-file"
@@ -184,13 +184,13 @@
       "slug": "croc-v11-release-update",
       "title": "From croc v10 to v11",
       "seoTitle": "croc v11: Features and Fixes from v11.0.0 to v11.1.1",
-      "description": "croc v11 makes the handshake harder to confuse, lets one encrypted stored transfer serve a group, starts the web client faster, and closes several unsafe edge cases.",
+      "description": "croc v11 strengthens the handshake and relay limits, adds group stored transfers, and makes browser startup and terminal output clearer.",
       "kind": "update",
       "category": "Release notes",
       "publishedAt": "2026-08-16",
-      "modifiedAt": "2026-08-16",
-      "wordCount": 1113,
-      "readingMinutes": 6,
+      "modifiedAt": "2026-11-01",
+      "wordCount": 692,
+      "readingMinutes": 4,
       "relatedSlugs": [
         "share-stored-file-with-group",
         "pake-step-by-step"
@@ -211,12 +211,12 @@
     {
       "slug": "why-croc-works-this-way",
       "title": "Why croc works this way",
-      "description": "croc started with a large documentary, a friend in another country, and the surprisingly difficult question of how to send her the file.",
+      "description": "Croc began with a turkey documentary I wanted to send to a friend, without asking her to configure a file-transfer system.",
       "category": "Origins",
       "publishedAt": "2026-08-08",
-      "modifiedAt": "2026-08-10",
-      "wordCount": 740,
-      "readingMinutes": 4,
+      "modifiedAt": "2026-11-01",
+      "wordCount": 415,
+      "readingMinutes": 2,
       "relatedSlugs": [
         "how-croc-moves-a-file",
         "what-four-word-code-does"
@@ -235,12 +235,12 @@
     {
       "slug": "how-croc-moves-a-file",
       "title": "The relay is not a waiting room",
-      "description": "The croc relay looks a little like an upload server, except it does not wait for the whole file before sending it onward.",
+      "description": "The relay forwards encrypted bytes as they arrive, so the receiver can start before the sender finishes.",
       "category": "How it works",
       "publishedAt": "2026-08-08",
-      "modifiedAt": "2026-08-10",
-      "wordCount": 421,
-      "readingMinutes": 3,
+      "modifiedAt": "2026-11-01",
+      "wordCount": 238,
+      "readingMinutes": 2,
       "relatedSlugs": [
         "why-croc-works-this-way",
         "stored-transfer-one-download"
@@ -259,12 +259,12 @@
     {
       "slug": "what-four-word-code-does",
       "title": "What the three words are doing",
-      "description": "I wanted a croc code to be easy to read aloud. Making three ordinary words secure enough for a file transfer takes a little more work.",
+      "description": "Three words help croc clients meet and authenticate a fresh key. They still need to be kept private while the transfer is live.",
       "category": "Security",
       "publishedAt": "2026-08-08",
-      "modifiedAt": "2026-08-10",
-      "wordCount": 475,
-      "readingMinutes": 3,
+      "modifiedAt": "2026-11-01",
+      "wordCount": 277,
+      "readingMinutes": 2,
       "relatedSlugs": [
         "pake-step-by-step",
         "why-croc-works-this-way"
@@ -283,12 +283,12 @@
     {
       "slug": "pake-step-by-step",
       "title": "PAKE, step by step",
-      "description": "PAKE is the part of croc that turns a small shared phrase into a strong key. Here is the exchange without skipping the interesting bits.",
+      "description": "How croc turns a shared phrase into a fresh key, checks both peers, and keeps the phrase and key off the network.",
       "category": "Security",
       "publishedAt": "2026-08-08",
-      "modifiedAt": "2026-08-10",
-      "wordCount": 1053,
-      "readingMinutes": 6,
+      "modifiedAt": "2026-11-01",
+      "wordCount": 619,
+      "readingMinutes": 3,
       "relatedSlugs": [
         "what-four-word-code-does",
         "browser-meets-terminal"
@@ -307,12 +307,12 @@
     {
       "slug": "send-file-from-browser",
       "title": "Send a file without installing anything",
-      "description": "The browser can join an ordinary croc transfer now. Choose the files, share the code, and keep the tab open until the handoff finishes.",
+      "description": "Choose files, share the code, and keep the browser open until the receiver has verified the transfer.",
       "category": "Start here",
       "publishedAt": "2026-08-08",
-      "modifiedAt": "2026-08-10",
-      "wordCount": 431,
-      "readingMinutes": 3,
+      "modifiedAt": "2026-11-01",
+      "wordCount": 225,
+      "readingMinutes": 2,
       "relatedSlugs": [
         "browser-meets-terminal",
         "how-croc-moves-a-file"
@@ -331,12 +331,12 @@
     {
       "slug": "browser-meets-terminal",
       "title": "A browser and a terminal can share the same file",
-      "description": "The browser client was meant to join normal croc transfers, not become another file-sharing island with its own links and accounts.",
+      "description": "The browser and CLI can join the same croc transfer, so each person can use the interface that suits their device.",
       "category": "Field guide",
       "publishedAt": "2026-08-08",
-      "modifiedAt": "2026-08-10",
-      "wordCount": 439,
-      "readingMinutes": 3,
+      "modifiedAt": "2026-11-01",
+      "wordCount": 229,
+      "readingMinutes": 2,
       "relatedSlugs": [
         "send-file-from-browser",
         "stored-transfer-one-download"
@@ -355,12 +355,12 @@
     {
       "slug": "stored-transfer-one-download",
       "title": "When both computers cannot be online at once",
-      "description": "Direct croc transfers expect both computers to be awake. Stored mode is for the inconvenient times when the people are not.",
+      "description": "Stored mode lets the sender finish now and the receiver download later, within a chosen lifetime and download limit.",
       "category": "Stored transfers",
       "publishedAt": "2026-08-08",
-      "modifiedAt": "2026-08-11",
-      "wordCount": 540,
-      "readingMinutes": 3,
+      "modifiedAt": "2026-11-01",
+      "wordCount": 324,
+      "readingMinutes": 2,
       "relatedSlugs": [
         "share-stored-file-with-group",
         "browser-meets-terminal"
@@ -379,12 +379,12 @@
     {
       "slug": "share-stored-file-with-group",
       "title": "Send one file to a group, on their schedule",
-      "description": "Stored mode can give several people time to retrieve the same encrypted file. Choose a download allowance, choose a deadline, and share one link.",
+      "description": "Upload one encrypted file for a group, then choose how many downloads can finish and when the transfer expires.",
       "category": "Stored transfers",
       "publishedAt": "2026-08-11",
-      "modifiedAt": "2026-08-11",
-      "wordCount": 647,
-      "readingMinutes": 4,
+      "modifiedAt": "2026-11-01",
+      "wordCount": 413,
+      "readingMinutes": 2,
       "relatedSlugs": [
         "stored-transfer-one-download",
         "browser-meets-terminal"
@@ -404,12 +404,12 @@
       "slug": "compare-file-transfer-tools",
       "title": "40 ways to send a file",
       "seoTitle": "40 Ways to Send a File: croc and 39 Alternatives",
-      "description": "Compare croc with 39 file transfer tools by resume support, account requirements, browser and CLI transfers, encryption, availability, and transfer paths.",
+      "description": "Forty file-transfer tools compared by resume support, accounts, browser and CLI access, encryption, availability, and transfer routes.",
       "category": "Field guide",
       "publishedAt": "2026-08-12",
-      "modifiedAt": "2026-08-23",
-      "wordCount": 2347,
-      "readingMinutes": 12,
+      "modifiedAt": "2026-11-01",
+      "wordCount": 1917,
+      "readingMinutes": 10,
       "relatedSlugs": [
         "browser-meets-terminal",
         "send-file-from-browser"
