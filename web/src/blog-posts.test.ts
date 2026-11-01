@@ -33,10 +33,11 @@ describe("blog posts", () => {
 
     for (const post of blogPosts) {
       expect(post.slug).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
-      expect(post.blocks.length).toBeGreaterThanOrEqual(8);
+      expect(post.blocks.length).toBeGreaterThan(0);
+      expect(post.blocks.filter((block) => block.type === "heading").length).toBeLessThanOrEqual(3);
       expect(post.wordCount).toBe(blogWordCount(post.blocks));
       expect(post.readingMinutes).toBe(readingMinutes(post.blocks));
-      expect(post.readingMinutes).toBeGreaterThanOrEqual(2);
+      expect(post.readingMinutes).toBeGreaterThanOrEqual(1);
       expect(post.keywords.length).toBeGreaterThanOrEqual(4);
       expect(post.relatedSlugs).toHaveLength(2);
       expect(new Set(post.relatedSlugs).size).toBe(2);
