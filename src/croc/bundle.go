@@ -76,11 +76,13 @@ type bundlePreflight struct{ requested, eligible bool }
 
 // Negotiated capabilities and retained logical identities outlive a connection.
 type bundleClientState struct {
-	identities    []string
-	peerHandshake bool
-	manifest      bool
-	peerLimits    bundle.Limits
-	active        *bundleAttemptState
+	identities     []string
+	peerHandshake  bool
+	peerNative     bool
+	manifestNative bool
+	manifest       bool
+	peerLimits     bundle.Limits
+	active         *bundleAttemptState
 }
 
 // The control loop owns lifecycle and private storage. Workers see only receive.
@@ -235,21 +237,39 @@ func (c *Client) removeBundleStage() error {
 }
 
 func (c *Client) senderManifestFeatures() []string {
-	return []string{perFileCompressionFeature, bundle.Feature}
+	features := []string{perFileCompressionFeature, bundle.Feature}
+	if c.bundles.peerNative {
+		features = append(features, bundle.NativeFeature)
+	}
+	return features
 }
-func (c *Client) senderBundleLimits() *bundle.Limits { limits := bundle.NativeLimits(); return &limits }
+func (c *Client) nativeBundleLimits() bundle.Limits {
+	if c.bundles.peerNative && (c.Options.IsSender || c.bundles.manifestNative) {
+		return bundle.WideNativeLimits()
+	}
+	return bundle.NativeLimits()
+}
+func (c *Client) senderBundleLimits() *bundle.Limits {
+	limits := c.nativeBundleLimits()
+	return &limits
+}
 
 func (c *Client) acceptBundleManifest(info SenderInfo) error {
 	advertised := supportsFeature(info.Features, bundle.Feature)
+	native := c.bundles.peerNative && supportsFeature(info.Features, bundle.NativeFeature)
 	if info.BundleLimits != nil {
 		if err := info.BundleLimits.Validate(); err != nil {
 			return err
+		}
+		if info.BundleLimits.MaxFiles > bundle.MaxFiles && !native {
+			return errors.New("native bundle limits without negotiated support")
 		}
 	}
 	if advertised && info.BundleLimits == nil {
 		return errors.New("bundle capability without limits")
 	}
 	c.bundles.manifest = advertised && !info.Ask
+	c.bundles.manifestNative = native && !info.Ask
 	if info.BundleLimits != nil {
 		c.bundles.peerLimits = *info.BundleLimits
 	}
@@ -268,10 +288,17 @@ func bundleFileEligible(file FileInfo) bool {
 	return file.Mode.IsRegular() && file.Symlink == "" && !file.TempFile && file.Prepared && len(file.Hash) == 8 && file.Size > 0 && file.Size <= bundle.MaxFileBytes
 }
 
+func (c *Client) bundleFileEligible(file FileInfo) bool {
+	if c.nativeBundleLimits().MaxFiles == bundle.MaxFiles {
+		return bundleFileEligible(file)
+	}
+	return file.Mode.IsRegular() && file.Symlink == "" && !file.TempFile && file.Prepared && len(file.Hash) == 8 && file.Size >= 0 && file.Size <= bundle.NativeMaxBytes
+}
+
 func (c *Client) bundleMembers() []bundle.Member {
 	members := make([]bundle.Member, len(c.FilesToTransfer))
 	for i, file := range c.FilesToTransfer {
-		members[i] = bundle.Member{Size: file.Size, Eligible: bundleFileEligible(file), Requested: true}
+		members[i] = bundle.Member{Size: file.Size, Eligible: c.bundleFileEligible(file), Requested: true}
 	}
 	return members
 }
@@ -281,7 +308,7 @@ func (c *Client) preflightBundleFile(index int) (bundlePreflight, error) {
 	if err != nil {
 		return bundlePreflight{}, err
 	}
-	eligible := (!decision.requested || decision.fresh) && bundleFileEligible(c.FilesToTransfer[index])
+	eligible := (!decision.requested || decision.fresh) && c.bundleFileEligible(c.FilesToTransfer[index])
 	if decision.requested && eligible {
 		state := c.bundleState()
 		folder := path.Dir(path.Join(c.FilesToTransfer[index].FolderRemote, c.FilesToTransfer[index].Name))
@@ -307,7 +334,7 @@ func (c *Client) preflightBundleFile(index int) (bundlePreflight, error) {
 
 func (c *Client) requestNextBundleUnit() error {
 	for {
-		limits, err := bundle.Effective(bundle.NativeLimits(), c.bundles.peerLimits)
+		limits, err := bundle.Effective(c.nativeBundleLimits(), c.bundles.peerLimits)
 		if err != nil {
 			return err
 		}
@@ -342,7 +369,7 @@ func (c *Client) requestNextBundleUnit() error {
 		}
 		id := c.bundleState().lifecycle.LastID + 1
 		machine, _ := machineid.ID()
-		request := bundle.Request{ID: id, Indices: indices, Limits: bundle.NativeLimits(), MachineID: machine, ReconnectVersion: c.reconnectVersion}
+		request := bundle.Request{ID: id, Indices: indices, Limits: c.nativeBundleLimits(), MachineID: machine, ReconnectVersion: c.reconnectVersion}
 		if c.peerInlineMetadata {
 			request.ExternalIP = c.advertisedExternalIP()
 		}
@@ -470,7 +497,7 @@ func (c *Client) processBundleMessage(m message.Message, attempt *transferAttemp
 		if err := bundle.Decode(m.Bytes, &request); err != nil {
 			return err
 		}
-		offsets, size, err := bundle.ValidateRequest(request, c.bundleMembers(), bundle.NativeLimits())
+		offsets, size, err := bundle.ValidateRequest(request, c.bundleMembers(), c.nativeBundleLimits())
 		if err != nil {
 			return err
 		}
@@ -662,6 +689,9 @@ func (c *Client) verifyAndCommitBundle(spool *os.File) (result error) {
 	if _, _, err = validateReceiveMetadata(c.FilesToTransfer, c.EmptyFoldersToTransfer); err != nil {
 		return err
 	}
+	if err = c.prepareBundleStages(root, staged); err != nil {
+		return err
+	}
 	for i, index := range s.request.Indices {
 		if err = c.bundleContextErr(); err != nil {
 			return err
@@ -673,34 +703,6 @@ func (c *Client) verifyAndCommitBundle(spool *os.File) (result error) {
 		}
 		if err = recheckBundleDestination(root, info); err != nil {
 			return err
-		}
-		var stage *os.File
-		var openErr error
-		if runtime.GOOS == "windows" {
-			// FlushFileBuffers requires GENERIC_WRITE on the staged handle.
-			stage, openErr = root.OpenFile(staged[i], os.O_RDWR, 0)
-		} else {
-			stage, openErr = root.Open(staged[i])
-		}
-		if openErr != nil {
-			return openErr
-		}
-		chmodErr := stage.Chmod(info.Mode.Perm())
-		syncErr := stage.Sync()
-		closeErr := stage.Close()
-		if chmodErr != nil {
-			return chmodErr
-		}
-		if syncErr != nil {
-			return syncErr
-		}
-		if closeErr != nil {
-			return closeErr
-		}
-		if !info.ModTime.IsZero() {
-			if err = root.Chtimes(staged[i], info.ModTime, info.ModTime); err != nil {
-				return err
-			}
 		}
 		if err = root.PublishNew(staged[i], destination); err != nil {
 			return fmt.Errorf("publish bundle member %q: %w", destination, err)
@@ -718,6 +720,68 @@ func (c *Client) verifyAndCommitBundle(spool *os.File) (result error) {
 		log.Debugf("bundle member committed: %s (%s)", destination, hex.EncodeToString(info.Hash))
 	}
 	log.Debugf("bundle timing id=%d phase=verify-commit duration=%s payload=%d staged_peak=%d", s.request.ID, time.Since(started), s.size, s.size)
+	return nil
+}
+
+// Sync independent staged files together so a bundle does not wait for a
+// separate disk flush for every member. All workers finish before publication
+// or cleanup, and the bound also limits the number of open file handles.
+func (c *Client) prepareBundleStages(root *receivefs.Root, staged []string) error {
+	const workers = 32
+	indices := c.bundleState().request.Indices
+	errorsByMember := make([]error, len(staged))
+	var next atomic.Int64
+	var failed atomic.Bool
+	var group sync.WaitGroup
+	for range min(workers, len(staged)) {
+		group.Go(func() {
+			for !failed.Load() {
+				i := int(next.Add(1) - 1)
+				if i >= len(staged) {
+					return
+				}
+				err := c.bundleContextErr()
+				if err == nil {
+					err = prepareBundleStage(root, staged[i], c.FilesToTransfer[indices[i]])
+				}
+				if err != nil {
+					errorsByMember[i] = err
+					failed.Store(true)
+					return
+				}
+			}
+		})
+	}
+	group.Wait()
+	for _, err := range errorsByMember {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func prepareBundleStage(root *receivefs.Root, name string, info FileInfo) error {
+	var stage *os.File
+	var err error
+	if runtime.GOOS == "windows" {
+		// FlushFileBuffers requires GENERIC_WRITE on the staged handle.
+		stage, err = root.OpenFile(name, os.O_RDWR, 0)
+	} else {
+		stage, err = root.Open(name)
+	}
+	if err != nil {
+		return err
+	}
+	chmodErr := stage.Chmod(info.Mode.Perm())
+	syncErr := stage.Sync()
+	closeErr := stage.Close()
+	if err = errors.Join(chmodErr, syncErr, closeErr); err != nil {
+		return err
+	}
+	if !info.ModTime.IsZero() {
+		return root.Chtimes(name, info.ModTime, info.ModTime)
+	}
 	return nil
 }
 

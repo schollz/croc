@@ -2769,6 +2769,7 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 	c.peerStagedTransport = supportsFeature(m.Features, stagedTransportFeature)
 	c.peerImplicitTailcatReady = supportsFeature(m.Features, implicitTailcatReadyFeature)
 	c.bundles.peerHandshake = supportsFeature(m.Features, bundle.Feature)
+	c.bundles.peerNative = c.bundles.peerHandshake && supportsFeature(m.Features, bundle.NativeFeature)
 	if c.pakeConfirmationPending || c.Key != nil {
 		return pakeHandshakeError{err: fmt.Errorf("unexpected duplicate PAKE payload")}
 	}

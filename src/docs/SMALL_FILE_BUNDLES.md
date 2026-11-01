@@ -21,6 +21,29 @@ header. Browser handshakes advertise only this implemented extension.
 | Native payload | 32 MiB |
 | Browser payload | 8 MiB |
 
+### Native file bundles
+
+Native clients also advertise `native-file-bundles-v2` in the authenticated
+PAKE feature lists. When both peers support it, the encrypted sender manifest
+advertises that feature and limits of 32 MiB and 1,024 members. The receiver
+rejects expanded limits without the negotiated capability. Peers without this
+feature, including current browsers, retain the table above and the original
+one-MiB eligibility rule.
+
+The native extension permits prepared regular files up to the effective
+payload limit, including empty members alongside nonempty data. An entirely
+empty group uses ordinary empty-file handling rather than a zero-byte data
+unit. The control messages, chunk validation, per-member hashes, and lifecycle
+barriers are unchanged. The payload still occupies at most 32 MiB, with at most
+32 MiB of staged member contents, and requests remain bounded to 16 KiB.
+
+Native staging flushes independent files with at most 32 workers. Each file is
+still synchronized, and every worker finishes before any publication or cleanup.
+Publication remains ordered and refuses destinations that appeared after
+preflight. A fresh, interrupted native bundle restarts as a unit; existing
+partial destinations retain the individual-file resume path. Files larger than
+32 MiB also retain individual-file transfers.
+
 The effective limits are the minimum of both endpoints' limits. Sizes refer to
 uncompressed bytes. Planning follows logical manifest order and stops at an
 ineligible file or a byte/member limit. A leftover group of fewer than four
@@ -32,12 +55,13 @@ and accepted destination names are retained; disk contents are checked again
 after individual reception and on reconnect. Generated names avoid both disk
 entries and all reserved portable manifest paths.
 
-Eligible entries are prepared, nonempty regular files with an exact `xxhash`
-wire digest. Empty files/directories, symlinks, temporary archives, other hash
-modes, text, stdout, sender confirmation, stored transfers, and SSH retain their
-existing behavior. Capability absence selects the original protocol. Invalid
-limits, messages, hashes, source snapshots, and destination writes fail the
-transfer.
+For `small-file-bundles-v1`, eligible entries are prepared, nonempty regular
+files of at most one MiB with an exact `xxhash` wire digest. The native extension
+described above widens that eligibility. Empty directories, symlinks, temporary
+archives, other hash modes, text, stdout, sender confirmation, stored transfers,
+and SSH retain their existing behavior. Capability absence selects the original
+protocol. Invalid limits, messages, hashes, source snapshots, and destination
+writes fail the transfer.
 
 ## Control and data
 

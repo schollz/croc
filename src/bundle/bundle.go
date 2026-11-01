@@ -1,5 +1,6 @@
-// Package bundle defines the small-file-bundles-v1 contract. It knows only
-// logical manifest indices; destination paths never occur in bundle messages.
+// Package bundle defines small-file-bundles-v1 and its negotiated native
+// extension. It knows only logical manifest indices; destination paths never
+// occur in bundle messages.
 package bundle
 
 import (
@@ -12,11 +13,13 @@ import (
 
 const (
 	Feature               = "small-file-bundles-v1"
+	NativeFeature         = "native-file-bundles-v2"
 	MaxFileBytes    int64 = 1 << 20
 	NativeMaxBytes  int64 = 32 << 20
 	BrowserMaxBytes int64 = 8 << 20
 	MinFiles              = 4
 	MaxFiles              = 128
+	NativeMaxFiles        = 1024
 	MaxControlBytes       = 16 << 10
 	ChunkSize       int64 = 32 << 10
 )
@@ -28,11 +31,23 @@ type Limits struct {
 
 func NativeLimits() Limits { return Limits{NativeMaxBytes, MaxFiles} }
 
+// WideNativeLimits is negotiated only by native peers advertising NativeFeature.
+// It increases file count and eligible member size, not the payload budget.
+func WideNativeLimits() Limits { return Limits{NativeMaxBytes, NativeMaxFiles} }
+
 func (l Limits) Validate() error {
-	if l.MaxBytes <= 0 || l.MaxBytes > NativeMaxBytes || l.MaxFiles < MinFiles || l.MaxFiles > MaxFiles {
+	if l.MaxBytes <= 0 || l.MaxBytes > NativeMaxBytes || l.MaxFiles < MinFiles || (l.MaxFiles > MaxFiles && l.MaxFiles != NativeMaxFiles) {
 		return errors.New("invalid bundle limits")
 	}
 	return nil
+}
+
+func (l Limits) eligible(member Member) bool {
+	minimum, maximum := int64(1), MaxFileBytes
+	if l.MaxFiles == NativeMaxFiles {
+		minimum, maximum = 0, NativeMaxBytes
+	}
+	return member.Eligible && member.Size >= minimum && member.Size <= maximum && member.Size <= l.MaxBytes
 }
 
 func Effective(a, b Limits) (Limits, error) {
@@ -68,7 +83,7 @@ func Next(count, start int, limits Limits, resolve func(int) (Member, error)) (L
 	var sizes []int64
 	var size int64
 	finish := func() Layout {
-		if len(indices) < MinFiles && len(indices) > 0 {
+		if (len(indices) < MinFiles || size == 0) && len(indices) > 0 {
 			indices, sizes = indices[:1], sizes[:1]
 		}
 		layout := Layout{Indices: indices, Offsets: make([]int64, len(indices))}
@@ -83,7 +98,7 @@ func Next(count, start int, limits Limits, resolve func(int) (Member, error)) (L
 		if err != nil {
 			return Layout{}, err
 		}
-		eligible := member.Eligible && member.Size > 0 && member.Size <= MaxFileBytes && member.Size <= limits.MaxBytes
+		eligible := limits.eligible(member)
 		if !eligible && len(indices) > 0 {
 			return finish(), nil
 		}
@@ -197,17 +212,20 @@ func ValidateRequest(request Request, members []Member, sender Limits) ([]int64,
 			return nil, 0, errors.New("invalid, duplicate, or unordered bundle index")
 		}
 		member := members[index]
-		if !member.Eligible || member.Size <= 0 || member.Size > MaxFileBytes || member.Size > limits.MaxBytes-size {
+		if !limits.eligible(member) || member.Size > limits.MaxBytes-size {
 			return nil, 0, errors.New("ineligible or oversized bundle member")
 		}
 		for j := last + 1; last >= 0 && j < index; j++ {
-			if !members[j].Eligible {
+			if !limits.eligible(members[j]) {
 				return nil, 0, errors.New("bundle crosses ineligible manifest member")
 			}
 		}
 		offsets[i] = size
 		size += member.Size
 		last = index
+	}
+	if size == 0 {
+		return nil, 0, errors.New("empty bundle payload")
 	}
 	return offsets, size, nil
 }

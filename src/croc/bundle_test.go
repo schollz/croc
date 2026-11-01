@@ -173,6 +173,69 @@ func TestBundleVerifyBeforePublicationAndCleanup(t *testing.T) {
 	}
 }
 
+func TestNativeBundleCapabilityGatesWideLimits(t *testing.T) {
+	sender := &Client{Options: Options{IsSender: true}}
+	if *sender.senderBundleLimits() != bundle.NativeLimits() || supportsFeature(sender.senderManifestFeatures(), bundle.NativeFeature) {
+		t.Fatal("legacy peer received wide limits")
+	}
+	sender.bundles.peerNative = true
+	if *sender.senderBundleLimits() != bundle.WideNativeLimits() || !supportsFeature(sender.senderManifestFeatures(), bundle.NativeFeature) {
+		t.Fatal("native capability was not advertised")
+	}
+	limits := bundle.WideNativeLimits()
+	info := SenderInfo{Features: []string{bundle.Feature, bundle.NativeFeature}, BundleLimits: &limits}
+	receiver := &Client{}
+	if err := receiver.acceptBundleManifest(info); err == nil {
+		t.Fatal("wide manifest accepted without PAKE capability")
+	}
+	receiver.bundles.peerNative = true
+	if err := receiver.acceptBundleManifest(info); err != nil {
+		t.Fatal(err)
+	}
+	if receiver.nativeBundleLimits() != limits {
+		t.Fatal("native limits not selected after authenticated negotiation")
+	}
+}
+
+func TestNativeBundlePublishesLargeAndEmptyMembers(t *testing.T) {
+	c := bundleTestClient(t)
+	c.bundles.peerNative = true
+	for index, size := range map[int]int{0: 0, 1: 2 << 20} {
+		file := &c.FilesToTransfer[index]
+		if err := os.WriteFile(sourceFilePath(*file), bytes.Repeat([]byte{byte(index)}, size), file.Mode.Perm()); err != nil {
+			t.Fatal(err)
+		}
+		stat, err := os.Stat(sourceFilePath(*file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		file.Size, file.ModTime = stat.Size(), stat.ModTime()
+		if err = c.prepareFile(index, defaultHashAlgorithm, new(filePreparationScratch)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c.bundleState().request.Limits = bundle.WideNativeLimits()
+	var err error
+	c.bundleState().offsets, c.bundleState().size, err = bundle.ValidateRequest(c.bundleState().request, c.bundleMembers(), bundle.WideNativeLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepareTestBundle(t, c)
+	t.Chdir(t.TempDir())
+	c.Options.IsSender = false
+	c.bundles.manifestNative = true
+	if err = c.verifyAndCommitBundle(c.bundleState().spool); err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range c.FilesToTransfer {
+		got, err := os.ReadFile(file.Name)
+		want, readErr := os.ReadFile(sourceFilePath(file))
+		if err != nil || readErr != nil || !bytes.Equal(got, want) {
+			t.Fatalf("member %s differs: %v, %v", file.Name, err, readErr)
+		}
+	}
+}
+
 func TestBundleCommitConflictRetainsCompletedPrefix(t *testing.T) {
 	c := bundleTestClient(t)
 	prepareTestBundle(t, c)

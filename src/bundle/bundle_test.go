@@ -96,6 +96,58 @@ func TestLimitsAndSkippedFiles(t *testing.T) {
 	}
 }
 
+func TestWideNativeBundlesKeepLegacyLimitsAndBoundPayload(t *testing.T) {
+	wide := WideNativeLimits()
+	if got, err := Effective(wide, NativeLimits()); err != nil || got != NativeLimits() {
+		t.Fatalf("legacy negotiation = %v, %v", got, err)
+	}
+	members := make([]Member, 532)
+	for i := range members {
+		members[i] = Member{Size: 1024, Eligible: true, Requested: true}
+	}
+	members[0].Size = 0
+	members[1].Size = 13 << 20
+	members[2].Size = 2 << 20
+	unit, err := Next(len(members), 0, wide, func(i int) (Member, error) { return members[i], nil })
+	if err != nil || len(unit.Indices) != len(members) {
+		t.Fatalf("native plan has %d members: %v", len(unit.Indices), err)
+	}
+	request := Request{ID: 1, Indices: unit.Indices, Limits: wide}
+	offsets, size, err := ValidateRequest(request, members, wide)
+	if err != nil || size != unit.Size || !reflect.DeepEqual(offsets, unit.Offsets) {
+		t.Fatalf("native layout mismatch: %d, %v", size, err)
+	}
+	if _, _, err = ValidateRequest(request, members, NativeLimits()); err == nil {
+		t.Fatal("legacy sender accepted a wide request")
+	}
+	members[2].Size = NativeMaxBytes
+	if _, _, err = ValidateRequest(request, members, wide); err == nil {
+		t.Fatal("payload budget exceeded")
+	}
+	if (Limits{NativeMaxBytes, NativeMaxFiles + 1}).Validate() == nil {
+		t.Fatal("unbounded native member count")
+	}
+	request.Indices = make([]int, NativeMaxFiles)
+	for i := range request.Indices {
+		request.Indices[i] = 1_000_000_000 + i
+	}
+	encoded, err := json.Marshal(request)
+	if err != nil || len(encoded) > MaxControlBytes {
+		t.Fatalf("wide request exceeds control bound: %d, %v", len(encoded), err)
+	}
+}
+
+func TestWideNativeAllEmptyFilesUseIndividualUnits(t *testing.T) {
+	members := []Member{{0, true, true}, {0, true, true}, {0, true, true}, {0, true, true}}
+	plan, err := Plan(members, WideNativeLimits())
+	if err != nil || !reflect.DeepEqual(plan, [][]int{{0}, {1}, {2}, {3}}) {
+		t.Fatalf("empty-file plan = %v, %v", plan, err)
+	}
+	if _, _, err = ValidateRequest(Request{ID: 1, Indices: []int{0, 1, 2, 3}, Limits: WideNativeLimits()}, members, WideNativeLimits()); err == nil {
+		t.Fatal("accepted a zero-byte bundle payload")
+	}
+}
+
 func TestLifecycle(t *testing.T) {
 	var state Lifecycle
 	if state.Advance(1, "offer") == nil {
