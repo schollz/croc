@@ -66,8 +66,8 @@
     "manifest": "{\"v\":1,\"cs\":4194304,\"f\":[{\"n\":\".ssh\",\"s\":5,\"m\":\"2023-11-14T22:13:20Z\",\"h\":\"LPJNul-wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ\",\"fc\":0,\"cc\":1},{\"n\":\"empty.bin\",\"s\":0,\"m\":\"2023-11-14T22:13:20Z\",\"h\":\"47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU\",\"fc\":1,\"cc\":0}]}"
   },
   {
-    "name": "unsafe \".GIT\"",
-    "valid": false,
+    "name": "valid Git metadata file \".GIT\"",
+    "valid": true,
     "maxBytes": 1024,
     "manifest": "{\"v\":1,\"cs\":4194304,\"f\":[{\"n\":\".GIT\",\"s\":5,\"m\":\"2023-11-14T22:13:20Z\",\"h\":\"LPJNul-wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ\",\"fc\":0,\"cc\":1},{\"n\":\"empty.bin\",\"s\":0,\"m\":\"2023-11-14T22:13:20Z\",\"h\":\"47DEQpj8HBSa-_TImW-5JCeuQeRkm5NMpJWZG3hSuFU\",\"fc\":1,\"cc\":0}]}"
   },

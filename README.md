@@ -263,6 +263,10 @@ Then, to receive the file (or folder) on another computer, run:
 croc code-phrase
 ```
 
+Folder transfers include Git repository metadata (`.git`) without an extra flag,
+using the normal acceptance and overwrite handling. Paths containing `.ssh` or
+`.gnupg` components are still rejected, including case variants.
+
 The code phrase is used to establish password-authenticated key agreement ([PAKE](https://en.wikipedia.org/wiki/Password-authenticated_key_agreement)) which generates a secret key for the sender and recipient to use for end-to-end encryption.
 
 ### Share a terminal with `croc ssh`

@@ -9,7 +9,8 @@ import type {
 import { maxTextTransferBytes } from "./types";
 import { foldCase } from "./unicode-casefold";
 
-const forbiddenComponents = new Set([".ssh", ".git", ".gnupg"]);
+// Keep aligned with receivefs.ForbiddenComponent; Git metadata is transferable.
+const forbiddenComponents = new Set([".ssh", ".gnupg"]);
 const windowsDeviceNames = new Set([
   "CON",
   "PRN",

@@ -122,8 +122,10 @@ describe("incoming croc metadata", () => {
     [".ssh", "authorized_keys"],
     [".SSH", "authorized_keys"],
     [".Ssh", "authorized_keys"],
-    ["safe/.GIT/hooks", "post-checkout"],
     [".", ".gnupg"],
+    ["safe/.GnUpG", "key"],
+    ["11/.git/.SSH", "authorized_keys"],
+    ["11/.GIT/.GnUpG", "key"],
     [".", "CON.txt"],
     [".", "COM¹.log"],
     [".", "file.txt:stream"],
@@ -133,6 +135,29 @@ describe("incoming croc metadata", () => {
     expect(() =>
       validateSenderInfo(sender([{ n: name, fr: folder, s: 1, h: "AA==" }])),
     ).toThrow();
+  });
+
+  it.each([
+    [".git", "config", ".git/config"],
+    ["11/.git/", "HEAD", "11/.git/HEAD"],
+    [".git/hooks", "post-checkout", ".git/hooks/post-checkout"],
+    ["other\\.GIT", "config", "other/.GIT/config"],
+    [".", ".git", ".git"],
+  ])("accepts Git metadata %s/%s", (folder, name, path) => {
+    const offer = validateSenderInfo(
+      sender([{ n: name, fr: folder, s: 1, h: "AA==" }]),
+    );
+    expect(offer.files[0]).toMatchObject({ name, path });
+  });
+
+  it.each([
+    [".git/", ".git"],
+    ["11/.git/", "11/.git"],
+    ["11/.GIT/objects/info/", "11/.GIT/objects/info"],
+  ])("accepts empty Git directories %s", (folder, normalized) => {
+    expect(validateSenderInfo(sender([], [{ fr: folder }])).emptyFolders).toEqual([
+      normalized,
+    ]);
   });
 
   it("allows names that only contain sensitive substrings", () => {

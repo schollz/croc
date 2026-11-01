@@ -109,7 +109,7 @@ func TestShareURLAndTokenRoundTrip(t *testing.T) {
 func TestValidateManifestRejectsUnsafeMetadata(t *testing.T) {
 	for _, name := range []string{
 		"../secret", "/absolute", `C:\absolute`, "control\x1b.txt",
-		"NUL", "COM1.log", "file.txt:stream", "trailing.", ".ssh", ".GIT", ".gnupg",
+		"NUL", "COM1.log", "file.txt:stream", "trailing.", ".ssh", ".GnUpG",
 	} {
 		manifest := testManifest()
 		manifest.Files[0].Name = name

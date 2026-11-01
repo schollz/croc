@@ -37,3 +37,17 @@ Before requesting reconsideration, present this map, the tested ebuild, and the
 complete proposed reply for review. Ask maintainers which unresolved acceptance
 requirements they would need satisfied. Do not claim that a general test pass,
 an older advisory status, or a package refresh closes their concerns.
+
+## Git transfer compatibility update, 2026-11-01
+
+The receive-path restriction now permits `.git` components, including case
+variants, so Git repositories can be transferred intact. This applies to direct
+file transfers, ZIP extraction, and stored-file metadata validation in Go and
+the browser. Git metadata uses the normal acceptance and overwrite handling;
+there is no separate opt-in. `.ssh` and `.gnupg` components remain blocked,
+including when nested inside `.git` directories. Root confinement, traversal
+and collision checks, and symlink restrictions remain in place.
+
+This narrows the sensitive-component restriction described in the historical
+2026-09-13 evidence above. It does not resolve the incomplete-manifest acceptance
+concern or establish closure of the reported security issues.

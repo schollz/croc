@@ -746,7 +746,8 @@ func TestUnzipDirectoryRejectsPortablePathHazards(t *testing.T) {
 		{name: "alternate data stream", entries: []zipTestEntry{{name: "file.txt:stream", content: "x"}}},
 		{name: "ssh directory", entries: []zipTestEntry{{name: ".ssh/authorized_keys", content: "x"}}},
 		{name: "case folded ssh directory", entries: []zipTestEntry{{name: ".SSH/authorized_keys", content: "x"}}},
-		{name: "git hooks directory", entries: []zipTestEntry{{name: ".git/hooks/post-checkout", content: "x"}}},
+		{name: "gnupg directory", entries: []zipTestEntry{{name: ".GnUpG/private-keys-v1.d/key", content: "x"}}},
+		{name: "sensitive path inside git", entries: []zipTestEntry{{name: "11/.git/.SSH/authorized_keys", content: "x"}}},
 		{name: "case fold collision", entries: []zipTestEntry{
 			{name: "README", content: "a"}, {name: "readme", content: "b"},
 		}},
@@ -769,6 +770,40 @@ func TestUnzipDirectoryRejectsPortablePathHazards(t *testing.T) {
 				t.Fatalf("unsafe archive changed destination: %v", entries)
 			}
 		})
+	}
+}
+
+func TestUnzipDirectoryAllowsGitRepository(t *testing.T) {
+	directory := t.TempDir()
+	archive := filepath.Join(directory, "repository.zip")
+	destination := filepath.Join(directory, "received")
+	entries := []zipTestEntry{
+		{name: "11/README.md", content: "working tree\n"},
+		{name: "11/.git/config", content: "[core]\n\tbare = false\n"},
+		{name: "11/.git/hooks/post-checkout", content: "#!/bin/sh\nexit 0\n"},
+		{name: "11/.git/refs/tags/"},
+		{name: "other/.GIT/HEAD", content: "ref: refs/heads/main\n"},
+		{name: "linked/.git", content: "gitdir: ../11/.git/worktrees/linked\n"},
+	}
+	if err := createZipWithEntries(archive, entries); err != nil {
+		t.Fatal(err)
+	}
+	if err := UnzipDirectory(destination, archive); err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		name := filepath.Join(destination, filepath.FromSlash(entry.name))
+		if strings.HasSuffix(entry.name, "/") {
+			info, err := os.Stat(name)
+			if err != nil || !info.IsDir() {
+				t.Fatalf("extracted directory %q: %v, %v", entry.name, info, err)
+			}
+			continue
+		}
+		got, err := os.ReadFile(name)
+		if err != nil || string(got) != entry.content {
+			t.Fatalf("extracted %q = %q, %v; want %q", entry.name, got, err, entry.content)
+		}
 	}
 }
 

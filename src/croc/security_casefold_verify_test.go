@@ -10,8 +10,8 @@ func TestNormalizeReceiveFolderRejectsCaseFoldedSensitiveComponents(t *testing.T
 		".sSh",
 		"safe/.SSH/files",
 		`safe\.SsH\files`,
-		".git",
-		"safe/.GIT/hooks",
+		"repo/.git/.SSH/keys",
+		"repo/.GIT/.GnUpG/keys",
 		"safe/.GnUpG/keys",
 	}
 	for _, folder := range tests {

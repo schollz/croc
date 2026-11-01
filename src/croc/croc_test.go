@@ -493,9 +493,10 @@ func TestHostilePortableDestinationNamesRejected(t *testing.T) {
 		{name: "control", files: []FileInfo{{Name: "escape\x1b.txt", FolderRemote: "."}}},
 		{name: "device", files: []FileInfo{{Name: "CON.txt", FolderRemote: "."}}},
 		{name: "alternate data stream", files: []FileInfo{{Name: "file.txt:stream", FolderRemote: "."}}},
-		{name: "git hook", files: []FileInfo{{Name: "post-checkout", FolderRemote: ".git/hooks"}}},
+		{name: "gnupg keys", files: []FileInfo{{Name: "key", FolderRemote: ".gnupg/private-keys-v1.d"}}},
 		{name: "case folded ssh", files: []FileInfo{{Name: "authorized_keys", FolderRemote: ".SSH"}}},
-		{name: "sensitive symlink target", files: []FileInfo{{Name: "link", FolderRemote: ".", Symlink: ".git/config"}}},
+		{name: "sensitive symlink target", files: []FileInfo{{Name: "link", FolderRemote: ".", Symlink: ".ssh/authorized_keys"}}},
+		{name: "sensitive path inside git", files: []FileInfo{{Name: "authorized_keys", FolderRemote: "11/.git/.SSH"}}},
 		{name: "case fold collision", files: []FileInfo{
 			{Name: "README", FolderRemote: "."},
 			{Name: "readme", FolderRemote: "."},
