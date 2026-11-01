@@ -36,8 +36,9 @@ Linux `/usr/bin/croc`, `/bin/croc`, and `/nix/store/` executables reject standal
 registration and replacement, including stale registrations. `croc update --check`
 can still check upstream versions. Standalone `/usr/local/bin/croc` installations
 use `croc update` to maintain the adjacent `croc-update` helper, then run the
-helper to replace croc. The printed command pins the running croc with --path;
-direct helper use prefers croc on PATH, including user-owned Go bin installs.
+helper to replace croc. The command prints only the up-to-date message when
+croc is current; otherwise it prepares the helper and prints `Run: croc-update`.
+The helper prefers croc on PATH, including user-owned Go bin installs.
 Protected standalone prefixes request elevation.
 DEB/RPM packages contain only croc and never install the standalone helper.
 
@@ -148,9 +149,10 @@ new helper in an administrator-owned directory, then use an ordinary PowerShell:
    actionable message, and the original croc hash and version.
 3. Repeat and approve UAC. Verify the new croc version, the unchanged helper,
    and success in the original terminal.
-4. Remove the helper (or place an older helper beside current croc). Run
-   `croc update --yes`, approve
-   UAC, and verify that only the helper changes. Run again and verify no UAC.
+4. With an older croc and a newer paired release available, remove the helper
+   or use an older helper. Run `croc update --yes`, approve UAC, and verify that
+   only the helper changes before `Run: croc-update` appears. With current croc,
+   verify that `croc update` prints only its up-to-date message and requests no UAC.
 5. Keep croc running while invoking the helper. Verify a close-and-retry error
    and the original binary; no process should be terminated automatically.
 

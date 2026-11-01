@@ -154,14 +154,27 @@ func TestNativeComplementaryUpdates(t *testing.T) {
 				t.Fatal("--check installed an update")
 			}
 			output := run(t, croc, "update", "--yes")
-			if state == "missing" || state == "croc current" {
+			if state == "croc current" {
+				if output != "croc v11.6.0 is up to date.\n" {
+					t.Fatalf("unexpected current-version output: %s", output)
+				}
+				if downloads.Load() != count {
+					t.Fatal("current croc downloaded a helper")
+				}
+				if _, err := os.Stat(helper); !os.IsNotExist(err) {
+					t.Fatal("current croc installed a helper")
+				}
+				return
+			}
+
+			if state == "missing" {
 				installed := strings.Index(output, "Installed croc-update")
 				followup := strings.Index(output, "Run: ")
 				if installed < 0 || followup <= installed {
 					t.Fatalf("follow-up printed before helper installation: %s", output)
 				}
 			}
-			if !strings.Contains(output, ShellCommand(helper, "--path", croc, "--yes")) {
+			if !strings.HasSuffix(output, "Run: croc-update\n") {
 				t.Fatal(output)
 			}
 			afterCroc, _ := os.ReadFile(croc)
@@ -178,7 +191,7 @@ func TestNativeComplementaryUpdates(t *testing.T) {
 			if (state == "current" || state == "newer") && downloads.Load() != count {
 				t.Fatal("downloaded an unnecessary helper update")
 			}
-			// The pinned command from croc must still select it after PATH changes.
+			// An explicit --path still selects this installation after PATH changes.
 			other := t.TempDir()
 			otherCroc := writeFixture(t, other, Croc, oldCroc)
 			t.Setenv("PATH", other+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -288,12 +301,8 @@ func TestNativeComplementaryUpdates(t *testing.T) {
 			t.Fatal("default PATH update changed adjacent croc")
 		}
 		output = run(t, croc, "update", "--yes")
-		activeHelper := filepath.Join(filepath.Dir(activeReal), BinaryName(Helper))
-		if !strings.Contains(output, ShellCommand(activeHelper, "--path", activeReal, "--yes")) {
+		if output != "croc v11.6.0 is up to date.\n" {
 			t.Fatal(output)
-		}
-		if got := run(t, activeHelper, "--version"); strings.TrimSpace(got) != "croc-update version 11.6.0" {
-			t.Fatal(got)
 		}
 
 	})

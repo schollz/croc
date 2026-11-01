@@ -45,7 +45,7 @@ The installer places **croc** and **croc-update** in the same directory. Standal
 release archives include both binaries too. To upgrade:
 
 ```bash
-croc update       # install or refresh croc-update, then print its exact path
+croc update       # check croc and prepare the updater when needed
 croc-update       # update the croc active on PATH
 ```
 
@@ -59,16 +59,15 @@ approval on Windows. Writable custom prefixes work without elevation:
 curl https://getcroc.com | bash -s -- -p "$HOME/.local/bin"
 ```
 
-`croc update --check` reports croc and updater availability without installing;
+`croc update --check` reports croc release availability without installing;
 `croc-update --check` checks the croc active on `PATH`. Direct helper use selects
 that executable first, including a user-owned installation such as
 `$HOME/go/bin/croc`. If croc is absent from `PATH`, it installs beside the helper.
-Use `croc-update --path /path/to/croc` to select a particular installation. The
-command printed by `croc update` includes this path explicitly, so it continues
-updating the same croc even if `PATH` changes. `croc update` keeps the helper
-itself current. `croc upgrade`
-is an alias for `croc update`. Neither binary overwrites itself or automatically
-downgrades a newer installed version.
+Use `croc-update --path /path/to/croc` to select a particular installation.
+When croc is current, `croc update` prints only its up-to-date message. When a
+new release is available, it ensures the helper is ready and prints
+`Run: croc-update`. `croc upgrade` is an alias for `croc update`. Neither binary
+overwrites itself or automatically downgrades a newer installed version.
 
 If an older `croc update` reports that the running executable is not writable,
 run the installer once to obtain this pair. Subsequent upgrades use the commands

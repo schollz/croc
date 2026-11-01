@@ -183,7 +183,7 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "The installer puts croc and croc-update in the same directory. croc update installs the helper if it is missing, refreshes it when needed, and prints the command to run next. Keeping those jobs in separate executables lets each one replace the other without overwriting the program that is currently running.",
+        text: "The installer puts croc and croc-update in the same directory. When croc is current, croc update says so. When a newer release is available, it installs or refreshes the helper if needed, then prints Run: croc-update. Keeping those jobs in separate executables lets each one replace the other without overwriting the program that is currently running.",
       },
       { type: "heading", text: "Updating croc" },
       {
@@ -211,7 +211,7 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "You can run croc-update directly too. It finds the croc active on PATH, including a user-owned Go installation such as ~/go/bin/croc. If croc is absent from PATH, it installs beside the helper. Use --path to select a particular executable; croc update includes that argument in the command it prints so the destination stays pinned to the croc you started with.",
+        text: "You can run croc-update directly too. It finds the croc active on PATH, including a user-owned Go installation such as ~/go/bin/croc. If croc is absent from PATH, it installs beside the helper. Use --path to select a particular executable.",
       },
       {
         type: "paragraph",

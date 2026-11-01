@@ -127,12 +127,15 @@ func (o Options) Run(ctx context.Context) error {
 			return fmt.Errorf("check for a newer croc release: %w", err)
 		}
 	}
+	if o.Tool == Croc && o.InstallVersion == "" {
+		reportVersion(o.Writer, Croc, o.Version, latest)
+		if o.Check || !Newer(latest, o.Version) {
+			return nil
+		}
+	}
 	current, err := installedVersion(ctx, target, targetTool)
 	if err != nil {
 		return err
-	}
-	if o.Tool == Croc && o.InstallVersion == "" {
-		reportVersion(o.Writer, Croc, o.Version, latest)
 	}
 	if o.Check {
 		reportVersion(o.Writer, targetTool, current, latest)
@@ -203,11 +206,7 @@ func (o Options) Run(ctx context.Context) error {
 		fmt.Fprintf(o.Writer, "File: %s\n", target)
 	}
 	if o.Tool == Croc && o.InstallVersion == "" {
-		args := []string{"--path", executable}
-		if o.Yes {
-			args = append(args, "--yes")
-		}
-		fmt.Fprintf(o.Writer, "Run: %s\n", ShellCommand(target, args...))
+		fmt.Fprintln(o.Writer, "Run: croc-update")
 	}
 	return nil
 }
