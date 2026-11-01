@@ -22,6 +22,33 @@ func BinaryName(tool string) string {
 	return tool
 }
 
+// CrocTarget prefers the command active in this shell. An explicit path pins
+// the selection across elevation and when croc prints its follow-up command.
+func CrocTarget(executable, explicit string) (string, error) {
+	target := explicit
+	if target == "" {
+		var err error
+		target, err = exec.LookPath(Croc)
+		if err != nil && !errors.Is(err, exec.ErrNotFound) {
+			return "", fmt.Errorf("locate croc on PATH (use --path to select explicitly): %w", err)
+		}
+		if errors.Is(err, exec.ErrNotFound) {
+			target = filepath.Join(filepath.Dir(executable), BinaryName(Croc))
+		}
+	}
+	abs, err := filepath.Abs(target)
+	if err != nil {
+		return "", err
+	}
+	// Normalize parent-directory aliases such as macOS /var without following
+	// an executable symlink. Such a destination must remain protected.
+	parent, err := filepath.EvalSymlinks(filepath.Dir(abs))
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(parent, filepath.Base(abs)), nil
+}
+
 func Executable() (string, error) {
 	name, err := os.Executable()
 	if err != nil {
@@ -56,6 +83,9 @@ func invocationUsesSymlink(invoked, target string) bool {
 // Convert the helper's name to croc before applying package ownership rules.
 func ManagedGuidance(target string) string {
 	target = filepath.Join(filepath.Dir(target), BinaryName(Croc))
+	if resolved, err := filepath.EvalSymlinks(target); err == nil {
+		target = resolved
+	}
 	n := filepath.ToSlash(strings.ToLower(target))
 	n = strings.TrimSuffix(n, ".exe")
 	switch {
@@ -75,25 +105,38 @@ func ManagedGuidance(target string) string {
 		return "Upgrade with Termux pkg: pkg upgrade croc"
 	case n == "/usr/bin/croc" || n == "/bin/croc":
 		return "Upgrade croc with the system package manager that installed it (for example apt, dnf, zypper, pacman, or apk)."
-	case strings.HasSuffix(n, "/go/bin/croc"):
-		return "Upgrade the Go installation: go install github.com/schollz/croc/v11@latest"
 	}
-	if runtime.GOOS == "freebsd" {
+	tool, args, guidance := ownershipQuery(runtime.GOOS, target)
+	if tool != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if _, err := exec.LookPath("pkg"); err == nil {
-			output, err := exec.CommandContext(ctx, "pkg", "which", "-q", target).CombinedOutput()
+		if executable, err := exec.LookPath(tool); err == nil {
+			output, err := exec.CommandContext(ctx, executable, args...).CombinedOutput()
 			if err == nil && len(strings.TrimSpace(string(output))) > 0 {
-				return "Upgrade with FreeBSD pkg: pkg upgrade croc"
+				return guidance
 			}
-			// pkg exits 1 for an unowned path; other failures cannot establish ownership.
+			// These package tools use status 1 for a path with no owner.
 			var exit *exec.ExitError
 			if err != nil && (!errors.As(err, &exit) || exit.ExitCode() != 1) {
-				return "Could not determine FreeBSD package ownership; check with pkg which before updating."
+				return "Could not determine package ownership; inspect it with " + tool + " before updating."
 			}
 		}
 	}
 	return ""
+}
+
+// BSD package prefixes overlap the standalone installer's /usr/local default.
+func ownershipQuery(goos, target string) (string, []string, string) {
+	switch goos {
+	case "freebsd", "dragonfly":
+		return "pkg", []string{"which", "-q", target}, "Upgrade with pkg: pkg upgrade croc"
+	case "openbsd":
+		return "pkg_info", []string{"-E", target}, "Upgrade with OpenBSD pkg_add: doas pkg_add -u croc"
+	case "netbsd":
+		return "pkg_info", []string{"-F", target}, "Upgrade croc through the pkgsrc or pkgin installation that owns it."
+	default:
+		return "", nil, ""
+	}
 }
 
 func ValidateStandalone(target string) error {
@@ -127,4 +170,18 @@ func ShellCommand(executable string, args ...string) string {
 		prefix = "& "
 	}
 	return prefix + strings.Join(parts, " ")
+}
+
+// Recovery instructions use public flags. Only the automatic child needs the
+// hidden, pinned installation protocol.
+func publicUpdateArgs(args []string) []string {
+	result := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--internal-install-version" {
+			i++
+			continue
+		}
+		result = append(result, args[i])
+	}
+	return append(result, "--yes")
 }

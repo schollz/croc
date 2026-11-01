@@ -27,6 +27,7 @@ type Options struct {
 	ProgressWriter                    io.Writer
 	Confirm                           func(context.Context, string) (bool, error)
 	Executable, Invoked               string
+	CrocPath                          string
 	Client                            *http.Client
 	LatestEndpoint, DownloadURLFormat string
 	Elevate                           func(context.Context, string, []string) error
@@ -77,8 +78,21 @@ func (o Options) Run(ctx context.Context) error {
 		targetTool = Helper
 	}
 	target := filepath.Join(filepath.Dir(executable), BinaryName(targetTool))
+	if o.Tool == Helper {
+		if o.InstallVersion != "" && o.CrocPath == "" {
+			return errors.New("internal installation requires a pinned --path")
+		}
+		target, err = CrocTarget(executable, o.CrocPath)
+		if err != nil {
+			return err
+		}
+	}
 	if !o.Check {
-		if guidance := ManagedGuidance(executable); guidance != "" {
+		managedTarget := target
+		if o.Tool == Croc {
+			managedTarget = executable
+		}
+		if guidance := ManagedGuidance(managedTarget); guidance != "" {
 			if o.InstallVersion != "" {
 				return errors.New(guidance)
 			}
@@ -88,8 +102,10 @@ func (o Options) Run(ctx context.Context) error {
 		if invocationUsesSymlink(o.Invoked, executable) {
 			return errors.New("the running command resolves through a symlink; run the executable by its real path to update")
 		}
-		if err := ValidateStandalone(executable); err != nil {
-			return err
+		if o.Tool == Croc {
+			if err := ValidateStandalone(executable); err != nil {
+				return err
+			}
 		}
 		if err := ValidateStandalone(target); err != nil {
 			return err
@@ -115,22 +131,34 @@ func (o Options) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if o.Tool == Croc {
+	if o.Tool == Croc && o.InstallVersion == "" {
 		reportVersion(o.Writer, Croc, o.Version, latest)
 	}
-	reportVersion(o.Writer, targetTool, current, latest)
 	if o.Check {
+		reportVersion(o.Writer, targetTool, current, latest)
+		fmt.Fprintf(o.Writer, "File: %s\n", target)
 		return nil
 	}
 	if current == "" || Newer(latest, current) {
-		if !o.Yes && o.InstallVersion == "" {
-			confirmed, err := o.Confirm(ctx, fmt.Sprintf("Install %s v%s at %s? (y/N) ", targetTool, latest, target))
-			if err != nil {
-				return err
+		if o.InstallVersion == "" {
+			verb := "Replace"
+			if current == "" {
+				verb = "Create"
+				fmt.Fprintf(o.Writer, "Install %s v%s\n", targetTool, latest)
+			} else {
+				fmt.Fprintf(o.Writer, "Update %s: v%s → v%s\n", targetTool, current, latest)
 			}
-			if !confirmed {
-				fmt.Fprintln(o.Writer, "Update cancelled.")
-				return nil
+			if o.Yes {
+				fmt.Fprintf(o.Writer, "%s: %s\n", verb, target)
+			} else {
+				confirmed, err := o.Confirm(ctx, fmt.Sprintf("%s %s? (y/N) ", verb, target))
+				if err != nil {
+					return err
+				}
+				if !confirmed {
+					fmt.Fprintln(o.Writer, "Update cancelled.")
+					return nil
+				}
 			}
 		}
 		changed := false
@@ -142,8 +170,10 @@ func (o Options) Run(ctx context.Context) error {
 			args := []string{"--internal-install-version", latest}
 			if o.Tool == Croc {
 				args = append([]string{"update"}, args...)
+			} else {
+				args = append([]string{"--path", target}, args...)
 			}
-			fmt.Fprintf(o.Writer, "Installing %s requires elevated permissions for %s.\n", targetTool, target)
+			fmt.Fprintln(o.Writer, "Administrator permission is required to change this file.")
 			if err := o.Elevate(ctx, executable, args); err != nil {
 				return fmt.Errorf("elevated installation failed: %w", err)
 			}
@@ -156,9 +186,11 @@ func (o Options) Run(ctx context.Context) error {
 			}
 			// Windows UAC can launch the installer in another console. Report
 			// success here too, in the terminal that started the update.
-			fmt.Fprintf(o.Writer, "Installed %s v%s at %s.\n", targetTool, installed, target)
+			reportSuccess(o.Writer, targetTool, current, installed)
 		} else if changed {
-			fmt.Fprintf(o.Writer, "Installed %s v%s at %s.\n", targetTool, latest, target)
+			if o.InstallVersion == "" {
+				reportSuccess(o.Writer, targetTool, current, latest)
+			}
 		} else {
 			current, err := installedVersion(ctx, target, targetTool)
 			if err != nil {
@@ -166,15 +198,26 @@ func (o Options) Run(ctx context.Context) error {
 			}
 			reportVersion(o.Writer, targetTool, current, latest)
 		}
+	} else if o.Tool == Helper && o.InstallVersion == "" {
+		reportVersion(o.Writer, Croc, current, latest)
+		fmt.Fprintf(o.Writer, "File: %s\n", target)
 	}
 	if o.Tool == Croc && o.InstallVersion == "" {
-		var args []string
+		args := []string{"--path", executable}
 		if o.Yes {
 			args = append(args, "--yes")
 		}
 		fmt.Fprintf(o.Writer, "Run: %s\n", ShellCommand(target, args...))
 	}
 	return nil
+}
+
+func reportSuccess(writer io.Writer, tool, previous, installed string) {
+	if previous == "" {
+		fmt.Fprintf(writer, "Installed %s v%s.\n", tool, installed)
+	} else {
+		fmt.Fprintf(writer, "Updated %s to v%s.\n", tool, installed)
+	}
 }
 
 func reportVersion(writer io.Writer, tool, current, latest string) {
@@ -189,10 +232,11 @@ func reportVersion(writer io.Writer, tool, current, latest string) {
 }
 
 func Confirm(ctx context.Context, prompt string) (bool, error) {
+	fmt.Fprint(os.Stderr, prompt)
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		fmt.Fprintln(os.Stderr)
 		return false, errors.New("update confirmation requires an interactive terminal; rerun with --yes")
 	}
-	fmt.Fprint(os.Stderr, prompt)
 	type result struct {
 		line string
 		err  error
@@ -232,10 +276,10 @@ func installedVersion(ctx context.Context, target, tool string) (string, error) 
 	if !info.Mode().IsRegular() {
 		return "", fmt.Errorf("refusing non-regular or symlinked executable %q", target)
 	}
-	return executableVersion(ctx, target, tool)
+	return executableVersion(ctx, target, tool, true)
 }
 
-func executableVersion(ctx context.Context, target, tool string) (string, error) {
+func executableVersion(ctx context.Context, target, tool string, legacy bool) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, target, "--version")
@@ -246,8 +290,12 @@ func executableVersion(ctx context.Context, target, tool string) (string, error)
 	}
 	text := strings.TrimSpace(output.String())
 	prefix := tool + " version "
-	v := strings.TrimPrefix(text, prefix)
-	if v == text || !ValidVersion(v) {
+	raw := strings.TrimPrefix(text, prefix)
+	v := raw
+	if legacy {
+		v = strings.TrimPrefix(v, "v")
+	}
+	if raw == text || !ValidVersion(v) {
 		return "", fmt.Errorf("%s reports an invalid version: %q", target, text)
 	}
 	return v, nil
@@ -257,8 +305,12 @@ func install(ctx context.Context, target, sibling, tool, version string, client 
 	if err := ValidateStandalone(target); err != nil {
 		return false, err
 	}
-	if err := ValidateStandalone(sibling); err != nil {
+	source, err := os.Lstat(sibling)
+	if err != nil {
 		return false, err
+	}
+	if !source.Mode().IsRegular() {
+		return false, errors.New("running updater is not a regular executable")
 	}
 	asset, err := AssetName(version)
 	if err != nil {
@@ -280,9 +332,12 @@ func install(ctx context.Context, target, sibling, tool, version string, client 
 	if err != nil && !os.IsNotExist(err) {
 		return false, err
 	}
+	if current != nil && os.SameFile(source, current) {
+		return false, errors.New("refusing to replace the running executable")
+	}
 	metadata := current
 	if metadata == nil {
-		metadata, err = os.Lstat(sibling)
+		metadata, err = os.Stat(filepath.Dir(target))
 		if err != nil {
 			return false, err
 		}
@@ -297,7 +352,7 @@ func install(ctx context.Context, target, sibling, tool, version string, client 
 	if err := setMetadata(staged, metadata); err != nil {
 		return false, fmt.Errorf("preserve executable permissions: %w", err)
 	}
-	archive, err := downloadUpdate(ctx, client, fmt.Sprintf(urlFormat, version, asset), maxUpdateArchiveSize, progress)
+	archive, err := downloadUpdate(ctx, client, fmt.Sprintf(urlFormat, version, asset), maxUpdateArchiveSize, downloadProgress{Writer: progress, Description: "Downloading " + tool})
 	if err != nil {
 		return false, fmt.Errorf("download %s update: %w", tool, err)
 	}
@@ -317,7 +372,7 @@ func install(ctx context.Context, target, sibling, tool, version string, client 
 	if err := staged.Close(); err != nil {
 		return false, err
 	}
-	got, err := executableVersion(ctx, name, tool)
+	got, err := executableVersion(ctx, name, tool, false)
 	if err != nil {
 		return false, fmt.Errorf("verify staged %s: %w", tool, err)
 	}

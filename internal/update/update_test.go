@@ -91,6 +91,7 @@ func TestNativeComplementaryUpdates(t *testing.T) {
 	newHelper := buildFixture(t, Helper, "11.6.0")
 	newerHelper := buildFixture(t, Helper, "11.7.0")
 	newerCroc := buildFixture(t, Croc, "11.7.0")
+	legacyCroc := buildFixture(t, Croc, "v10.4.4")
 	asset, err := AssetName("11.6.0")
 	if err != nil {
 		t.Fatal(err)
@@ -160,7 +161,7 @@ func TestNativeComplementaryUpdates(t *testing.T) {
 					t.Fatalf("follow-up printed before helper installation: %s", output)
 				}
 			}
-			if !strings.Contains(output, ShellCommand(helper, "--yes")) {
+			if !strings.Contains(output, ShellCommand(helper, "--path", croc, "--yes")) {
 				t.Fatal(output)
 			}
 			afterCroc, _ := os.ReadFile(croc)
@@ -177,15 +178,23 @@ func TestNativeComplementaryUpdates(t *testing.T) {
 			if (state == "current" || state == "newer") && downloads.Load() != count {
 				t.Fatal("downloaded an unnecessary helper update")
 			}
-			// Put an unrelated croc on PATH: the helper must still update its sibling.
+			// The pinned command from croc must still select it after PATH changes.
 			other := t.TempDir()
 			otherCroc := writeFixture(t, other, Croc, oldCroc)
 			t.Setenv("PATH", other+string(os.PathListSeparator)+os.Getenv("PATH"))
 			helperBefore, _ := os.ReadFile(helper)
-			run(t, helper, "--check")
-			downloadOutput := run(t, helper, "--yes")
-			if state != "croc current" && !strings.Contains(downloadOutput, "Downloading "+asset) {
+			run(t, helper, "--path", croc, "--check")
+			downloadOutput := run(t, helper, "--path", croc, "--yes")
+			if state != "croc current" && !strings.Contains(downloadOutput, "Downloading croc") {
 				t.Fatalf("download progress missing: %s", downloadOutput)
+			}
+			if state != "croc current" {
+				if !strings.HasPrefix(downloadOutput, "Update croc: v11.5.0 → v11.6.0\nReplace: "+croc+"\n") || !strings.Contains(downloadOutput, "Updated croc to v11.6.0.") {
+					t.Fatalf("unclear update action: %s", downloadOutput)
+				}
+				if strings.Count(downloadOutput, croc) != 1 || strings.Contains(downloadOutput, asset) || strings.Contains(downloadOutput, "Release archive") {
+					t.Fatalf("duplicate path or archive details in update output: %s", downloadOutput)
+				}
 			}
 			if got := run(t, croc, "--version"); strings.TrimSpace(got) != "croc version 11.6.0" {
 				t.Fatal(got)
@@ -199,7 +208,7 @@ func TestNativeComplementaryUpdates(t *testing.T) {
 				t.Fatal("updated a different croc from PATH")
 			}
 			count = downloads.Load()
-			run(t, helper, "--yes")
+			run(t, helper, "--path", croc, "--yes")
 			if downloads.Load() != count {
 				t.Fatal("up-to-date croc was downloaded again")
 			}
@@ -208,6 +217,8 @@ func TestNativeComplementaryUpdates(t *testing.T) {
 	t.Run("install missing croc", func(t *testing.T) {
 		dir := t.TempDir()
 		helper := writeFixture(t, dir, Helper, newHelper)
+		// No croc on PATH: the new-install fallback is beside the helper.
+		t.Setenv("PATH", t.TempDir())
 		run(t, helper, "--yes")
 		if got := run(t, filepath.Join(dir, BinaryName(Croc)), "--version"); !strings.Contains(got, "11.6.0") {
 			t.Fatal(got)
@@ -219,7 +230,7 @@ func TestNativeComplementaryUpdates(t *testing.T) {
 		croc := writeFixture(t, dir, Croc, newerCroc)
 		helper := writeFixture(t, dir, Helper, oldHelper)
 		count := downloads.Load()
-		run(t, helper, "--yes")
+		run(t, helper, "--path", croc, "--yes")
 		if downloads.Load() != count {
 			t.Fatal("downloaded a downgrade")
 		}
@@ -248,6 +259,43 @@ func TestNativeComplementaryUpdates(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(dir, BinaryName(Helper))); !os.IsNotExist(err) {
 			t.Fatal("failed verification installed a helper")
 		}
+	})
+
+	t.Run("active PATH Go installation", func(t *testing.T) {
+		helperDir := t.TempDir()
+		helper := writeFixture(t, helperDir, Helper, newHelper)
+		activeDir := filepath.Join(t.TempDir(), "go", "bin")
+		if err := os.MkdirAll(activeDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		croc := writeFixture(t, activeDir, Croc, legacyCroc)
+		// An adjacent croc exists too; PATH must take precedence for direct use.
+		adjacent := writeFixture(t, helperDir, Croc, oldCroc)
+		t.Setenv("PATH", activeDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+		output := run(t, helper, "--check")
+		activeReal, err := filepath.EvalSymlinks(croc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(output, "File: "+activeReal) || !strings.Contains(output, "current: v10.4.4") {
+			t.Fatal(output)
+		}
+		run(t, helper, "--yes")
+		if got := run(t, croc, "--version"); strings.TrimSpace(got) != "croc version 11.6.0" {
+			t.Fatal(got)
+		}
+		if got, _ := os.ReadFile(adjacent); !bytes.Equal(got, oldCroc) {
+			t.Fatal("default PATH update changed adjacent croc")
+		}
+		output = run(t, croc, "update", "--yes")
+		activeHelper := filepath.Join(filepath.Dir(activeReal), BinaryName(Helper))
+		if !strings.Contains(output, ShellCommand(activeHelper, "--path", activeReal, "--yes")) {
+			t.Fatal(output)
+		}
+		if got := run(t, activeHelper, "--version"); strings.TrimSpace(got) != "croc-update version 11.6.0" {
+			t.Fatal(got)
+		}
+
 	})
 	t.Run("failed verification leaves original", func(t *testing.T) {
 		dir := t.TempDir()
@@ -307,7 +355,7 @@ func TestPackageAndSymlinkProtection(t *testing.T) {
 	t.Setenv("CROC_CONFIG_DIR", config)
 	paths := []string{"/usr/bin/croc", "/bin/croc", "/nix/store/hash-croc/bin/croc", "/opt/homebrew/Cellar/croc/11.5.0/bin/croc", "/home/test/scoop/apps/croc/current/croc.exe"}
 	if runtime.GOOS == "windows" {
-		paths = []string{`C:\Users\test\scoop\apps\croc\current\croc.exe`, `C:\ProgramData\chocolatey\bin\croc.exe`, `C:\Users\test\miniconda3\bin\croc.exe`, `C:\Users\test\go\bin\croc.exe`}
+		paths = []string{`C:\Users\test\scoop\apps\croc\current\croc.exe`, `C:\ProgramData\chocolatey\bin\croc.exe`, `C:\Users\test\miniconda3\bin\croc.exe`}
 	}
 	for _, path := range paths {
 		if ManagedGuidance(path) == "" {

@@ -175,12 +175,23 @@ main() {
   prefix="$(cd "${prefix}" && pwd -P)"
   INSTALL_PREFIX="${prefix}"
   case "${prefix}" in
-    /usr/bin|/bin|/nix/store/*|*/Cellar/croc/*|*/linuxbrew/*|*/scoop/apps/croc/*|*/chocolatey/*|*/conda/*|*/miniconda*|*/anaconda*|/opt/local/bin|*/com.termux/files/usr/bin|*/go/bin)
+    /usr/bin|/bin|/nix/store/*|*/Cellar/croc/*|*/linuxbrew/*|*/scoop/apps/croc/*|*/chocolatey/*|*/conda/*|*/miniconda*|*/anaconda*|/opt/local/bin|*/com.termux/files/usr/bin)
       echo "Use the package manager that owns ${prefix}/croc." >&2; exit 1;;
   esac
-  if [[ "${croc_os}" == FreeBSD ]] && command -v pkg >/dev/null 2>&1 && pkg which -q "${prefix}/croc" >/dev/null 2>&1; then
-    echo "Upgrade with FreeBSD pkg: pkg upgrade croc" >&2; exit 1
-  fi
+  case "${croc_os}" in
+    FreeBSD|DragonFlyBSD)
+      if command -v pkg >/dev/null 2>&1 && pkg which -q "${prefix}/croc" >/dev/null 2>&1; then
+        echo "Upgrade with pkg: pkg upgrade croc" >&2; exit 1
+      fi;;
+    OpenBSD)
+      if command -v pkg_info >/dev/null 2>&1 && [[ -n "$(pkg_info -E "${prefix}/croc" 2>/dev/null || true)" ]]; then
+        echo "Upgrade with OpenBSD pkg_add: doas pkg_add -u croc" >&2; exit 1
+      fi;;
+    NetBSD)
+      if command -v pkg_info >/dev/null 2>&1 && pkg_info -F "${prefix}/croc" >/dev/null 2>&1; then
+        echo "Upgrade croc through its pkgsrc or pkgin installation." >&2; exit 1
+      fi;;
+  esac
   for name in croc-update croc; do
     if [[ -L "${prefix}/${name}${suffix}" || ( -e "${prefix}/${name}${suffix}" && ! -f "${prefix}/${name}${suffix}" ) ]]; then
       echo "Refusing non-regular or symlinked destination ${prefix}/${name}${suffix}." >&2; exit 1

@@ -179,47 +179,55 @@ const drafts: DraftBlogPost[] = [
     blocks: [
       {
         type: "paragraph",
-        text: "Correction: installer registration alone did not make root-owned installations writable. This article describes the original v11.5 updater. Current standalone releases include a separate croc-update binary: croc update installs or refreshes that helper, then croc-update replaces croc, requesting sudo/doas or Windows UAC approval when needed. The curl installer installs both binaries into the same directory, and manually extracted archives need no registration. If your older updater reports that the executable is not writable, run the installer once to obtain the pair. Package-managed installations still use their package manager.",
+        text: "The usual way to update croc has been to install croc again. It works, but repeating the installer is a funny errand for a program whose appeal is doing useful things with one small command. v11.5 gives that errand a shorter route: croc update prepares the updater, and croc-update replaces croc.",
       },
       {
         type: "paragraph",
-        text: "The usual way to update croc has been to install croc again. This works, but it is a funny errand to repeat for a program whose main appeal is doing useful things with one small command. v11.5 adds another one: croc update.",
+        text: "The installer puts croc and croc-update in the same directory. croc update installs the helper if it is missing, refreshes it when needed, and prints the command to run next. Keeping those jobs in separate executables lets each one replace the other without overwriting the program that is currently running.",
       },
-      {
-        type: "paragraph",
-        text: "This is a self-updater, but not an unattended updater. croc will still make its quiet daily version check after a transfer and mention a newer release when one exists. It will not replace itself in the background. You ask it to update, it explains what it found, and it asks before changing the executable.",
-      },
-      { type: "heading", text: "Updating croc from croc" },
+      { type: "heading", text: "Updating croc" },
       {
         type: "code",
-        label: "Check first, then update",
+        label: "Check availability, then prepare the updater",
         lines: [
           "$ croc update --check",
-          "croc v11.6.0 is available (current: v11.5.0).",
-          "",
           "$ croc update",
-          "Update croc from v11.5.0 to v11.6.0? (y/N) y",
-          "Updated croc from v11.5.0 to v11.6.0.",
-          "",
-          "# This spelling works too",
-          "$ croc upgrade",
         ],
       },
       {
         type: "paragraph",
-        text: "The --check form only reports what is available. A normal croc update asks for confirmation, and croc update --yes is there for scripts. The old update notice at the end of a transfer now points to croc update instead of handing you another installer command.",
+        text: "Run the command it prints to update croc. The helper shows the version change and names the exact executable it will replace before asking for confirmation. The download has a progress bar, and the final line reports the installed version.",
+      },
+      {
+        type: "code",
+        label: "Update the installed executable",
+        lines: [
+          "$ croc-update",
+          "Update croc: v11.5.0 → v11.6.0",
+          "Replace /usr/local/bin/croc? (y/N) y",
+          "Downloading croc 100% |████████████████████| (8.6/8.6 MB, 1.8 MB/s)",
+          "Updated croc to v11.6.0.",
+        ],
       },
       {
         type: "paragraph",
-        text: "There is an important limit: croc only replaces an official standalone installation that the installer has marked for this purpose. The mark records the exact, resolved path to the executable. Before updating, croc checks that the path still matches, that it is a regular file rather than a symlink, and that both the file and its directory are writable without asking for more privileges.",
+        text: "You can run croc-update directly too. It finds the croc active on PATH, including a user-owned Go installation such as ~/go/bin/croc. If croc is absent from PATH, it installs beside the helper. Use --path to select a particular executable; croc update includes that argument in the command it prints so the destination stays pinned to the croc you started with.",
       },
       {
         type: "paragraph",
-        text: "Homebrew, Nix, Scoop, Chocolatey, Conda, MacPorts, Termux, FreeBSD packages, system packages, and go install should remain in charge of their own files. croc recognizes those common locations and prints the appropriate command instead of barging in. On Windows it points to the release download because a running executable cannot be replaced with the same safe operation. That boundary is deliberate: I wanted croc to update itself without appointing it the package manager for the whole computer.",
+        text: "A protected location such as /usr/local/bin needs administrator permission. Both commands try ordinary permissions first, then request sudo or doas on Unix or UAC approval on Windows. Pass --yes to skip the update confirmation; operating-system authentication still applies. Both commands accept --check to report availability without installing anything, and croc upgrade is an alias for croc update.",
       },
       {
         type: "paragraph",
-        text: "For an eligible standalone install, croc downloads the release archive and its checksum over HTTPS, verifies the SHA-256 checksum, stages the new binary beside the old one, and runs the staged binary to make sure it reports the requested version. Only then does it replace the current executable with one rename. If any check fails, the croc you started with stays where it was. I made this intentionally conservative. An updater is a useful place to be boring.",
+        text: "Package managers keep control of their installations. Homebrew, Nix, Scoop, Chocolatey, Conda, MacPorts, Termux, and system packages get their usual upgrade guidance. On BSD, the updater checks package ownership where the install directories overlap. Standalone binaries from release archives and Go bin installations can use the helper directly.",
+      },
+      {
+        type: "paragraph",
+        text: "The updater downloads over HTTPS, verifies the release SHA-256 checksum, stages the replacement beside the installed file, and checks the version reported by the staged executable. It then replaces the installed file. On Windows, a running croc must be closed first. Neither command installs an older version over a newer one. An updater is a useful place to be boring.",
+      },
+      {
+        type: "paragraph",
+        text: "The quiet daily version check after a transfer now points to croc update when a newer release is available. Changes to executables happen through the commands you run and the files you confirm.",
       },
       { type: "heading", text: "SSH should look like it is running" },
       {
@@ -242,7 +250,7 @@ const drafts: DraftBlogPost[] = [
       { type: "heading", text: "Getting v11.5" },
       {
         type: "paragraph",
-        text: "A v11.4 client does not know croc update yet, so this is the last standalone update that needs the familiar installer. Install v11.5 once with the official command and that installer will register the executable for later self-updates. Package-managed installations should update through their package manager as usual.",
+        text: "Install v11.5 with the official installer. It places croc and croc-update in the same prefix, ready for later updates. You can also extract both binaries from a release archive. Pass -p with your preferred directory, such as $HOME/.local/bin, for a user installation. Existing installations owned by a package manager should use that manager’s upgrade command.",
       },
       {
         type: "code",
@@ -251,8 +259,8 @@ const drafts: DraftBlogPost[] = [
           "$ curl https://getcroc.com | bash",
           "$ croc --version",
           "croc version 11.5.0",
-          "$ croc update --check",
-          "croc v11.5.0 is up to date.",
+          "$ croc-update --version",
+          "croc-update version 11.5.0",
         ],
       },
       {

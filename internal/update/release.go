@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path"
 	"regexp"
 	"runtime"
 	"runtime/debug"
@@ -112,7 +111,12 @@ func newerRelease(latest, current string) bool {
 	return latestVersion.patch > currentVersion.patch
 }
 
-func downloadUpdate(ctx context.Context, client *http.Client, url string, limit int64, progress ...io.Writer) ([]byte, error) {
+type downloadProgress struct {
+	Writer      io.Writer
+	Description string
+}
+
+func downloadUpdate(ctx context.Context, client *http.Client, url string, limit int64, progress ...downloadProgress) ([]byte, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -131,25 +135,26 @@ func downloadUpdate(ctx context.Context, client *http.Client, url string, limit 
 	}
 	reader := io.Reader(io.LimitReader(response.Body, limit+1))
 	var bar *progressbar.ProgressBar
-	if len(progress) > 0 && progress[0] != nil {
+	if len(progress) > 0 && progress[0].Writer != nil {
 		total := response.ContentLength
 		if total <= 0 {
 			total = -1
 		}
-		fmt.Fprintln(progress[0], "Downloading "+path.Base(request.URL.Path))
 		bar = progressbar.NewOptions64(total,
-			progressbar.OptionSetWriter(progress[0]),
-			progressbar.OptionSetDescription("Release archive"),
+			progressbar.OptionSetWriter(progress[0].Writer),
+			progressbar.OptionSetDescription(progress[0].Description),
 			progressbar.OptionSetWidth(20),
 			progressbar.OptionShowBytes(true),
 			progressbar.OptionShowCount(),
+			progressbar.OptionSetPredictTime(false),
+			progressbar.OptionSetElapsedTime(false),
 			progressbar.OptionThrottle(100*time.Millisecond),
 			progressbar.OptionSetRenderBlankState(true),
 			// Render on received data, including unknown-length responses, so
 			// cancellation never leaves an asynchronous spinner behind.
 			progressbar.OptionSetSpinnerChangeInterval(0),
 		)
-		defer func() { _ = bar.Exit(); fmt.Fprintln(progress[0]) }()
+		defer func() { _ = bar.Exit(); fmt.Fprintln(progress[0].Writer) }()
 		reader = io.TeeReader(reader, bar)
 	}
 	payload, err := io.ReadAll(reader)

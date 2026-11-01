@@ -61,7 +61,9 @@ Run a relay explicitly. Installing this package does not start a relay service.
 .TP
 .B update
 Install or refresh the adjacent croc-update utility, then print the command to
-update croc. Use croc-update to install the latest stable croc beside itself.
+update croc. Direct croc-update use selects croc from PATH, falling back to an
+installation beside the updater when absent. Use --path EXECUTABLE to select
+a particular croc, including a user-owned Go bin installation.
 Both commands accept --check to report availability without installation and
 --yes to skip confirmation. Protected locations may require sudo/doas or
 Windows UAC authentication. Package-managed installations must be updated

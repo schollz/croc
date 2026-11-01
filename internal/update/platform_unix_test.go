@@ -141,12 +141,12 @@ func TestProtectedInstallation(t *testing.T) {
 	}
 	root("chown", "-R", "0:0", dir)
 	defer root("chown", "-R", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()), dir)
-	for _, command := range [][]string{{croc, "update", "--yes"}, {filepath.Join(dir, BinaryName(Helper)), "--yes"}} {
+	for _, command := range [][]string{{croc, "update", "--yes"}, {filepath.Join(dir, BinaryName(Helper)), "--path", croc, "--yes"}} {
 		output, err := exec.Command(command[0], command[1:]...).CombinedOutput()
 		if err != nil {
 			t.Fatalf("protected upgrade: %v\n%s", err, output)
 		}
-		if !strings.Contains(string(output), "requires elevated permissions") {
+		if !strings.Contains(string(output), "Administrator permission is required") {
 			t.Fatalf("did not elevate: %s", output)
 		}
 	}

@@ -36,7 +36,9 @@ Linux `/usr/bin/croc`, `/bin/croc`, and `/nix/store/` executables reject standal
 registration and replacement, including stale registrations. `croc update --check`
 can still check upstream versions. Standalone `/usr/local/bin/croc` installations
 use `croc update` to maintain the adjacent `croc-update` helper, then run the
-helper to replace croc. Protected standalone prefixes request elevation.
+helper to replace croc. The printed command pins the running croc with --path;
+direct helper use prefers croc on PATH, including user-owned Go bin installs.
+Protected standalone prefixes request elevation.
 DEB/RPM packages contain only croc and never install the standalone helper.
 
 ## Local reproduction
