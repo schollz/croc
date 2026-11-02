@@ -300,6 +300,9 @@ func TestByteCountDecimal(t *testing.T) {
 	assert.Equal(t, "10.0 kB", ByteCountDecimal(10240))
 	assert.Equal(t, "50 B", ByteCountDecimal(50))
 	assert.Equal(t, "12.4 MB", ByteCountDecimal(13002343))
+	assert.Equal(t, "1023.0 kB", ByteCountDecimal(1023*1024))
+	assert.Equal(t, "1.0 MB", ByteCountDecimal(1024*1024-1))
+	assert.Equal(t, "1.0 GB", ByteCountDecimal(1024*1024*1024-1))
 }
 
 func TestMissingChunks(t *testing.T) {

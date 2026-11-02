@@ -428,7 +428,13 @@ func ByteCountDecimal(b int64) string {
 		div *= unit
 		exp++
 	}
-	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "kMGTPE"[exp])
+	value := float64(b) / float64(div)
+	// %.1f rounds a value just below the next unit up to 1024.0
+	if fmt.Sprintf("%.1f", value) == "1024.0" && exp < len("kMGTPE")-1 {
+		value /= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", value, "kMGTPE"[exp])
 }
 
 // MissingChunks returns the positions of missing chunks.
