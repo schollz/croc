@@ -198,6 +198,16 @@ func TestUnusedFilename(t *testing.T) {
 	assert.Equal(t, "noext (1)", UnusedFilename(folder, "noext"))
 }
 
+func TestRandomFileNameReturnsBareName(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	name, err := RandomFileName()
+	assert.NoError(t, err)
+	assert.Equal(t, filepath.Base(name), name)
+	assert.True(t, strings.HasPrefix(name, "croc-stdin-"), name)
+	assert.FileExists(t, filepath.Join(dir, name))
+}
+
 func TestRemoveMarkedFilesIgnoresTransferredCleanupFile(t *testing.T) {
 	// Ensure this test starts with an empty process-local cleanup list.
 	assert.NoError(t, RemoveMarkedFiles())
