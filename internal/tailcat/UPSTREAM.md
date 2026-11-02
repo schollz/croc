@@ -58,9 +58,10 @@ b35b0c74dd88209210756d72e0c9413b8f53078cdf8c57d7cf3b569336fa6af3  tailcat.go
 9c188c59c09aa67ab5d96d2c95eeeadc46e5e6258a9ef52a648d87464fe6e91b  pickregion_js.go
 ```
 
-Croc uses stable `tailscale.com v1.104.1` instead of Tailcat's pre-release
-Tailscale pseudo-version, requiring Go 1.27.1 or newer. The gVisor dependency
-remains pinned at `v0.0.0-20260926034703-66ed76bcb72f`.
+Croc uses the stable Tailscale module pinned in `go.mod` instead of Tailcat's
+pre-release Tailscale pseudo-version. Builds require Go 1.27.3 or newer. The
+gVisor dependency remains pinned to the Go-compatible snapshot at
+`v0.0.0-20260926034703-66ed76bcb72f`.
 
 ## Updating
 

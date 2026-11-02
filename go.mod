@@ -1,6 +1,6 @@
 module github.com/schollz/croc/v11
 
-go 1.27.1
+go 1.27.3
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0

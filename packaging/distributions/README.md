@@ -3,6 +3,8 @@
 These are local candidate recipes and review materials, not submitted updates.
 Use the [status table](status.md) to distinguish completed checks from blockers.
 The upstream DEB/RPM workflow can proceed independently of repository acceptance.
+Current source builds require Go 1.27.3 or newer. Compiler versions in the
+validation records below describe the v11.5.2 candidates that were tested.
 
 ## Recipe placement
 
@@ -41,8 +43,9 @@ The Debian candidate uses dh-golang, `GOTOOLCHAIN=local`, and GOPATH mode so it
 does not quietly fetch or vendor missing libraries. It can produce a source
 package, but is **not yet buildable for official inclusion**: its Build-Depends
 must be expanded after each library has a verified Debian package and compatible
-version. Debian sid currently has `golang-1.27` 1.27.1-2 and `golang-defaults`
-2:1.27~1. The trixie source-package check used Go 1.24 and could not build it.
+version. The recorded 2026-09-13 Debian sid index has `golang-1.27` 1.27.1-2
+and `golang-defaults` 2:1.27~1. The trixie source-package check used Go 1.24 and
+could not build it.
 
 `cli-dependencies.json` records 53 module versions used by the Linux CLI with CGO
 disabled. `go-dependencies.json` records all 632 entries from `go list -m all`,

@@ -22,7 +22,7 @@ if (ref) {
   await writeFile(path.join(temporary, "main.go"), source("web/wasm/main.go"));
   const env = {
     ...process.env,
-    GOTOOLCHAIN: "go1.27.1",
+    GOTOOLCHAIN: "go1.27.3",
     GOOS: "js",
     GOARCH: "wasm",
   };
