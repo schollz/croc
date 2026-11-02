@@ -84,3 +84,12 @@ These are the earlier figures replaced in the article. The main experiment was p
 | AirPipe | 110.0 s | 2.75 MB/s |
 | Floe | 116.6 s | 2.60 MB/s |
 | WebWormhole | 156.5 s | 1.94 MB/s |
+
+## SCP and rsync baselines
+
+Additional three-run, full-copy SSH comparisons used the identical payload and endpoints. Fresh SSH setup is inside the sender-start timer; every receive was verified. See [CLI_SSH_BENCHMARK.md](CLI_SSH_BENCHMARK.md) for versions, commands, individual runs and the reachable-server requirement.
+
+| Tool | Time | Effective rate |
+| --- | ---: | ---: |
+| SCP | 159.52 s | 1.99 MB/s |
+| rsync | 171.76 s | 1.85 MB/s |

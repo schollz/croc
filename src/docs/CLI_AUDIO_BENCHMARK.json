@@ -1109,5 +1109,39 @@
       "effective_MB_per_second": 2.9,
       "verified_sha256": true
     }
+  },
+  "ssh_comparison": {
+    "record": "CLI_SSH_BENCHMARK.json",
+    "payload": "audio",
+    "summary": {
+      "scp": {
+        "status": "ok",
+        "attempts": 3,
+        "successful_trials": 3,
+        "trial_ids": [
+          "r1-scp-audio",
+          "r2-scp-audio",
+          "r3-scp-audio"
+        ],
+        "time_seconds": 159.51559541601455,
+        "min_seconds": 140.41041220899206,
+        "max_seconds": 174.76273304101778,
+        "effective_MB_per_second": 1.9905268771489826
+      },
+      "rsync": {
+        "status": "ok",
+        "attempts": 3,
+        "successful_trials": 3,
+        "trial_ids": [
+          "r1-rsync-audio",
+          "r2-rsync-audio",
+          "r3-rsync-audio"
+        ],
+        "time_seconds": 171.76251383399358,
+        "min_seconds": 133.13352995796595,
+        "max_seconds": 186.11709908297053,
+        "effective_MB_per_second": 1.848599399906777
+      }
+    }
   }
 }

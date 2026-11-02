@@ -97,17 +97,19 @@ describe("Blog", () => {
     expect(folderTable.getAllByRole("columnheader").map(cell => cell.textContent)).toEqual([
       "Tool", "Time", "Effective rate",
     ]);
-    expect(folderTable.getAllByRole("row")).toHaveLength(9);
+    expect(folderTable.getAllByRole("row")).toHaveLength(11);
     expect(folderTable.getAllByRole("row").slice(1).map(row =>
       [...row.children].map(cell => cell.textContent),
     )).toEqual([
       ["croc", "4.42 s", "4.69 MB/s"],
+      ["rsync", "4.50 s", "4.60 MB/s"],
       ["derphole", "4.76 s", "4.35 MB/s"],
       ["iroh Sendme / DashBeam CLI", "6.37 s", "3.25 MB/s"],
       ["Magic Wormhole", "9.14 s", "2.27 MB/s"],
       ["wormhole-william", "10.69 s", "1.94 MB/s"],
       ["AirPipe", "15.21 s", "1.36 MB/s"],
       ["Floe", "57.84 s", "0.36 MB/s"],
+      ["SCP", "158.52 s", "0.13 MB/s"],
       ["WebWormhole", "Folder transfer unsupported", "—"],
     ]);
     const audioTable = within(screen.getByRole("table", { name: "Single large file · Mac to Toronto" }));
@@ -122,6 +124,8 @@ describe("Blog", () => {
       ["wormhole-william", "126.81 s", "2.50 MB/s"],
       ["iroh Sendme / DashBeam CLI", "129.72 s", "2.45 MB/s"],
       ["Magic Wormhole", "150.36 s", "2.11 MB/s"],
+      ["SCP", "159.52 s", "1.99 MB/s"],
+      ["rsync", "171.76 s", "1.85 MB/s"],
       ["Floe", "190.69 s", "1.67 MB/s"],
       ["AirPipe", "200.26 s", "1.59 MB/s"],
       ["WebWormhole", "Transfer failed", "—"],
@@ -132,6 +136,9 @@ describe("Blog", () => {
     expect(screen.getByText(/cc781806baaa17d29d94209eecf0c85bc178d9e1/)).toBeVisible();
     expect(screen.getByText(/automatic ZIP creation and extraction both counted/)).toBeVisible();
     expect(screen.getByText(/317,520,080 bytes \(317\.52 MB\)/)).toBeVisible();
+    expect(screen.getByText(/SCP and rsync commands need a reachable SSH server/)).toBeVisible();
+    expect(screen.getAllByRole("rowheader", { name: "SCP" })).toHaveLength(2);
+    expect(screen.getAllByRole("rowheader", { name: "rsync" })).toHaveLength(2);
     expect(screen.getByText(/middle of three successful transfers/)).toBeVisible();
     expect(screen.getByRole("link", { name: "audio benchmark record" })).toHaveAttribute(
       "href", "https://github.com/schollz/croc/blob/main/src/docs/CLI_AUDIO_BENCHMARK.md",

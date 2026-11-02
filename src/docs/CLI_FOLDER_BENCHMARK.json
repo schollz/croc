@@ -888,5 +888,39 @@
       "qa_record": "/Users/zns/.cache/croc-cli-benchmark/20261101T151339Z/folder-refresh-20261101T191225Z/web-qa.json",
       "build_log": "/Users/zns/.cache/croc-cli-benchmark/20261101T151339Z/folder-refresh-20261101T191225Z/web-build.log"
     }
+  },
+  "ssh_comparison": {
+    "record": "CLI_SSH_BENCHMARK.json",
+    "payload": "repo",
+    "summary": {
+      "scp": {
+        "status": "ok",
+        "attempts": 3,
+        "successful_trials": 3,
+        "trial_ids": [
+          "r1-scp-repo",
+          "r2-scp-repo",
+          "r3-scp-repo"
+        ],
+        "time_seconds": 158.51678141701268,
+        "min_seconds": 158.46328904200345,
+        "max_seconds": 162.81741629203316,
+        "effective_MB_per_second": 0.13064172647765754
+      },
+      "rsync": {
+        "status": "ok",
+        "attempts": 3,
+        "successful_trials": 3,
+        "trial_ids": [
+          "r1-rsync-repo",
+          "r2-rsync-repo",
+          "r3-rsync-repo"
+        ],
+        "time_seconds": 4.49794012500206,
+        "min_seconds": 4.303942124999594,
+        "max_seconds": 5.049809874966741,
+        "effective_MB_per_second": 4.604086631764694
+      }
+    }
   }
 }

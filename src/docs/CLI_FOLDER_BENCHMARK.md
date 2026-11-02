@@ -79,3 +79,12 @@ Per-trial routes are recorded where exposed: croc uses the TCP relay for this su
 The two focused blog test files passed all 12 tests, TypeScript checking passed, and the production web build passed. The rendered article was checked at 1440 × 1000 and 390 × 844: all three table columns fit without page overflow or browser errors. Static and rendered metadata agree on the original publication date, November 1 modification date, 584 words and three-minute reading time. The single-file article section, publication identity and artwork are unchanged. Screenshots, the build log and the QA record are retained with the current artifacts.
 
 No CI job, commit, push or deployment was performed for this rerun.
+
+## SCP and rsync baselines
+
+Additional three-run, full-copy SSH comparisons used the identical payload and endpoints. Fresh SSH setup is inside the sender-start timer; every receive was verified. See [CLI_SSH_BENCHMARK.md](CLI_SSH_BENCHMARK.md) for versions, commands, individual runs and the reachable-server requirement.
+
+| Tool | Time | Effective rate |
+| --- | ---: | ---: |
+| SCP | 158.52 s | 0.13 MB/s |
+| rsync | 4.50 s | 4.60 MB/s |

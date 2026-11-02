@@ -1432,12 +1432,16 @@ const drafts: DraftBlogPost[] = [
     publishedLabel: "August 23, 2026",
     author: "schollz",
     visual: "bridge",
-    description: "I timed a Git clone and a 317.52 MB audio file from my Mac to Toronto. croc sent the audio in 8.52 seconds.",
-    takeaway: "croc sent audio.wav in 8.52 seconds and the Git clone in 4.42 seconds.",
+    description: "I compared croc, SCP, rsync, and other file-transfer tools with a full Git clone and a 317.52 MB audio file from Mac to Toronto.",
+    takeaway: "croc sent audio.wav in 8.52 seconds and the Git clone in 4.42 seconds. SCP and rsync add SSH-based comparisons.",
     blocks: [
       {
         type: "paragraph",
         text: "I compared command-line file-transfer tools with two workloads: a Git repository containing hundreds of files, and one large audio file. Both went from my Mac to Toronto, using each tool’s default transport and compression settings.",
+      },
+      {
+        type: "paragraph",
+        text: "These SCP and rsync commands need a reachable SSH server, such as a public server or a machine with port forwarding. The other tools here arrange the connection without you exposing an SSH server.",
       },
       { type: "heading", text: "Sending multiple files" },
       {
@@ -1459,7 +1463,7 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "The timer started immediately before the sender launched and stopped when the received folder was ready to use. Scanning, hashing, packing, connecting, and unpacking all counted. SSH was only there to start the commands; each tool carried its own files. I ran each transfer three times in shuffled rounds and used the middle time.",
+        text: "The timer started immediately before the sender launched and stopped when the received folder was ready to use. Scanning, hashing, packing, connecting, and unpacking all counted. I ran each transfer three times in shuffled rounds and used the middle time. Every destination started empty. SCP and rsync include their fresh SSH connection and authentication.",
       },
       {
         type: "table",
@@ -1470,6 +1474,10 @@ const drafts: DraftBlogPost[] = [
             cells: ["croc", "4.42 s", "4.69 MB/s"],
             href: "https://github.com/schollz/croc",
             highlight: true,
+          },
+          {
+            cells: ["rsync", "4.50 s", "4.60 MB/s"],
+            href: "https://rsync.samba.org/",
           },
           {
             cells: ["derphole", "4.76 s", "4.35 MB/s"],
@@ -1496,6 +1504,10 @@ const drafts: DraftBlogPost[] = [
             href: "https://github.com/jannskiee/floe",
           },
           {
+            cells: ["SCP", "158.52 s", "0.13 MB/s"],
+            href: "https://man.openbsd.org/scp",
+          },
+          {
             cells: ["WebWormhole", "Folder transfer unsupported", "—"],
             href: "https://github.com/saljam/webwormhole",
           },
@@ -1507,7 +1519,7 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "croc sent the clone in 4.42 seconds; derphole took 4.76 seconds.",
+        text: "croc sent the clone in 4.42 seconds; derphole took 4.76 seconds. The SSH rows are full first copies, so rsync has no existing files to skip or reuse.",
       },
       {
         type: "paragraph",
@@ -1525,7 +1537,7 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "Every completed transfer matched the SHA-256 manifest, including .git, and passed the commit check and git fsck --full. Those checks ran after the timer stopped. The benchmark record has the commands, exact builds, individual runs, and logs.",
+        text: "Every completed transfer matched the SHA-256 manifest, including .git, and passed the commit check and git fsck --full. Those checks ran after the timer stopped. The benchmark record has the commands, exact builds, individual runs, and logs, including the SCP and rsync comparison.",
         links: [
           {
             label: "benchmark record",
@@ -1569,6 +1581,14 @@ const drafts: DraftBlogPost[] = [
             href: "https://github.com/magic-wormhole/magic-wormhole",
           },
           {
+            cells: ["SCP", "159.52 s", "1.99 MB/s"],
+            href: "https://man.openbsd.org/scp",
+          },
+          {
+            cells: ["rsync", "171.76 s", "1.85 MB/s"],
+            href: "https://rsync.samba.org/",
+          },
+          {
             cells: ["Floe", "190.69 s", "1.67 MB/s"],
             href: "https://github.com/jannskiee/floe",
           },
@@ -1584,7 +1604,7 @@ const drafts: DraftBlogPost[] = [
       },
       {
         type: "paragraph",
-        text: "croc took 8.52 seconds, with derphole next at 10.65 seconds. That is about 20% less time for this file. The compression check samples across a large file, so a quiet opening does not select compression for an audio recording that barely shrinks.",
+        text: "croc took 8.52 seconds, about 20% less time than derphole’s 10.65 seconds. The compression check samples across a large file, so a quiet opening does not select compression for an audio recording that barely shrinks.",
       },
       {
         type: "paragraph",

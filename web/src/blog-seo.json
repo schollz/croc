@@ -149,13 +149,13 @@
     {
       "slug": "croc-cli-speed-comparison",
       "title": "How fast is croc?",
-      "seoTitle": "croc Speed Test: Eight CLI File-Transfer Tools Compared",
-      "description": "I timed a Git clone and a 317.52 MB audio file from my Mac to Toronto. croc sent the audio in 8.52 seconds.",
+      "seoTitle": "croc Speed Test: Ten CLI File-Transfer Tools Compared",
+      "description": "I compared croc, SCP, rsync, and other file-transfer tools with a full Git clone and a 317.52 MB audio file from Mac to Toronto.",
       "category": "Benchmarks",
       "publishedAt": "2026-08-23",
       "modifiedAt": "2026-11-01",
-      "wordCount": 584,
-      "readingMinutes": 3,
+      "wordCount": 654,
+      "readingMinutes": 4,
       "relatedSlugs": [
         "compare-file-transfer-tools",
         "how-croc-moves-a-file"
@@ -174,7 +174,9 @@
         "file transfer protocol",
         "WebRTC file transfer",
         "QUIC file transfer",
-        "command-line file transfer"
+        "command-line file transfer",
+        "scp transfer speed",
+        "rsync transfer speed"
       ],
       "image": "/blog/images/croc-cli-speed-comparison.webp",
       "socialImage": "/blog/images/croc-cli-speed-comparison.jpg",
