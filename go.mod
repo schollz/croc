@@ -1,6 +1,6 @@
 module github.com/schollz/croc/v11
 
-go 1.27.1
+go 1.27.3
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -21,7 +21,7 @@ require (
 	github.com/schollz/progressbar/v3 v3.19.1
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/stretchr/testify v1.12.1
-	github.com/tailscale/gliderssh v0.3.4-0.20260716005906-1a0f895faf28
+	github.com/tailscale/gliderssh v0.3.4-0.20261026144310-31f7cf365d3a
 	github.com/twmb/murmur3 v1.2.1
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745
 	go4.org/netipx v0.0.0-20260823151212-3075585bcbeb
@@ -32,7 +32,7 @@ require (
 	golang.org/x/text v0.43.0
 	golang.org/x/time v0.16.0
 	gvisor.dev/gvisor v0.0.0-20260926034703-66ed76bcb72f
-	tailscale.com v1.104.1
+	tailscale.com v1.104.4
 )
 
 require (
