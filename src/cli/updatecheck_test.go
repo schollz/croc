@@ -17,6 +17,7 @@ import (
 	"time"
 
 	internalcli "github.com/schollz/croc/v11/internal/cli"
+	"github.com/schollz/croc/v11/src/croc"
 )
 
 func TestParseReleaseVersion(t *testing.T) {
@@ -324,6 +325,60 @@ func TestCROCDoCheckRequiresExactValue(t *testing.T) {
 	}
 }
 
+func TestCROCDoCheckZeroSkipsTransferVersionCheck(t *testing.T) {
+	var requests atomic.Int32
+	oldTransport := http.DefaultTransport
+	t.Cleanup(func() { http.DefaultTransport = oldTransport })
+	http.DefaultTransport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		requests.Add(1)
+		return nil, io.ErrUnexpectedEOF
+	})
+
+	for _, test := range []struct {
+		name   string
+		cached bool
+	}{
+		{name: "missing cache"},
+		{name: "fresh cache", cached: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			requests.Store(0)
+			configDir := t.TempDir()
+			cachePath := filepath.Join(configDir, versionCheckCacheName)
+			t.Setenv("CROC_CONFIG_DIR", configDir)
+			t.Setenv("CROC_DO_CHECK", "0")
+			if test.cached {
+				if err := writeVersionCheckCache(cachePath, versionCheckCache{
+					CheckedAt:     time.Now(),
+					LatestVersion: "999.0.0",
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			set := flag.NewFlagSet("test", flag.ContinueOnError)
+			set.Bool("quiet", false, "")
+			app := internalcli.NewApp()
+			var output bytes.Buffer
+			app.ErrWriter = &output
+			finish := startTransferVersionCheck(internalcli.NewContext(app, set, nil), "")
+			// A started check runs in a goroutine, so give it time to do its work.
+			time.Sleep(100 * time.Millisecond)
+			finish()
+
+			if got := requests.Load(); got != 0 {
+				t.Errorf("requests = %d, want 0", got)
+			}
+			if _, err := os.Stat(cachePath); !test.cached && !os.IsNotExist(err) {
+				t.Errorf("version check cache was written: stat error = %v", err)
+			}
+			if output.Len() != 0 {
+				t.Errorf("notice = %q, want none", output.String())
+			}
+		})
+	}
+}
+
 func TestTransferVersionNoticeIsDeferredAndHonorsQuiet(t *testing.T) {
 	current, ok := parseReleaseVersion(Version)
 	if !ok {
@@ -347,7 +402,7 @@ func TestTransferVersionNoticeIsDeferredAndHonorsQuiet(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			configDir := t.TempDir()
 			t.Setenv("CROC_CONFIG_DIR", configDir)
-			t.Setenv("CROC_DO_CHECK", "0")
+			t.Setenv("CROC_DO_CHECK", "")
 			if err := writeVersionCheckCache(filepath.Join(configDir, versionCheckCacheName), versionCheckCache{
 				CheckedAt:     time.Now(),
 				LatestVersion: latest,
@@ -361,7 +416,7 @@ func TestTransferVersionNoticeIsDeferredAndHonorsQuiet(t *testing.T) {
 			var output bytes.Buffer
 			app.ErrWriter = &output
 			ctx := internalcli.NewContext(app, set, nil)
-			finish := startTransferVersionCheck(ctx)
+			finish := startTransferVersionCheck(ctx, "")
 			if output.Len() != 0 {
 				t.Fatalf("notice was written before finish: %q", output.String())
 			}
@@ -459,7 +514,8 @@ func TestFailedSendAndReceiveRunDeferredVersionNotice(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			configDir := t.TempDir()
 			t.Setenv("CROC_CONFIG_DIR", configDir)
-			t.Setenv("CROC_DO_CHECK", "0")
+			t.Setenv("CROC_DO_CHECK", "")
+			t.Setenv("CROC_NO_UPDATE_CHECK", "")
 			t.Setenv("CROC_STORE_TOKEN", test.storedToken)
 			if err := writeVersionCheckCache(filepath.Join(configDir, versionCheckCacheName), versionCheckCache{
 				CheckedAt:     time.Now(),
@@ -476,6 +532,140 @@ func TestFailedSendAndReceiveRunDeferredVersionNotice(t *testing.T) {
 			}
 			if errors.Len() == 0 {
 				t.Fatalf("%v did not run the deferred notice", test.args)
+			}
+		})
+	}
+}
+
+func TestNoUpdateCheck(t *testing.T) {
+	oldTransport := http.DefaultTransport
+	t.Cleanup(func() { http.DefaultTransport = oldTransport })
+	http.DefaultTransport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, io.ErrUnexpectedEOF
+	})
+	current, ok := parseReleaseVersion(Version)
+	if !ok {
+		t.Fatalf("test requires a valid current version, got %q", Version)
+	}
+	latest := fmt.Sprintf("%d.0.0", current.major+1)
+	send := []string{"croc", "--ignore-stdin", "send"}
+
+	for _, test := range []struct {
+		name        string
+		args        []string
+		env         string
+		doCheck     string
+		remembered  string
+		storedToken string
+		wantCheck   bool
+	}{
+		{name: "default", args: send, wantCheck: true},
+		{name: "flag", args: []string{"croc", "--no-update-check", "--ignore-stdin", "send"}},
+		{name: "env", args: send, env: "1"},
+		{name: "remembered send", args: send, remembered: "send.json"},
+		{
+			name:        "remembered stored receive",
+			args:        []string{"croc", "--ignore-stdin"},
+			remembered:  "receive.json",
+			storedToken: "invalid-stored-token",
+		},
+		{
+			name:       "explicit false overrides remembered",
+			args:       []string{"croc", "--no-update-check=false", "--ignore-stdin", "send"},
+			remembered: "send.json",
+			wantCheck:  true,
+		},
+		{name: "env false overrides remembered", args: send, env: "0", remembered: "send.json", wantCheck: true},
+		{
+			name:       "remember ignores the stored value",
+			args:       []string{"croc", "--remember", "--ignore-stdin", "send"},
+			remembered: "send.json",
+			wantCheck:  true,
+		},
+		{name: "forced check beats remembered", args: send, doCheck: "1", remembered: "send.json", wantCheck: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			configDir := t.TempDir()
+			t.Setenv("CROC_CONFIG_DIR", configDir)
+			t.Setenv("CROC_DO_CHECK", test.doCheck)
+			t.Setenv("CROC_NO_UPDATE_CHECK", test.env)
+			t.Setenv("CROC_STORE_TOKEN", test.storedToken)
+			cachePath := filepath.Join(configDir, versionCheckCacheName)
+			// A skipped check must not touch the cache, so only checks get a seed.
+			if test.wantCheck {
+				if err := writeVersionCheckCache(cachePath, versionCheckCache{
+					CheckedAt:     time.Now(),
+					LatestVersion: latest,
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if test.remembered != "" {
+				config := []byte(`{"NoUpdateCheck":true}`)
+				if err := os.WriteFile(filepath.Join(configDir, test.remembered), config, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			app := newApp()
+			app.Writer = io.Discard
+			var output bytes.Buffer
+			app.ErrWriter = &output
+			if err := app.Run(test.args); err == nil {
+				t.Fatalf("%v unexpectedly succeeded", test.args)
+			}
+			if got := output.Len() != 0; got != test.wantCheck {
+				t.Fatalf("checked = %v, want %v (output %q)", got, test.wantCheck, output.String())
+			}
+			if !test.wantCheck {
+				// A started check runs in a goroutine, so give it time to do its work.
+				time.Sleep(100 * time.Millisecond)
+				if _, err := os.Stat(cachePath); !os.IsNotExist(err) {
+					t.Fatalf("version check cache was written: stat error = %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestRememberSavesNoUpdateCheck(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "file.txt")
+	if err := os.WriteFile(file, []byte("data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// The relay is unreachable: both sides save their config before connecting.
+	// --ip keeps the receiver from discovering real senders on the network.
+	args := []string{
+		"croc", "--remember", "--no-update-check", "--yes", "--ignore-stdin", "--disable-clipboard",
+		"--relay", "127.0.0.1:1", "--ip", "127.0.0.1:1",
+	}
+	for _, test := range []struct {
+		config string
+		args   []string
+	}{
+		{config: "send.json", args: append(args, "send", "--no-local", file)},
+		{config: "receive.json", args: args},
+	} {
+		t.Run(test.config, func(t *testing.T) {
+			configDir := t.TempDir()
+			t.Setenv("CROC_CONFIG_DIR", configDir)
+			t.Setenv("CROC_DO_CHECK", "")
+			t.Setenv("CROC_SECRET", "1234-remember-test")
+			t.Setenv("CROC_STORE_TOKEN", "")
+			app := newApp()
+			app.Writer = io.Discard
+			if err := app.Run(test.args); err == nil {
+				t.Fatalf("%v unexpectedly succeeded", test.args)
+			}
+			b, err := os.ReadFile(filepath.Join(configDir, test.config))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var remembered croc.Options
+			if err := json.Unmarshal(b, &remembered); err != nil {
+				t.Fatal(err)
+			}
+			if !remembered.NoUpdateCheck {
+				t.Fatalf("%s did not save NoUpdateCheck: %s", test.config, b)
 			}
 		})
 	}

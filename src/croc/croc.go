@@ -130,6 +130,7 @@ type Options struct {
 	Quiet             bool
 	DisableClipboard  bool
 	ExtendedClipboard bool
+	NoUpdateCheck     bool
 	Transport         TransportMode `json:",omitempty"`
 }
 

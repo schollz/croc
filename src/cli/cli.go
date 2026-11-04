@@ -208,6 +208,7 @@ func newApp() *cli.App {
 		&cli.BoolFlag{Name: "quiet", Usage: "disable all output"},
 		&cli.BoolFlag{Name: "disable-clipboard", Usage: "disable copy to clipboard"},
 		&cli.BoolFlag{Name: "extended-clipboard", Usage: "copy full command with secret as env variable to clipboard"},
+		&cli.BoolFlag{Name: "no-update-check", Usage: "skip the update check on send and receive", EnvVars: []string{"CROC_NO_UPDATE_CHECK"}},
 		&cli.StringFlag{Name: "revoke", Usage: "revoke a stored transfer using its local sender receipt"},
 		&cli.StringFlag{Name: "multicast", Value: "239.255.255.250", Usage: "multicast address to use for local discovery"},
 		&cli.StringFlag{Name: "curve", Value: "p256", Usage: "choose an encryption curve (" + strings.Join(pake.AvailableCurves(), ", ") + ")"},
@@ -601,7 +602,7 @@ func parseRelayPorts(portsFlag string) []string {
 }
 
 func send(c *cli.Context) (err error) {
-	finishVersionCheck := startTransferVersionCheck(c)
+	finishVersionCheck := startTransferVersionCheck(c, getSendConfigFile(false))
 	defer finishVersionCheck()
 
 	setDebugLevel(c)
@@ -678,6 +679,7 @@ func send(c *cli.Context) (err error) {
 		Quiet:             c.Bool("quiet"),
 		DisableClipboard:  c.Bool("disable-clipboard"),
 		ExtendedClipboard: c.Bool("extended-clipboard"),
+		NoUpdateCheck:     c.Bool("no-update-check"),
 		Transport:         transport,
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {
@@ -971,7 +973,8 @@ func saveConfig(c *cli.Context, crocOptions croc.Options) {
 }
 
 func receive(c *cli.Context) (err error) {
-	finishVersionCheck := startTransferVersionCheck(c)
+	rememberedConfigFile, _ := getReceiveConfigFile(false)
+	finishVersionCheck := startTransferVersionCheck(c, rememberedConfigFile)
 	defer finishVersionCheck()
 
 	comm.Socks5Proxy = c.String("socks5")
@@ -1000,6 +1003,7 @@ func receive(c *cli.Context) (err error) {
 		Quiet:             c.Bool("quiet"),
 		DisableClipboard:  c.Bool("disable-clipboard"),
 		ExtendedClipboard: c.Bool("extended-clipboard"),
+		NoUpdateCheck:     c.Bool("no-update-check"),
 		Transport:         croc.TransportAuto,
 	}
 	if crocOptions.RelayAddress != models.DEFAULT_RELAY {

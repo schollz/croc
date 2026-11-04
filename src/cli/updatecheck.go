@@ -14,6 +14,7 @@ import (
 	"time"
 
 	internalcli "github.com/schollz/croc/v11/internal/cli"
+	"github.com/schollz/croc/v11/src/croc"
 	"github.com/schollz/croc/v11/src/utils"
 )
 
@@ -235,12 +236,30 @@ func forceTransferVersionCheck() bool {
 	return os.Getenv("CROC_DO_CHECK") == "1"
 }
 
-func startTransferVersionCheck(c *internalcli.Context) func() {
+// updateCheckDisabled reads configFile itself because the check starts before
+// send and receive load remembered options.
+func updateCheckDisabled(c *internalcli.Context, configFile string) bool {
+	if c.IsSet("no-update-check") || c.Bool("remember") {
+		return c.Bool("no-update-check")
+	}
+	b, err := os.ReadFile(configFile)
+	if err != nil {
+		return false
+	}
+	var remembered croc.Options
+	return json.Unmarshal(b, &remembered) == nil && remembered.NoUpdateCheck
+}
+
+func startTransferVersionCheck(c *internalcli.Context, configFile string) func() {
+	force := forceTransferVersionCheck()
+	if os.Getenv("CROC_DO_CHECK") == "0" || (!force && updateCheckDisabled(c, configFile)) {
+		return func() {}
+	}
 	checker, err := defaultTransferVersionChecker()
 	if err != nil {
 		return func() {}
 	}
-	return startTransferVersionCheckWithChecker(c, checker, forceTransferVersionCheck())
+	return startTransferVersionCheckWithChecker(c, checker, force)
 }
 
 func startTransferVersionCheckWithChecker(c *internalcli.Context, checker transferVersionChecker, force bool) func() {
