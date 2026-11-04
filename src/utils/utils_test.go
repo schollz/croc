@@ -443,6 +443,18 @@ func TestFindOpenPorts(t *testing.T) {
 
 func TestIsLocalIP(t *testing.T) {
 	assert.True(t, IsLocalIP("192.168.0.14:9009"))
+	assert.True(t, IsLocalIP("127.0.0.1:9009"))
+	assert.True(t, IsLocalIP("[::1]:9009"))
+	// Addresses without a port are checked too.
+	assert.True(t, IsLocalIP("127.0.0.1"))
+	assert.True(t, IsLocalIP("10.0.0.5"))
+	assert.True(t, IsLocalIP("fe80::1"))
+	// A hostname that merely contains "127.0.0.1" is not a local address,
+	// so the connection must still go through the configured proxy.
+	assert.False(t, IsLocalIP("127.0.0.1.nip.io:9009"))
+	assert.False(t, IsLocalIP("relay-127.0.0.1.example.com:9009"))
+	assert.False(t, IsLocalIP("croc.schollz.com:9009"))
+	assert.False(t, IsLocalIP("8.8.8.8:9009"))
 }
 
 func TestValidFileName(t *testing.T) {
