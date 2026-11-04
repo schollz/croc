@@ -51,7 +51,10 @@ function validateSegment(raw: string, value: string) {
   if (isWindowsDeviceName(segment)) {
     throw new Error(`Remote path uses a Windows device name: ${value}`);
   }
-  if (forbiddenComponents.has(collisionKey(segment))) {
+  // Map common NTFS 8.3 aliases (SSH~1) back to their dotted names.
+  // Hash-based aliases cannot be recognized lexically.
+  const key = collisionKey(segment).replace(/^([^~]+)~[0-9]+$/, ".$1");
+  if (forbiddenComponents.has(key)) {
     throw new Error(`Remote path is not allowed: ${value}`);
   }
   return segment;

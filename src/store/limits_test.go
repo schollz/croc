@@ -74,6 +74,7 @@ func TestStoredCreationLimitReasons(t *testing.T) {
 	revoked := request(t, service, http.MethodDelete, "/api/v1/store/transfers/"+fixture.id, fixture.uploadToken, nil)
 	require.Equal(t, http.StatusNoContent, revoked.Code)
 	clock.Add(30*time.Minute + 100*time.Millisecond)
+	require.NoError(t, service.Sweep())
 	limited = request(t, service, http.MethodPost, "/api/v1/store/transfers", "", []byte("{}"))
 	require.Equal(t, http.StatusTooManyRequests, limited.Code)
 	assert.Equal(t, "create-rate", limited.Header().Get("X-Croc-Rate-Limit-Reason"))
@@ -82,6 +83,69 @@ func TestStoredCreationLimitReasons(t *testing.T) {
 	allowed := request(t, service, http.MethodPost, "/api/v1/store/transfers", "", []byte("{}"))
 	assert.Equal(t, http.StatusBadRequest, allowed.Code) // admitted, then declaration rejected
 	assert.Empty(t, allowed.Header().Get("X-Croc-Rate-Limit-Reason"))
+}
+
+func TestStoredSweepPrunesCreationWindows(t *testing.T) {
+	clock := &testClock{now: time.Unix(1_700_000_000, 0).UTC()}
+	service := newTestService(t, clock)
+	const clients = 200
+	for i := range clients {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/store/transfers", bytes.NewReader([]byte("{}")))
+		req.RemoteAddr = fmt.Sprintf("[2001:db8::%x]:40000", i)
+		response := httptest.NewRecorder()
+		service.ServeHTTP(response, req)
+		require.Equal(t, http.StatusBadRequest, response.Code)
+	}
+	assert.Empty(t, service.activeUploads, "rejected declarations must release their slots")
+	require.NoError(t, service.Sweep())
+	assert.Len(t, service.creationWindows, clients, "recent attempts must still count")
+
+	clock.Add(30 * time.Minute)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/store/transfers", bytes.NewReader([]byte("{}")))
+	req.RemoteAddr = "[2001:db8::0]:40000"
+	response := httptest.NewRecorder()
+	service.ServeHTTP(response, req)
+	require.Equal(t, http.StatusBadRequest, response.Code)
+	latest := clock.Time()
+
+	clock.Add(30 * time.Minute) // Attempts exactly one hour old expire.
+	require.NoError(t, service.Sweep())
+	require.Len(t, service.creationWindows, 1)
+	assert.Equal(t, []time.Time{latest}, service.creationWindows["2001:db8::"].times)
+
+	clock.Add(30 * time.Minute)
+	require.NoError(t, service.Sweep())
+	assert.Empty(t, service.creationWindows)
+	assert.Empty(t, service.activeUploads)
+}
+
+func TestStoredActiveUploadEntriesReleased(t *testing.T) {
+	for _, tc := range []struct {
+		name, method, suffix string
+		status               int
+	}{
+		{"complete", http.MethodPost, "/complete", http.StatusOK},
+		{"revoke", http.MethodDelete, "", http.StatusNoContent},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			clock := &testClock{now: time.Unix(1_700_000_000, 0).UTC()}
+			service := newTestService(t, clock)
+			first := createUploadingFixture(t, service)
+			second := createUploadingFixture(t, service)
+			target := "/api/v1/store/transfers/" + first.id + tc.suffix
+			response := request(t, service, tc.method, target, first.uploadToken, nil)
+			require.Equal(t, tc.status, response.Code)
+			assert.Equal(t, map[string]int{"192.0.2.1": 1}, service.activeUploads)
+
+			response = request(t, service, tc.method, target, first.uploadToken, nil)
+			require.Equal(t, tc.status, response.Code)
+			assert.Equal(t, map[string]int{"192.0.2.1": 1}, service.activeUploads, "a retry must not release another upload")
+
+			response = request(t, service, tc.method, "/api/v1/store/transfers/"+second.id+tc.suffix, second.uploadToken, nil)
+			require.Equal(t, tc.status, response.Code)
+			assert.Empty(t, service.activeUploads)
+		})
+	}
 }
 
 func TestStoredSweepSkipsBusyTransfers(t *testing.T) {
@@ -113,19 +177,20 @@ func TestStoredSweepSkipsBusyTransfers(t *testing.T) {
 	meta, err = service.load(busy.id)
 	require.NoError(t, err)
 	assert.Equal(t, stateUploading, meta.State)
+	assert.Empty(t, service.creationWindows)
+	assert.Equal(t, map[string]int{"192.0.2.1": 1}, service.activeUploads, "a busy upload must retain its slot")
 	require.NoError(t, service.Sweep())
 	meta, err = service.load(busy.id)
 	require.NoError(t, err)
 	assert.Equal(t, stateExpired, meta.State)
 	assert.Zero(t, service.reservedBytes)
-	for _, n := range service.activeUploads {
-		assert.Zero(t, n)
-	}
+	assert.Empty(t, service.activeUploads)
 	// Repeated expiration and a revoke of an expired record cannot release twice.
 	require.NoError(t, service.Sweep())
 	response := request(t, service, http.MethodDelete, "/api/v1/store/transfers/"+busy.id, busy.uploadToken, nil)
 	assert.Equal(t, http.StatusGone, response.Code)
 	assert.Zero(t, service.reservedBytes)
+	assert.Empty(t, service.activeUploads)
 }
 
 func TestStoredSweepContinuesAfterCorruptMetadata(t *testing.T) {
@@ -225,5 +290,5 @@ func TestStoredCreateReadDeadline(t *testing.T) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 	assert.Zero(t, service.reservedBytes)
-	assert.Zero(t, service.activeUploads["127.0.0.1"])
+	assert.Empty(t, service.activeUploads)
 }

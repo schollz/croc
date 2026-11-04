@@ -42,10 +42,11 @@ const (
 	MaxChunkObjects      = 512
 	transferLockStripes  = 256
 
-	uploadLifetime    = time.Hour
-	claimLifetime     = 30 * time.Minute
-	tombstoneLifetime = 24 * time.Hour
-	cleanupInterval   = time.Minute
+	uploadLifetime     = time.Hour
+	claimLifetime      = 30 * time.Minute
+	tombstoneLifetime  = 24 * time.Hour
+	cleanupInterval    = time.Minute
+	creationRateWindow = time.Hour
 )
 
 type state string
@@ -112,6 +113,12 @@ type metadata struct {
 
 type creationWindow struct {
 	times []time.Time
+}
+
+func (w *creationWindow) prune(cutoff time.Time) {
+	w.times = slices.DeleteFunc(w.times, func(created time.Time) bool {
+		return !created.After(cutoff)
+	})
 }
 
 // Service owns a filesystem store and serves its versioned HTTP API.
@@ -346,9 +353,10 @@ func (s *Service) recover() error {
 	})
 }
 
-// Sweep expires incomplete and available transfers and removes old tombstones.
+// Sweep expires transfers and creation windows and removes old tombstones.
 func (s *Service) Sweep() error {
 	now := s.now()
+	s.pruneCreationWindows(now)
 	var ids []string
 	var scanErrors, transferErrors, skipped, changed int
 	err := filepath.WalkDir(s.config.Root, func(path string, entry os.DirEntry, walkErr error) error {
@@ -531,11 +539,7 @@ func (s *Service) tombstone(meta *metadata, terminal state) error {
 	}
 	s.mu.Unlock()
 	if wasUploading && meta.ClientIP != "" {
-		s.mu.Lock()
-		if s.activeUploads[meta.ClientIP] > 0 {
-			s.activeUploads[meta.ClientIP]--
-		}
-		s.mu.Unlock()
+		s.releaseActiveUpload(meta.ClientIP)
 	}
 	return purgeErr
 }
@@ -635,7 +639,7 @@ func (s *Service) trustedProxy(address netip.Addr) bool {
 // empty reason after reserving one active upload and recording the attempt.
 func (s *Service) allowCreation(ip string) (string, int64) {
 	now := s.now()
-	cutoff := now.Add(-time.Hour)
+	cutoff := now.Add(-creationRateWindow)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.activeUploads[ip] >= s.config.MaxActiveUploads {
@@ -646,20 +650,36 @@ func (s *Service) allowCreation(ip string) (string, int64) {
 		window = new(creationWindow)
 		s.creationWindows[ip] = window
 	}
-	recent := window.times[:0]
-	for _, created := range window.times {
-		if created.After(cutoff) {
-			recent = append(recent, created)
-		}
-	}
-	window.times = recent
-	if len(recent) >= s.config.CreatePerHour {
-		delay := recent[0].Add(time.Hour).Sub(now)
+	window.prune(cutoff)
+	if len(window.times) >= s.config.CreatePerHour {
+		delay := window.times[0].Add(creationRateWindow).Sub(now)
 		return "create-rate", max(1, int64((delay+time.Second-1)/time.Second))
 	}
 	window.times = append(window.times, now)
 	s.activeUploads[ip]++
 	return "", 0
+}
+
+func (s *Service) releaseActiveUpload(ip string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.activeUploads[ip] > 1 {
+		s.activeUploads[ip]--
+	} else {
+		delete(s.activeUploads, ip)
+	}
+}
+
+func (s *Service) pruneCreationWindows(now time.Time) {
+	cutoff := now.Add(-creationRateWindow)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for ip, window := range s.creationWindows {
+		window.prune(cutoff)
+		if len(window.times) == 0 {
+			delete(s.creationWindows, ip)
+		}
+	}
 }
 
 func (s *Service) reserve(bytes int64) bool {
@@ -814,11 +834,7 @@ func (s *Service) create(response http.ResponseWriter, request *http.Request) {
 	releaseActive := true
 	defer func() {
 		if releaseActive {
-			s.mu.Lock()
-			if s.activeUploads[ip] > 0 {
-				s.activeUploads[ip]--
-			}
-			s.mu.Unlock()
+			s.releaseActiveUpload(ip)
 		}
 	}()
 
@@ -1018,11 +1034,7 @@ func (s *Service) complete(response http.ResponseWriter, request *http.Request, 
 		return
 	}
 	if meta.ClientIP != "" {
-		s.mu.Lock()
-		if s.activeUploads[meta.ClientIP] > 0 {
-			s.activeUploads[meta.ClientIP]--
-		}
-		s.mu.Unlock()
+		s.releaseActiveUpload(meta.ClientIP)
 	}
 	writeJSON(response, http.StatusOK, completeResponse{ExpiresAt: meta.ExpiresAt})
 }

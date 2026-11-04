@@ -126,6 +126,12 @@ describe("incoming croc metadata", () => {
     ["safe/.GnUpG", "key"],
     ["11/.git/.SSH", "authorized_keys"],
     ["11/.GIT/.GnUpG", "key"],
+    ["SSH~1", "authorized_keys"],
+    ["ssh~2", "config"],
+    ["safe/Ssh~10", "authorized_keys"],
+    [".", "GNUPG~1"],
+    ["safe/GnuPG~3", "key"],
+    ["repo\\.git\\SSH~1", "authorized_keys"],
     [".", "CON.txt"],
     [".", "COM¹.log"],
     [".", "file.txt:stream"],
@@ -165,6 +171,25 @@ describe("incoming croc metadata", () => {
       validateSenderInfo(
         sender([{ n: "my.git", fr: ".ssh-backup", s: 1, h: "AA==" }]),
       ),
+    ).not.toThrow();
+  });
+
+  it.each([
+    "ssh~",
+    "ssh~a",
+    "ssh~-1",
+    "ssh~1.txt",
+    "ssh~~1",
+    "ssh~1~2",
+    "ssh~١",
+    "gnupg~１",
+    "~1",
+    "sshd~1",
+    "report~1.pdf",
+    "git~1",
+  ])("allows ordinary tilde names %s", (name) => {
+    expect(() =>
+      validateSenderInfo(sender([{ n: name, fr: ".", s: 1, h: "AA==" }])),
     ).not.toThrow();
   });
 
