@@ -48,6 +48,7 @@ import (
 	"github.com/schollz/croc/v11/src/tailcattransport"
 	"github.com/schollz/croc/v11/src/tcp"
 	"github.com/schollz/croc/v11/src/termui"
+	"github.com/schollz/croc/v11/src/transferperf"
 	"github.com/schollz/croc/v11/src/utils"
 )
 
@@ -131,6 +132,16 @@ type Options struct {
 	DisableClipboard  bool
 	ExtendedClipboard bool
 	Transport         TransportMode `json:",omitempty"`
+
+	// Parallel data plane (v2). ParallelData is "auto", "off", or "force".
+	ParallelData        string `json:",omitempty"`
+	ParallelConnections int    `json:",omitempty"`
+	ChunkSize           int64  `json:",omitempty"`
+	ParallelFiles       int    `json:",omitempty"`
+	NoAutotune          bool   `json:",omitempty"`
+	NoResume            bool   `json:",omitempty"`
+	ResumeVerify        string `json:",omitempty"`
+	Stats               bool   `json:",omitempty"`
 }
 
 // TransportMode controls how a sender selects the file-data connection after
@@ -303,6 +314,27 @@ type Client struct {
 	senderDataFile           *os.File
 	senderDataWorkers        map[*comm.Comm]struct{}
 	senderWorkerSequence     int
+
+	// v2 parallel data plane state.
+	peerParallelData         bool
+	peerChunkResume          bool
+	peerSmallFiles           bool
+	peerAutotune             bool
+	parallelMu               sync.Mutex
+	parallelSend             *batchSendState
+	parallelRecv             *batchReceiveState
+	parallelLastBatchID      uint64
+	parallelNextBatchID      uint64
+	parallelChunkOverride    int64
+	parallelFilesOverride    int
+	parallelCountedFiles     map[int]struct{}
+	controlSendMu            sync.Mutex
+	perfMu                   sync.Mutex
+	perfController           *transferperf.Adaptive
+	perfProfile              transferperf.SystemProfile
+	currentAttempt           *transferAttemptState
+	progressMu               sync.Mutex
+	stats                    transferStats
 	relayStandbyMu           sync.Mutex
 	relayStandbyReady        bool
 	stagedRelayDelayOverride time.Duration
@@ -422,6 +454,9 @@ func newClient(ops Options, transport tailcatDataTransport) (c *Client, err erro
 		return nil, err
 	}
 	c.Options.Transport, _ = resolveTransportMode(c.Options.Transport, c.dataTransport().Available())
+	if err = c.normalizeParallelOptions(); err != nil {
+		return nil, err
+	}
 	if !c.Options.IsSender && c.Options.Transport != TransportAuto {
 		return nil, errors.New("transport selection is sender-only")
 	}
@@ -747,6 +782,7 @@ func (c *Client) canRetryTransfer(err error, attempt int) bool {
 }
 
 func (c *Client) closeAttempt() {
+	c.stopParallelTransfer()
 	for _, conn := range c.connectionsSnapshot() {
 		if conn != nil {
 			conn.Close()
@@ -804,6 +840,9 @@ func (c *Client) resetForReconnectAttempt(attempt int) error {
 	c.relayStandbyReady = false
 	c.relayStandbyMu.Unlock()
 	c.tailcat.terminal.Store(false)
+	c.resetParallelState()
+	c.parallelChunkOverride = 0
+	c.parallelFilesOverride = 0
 	c.CurrentFileChunkRanges = nil
 	c.CurrentFileChunkCount = 0
 	c.TotalSent = 0
@@ -1804,6 +1843,7 @@ func (c *Client) receiverReconnectRelayAttempt(attempt int) error {
 // Send will send the specified file
 func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, totalNumberFolders int) (err error) {
 	defer func() { err = c.redactError(err) }()
+	defer c.printTransferStats()
 	go c.stop.done()
 	defer c.stop.Cancel()
 	defer c.closeTailcatBundle()
@@ -2034,6 +2074,7 @@ func (c *Client) discoverReceivePeers() (discoveries []peerdiscovery.Discovered)
 // Receive will receive a file
 func (c *Client) Receive() (err error) {
 	defer func() { err = c.redactError(err) }()
+	defer c.printTransferStats()
 	go c.stop.done()
 	defer c.stop.Cancel()
 	defer c.closeTailcatBundle()
@@ -2287,6 +2328,7 @@ func (c *Client) transfer() (err error) {
 	}
 	attempt.bundles.attempt = attempt
 	c.bundles.active = &attempt.bundles
+	c.currentAttempt = attempt
 	defer func() {
 		cleanupErr := c.finishTransferAttempt(attempt)
 		if cleanupErr != nil {
@@ -2585,6 +2627,9 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 	}
 	c.Options.NoCompress = senderInfo.NoCompress
 	c.peerPerFileCompression = supportsFeature(senderInfo.Features, perFileCompressionFeature)
+	if !supportsFeature(senderInfo.Features, parallelDataFeature) {
+		c.peerParallelData = false
+	}
 	c.Options.HashAlgorithm, err = receiveHashAlgorithm(senderInfo.HashAlgorithm, c.peerProgressiveHash)
 	if err != nil {
 		return true, err
@@ -2792,6 +2837,7 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 	c.peerImplicitTailcatReady = supportsFeature(m.Features, implicitTailcatReadyFeature)
 	c.bundles.peerHandshake = supportsFeature(m.Features, bundle.Feature)
 	c.bundles.peerNative = c.bundles.peerHandshake && supportsFeature(m.Features, bundle.NativeFeature)
+	c.setPeerParallelFeatures(m.Features)
 	if c.pakeConfirmationPending || c.Key != nil {
 		return pakeHandshakeError{err: fmt.Errorf("unexpected duplicate PAKE payload")}
 	}
@@ -3098,6 +3144,9 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 	case message.TypeBundleRequest, message.TypeBundleOffer, message.TypeBundleReady, message.TypeBundleDone, message.TypeBundleClosed:
 		err = bundleVisibleError(c.processBundleMessage(m, attempt))
 	case message.TypeFinished:
+		if c.currentParallelRecv() != nil || c.currentParallelSend() != nil {
+			return true, fmt.Errorf("finished received before the parallel batch completed")
+		}
 		err = message.Send(c.connection(0), c.Key, message.Message{
 			Type: message.TypeFinished,
 		})
@@ -3140,6 +3189,8 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		done, err = c.processMessageFileInfoEnd(m)
 	case message.TypeFilePrepared:
 		err = c.processMessageFilePrepared(m)
+	case message.TypeFilePreparedBatch:
+		err = c.processMessageFilePreparedBatch(m)
 	case message.TypeExactHashRequest:
 		err = c.processExactHashRequest(m)
 	case message.TypeExactHashResult:
@@ -3148,7 +3199,22 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		err = c.processRelayStandby(attempt)
 	case message.TypeRelayRamp:
 		err = c.processRelayRamp(attempt)
+	case message.TypeParallelBatchReady:
+		err = c.processParallelBatchReady(m, attempt)
+	case message.TypeParallelFileDone:
+		err = c.processParallelFileDone(m)
+	case message.TypeParallelBatchDone:
+		err = c.processParallelBatchDone(m)
+	case message.TypeParallelBatchReset:
+		err = c.processParallelBatchReset(m)
+	case message.TypePerfProbe:
+		err = c.processPerfProbe(m)
+	case message.TypePerfProbeReply:
+		err = c.processPerfProbeReply(m)
 	case message.TypeRecipientReady:
+		if c.currentParallelRecv() != nil || c.currentParallelSend() != nil {
+			return true, fmt.Errorf("legacy recipient-ready received during a parallel batch")
+		}
 		var remoteFile RemoteFileRequest
 		err = json.Unmarshal(m.Bytes, &remoteFile)
 		if err != nil {
@@ -3156,6 +3222,9 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		}
 		c.peerReconnectVersion = remoteFile.ReconnectVersion
 		c.peerPerFileCompression = supportsFeature(remoteFile.Features, perFileCompressionFeature)
+		if !supportsFeature(remoteFile.Features, parallelDataFeature) {
+			c.peerParallelData = false
+		}
 		if c.peerInlineMetadata {
 			c.ExternalIPConnected = preferredPeerIP(c.ExternalIPConnected, remoteFile.ExternalIP)
 		}
@@ -3193,6 +3262,9 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 			}
 		}
 	case message.TypeCloseSender:
+		if c.currentParallelRecv() != nil || c.currentParallelSend() != nil {
+			return true, fmt.Errorf("legacy close-sender received during a parallel batch")
+		}
 		c.finishProgress()
 		log.Debug("close-sender received...")
 		c.updateLifecycle(func(state *transferLifecycle) {
@@ -3204,6 +3276,9 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 			Type: message.TypeCloseRecipient,
 		})
 	case message.TypeCloseRecipient:
+		if c.currentParallelRecv() != nil || c.currentParallelSend() != nil {
+			return true, fmt.Errorf("legacy close-recipient received during a parallel batch")
+		}
 		c.updateLifecycle(func(state *transferLifecycle) {
 			state.FileTransferred = false
 			state.RecipientRequested = false
@@ -3258,7 +3333,7 @@ func (c *Client) updateIfSenderChannelSecured() (err error) {
 			HashAlgorithm:          c.Options.HashAlgorithm,
 			ReconnectVersion:       c.reconnectVersion,
 			NextReconnectRoom:      nextReconnectRoom,
-			Features:               c.senderManifestFeatures(),
+			Features:               append(c.senderManifestFeatures(), c.parallelFeatureList()...),
 			BundleLimits:           c.senderBundleLimits(),
 		})
 		if err != nil {
@@ -3382,7 +3457,7 @@ func (c *Client) recipientGetFileReady(finished bool) (err error) {
 		MachineID:                 machID,
 		ExternalIP:                externalIP,
 		ReconnectVersion:          c.reconnectVersion,
-		Features:                  []string{perFileCompressionFeature},
+		Features:                  append([]string{perFileCompressionFeature}, c.parallelFeatureList()...),
 	})
 	c.CurrentFileChunkCount = utils.ChunkRangesCount(
 		c.CurrentFileChunkRanges,
@@ -3543,9 +3618,14 @@ func (c *Client) updateIfRecipientHasFileInfo() (err error) {
 	if c.Options.IsSender || !state.FileInfoTransferred || state.RecipientRequested {
 		return
 	}
-	if c.bundleSessionEligible() {
+	if c.Options.ParallelData != "force" && c.bundleLikelyHandlesTransfer() {
 		return c.requestNextBundleUnit()
 	}
+	if c.parallelEnabled() {
+		return c.updateIfRecipientHasParallelBatch()
+	}
+	// find the next file to transfer and send that number
+	// if the files are the same size, then look for missing chunks
 	for i, file := range c.FilesToTransfer {
 		if i < c.FilesToTransferCurrentNum {
 			continue
@@ -3717,6 +3797,15 @@ func (c *Client) receiveData(i int, dataConn *comm.Comm, attempt *transferAttemp
 			}
 			if err = unit.accept(data, attempt); err != nil {
 				attempt.report(err)
+				return
+			}
+			continue
+		}
+		if c.useParallelDataPlane() {
+			if err := c.handleDataFrameV2(data, attempt); err != nil {
+				if c.ctxErr() == nil {
+					attempt.report(err)
+				}
 				return
 			}
 			continue

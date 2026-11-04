@@ -284,6 +284,26 @@ func (c *Client) bundleSessionEligible() bool {
 	return c.bundles.peerHandshake && c.bundles.manifest && c.bundleTransferEligible()
 }
 
+// bundleLikelyHandlesTransfer reports whether the remaining files are enough
+// for a bundle unit. Smaller sets fall back to the requested data plane
+// instead of bundle's single-file legacy path.
+func (c *Client) bundleLikelyHandlesTransfer() bool {
+	if !c.bundleSessionEligible() {
+		return false
+	}
+	remaining := 0
+	for i := range c.FilesToTransfer {
+		if _, done := c.FilesHasFinished[i]; done {
+			continue
+		}
+		if c.FilesToTransfer[i].declined {
+			continue
+		}
+		remaining++
+	}
+	return remaining >= bundle.MinFiles
+}
+
 func bundleFileEligible(file FileInfo) bool {
 	return file.Mode.IsRegular() && file.Symlink == "" && !file.TempFile && file.Prepared && len(file.Hash) == 8 && file.Size > 0 && file.Size <= bundle.MaxFileBytes
 }
