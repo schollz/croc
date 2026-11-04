@@ -3154,6 +3154,10 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 		if err != nil {
 			return
 		}
+		if remoteFile.FilesToTransferCurrentNum < 0 || remoteFile.FilesToTransferCurrentNum >= len(c.FilesToTransfer) {
+			err = fmt.Errorf("invalid recipient file index %d", remoteFile.FilesToTransferCurrentNum)
+			return
+		}
 		c.peerReconnectVersion = remoteFile.ReconnectVersion
 		c.peerPerFileCompression = supportsFeature(remoteFile.Features, perFileCompressionFeature)
 		if c.peerInlineMetadata {

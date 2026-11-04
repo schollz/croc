@@ -44,6 +44,12 @@ func TestNormalizeRejectsSensitiveComponents(t *testing.T) {
 		"safe/.GnUpG/private-keys-v1.d/key",
 		"repo/.git/.SSH/authorized_keys",
 		"repo/.git/.GnUpG/private-keys-v1.d/key",
+		"SSH~1",
+		"ssh~2/config",
+		"safe/Ssh~10/authorized_keys",
+		"GNUPG~1",
+		"safe/GnuPG~3/private-keys-v1.d/key",
+		`repo\.git\SSH~1\authorized_keys`,
 	}
 	for _, value := range rejected {
 		t.Run(value, func(t *testing.T) {
@@ -53,7 +59,11 @@ func TestNormalizeRejectsSensitiveComponents(t *testing.T) {
 		})
 	}
 
-	allowed := []string{".ssh-backup", "my.ssh", "safe/ssh", ".git-backup", "my.git"}
+	allowed := []string{
+		".ssh-backup", "my.ssh", "safe/ssh", ".git-backup", "my.git",
+		"ssh~", "ssh~a", "ssh~-1", "ssh~1.txt", "ssh~~1", "ssh~1~2",
+		"ssh~١", "gnupg~１", "~1", "sshd~1", "report~1.pdf", "git~1/config",
+	}
 	for _, value := range allowed {
 		t.Run("allowed/"+value, func(t *testing.T) {
 			if _, err := Normalize(value, false); err != nil {
