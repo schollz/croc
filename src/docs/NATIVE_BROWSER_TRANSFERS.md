@@ -5,6 +5,24 @@ the same native authentication primitives and retains its separate Go WASM
 transport. The CLI protocol version and relay deployment requirements are
 unchanged.
 
+## Parallel data plane v2
+
+The browser receiver does not advertise the `parallel-data-v2` feature. The Go
+peer therefore automatically uses the legacy data framing: 32 KiB chunks,
+one-file-at-a-time control flow, and no batch control messages or chunk
+journals. This is a negotiated fallback, not a build-time switch; a browser
+receiver and a current CLI can still transfer files and text without special
+flags.
+
+Browser large-file downloads retain their existing multiple-socket data
+connections and Blob download fallback. Those sockets are independent of the
+Go-to-Go v2 scheduler: browsers do not use v2 in-flight windows, multi-file
+batches, server-side resume journals, or RTT probes. A future browser v2
+implementation must advertise the feature during PAKE, parse the 24-byte v2
+header inside the AEAD envelope, and implement batch-ready/file-done/
+batch-done handling before it can opt in. Until then the legacy path remains
+the compatibility guarantee.
+
 ## Implementation
 
 `web/src/protocol/engine.ts` exposes `CrocProtocolEngine`. Code generation,
