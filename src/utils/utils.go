@@ -638,7 +638,7 @@ func RandomFileName() (fname string, err error) {
 	if err != nil {
 		return
 	}
-	fname = f.Name()
+	fname = filepath.Base(f.Name())
 	_ = f.Close()
 	return
 }
