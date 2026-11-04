@@ -684,10 +684,11 @@ func init() {
 }
 
 func IsLocalIP(ipaddress string) bool {
-	if strings.Contains(ipaddress, "127.0.0.1") {
-		return true
+	host, _, err := net.SplitHostPort(ipaddress)
+	if err != nil {
+		// No port, e.g. a bare "127.0.0.1" or "10.0.0.5".
+		host = ipaddress
 	}
-	host, _, _ := net.SplitHostPort(ipaddress)
 	ip := net.ParseIP(host)
 	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
 		return true
