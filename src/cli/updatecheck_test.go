@@ -324,6 +324,60 @@ func TestCROCDoCheckRequiresExactValue(t *testing.T) {
 	}
 }
 
+func TestCROCDoCheckZeroSkipsTransferVersionCheck(t *testing.T) {
+	var requests atomic.Int32
+	oldTransport := http.DefaultTransport
+	t.Cleanup(func() { http.DefaultTransport = oldTransport })
+	http.DefaultTransport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		requests.Add(1)
+		return nil, io.ErrUnexpectedEOF
+	})
+
+	for _, test := range []struct {
+		name   string
+		cached bool
+	}{
+		{name: "missing cache"},
+		{name: "fresh cache", cached: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			requests.Store(0)
+			configDir := t.TempDir()
+			cachePath := filepath.Join(configDir, versionCheckCacheName)
+			t.Setenv("CROC_CONFIG_DIR", configDir)
+			t.Setenv("CROC_DO_CHECK", "0")
+			if test.cached {
+				if err := writeVersionCheckCache(cachePath, versionCheckCache{
+					CheckedAt:     time.Now(),
+					LatestVersion: "999.0.0",
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			set := flag.NewFlagSet("test", flag.ContinueOnError)
+			set.Bool("quiet", false, "")
+			app := internalcli.NewApp()
+			var output bytes.Buffer
+			app.ErrWriter = &output
+			finish := startTransferVersionCheck(internalcli.NewContext(app, set, nil))
+			// A started check runs in a goroutine, so give it time to do its work.
+			time.Sleep(100 * time.Millisecond)
+			finish()
+
+			if got := requests.Load(); got != 0 {
+				t.Errorf("requests = %d, want 0", got)
+			}
+			if _, err := os.Stat(cachePath); !test.cached && !os.IsNotExist(err) {
+				t.Errorf("version check cache was written: stat error = %v", err)
+			}
+			if output.Len() != 0 {
+				t.Errorf("notice = %q, want none", output.String())
+			}
+		})
+	}
+}
+
 func TestTransferVersionNoticeIsDeferredAndHonorsQuiet(t *testing.T) {
 	current, ok := parseReleaseVersion(Version)
 	if !ok {
@@ -347,7 +401,7 @@ func TestTransferVersionNoticeIsDeferredAndHonorsQuiet(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			configDir := t.TempDir()
 			t.Setenv("CROC_CONFIG_DIR", configDir)
-			t.Setenv("CROC_DO_CHECK", "0")
+			t.Setenv("CROC_DO_CHECK", "")
 			if err := writeVersionCheckCache(filepath.Join(configDir, versionCheckCacheName), versionCheckCache{
 				CheckedAt:     time.Now(),
 				LatestVersion: latest,
@@ -459,7 +513,7 @@ func TestFailedSendAndReceiveRunDeferredVersionNotice(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			configDir := t.TempDir()
 			t.Setenv("CROC_CONFIG_DIR", configDir)
-			t.Setenv("CROC_DO_CHECK", "0")
+			t.Setenv("CROC_DO_CHECK", "")
 			t.Setenv("CROC_STORE_TOKEN", test.storedToken)
 			if err := writeVersionCheckCache(filepath.Join(configDir, versionCheckCacheName), versionCheckCache{
 				CheckedAt:     time.Now(),

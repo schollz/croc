@@ -77,7 +77,8 @@ Package-managed installations use their owning package manager instead.
 When the CLI sends or receives a transfer, it checks for a newer croc release at
 most once every 24 hours. The check runs in the background and any update notice
 is shown after the transfer finishes. Network and release-service failures in
-background checks are ignored; `--quiet` suppresses the notice.
+background checks are ignored; `--quiet` suppresses the notice. Set
+`CROC_DO_CHECK=0` to skip the check.
 
 ### On macOS
 

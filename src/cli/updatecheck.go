@@ -236,6 +236,9 @@ func forceTransferVersionCheck() bool {
 }
 
 func startTransferVersionCheck(c *internalcli.Context) func() {
+	if os.Getenv("CROC_DO_CHECK") == "0" {
+		return func() {}
+	}
 	checker, err := defaultTransferVersionChecker()
 	if err != nil {
 		return func() {}

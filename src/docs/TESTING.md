@@ -14,6 +14,16 @@ The override waits up to two seconds for the request and reports when the curren
 version is already latest or when the check is unavailable. It does not display
 a notice under `--quiet` or turn update-check failures into errors.
 
+Set `CROC_DO_CHECK=0` to skip the check entirely. Croc then makes no release
+request, neither reads nor writes `version-check.json`, and shows no update
+notice:
+
+```bash
+CROC_DO_CHECK=0 croc send file.txt
+```
+
+`croc update --check` is unaffected.
+
 ## Local Reconnect Interruptions
 
 Use three terminals to run a local relay, receiver, and sender. From the repository root, build the binary and start a local relay in the first terminal:
