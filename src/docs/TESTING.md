@@ -22,6 +22,10 @@ notice:
 CROC_DO_CHECK=0 croc send file.txt
 ```
 
+`--no-update-check` and `CROC_NO_UPDATE_CHECK=1` also skip it, and `--remember` on
+a regular send or receive keeps that setting. `CROC_DO_CHECK=1` forces a check over
+any of them.
+
 `croc update --check` is unaffected.
 
 ## Local Reconnect Interruptions
