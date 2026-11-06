@@ -548,7 +548,17 @@ func (c *Client) processBundleMessage(m message.Message, attempt *transferAttemp
 		if err != nil {
 			return err
 		}
-		u := &bundleReceiveUnit{id: offer.ID, file: spool, compressed: offer.Compressed, chunks: chunks, progress: c.newBundleProgress(s.request.Indices, s.offsets)}
+		display := c.newBundleProgress(s.request.Indices, s.offsets)
+		// Count bundle bytes in TotalSent like the sender does. accept calls this
+		// before handing the completed unit to the control loop, so no increment
+		// can land after the next single file resets TotalSent.
+		progress := func(position int64, length int) {
+			display(position, length)
+			c.receiveMutex.Lock()
+			c.TotalSent += int64(length)
+			c.receiveMutex.Unlock()
+		}
+		u := &bundleReceiveUnit{id: offer.ID, file: spool, compressed: offer.Compressed, chunks: chunks, progress: progress}
 		s.offer = offer
 		c.bundleState().receive.Store(u)
 		if err = s.lifecycle.Advance(offer.ID, "ready"); err != nil {
