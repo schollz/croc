@@ -16,7 +16,7 @@ require (
 	github.com/minio/highwayhash v1.0.4
 	github.com/rivo/uniseg v0.4.7
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
-	github.com/schollz/pake/v3 v3.2.0
+	github.com/schollz/pake/v3 v3.2.1
 	github.com/schollz/peerdiscovery v1.7.6
 	github.com/schollz/progressbar/v3 v3.19.1
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
