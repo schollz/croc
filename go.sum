@@ -193,8 +193,8 @@ github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 h1:OkMGxebDj
 github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06/go.mod h1:+ePHsJ1keEjQtpvf9HHw0f4ZeJ0TLRsxhunSI2hYJSs=
 github.com/safchain/ethtool v0.7.0 h1:rlJzfDetsVvT61uz8x1YIcFn12akMfuPulHtZjtb7Is=
 github.com/safchain/ethtool v0.7.0/go.mod h1:MenQKEjXdfkjD3mp2QdCk8B/hwvkrlOTm/FD4gTpFxQ=
-github.com/schollz/pake/v3 v3.2.0 h1:WKHZVU8ulWRgXTMH6mpynz2cl2tBRo0G1McAcRslB04=
-github.com/schollz/pake/v3 v3.2.0/go.mod h1:prwHym0HhVlVdF5lpClcEhettdT7NDh6QopJtIm4xO4=
+github.com/schollz/pake/v3 v3.2.1 h1:xMkWN5+mTauJhh3SzUqfjiU54eAHn76Ww6h2cYHB7pU=
+github.com/schollz/pake/v3 v3.2.1/go.mod h1:prwHym0HhVlVdF5lpClcEhettdT7NDh6QopJtIm4xO4=
 github.com/schollz/peerdiscovery v1.7.6 h1:HJjU1cXcNGfZgenC/vbry9F6CH9B8f+QYcTipZLbtDg=
 github.com/schollz/peerdiscovery v1.7.6/go.mod h1:iTa0MWSPy49jJ2HcXL5oSSnFsd6olEUorAFljxbnj2I=
 github.com/schollz/progressbar/v3 v3.19.1 h1:iv8BgwOvdML/S3p84uBpy/IMigv4U9594vPZYa2EdrU=
