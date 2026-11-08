@@ -457,7 +457,9 @@ croc send --qr [file(s)-or-folder]
 ```
 
 The QR code opens `https://getcroc.com/?code=...`, where the web client
-automatically connects in receive-only mode.
+automatically connects in receive-only mode. `croc send` prints that same
+address as "Or open". `--web-url` or `CROC_WEB_URL` replaces `https://getcroc.com`
+with the origin of a self-hosted croc-web site. This is not `CROC_STORE_URL`.
 
 #### Use a Proxy
 
@@ -568,6 +570,13 @@ To send files using your relay:
 
 ```bash
 croc --relay "myrelay.example.com:9009" send [filename]
+```
+
+Point the printed receive link and QR code at your croc-web site with
+`--web-url` or `CROC_WEB_URL`. This is the website origin, not `CROC_STORE_URL`.
+
+```bash
+croc --relay "myrelay.example.com:9009" --web-url "https://mycroc.example.com" send [filename]
 ```
 
 #### Self-host Relay with Docker

@@ -105,6 +105,7 @@ type Options struct {
 	PublicRelay       bool
 	RelayPorts        []string
 	RelayPassword     string
+	WebOrigin         string `json:"-"`
 	Stdout            bool
 	NoPrompt          bool
 	NoMultiplexing    bool
@@ -1829,7 +1830,7 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 	}
 	webURL := ""
 	if c.Options.Transport != TransportDERP {
-		webURL = webReceiveURL(c.Options.SharedSecret)
+		webURL = webReceiveURL(c.Options.WebOrigin, c.Options.SharedSecret)
 	}
 	clipboardNotice := ""
 	if !c.Options.DisableClipboard {
@@ -1951,8 +1952,13 @@ func ShowReceiveCommandQrCode(command string) {
 	showReceiveCommandQrCode(command)
 }
 
-func webReceiveURL(code string) string {
-	return "https://getcroc.com/?code=" + url.QueryEscape(code)
+func webReceiveURL(origin, code string) string {
+	origin = strings.TrimSpace(origin)
+	if origin == "" {
+		origin = "https://getcroc.com"
+	}
+	origin = strings.TrimSuffix(origin, "/")
+	return origin + "/?code=" + url.QueryEscape(code)
 }
 
 type peerDiscoveryResult struct {
