@@ -182,7 +182,7 @@ func TestWebReceiveURL(t *testing.T) {
 	assert.Equal(
 		t,
 		"https://getcroc.com/?code=1234-word%2Fword%3F%26",
-		webReceiveURL("1234-word/word?&"),
+		webReceiveURL("", "1234-word/word?&"),
 	)
 }
 
