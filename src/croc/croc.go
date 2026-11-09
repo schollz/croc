@@ -1823,10 +1823,10 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 	}()
 	flags := &strings.Builder{}
 	if !c.Options.PublicRelay && c.Options.RelayAddress != models.DEFAULT_RELAY && !c.Options.OnlyLocal {
-		flags.WriteString("--relay " + c.Options.RelayAddress + " ")
+		flags.WriteString("--relay " + shellQuote(c.Options.RelayAddress) + " ")
 	}
 	if c.Options.RelayPassword != models.DEFAULT_PASSPHRASE {
-		flags.WriteString("--pass " + c.Options.RelayPassword + " ")
+		flags.WriteString("--pass " + shellQuote(c.Options.RelayPassword) + " ")
 	}
 	webURL := ""
 	if c.Options.Transport != TransportDERP {
