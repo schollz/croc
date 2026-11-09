@@ -464,10 +464,7 @@ func newClient(ops Options, transport tailcatDataTransport) (c *Client, err erro
 		if err != nil {
 			return nil, err
 		}
-		minBurstSize := models.TCP_BUFFER_SIZE
-		if int(uploadLimit) > minBurstSize {
-			minBurstSize = int(uploadLimit)
-		}
+		minBurstSize := max(int(uploadLimit), models.TCP_BUFFER_SIZE)
 		c.limiter = rate.NewLimiter(rate.Limit(uploadLimit), minBurstSize)
 		log.Debugf("Throttling Upload to %#v", c.limiter.Limit())
 	}
