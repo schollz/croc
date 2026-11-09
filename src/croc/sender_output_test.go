@@ -128,3 +128,34 @@ func TestFormatExtendedClipboardOmitsSenderTransport(t *testing.T) {
 		t.Fatalf("clipboard text = %q; want %q", got, want)
 	}
 }
+
+func TestShellQuote(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{in: "acid-pink-fostered-succeeding", want: "acid-pink-fostered-succeeding"},
+		{in: "relay.example:9009", want: "relay.example:9009"},
+		{in: "foo&bar", want: "'foo&bar'"},
+		{in: "two words", want: "'two words'"},
+		{in: "it's", want: `'it'\''s'`},
+		{in: "$HOME", want: "'$HOME'"},
+		{in: "[::1]:9009", want: "'[::1]:9009'"},
+		{in: "", want: "''"},
+	}
+	for _, test := range tests {
+		if got := shellQuote(test.in); got != test.want {
+			t.Errorf("shellQuote(%q) = %q; want %q", test.in, got, test.want)
+		}
+	}
+}
+
+func TestFormatSendInstructionsQuotesSecret(t *testing.T) {
+	want := `On the other computer, run:
+  croc --pass 'foo&bar' 'my code'
+`
+	got := formatSendInstructions("my code", "--pass 'foo&bar' ", "", "", false)
+	if got != want {
+		t.Fatalf("instructions differ:\nwant: %q\n got: %q", want, got)
+	}
+}
