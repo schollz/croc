@@ -198,6 +198,21 @@ func TestUnusedFilename(t *testing.T) {
 	assert.Equal(t, "noext (1)", UnusedFilename(folder, "noext"))
 }
 
+func TestGenerateRandomPinUsesAllDigits(t *testing.T) {
+	seen := make(map[rune]bool)
+	for range 2000 {
+		pin := GenerateRandomPin()
+		assert.Len(t, pin, NbPinNumbers)
+		for _, digit := range pin {
+			assert.True(t, digit >= '0' && digit <= '9', "unexpected character %q in pin %q", digit, pin)
+			seen[digit] = true
+		}
+	}
+	for digit := '0'; digit <= '9'; digit++ {
+		assert.True(t, seen[digit], "digit %c never appeared in 2000 pins", digit)
+	}
+}
+
 func TestRandomFileNameReturnsBareName(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
