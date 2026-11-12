@@ -1021,7 +1021,13 @@ func gitWalk(ctx context.Context, dir string, gitObj *ignore.GitIgnore, files ma
 			ignoredDir = false // Skip applying ignore rules for root directory
 			return nil
 		}
-		if gitObj.MatchesPath(info.Name()) {
+		// Match the path relative to the .gitignore rather than the base name,
+		// so patterns such as "/dist" and "docs/generated/" behave as in git.
+		relPath, relErr := filepath.Rel(dir, path)
+		if relErr != nil {
+			relPath = info.Name()
+		}
+		if gitObj.MatchesPath(gitIgnorePath(relPath, info.IsDir())) {
 			files[path] = true
 			ignoredDir = true
 			current = path
@@ -1036,6 +1042,17 @@ func gitWalk(ctx context.Context, dir string, gitObj *ignore.GitIgnore, files ma
 		log.Errorf("filepath error")
 	}
 	return err
+}
+
+// gitIgnorePath returns path in the form .gitignore patterns match against:
+// forward slashes, plus a trailing slash for a directory so that directory
+// patterns such as "node_modules/" match it.
+func gitIgnorePath(path string, isDir bool) string {
+	path = filepath.ToSlash(path)
+	if isDir && !strings.HasSuffix(path, "/") {
+		path += "/"
+	}
+	return path
 }
 
 func isChild(parentPath, childPath string) bool {
@@ -1111,7 +1128,8 @@ func GetFilesInfoWithExactExclusionsContext(ctx context.Context, fnames []string
 						err = absErr
 						return
 					}
-					if gitIgnore.MatchesPath(path) {
+					info, statErr := os.Stat(path)
+					if gitIgnore.MatchesPath(gitIgnorePath(filepath.Clean(path), statErr == nil && info.IsDir())) {
 						ignoredPaths[abs] = true
 					}
 				}

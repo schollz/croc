@@ -1326,10 +1326,8 @@ func TestGetFilesInfoZipFolderHonoursFilters(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	// gitWalk calls MatchesPath(info.Name()) on basenames, which doesn't
-	// match patterns with trailing slashes. Use a plain pattern.
 	gitignore := filepath.Join(src, ".gitignore")
-	if err := os.WriteFile(gitignore, []byte("build\n"), 0o644); err != nil {
+	if err := os.WriteFile(gitignore, []byte("build/\n"), 0o644); err != nil {
 		t.Fatalf("write .gitignore: %v", err)
 	}
 
@@ -1542,6 +1540,80 @@ func TestReceiveCancellationClosesPendingRelayConnection(t *testing.T) {
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("receiver cancellation did not close the relay connection")
 	}
+}
+
+// TestGetFilesInfoGitIgnoreDirectoryPatterns covers the usual .gitignore
+// forms: directory patterns with a trailing slash ("node_modules/"), patterns
+// anchored to the .gitignore ("/dist") and patterns with a slash in the middle
+// ("docs/generated/"). They have to match against the path relative to the
+// .gitignore, with a trailing slash for directories, not only the base name.
+func TestGetFilesInfoGitIgnoreDirectoryPatterns(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "myproj")
+	for _, rel := range []string{
+		"main.go",
+		"node_modules/pkg/index.js",
+		"dist/app.js",
+		"docs/generated/api.md",
+		"docs/guide.md",
+		"lib/dist/keep.js",
+		"build",
+	} {
+		p := filepath.Join(src, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	gitignore := "node_modules/\n/dist\ndocs/generated/\nbuild/\n"
+	if err := os.WriteFile(filepath.Join(src, ".gitignore"), []byte(gitignore), 0o644); err != nil {
+		t.Fatalf("write .gitignore: %v", err)
+	}
+
+	filesInfo, _, _, err := GetFilesInfo([]string{src}, false, true, nil)
+	if err != nil {
+		t.Fatalf("GetFilesInfo: %v", err)
+	}
+	got := make([]string, 0, len(filesInfo))
+	for _, fi := range filesInfo {
+		got = append(got, fi.FolderRemote+fi.Name)
+	}
+	slices.Sort(got)
+	want := []string{
+		"myproj/.gitignore",
+		// a file named like a directory pattern is not ignored
+		"myproj/build",
+		"myproj/docs/guide.md",
+		// "/dist" only matches next to the .gitignore
+		"myproj/lib/dist/keep.js",
+		"myproj/main.go",
+	}
+	assert.Equal(t, want, got)
+
+	// The .gitignore in the working directory applies to the paths given on
+	// the command line, e.g. `croc send --git *` from inside the project.
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(src); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	filesInfo, _, _, err = GetFilesInfo([]string{"*"}, false, true, nil)
+	if err != nil {
+		t.Fatalf("GetFilesInfo: %v", err)
+	}
+	got = got[:0]
+	for _, fi := range filesInfo {
+		got = append(got, fi.FolderRemote+fi.Name)
+	}
+	assert.NotContains(t, got, "node_modules/pkg/index.js")
+	assert.NotContains(t, got, "dist/app.js")
+	assert.Contains(t, got, "./main.go")
+	assert.Contains(t, got, "lib/dist/keep.js")
 }
 
 // TestIsChild guards the gitignore walk helper. A directory or file whose
