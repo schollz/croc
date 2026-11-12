@@ -393,8 +393,8 @@ func LocalIP() string {
 // GenerateRandomPin returns a randomly generated pin with set length
 func GenerateRandomPin() string {
 	var s strings.Builder
-	max := new(big.Int)
-	max.SetInt64(9)
+	// rand.Int returns a value in [0, max), so max is 10 to cover 0-9.
+	max := big.NewInt(10)
 	for range NbPinNumbers {
 		v, err := rand.Int(rand.Reader, max)
 		if err != nil {
