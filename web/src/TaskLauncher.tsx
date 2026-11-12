@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, Download, Link, SquareTerminal, Upload } from "l
 export type Task = "home" | "send" | "store" | "receive" | "ssh";
 
 const taskLabels: Record<Exclude<Task, "home">, string> = {
-  send: "Send live",
+  send: "Send files",
   store: "Store files",
   receive: "Receive files",
   ssh: "Join SSH",
@@ -39,15 +39,18 @@ function taskURL(task: Task) {
 }
 
 export function useTaskNavigation({
-  initialTask = "home",
+  defaultTask = "home",
+  initialTask = defaultTask,
   storeEnabled = true,
   locked = false,
 }: {
+  defaultTask?: "home" | "send";
   initialTask?: Task;
   storeEnabled?: boolean;
   locked?: boolean;
 } = {}) {
-  const availableTask = (task: Task) => task === "store" && !storeEnabled ? "home" : task;
+  const availableTask = (task: Task) =>
+    task === "home" || (task === "store" && !storeEnabled) ? defaultTask : task;
   const [task, setTask] = useState<Task>(() =>
     availableTask(window.location.hash ? taskFromHash() : initialTask),
   );
@@ -75,7 +78,7 @@ export function useTaskNavigation({
     return () => {
       window.removeEventListener("hashchange", syncTask);
     };
-  }, [storeEnabled]);
+  }, [defaultTask, storeEnabled]);
 
   function navigate(next: Task) {
     if (current.current.locked) return;
@@ -89,6 +92,42 @@ export function useTaskNavigation({
   }
 
   return [task, navigate, invitation] as const;
+}
+
+export function TaskSwitcher({
+  task,
+  storeEnabled,
+  disabled,
+  onSelect,
+}: {
+  task: Task;
+  storeEnabled: boolean;
+  disabled: boolean;
+  onSelect(task: Exclude<Task, "home">): void;
+}) {
+  const tasks = [
+    { task: "send", icon: Upload },
+    ...(storeEnabled ? [{ task: "store" as const, icon: Link }] : []),
+    { task: "receive", icon: Download },
+    { task: "ssh", icon: SquareTerminal },
+  ] as const;
+
+  return (
+    <nav className="task-switcher" aria-label="Choose a task">
+      {tasks.map(({ task: nextTask, icon: Icon }) => (
+        <button
+          key={nextTask}
+          type="button"
+          aria-pressed={task === nextTask}
+          disabled={disabled}
+          onClick={() => onSelect(nextTask)}
+        >
+          <Icon aria-hidden="true" />
+          {taskLabels[nextTask]}
+        </button>
+      ))}
+    </nav>
+  );
 }
 
 export function TaskLauncher({

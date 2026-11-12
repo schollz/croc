@@ -93,7 +93,7 @@ import {
   type GitHubRelease,
 } from "./releases";
 import { blogPosts } from "./blog-posts";
-import { TaskLauncher, taskFromHash, useTaskNavigation } from "./TaskLauncher";
+import { TaskSwitcher, taskFromHash, useTaskNavigation } from "./TaskLauncher";
 
 type Activity = "idle" | "working" | "done" | "error";
 type Theme = "dark" | "light";
@@ -559,16 +559,6 @@ function CliDownload() {
             </span>
           </span>
         )}
-        {alternatives.length > 0 && (
-          <div className="cli-download-alternatives">
-            <span>Other {platform} builds:</span>
-            {alternatives.map((asset) => (
-              <a key={asset.name} href={asset.browser_download_url}>
-                {assetArchitectureLabel(asset)}
-              </a>
-            ))}
-          </div>
-        )}
         <a
           className="other-releases"
           href={latestReleasePage}
@@ -577,6 +567,18 @@ function CliDownload() {
         >
           Other releases <span aria-hidden="true">↗</span>
         </a>
+        {alternatives.length > 0 && (
+          <details className="cli-download-builds">
+            <summary>Other {platform} builds</summary>
+            <div className="cli-download-alternatives">
+              {alternatives.map((asset) => (
+                <a key={asset.name} href={asset.browser_download_url}>
+                  {assetArchitectureLabel(asset)}
+                </a>
+              ))}
+            </div>
+          </details>
+        )}
       </div>
     </section>
   );
@@ -590,10 +592,9 @@ function BlogTeaser() {
     >
       <div className="home-blog-heading">
         <div>
-          <h2 id="home-blog-title">What happens after you press Send?</h2>
+          <h2 id="home-blog-title">From the croc blog</h2>
           <p>
-            Notes about how croc works, commonly asked questions about croc,
-            and latest information on new updates to croc.
+            How croc works, common questions, and the latest updates.
           </p>
         </div>
         <a href="/blog">Read all {blogPosts.length} posts <ArrowRight /></a>
@@ -737,7 +738,8 @@ export function App() {
 
   const navigationLocked = sendActivity === "working" || receiveActivity === "working" || sshActive;
   const [task, navigateTask, sshInvitation] = useTaskNavigation({
-    initialTask: receiveOnly ? "receive" : restoredStoredUpload ? "store" : "home",
+    defaultTask: "send",
+    initialTask: receiveOnly ? "receive" : restoredStoredUpload ? "store" : "send",
     storeEnabled,
     locked: navigationLocked,
   });
@@ -1301,8 +1303,13 @@ export function App() {
         </div>
       </header>
 
-      {!receiveOnly && task === "home" && (
-        <TaskLauncher storeEnabled={storeEnabled} onSelect={navigateTask} />
+      {!receiveOnly && (
+        <TaskSwitcher
+          task={task}
+          storeEnabled={storeEnabled}
+          disabled={navigationLocked}
+          onSelect={navigateTask}
+        />
       )}
 
       {(sendTask || receiveTask) && (
@@ -1317,7 +1324,7 @@ export function App() {
               <Upload aria-hidden="true" />
             </span>
             <div>
-              <h2>{sendMode === "stored" ? "Store files" : "Send live"}</h2>
+              <h2>{sendMode === "stored" ? "Store files" : "Send files"}</h2>
               {sendMode === "stored" && (
                 <p>
                   {`Upload encrypted files for ${formatStoredExpiration(
@@ -1950,9 +1957,10 @@ export function App() {
         </div>
       </dialog>
 
-      <CliDownload />
-
-      <BlogTeaser />
+      <div className="home-resources">
+        <CliDownload />
+        <BlogTeaser />
+      </div>
 
       {!receiveOnly && <HomeReviews />}
 
