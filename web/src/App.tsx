@@ -1267,9 +1267,9 @@ export function App() {
         <div className="donation-copy">
           <Heart aria-hidden="true" />
           <p>
-            <strong>croc is free and supported by donations.</strong>{" "}
+            <strong>I personally pay $320/month to keep croc free.</strong>{" "}
             <span className="donation-detail">
-              If just 1% of users donate $1, it will be sustainable.
+              Even $1 counts toward keeping croc free.
             </span>
           </p>
         </div>
