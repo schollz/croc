@@ -252,6 +252,7 @@ Community made desktop apps:
 - [Croc GUI](https://github.com/interfluve-wav/croc-gui) — unofficial desktop GUI for macOS, Windows, and Linux that bundles the `croc` binary for drag-and-drop transfers, QR codes, LAN mode, and relay/proxy options.
 - [croc-desktop](https://github.com/SihanTeng/croc-desktop) — unofficial desktop GUI for Linux, macOS, and Windows (experimental iOS/Android) built with Wails v3; embeds croc in-process for send/receive, QR codes, history, logs, and optional relay hosting.
 - [Swamp Swap](https://github.com/Ferase/SwampSwap) — unofficial PyQt6 GUI desktop app for macOS, Windows, and Linux, requires installing `croc` on its own normally in order to use. Made to be compact and simple.
+- [CrocApp](https://github.com/bakirgdev/CrocApp) — unofficial native SwiftUI app for Mac, iPhone and iPad ([App Store](https://apps.apple.com/app/crocapp/id6805675003)); embeds croc in-process for send/receive, QR codes, the share sheet and relay hosting.
 
 ## Usage
 
