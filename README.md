@@ -246,7 +246,6 @@ There are F-Droid apps available:
 
 Community made desktop apps:
 
-- [Swamp Swap](https://github.com/Ferase/SwampSwap) — unofficial PyQt6 GUI desktop app for macOS, Windows, and Linux, requires installing `croc` on its own normally in order to use. Made to be compact and simple.
 
 ## Usage
 
