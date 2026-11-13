@@ -199,6 +199,12 @@ If you prefer, you can [install Go](https://go.dev/dl/) and build from source (r
 go install github.com/schollz/croc/v11@latest
 ```
 
+### On Desktop
+
+Community made desktop apps:
+
+- [CrocApp](https://github.com/bakirgdev/CrocApp) — unofficial native SwiftUI app for Mac, iPhone and iPad ([App Store](https://apps.apple.com/app/crocapp/id6805675003)); embeds croc in-process for send/receive, QR codes, the share sheet and relay hosting.
+
 ## Usage
 
 To send a file, simply do:
