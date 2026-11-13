@@ -113,36 +113,6 @@ scoop install croc
 choco install croc
 ```
 
-### Using nix-env
-
-You can install the latest release with [Nix](https://nixos.org/):
-
-```bash
-nix-env -i croc
-```
-
-### On NixOS
-
-You can add this to your [configuration.nix](https://nixos.org/manual/nixos/stable/#ch-configuration):
-
-```nix
-environment.systemPackages = [
-  pkgs.croc
-];
-```
-
-### On Alpine Linux
-
-Enable the community repository for your Alpine release, then install:
-
-```bash
-apk add croc
-```
-
-Check the [Alpine package index](https://pkgs.alpinelinux.org/packages?name=croc)
-for your branch's version. Stable branches can carry older releases; see the
-[distribution status](packaging/distributions/status.md) before selecting one.
-
 ### On Debian and Ubuntu
 
 The [pkg.haus archive](https://pkg.haus/) provides third-party Debian packages.
@@ -190,14 +160,6 @@ pacman -S croc
 ```
 
 ### On Termux
-
-Install with `pkg`:
-
-```bash
-pkg install croc
-```
-
-### On FreeBSD
 
 Install with `pkg`:
 
