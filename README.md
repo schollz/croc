@@ -237,16 +237,6 @@ If you prefer, you can [install Go](https://go.dev/dl/) and build from source (r
 go install github.com/schollz/croc/v11@latest
 ```
 
-### On Android
-
-There are F-Droid apps available:
-
-
-### On Desktop
-
-Community made desktop apps:
-
-
 ## Usage
 
 To send a file, simply do:
