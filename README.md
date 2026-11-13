@@ -113,36 +113,6 @@ scoop install croc
 choco install croc
 ```
 
-### Using nix-env
-
-You can install the latest release with [Nix](https://nixos.org/):
-
-```bash
-nix-env -i croc
-```
-
-### On NixOS
-
-You can add this to your [configuration.nix](https://nixos.org/manual/nixos/stable/#ch-configuration):
-
-```nix
-environment.systemPackages = [
-  pkgs.croc
-];
-```
-
-### On Alpine Linux
-
-Enable the community repository for your Alpine release, then install:
-
-```bash
-apk add croc
-```
-
-Check the [Alpine package index](https://pkgs.alpinelinux.org/packages?name=croc)
-for your branch's version. Stable branches can carry older releases; see the
-[distribution status](packaging/distributions/status.md) before selecting one.
-
 ### On Debian and Ubuntu
 
 The [pkg.haus archive](https://pkg.haus/) provides third-party Debian packages.
@@ -197,14 +167,6 @@ Install with `pkg`:
 pkg install croc
 ```
 
-### On FreeBSD
-
-Install with `pkg`:
-
-```bash
-pkg install croc
-```
-
 ### On Linux, macOS, and Windows via Conda
 
 You can install from [conda-forge](https://github.com/conda-forge/croc-feedstock) globally with [`pixi`](https://pixi.sh/):
@@ -237,21 +199,10 @@ If you prefer, you can [install Go](https://go.dev/dl/) and build from source (r
 go install github.com/schollz/croc/v11@latest
 ```
 
-### On Android
-
-There are F-Droid apps available:
-
-- [crocgui](https://f-droid.org/packages/com.github.howeyc.crocgui/) — original port (Go, basic UI)
-- [croc-app](https://f-droid.org/en/packages/com.dking.crocapp/) — native Kotlin/Jetpack Compose client with a modern, mobile-first interface
-- [FlCroc](https://github.com/576576/FlCroc) — cross-platform Flutter GUI (Android, Windows, Linux) that wraps the `croc` binary as its transfer core.
-
 ### On Desktop
 
 Community made desktop apps:
 
-- [Croc GUI](https://github.com/interfluve-wav/croc-gui) — unofficial desktop GUI for macOS, Windows, and Linux that bundles the `croc` binary for drag-and-drop transfers, QR codes, LAN mode, and relay/proxy options.
-- [croc-desktop](https://github.com/SihanTeng/croc-desktop) — unofficial desktop GUI for Linux, macOS, and Windows (experimental iOS/Android) built with Wails v3; embeds croc in-process for send/receive, QR codes, history, logs, and optional relay hosting.
-- [Swamp Swap](https://github.com/Ferase/SwampSwap) — unofficial PyQt6 GUI desktop app for macOS, Windows, and Linux, requires installing `croc` on its own normally in order to use. Made to be compact and simple.
 - [CrocApp](https://github.com/bakirgdev/CrocApp) — unofficial native SwiftUI app for Mac, iPhone and iPad ([App Store](https://apps.apple.com/app/crocapp/id6805675003)); embeds croc in-process for send/receive, QR codes, the share sheet and relay hosting.
 
 ## Usage
