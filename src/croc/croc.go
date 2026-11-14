@@ -2,6 +2,7 @@ package croc
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/cipher"
 	"crypto/rand"
@@ -133,6 +134,17 @@ type Options struct {
 	ExtendedClipboard bool
 	NoUpdateCheck     bool
 	Transport         TransportMode `json:",omitempty"`
+
+	// OutDir is the folder a receive writes into; empty means the working
+	// directory. It never changes the process working directory.
+	OutDir string `json:"-"`
+	// Prompt, when set, answers croc's yes/no questions instead of reading
+	// stdin. It runs on a croc goroutine and must return when ctx ends. An
+	// error other than ctx's counts as no.
+	Prompt func(ctx context.Context, q Question) (bool, error) `json:"-"`
+	// OnProgress, when set, receives a snapshot after every chunk. It runs on
+	// a croc goroutine, one call at a time, and must not block.
+	OnProgress func(Progress) `json:"-"`
 }
 
 // TransportMode controls how a sender selects the file-data connection after
@@ -272,6 +284,8 @@ type Client struct {
 
 	barMu              sync.RWMutex
 	bar                *progressbar.ProgressBar
+	progressMu         sync.Mutex // orders OnProgress calls and guards progressSent
+	progressSent       int64      // bytes of the current single file reported to OnProgress
 	progressDisplay    *transferProgressDisplay
 	longestFilename    int
 	firstSend          bool
@@ -984,7 +998,7 @@ func (c *Client) receiveFilesystem() (*receivefs.Root, error) {
 	if c.receiveRoot != nil {
 		return c.receiveRoot, nil
 	}
-	root, err := receivefs.OpenRoot(".")
+	root, err := receivefs.OpenRoot(cmp.Or(c.Options.OutDir, "."))
 	if err != nil {
 		return nil, err
 	}
@@ -2506,6 +2520,12 @@ func (c *Client) extractReceivedArchives() error {
 	if c.stop != nil && c.stop.ctx != nil {
 		ctx = c.stop.ctx
 	}
+	if c.Options.Prompt != nil {
+		ctx = utils.WithOverwritePrompt(ctx, func(ctx context.Context, name string) (bool, error) {
+			choice, err := c.answer(ctx, Question{Kind: QuestionOverwrite, Name: name, Required: true})
+			return choice == "y", err
+		})
+	}
 	root, err := c.receiveFilesystem()
 	if err != nil {
 		return err
@@ -2671,7 +2691,8 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 		fname = "text message"
 		displayName = ""
 	}
-	if !c.Options.NoPrompt || c.Options.Ask || senderInfo.Ask {
+	required := !c.Options.NoPrompt || c.Options.Ask || senderInfo.Ask
+	if required {
 		output, colorEnabled := termui.Output(os.Stderr)
 		if displayName != "" {
 			fname = quotedFilename(displayName, colorEnabled)
@@ -2687,7 +2708,18 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 				fmt.Fprintf(output, "\r%s %s (%s)? %s ", action, fname, utils.ByteCountDecimal(totalSize), choicePrompt)
 			}
 		}
-		choice, errInput := utils.GetInputContext(c.clientContext(), "")
+	} else {
+		output, colorEnabled := termui.Output(os.Stderr)
+		if displayName != "" {
+			fname = quotedFilename(displayName, colorEnabled)
+		}
+		fmt.Fprintf(output, "\rReceiving %s (%s) \n", fname, utils.ByteCountDecimal(totalSize))
+	}
+	if required || c.Options.Prompt != nil {
+		choice, errInput := c.answer(c.clientContext(), Question{
+			Kind: QuestionAccept, Name: senderInfo.MachineID, Required: required,
+			Files: slices.Clone(c.FilesToTransfer), EmptyFolders: len(c.EmptyFoldersToTransfer),
+		})
 		choice = strings.ToLower(choice)
 		if errors.Is(errInput, context.Canceled) || errors.Is(errInput, context.DeadlineExceeded) {
 			return true, errInput
@@ -2702,12 +2734,6 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 			}
 			return true, fmt.Errorf("refused files")
 		}
-	} else {
-		output, colorEnabled := termui.Output(os.Stderr)
-		if displayName != "" {
-			fname = quotedFilename(displayName, colorEnabled)
-		}
-		fmt.Fprintf(output, "\rReceiving %s (%s) \n", fname, utils.ByteCountDecimal(totalSize))
 	}
 	output, _ := termui.Output(os.Stderr)
 	fmt.Fprintf(output, "\nReceiving (%s)\n", c.transferDirection())
@@ -2724,7 +2750,7 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 				return
 			}
 		} else {
-			isEmpty, _ := isEmptyFolder(c.EmptyFoldersToTransfer[i].FolderRemote)
+			isEmpty, _ := isEmptyFolder(c.receivePath(c.EmptyFoldersToTransfer[i].FolderRemote))
 			if !isEmpty {
 				log.Debug("asking to overwrite")
 				output, colorEnabled := termui.Output(os.Stderr)
@@ -2733,7 +2759,7 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 					termui.Warning("overwrite", colorEnabled),
 					termui.PromptChoices("(y/N)", colorEnabled),
 				)
-				choice, inputErr := utils.GetInputContext(c.clientContext(), "")
+				choice, inputErr := c.answer(c.clientContext(), Question{Kind: QuestionOverwrite, Name: c.EmptyFoldersToTransfer[i].FolderRemote, Required: true})
 				if errors.Is(inputErr, context.Canceled) || errors.Is(inputErr, context.DeadlineExceeded) {
 					return false, inputErr
 				}
@@ -3185,7 +3211,7 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 				remoteFile.MachineID,
 				termui.PromptChoices("(Y/n)", colorEnabled),
 			)
-			choice, errInput := utils.GetInputContext(c.clientContext(), "")
+			choice, errInput := c.answer(c.clientContext(), Question{Kind: QuestionSend, Name: remoteFile.MachineID, Required: true})
 			choice = strings.ToLower(choice)
 			if errors.Is(errInput, context.Canceled) || errors.Is(errInput, context.DeadlineExceeded) {
 				done = true
@@ -3323,7 +3349,7 @@ func (c *Client) recipientInitializeFile() (err error) {
 			// recipient requests the file and chunks (if empty, then should receive all chunks)
 			// TODO: determine the missing chunks
 			c.CurrentFileChunkRanges = utils.MissingChunks(
-				pathToFile,
+				c.receivePath(pathToFile),
 				c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
 				models.TCP_BUFFER_SIZE/2,
 			)
@@ -3497,13 +3523,13 @@ func (c *Client) receiverWroteFile(index int) bool {
 var receiveFileHash = utils.HashFileCtx
 var receiveOverwriteInput = utils.GetInputContext
 
-func askReceiveOverwrite(ctx context.Context, fileInfo FileInfo, resumable bool) (bool, error) {
+func (c *Client) askReceiveOverwrite(ctx context.Context, fileInfo FileInfo, resumable bool) (bool, error) {
 	action := "Overwrite"
 	promptDetail := ""
 	promptSpacing := " "
 	if resumable {
 		missingRanges := utils.MissingChunks(
-			path.Join(fileInfo.FolderRemote, fileInfo.Name),
+			c.receivePath(path.Join(fileInfo.FolderRemote, fileInfo.Name)),
 			fileInfo.Size,
 			models.TCP_BUFFER_SIZE/2,
 		)
@@ -3535,7 +3561,13 @@ func askReceiveOverwrite(ctx context.Context, fileInfo FileInfo, resumable bool)
 		styledChoice,
 		promptSpacing,
 	)
-	choice, inputErr := receiveOverwriteInput(ctx, "")
+	read := receiveOverwriteInput
+	if c.Options.Prompt != nil {
+		read = func(ctx context.Context, _ string) (string, error) {
+			return c.answer(ctx, Question{Kind: QuestionOverwrite, Name: destination, Required: true})
+		}
+	}
+	choice, inputErr := read(ctx, "")
 	if errors.Is(inputErr, context.Canceled) || errors.Is(inputErr, context.DeadlineExceeded) {
 		return false, inputErr
 	}
@@ -3650,6 +3682,9 @@ func (c *Client) updateState(attempt *transferAttemptState) (err error) {
 }
 
 func (c *Client) setBar() {
+	c.progressMu.Lock()
+	c.progressSent = 0
+	c.progressMu.Unlock()
 	description := fmt.Sprintf("%-*s", c.longestFilename, c.FilesToTransfer[c.FilesToTransferCurrentNum].Name)
 	folder, _ := filepath.Split(c.FilesToTransfer[c.FilesToTransferCurrentNum].FolderRemote)
 	if folder == "./" {

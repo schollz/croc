@@ -817,7 +817,11 @@ func (c *Client) newBundleProgress(indices []int, offsets []int64) func(int64, i
 		mu.Lock()
 		defer mu.Unlock()
 		for i := range indices {
-			done[i] += max(int64(0), min(offsets[i]+sizes[i], position+int64(length))-max(offsets[i], position))
+			moved := max(int64(0), min(offsets[i]+sizes[i], position+int64(length))-max(offsets[i], position))
+			done[i] += moved
+			if moved > 0 {
+				c.reportProgress(indices[i], done[i])
+			}
 		}
 		for current < last && done[current] == sizes[current] {
 			current++

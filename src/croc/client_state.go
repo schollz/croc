@@ -155,6 +155,7 @@ func (c *Client) setProgressBar(bar *progressbar.ProgressBar) {
 }
 
 func (c *Client) addProgress(delta int64) {
+	c.reportProgress(-1, delta)
 	if display := c.progressDisplaySnapshot(); display != nil {
 		display.advance("", 0, delta)
 	}
