@@ -1,6 +1,6 @@
 module github.com/schollz/croc/v11
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -32,7 +32,7 @@ require (
 	golang.org/x/text v0.44.0
 	golang.org/x/time v0.16.0
 	gvisor.dev/gvisor v0.0.0-20261112101947-136968485ee1
-	tailscale.com v1.104.6
+	tailscale.com v1.104.7
 )
 
 require (
