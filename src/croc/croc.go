@@ -3460,6 +3460,9 @@ func (c *Client) createEmptyFileAndFinish(fileInfo FileInfo, i int) (err error) 
 			err = errCreate
 			return
 		}
+		if errChmod := emptyFile.Chmod(fileInfo.Mode.Perm()); errChmod != nil {
+			log.Error(errChmod)
+		}
 		emptyFile.Close()
 	}
 	// setup the progressbar
