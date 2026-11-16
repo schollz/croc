@@ -6,7 +6,7 @@
   <a href="https://github.com/sponsors/schollz"><img alt="GitHub Sponsors" src="https://img.shields.io/github/sponsors/schollz"></a>
 </p>
 <p align="center">
-  <strong>This project’s future depends on community support. <a href="https://github.com/sponsors/01-1">Become a sponsor today</a>.</strong>
+  <strong>This project’s future depends on community support. <a href="https://meowc.at">Become a sponsor today</a>.</strong>
 </p>
 
 TODO: Update
