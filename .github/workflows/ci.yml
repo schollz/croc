@@ -124,6 +124,9 @@ jobs:
       - name: Test malicious peer and historical protocol regressions
         run: go test ./src/croc -run 'Test(HostilePortable|MarkedArchive|UnmarkedArchive|LocalIPExchange|FailedPakeConfirmation|ClientErrorsRedact)'
 
+      - name: Test source folder walk
+        run: go test ./src/croc -run '^TestGetFilesInfo'
+
       - name: Test bundle contract and native lifecycle
         run: |
           go test ./src/bundle
