@@ -168,6 +168,14 @@ func getInputContext(ctx context.Context, reader *bufio.Reader, prompt string) (
 	}
 }
 
+type overwritePromptKey struct{}
+
+// WithOverwritePrompt makes an extraction under the returned context call ask,
+// not read stdin, to decide whether to overwrite an existing zip member.
+func WithOverwritePrompt(ctx context.Context, ask func(ctx context.Context, name string) (bool, error)) context.Context {
+	return context.WithValue(ctx, overwritePromptKey{}, ask)
+}
+
 type contextReader struct {
 	ctx    context.Context
 	reader io.Reader
@@ -1150,13 +1158,20 @@ func unzipDirectoryFromReaderWithLimit(
 		}
 
 		if _, statErr := root.Stat(filePath); statErr == nil {
-			prompt := fmt.Sprintf("\nOverwrite '%s'? (y/N) ", filePath)
-			choice, inputErr := GetInputContext(ctx, prompt)
+			var overwrite bool
+			var inputErr error
+			if ask, ok := ctx.Value(overwritePromptKey{}).(func(context.Context, string) (bool, error)); ok {
+				overwrite, inputErr = ask(ctx, filePath)
+			} else {
+				var choice string
+				choice, inputErr = GetInputContext(ctx, fmt.Sprintf("\nOverwrite '%s'? (y/N) ", filePath))
+				choice = strings.ToLower(choice)
+				overwrite = choice == "y" || choice == "yes"
+			}
 			if inputErr != nil {
 				return inputErr
 			}
-			choice = strings.ToLower(choice)
-			if choice != "y" && choice != "yes" {
+			if !overwrite {
 				fmt.Fprintf(os.Stderr, "Skipping '%s'\n", filePath)
 				continue
 			}
