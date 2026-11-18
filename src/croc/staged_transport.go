@@ -128,10 +128,11 @@ func (c *Client) activateStagedTransportSender(attempt *transferAttemptState) er
 		if err := message.Send(c.connection(0), c.Key, message.Message{Type: message.TypeRelayStandby}); err != nil {
 			return err
 		}
+		indices := stagedRelayIndices(c.relayDataPortCount())
 		relayResult := make(chan error, 1)
 		relayResultC = relayResult
 		go func() {
-			relayResult <- c.openRelayChannels(attempt, stagedRelayIndices(len(c.Options.RelayPorts)), false)
+			relayResult <- c.openRelayChannels(attempt, indices, false)
 		}()
 		return nil
 	}
@@ -316,7 +317,7 @@ func (c *Client) processRelayStandby(attempt *transferAttemptState) error {
 	if c.Options.IsSender || !c.peerStagedTransport || !c.tailcat.peerCapable {
 		return errors.New("unexpected relay standby request")
 	}
-	if err := c.openRelayChannels(attempt, stagedRelayIndices(len(c.Options.RelayPorts)), false); err != nil {
+	if err := c.openRelayChannels(attempt, stagedRelayIndices(c.relayDataPortCount()), false); err != nil {
 		return err
 	}
 	c.relayStandbyMu.Lock()
@@ -340,7 +341,7 @@ func (c *Client) processRelayRamp(attempt *transferAttemptState) error {
 }
 
 func (c *Client) startRelayRamp(attempt *transferAttemptState) {
-	indices := relayRampIndices(len(c.Options.RelayPorts))
+	indices := relayRampIndices(c.relayDataPortCount())
 	if len(indices) == 0 {
 		return
 	}

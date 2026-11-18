@@ -253,6 +253,7 @@ type Client struct {
 	peerChunkedFileInfo        bool
 	peerStagedTransport        bool
 	peerImplicitTailcatReady   bool
+	peerNoMultiplexing         bool
 	incomingFileManifest       *incomingFileManifest
 	tailcat                    tailcatClientState
 	transportSelectionReceived bool
@@ -378,6 +379,7 @@ const (
 	progressiveFileHashFeature  = "progressive-file-hash-v1"
 	stagedTransportFeature      = "staged-transport-v1"
 	implicitTailcatReadyFeature = "implicit-tailcat-ready-v1"
+	noMultiplexingFeature       = "no-multiplexing-v1"
 	selectedTransportUnset      = 0
 	selectedTransportRelay      = 2
 	localProbeResponseTimeout   = 500 * time.Millisecond
@@ -773,6 +775,7 @@ func (c *Client) resetForReconnectAttempt(attempt int) error {
 	c.peerChunkedFileInfo = false
 	c.peerStagedTransport = false
 	c.peerImplicitTailcatReady = false
+	c.peerNoMultiplexing = false
 	c.retainCompletedReceiveIdentities()
 	c.bundles = bundleClientState{}
 	c.receiveChoices = nil
@@ -1535,10 +1538,6 @@ func (c *Client) transferOverLocalRelay(errchan chan<- error) {
 	c.setConnection(0, conn)
 	log.Debug("exchanged header message")
 	c.Options.RelayPorts = strings.Split(banner, ",")
-	if c.Options.NoMultiplexing {
-		log.Debug("no multiplexing")
-		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
-	}
 	c.markSenderRouteReady()
 	errchan <- c.transferWithReconnect(func(attempt int) error {
 		if attempt == 0 {
@@ -1776,9 +1775,6 @@ func (c *Client) reconnectRelayAttempt(handshake func(*comm.Comm) error) error {
 		c.setConnection(0, conn)
 		c.Options.RoomName = room
 		c.Options.RelayPorts = strings.Split(banner, ",")
-		if c.Options.NoMultiplexing {
-			c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
-		}
 		c.ExternalIP = ipaddr
 		return nil
 	}
@@ -1895,10 +1891,6 @@ func (c *Client) Send(filesInfo []FileInfo, emptyFoldersToTransfer []FileInfo, t
 			c.setRelayControlRoute(route.address, route.capability, false)
 			c.setConnection(0, route.connection)
 			c.Options.RelayPorts = strings.Split(route.banner, ",")
-			if c.Options.NoMultiplexing {
-				log.Debug("no multiplexing")
-				c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
-			}
 			log.Debug("exchanged header message")
 			c.markSenderRouteReady()
 			errchan <- c.transferWithReconnect(func(attempt int) error {
@@ -2253,10 +2245,6 @@ func (c *Client) Receive() (err error) {
 		log.Errorf("handshake send error: %v", err)
 	}
 	c.Options.RelayPorts = strings.Split(banner, ",")
-	if c.Options.NoMultiplexing {
-		log.Debug("no multiplexing")
-		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
-	}
 	log.Debug("exchanged header message")
 	c.setReceiveStatus(receiveStatusWaitingForSender)
 	err = c.transferWithReconnect(func(attempt int) error {
@@ -2795,6 +2783,7 @@ func (c *Client) processMessagePake(m message.Message, attempt *transferAttemptS
 	c.peerChunkedFileInfo = supportsFeature(m.Features, chunkedFileInfoFeature)
 	c.peerStagedTransport = supportsFeature(m.Features, stagedTransportFeature)
 	c.peerImplicitTailcatReady = supportsFeature(m.Features, implicitTailcatReadyFeature)
+	c.peerNoMultiplexing = supportsFeature(m.Features, noMultiplexingFeature)
 	c.bundles.peerHandshake = supportsFeature(m.Features, bundle.Feature)
 	c.bundles.peerNative = c.bundles.peerHandshake && supportsFeature(m.Features, bundle.NativeFeature)
 	if c.pakeConfirmationPending || c.Key != nil {
@@ -2931,8 +2920,28 @@ func (c *Client) processMessagePakeConfirm(m message.Message, attempt *transferA
 	return c.activateSecureChannel(attempt)
 }
 
+func (c *Client) useSingleRelayChannel() bool {
+	if c.Options.IsSender {
+		return c.Options.NoMultiplexing || c.peerNoMultiplexing
+	}
+	return c.peerNoMultiplexing
+}
+
+func (c *Client) relayDataPortCount() int {
+	if len(c.Options.RelayPorts) == 0 {
+		return 0
+	}
+	if c.useSingleRelayChannel() {
+		return 1
+	}
+	return min(len(c.Options.RelayPorts), 8)
+}
+
 func (c *Client) activateRelayDataChannels(attempt *transferAttemptState) (err error) {
-	limit := min(len(c.Options.RelayPorts), 8)
+	if c.useSingleRelayChannel() {
+		log.Debug("no multiplexing")
+	}
+	limit := c.relayDataPortCount()
 	indices := make([]int, limit)
 	for i := range indices {
 		indices[i] = i
