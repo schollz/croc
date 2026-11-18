@@ -104,8 +104,16 @@ func HashFileCtx(ctx context.Context, fname string, algorithm string, showProgre
 		return nil, err
 	}
 	defer f.Close()
+	return HashOpenFileCtx(ctx, f, algorithm, showProgress...)
+}
 
-	// Get file info for size (now file is opened, following symlinks if any)
+// HashOpenFileCtx is HashFileCtx for a file the caller already opened. It
+// reads from offset 0 without moving f's offset and leaves f open.
+func HashOpenFileCtx(ctx context.Context, f *os.File, algorithm string, showProgress ...bool) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	fname := f.Name()
 	fi, err := f.Stat()
 	if err != nil {
 		return nil, err
