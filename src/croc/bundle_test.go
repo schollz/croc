@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -422,6 +423,62 @@ func TestBundleReceiveUniqueExactOutOfOrderChunks(t *testing.T) {
 	}
 	if err = unit.accept(frame(0, int(bundle.ChunkSize)), attempt); err == nil {
 		t.Fatal("accepted late data")
+	}
+}
+
+func TestBundleReceiveCountsTotalSent(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	c := bundleTestClient(t)
+	c.Options.IsSender = false
+	c.bundles.peerHandshake, c.bundles.manifest = true, true
+	c.updateLifecycle(func(state *transferLifecycle) { state.FileInfoTransferred = true })
+	c.Key = make([]byte, 32)
+	local, remote := net.Pipe()
+	defer local.Close()
+	defer remote.Close()
+	go io.Copy(io.Discard, remote)
+	c.conn = []*comm.Comm{comm.New(local)}
+	if err := c.bundleState().lifecycle.Request(1); err != nil {
+		t.Fatal(err)
+	}
+	size := c.bundleState().size
+	offer, _ := json.Marshal(bundle.Offer{ID: 1, Size: size, Hash: make([]byte, 8)})
+	if err := c.processBundleMessage(message.Message{Type: message.TypeBundleOffer, Bytes: offer}, new(transferAttemptState)); err != nil {
+		t.Fatal(err)
+	}
+	totalSent := func() int64 {
+		c.receiveMutex.Lock()
+		defer c.receiveMutex.Unlock()
+		return c.TotalSent
+	}
+	unit := c.bundleState().receive.Load()
+	attempt := &transferAttemptState{bundleReceived: make(chan *bundleReceiveUnit, 1)}
+	chunk := func(offset int64) []byte {
+		data := make([]byte, 8+min(bundle.ChunkSize, size-offset))
+		binary.LittleEndian.PutUint64(data, uint64(offset))
+		return data
+	}
+	if err := unit.accept(chunk(0), attempt); err != nil {
+		t.Fatal(err)
+	}
+	if got := totalSent(); got != bundle.ChunkSize {
+		t.Fatalf("TotalSent after first chunk = %d, want %d", got, bundle.ChunkSize)
+	}
+	var workers sync.WaitGroup
+	errs := make(chan error, size/bundle.ChunkSize+1)
+	for offset := bundle.ChunkSize; offset < size; offset += bundle.ChunkSize {
+		workers.Go(func() { errs <- unit.accept(chunk(offset), attempt) })
+	}
+	workers.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	<-attempt.bundleReceived
+	if got := totalSent(); got != size {
+		t.Fatalf("TotalSent after bundle = %d, want %d", got, size)
 	}
 }
 
