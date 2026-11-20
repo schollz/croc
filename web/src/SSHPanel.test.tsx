@@ -248,7 +248,7 @@ describe("SSH homepage mode", () => {
 
   it("auto-joins invitation links followed from another task", async () => {
     render(<Harness />);
-    fireEvent.click(screen.getByRole("button", { name: "Send live" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send files" }));
     act(() => {
       window.history.replaceState({}, "", "/#ssh?code=acid-acorn-acre-acts-ahead-alien");
       window.dispatchEvent(new PopStateEvent("popstate"));

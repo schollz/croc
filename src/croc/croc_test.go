@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -1454,6 +1455,40 @@ func TestGetFilesInfoEmptyFolderIsRelative(t *testing.T) {
 	}
 	if _, _, err := validateReceiveMetadata(files, emptyFolders); err != nil {
 		t.Fatalf("receiver rejected sender metadata: %v", err)
+	}
+}
+
+func TestGetFilesInfoSkipsDirectoryJunctions(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("NTFS junctions are Windows-only")
+	}
+	parent := t.TempDir()
+	folder := filepath.Join(parent, "folder")
+	target := filepath.Join(parent, "target")
+	for _, dir := range []string{folder, target} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(folder, "file.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(target, "linked.txt"), []byte("y"), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if out, err := exec.Command("cmd", "/c", "mklink", "/J", filepath.Join(folder, "junction"), target).CombinedOutput(); err != nil {
+		t.Skipf("mklink /J: %v: %s", err, out)
+	}
+
+	files, emptyFolders, _, err := GetFilesInfo([]string{folder}, false, false, nil)
+	if err != nil {
+		t.Fatalf("GetFilesInfo: %v", err)
+	}
+	if len(files) != 1 || files[0].Name != "file.txt" {
+		t.Fatalf("junction should be skipped, got files: %+v", files)
+	}
+	if len(emptyFolders) != 0 {
+		t.Fatalf("unexpected empty folders: %+v", emptyFolders)
 	}
 }
 

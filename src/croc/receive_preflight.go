@@ -100,7 +100,7 @@ func (c *Client) preflightReceiveFile(index int) (receiveDecision, error) {
 		return receiveDecision{requested: true, fresh: true}, nil
 	}
 	if exists && !textArtifact && !c.Options.Overwrite && !c.Options.Rename && !c.receiveChoices[index] {
-		accepted, err := askReceiveOverwrite(c.clientContext(), root, file, file.Size > 0 && file.Symlink == "" && stat.Mode().IsRegular())
+		accepted, err := c.askReceiveOverwrite(c.clientContext(), root, file, file.Size > 0 && file.Symlink == "" && stat.Mode().IsRegular())
 		if err != nil {
 			return receiveDecision{}, err
 		}

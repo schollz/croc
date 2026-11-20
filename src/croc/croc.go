@@ -140,6 +140,11 @@ type Options struct {
 	// write against that handle, so it never changes the process working
 	// directory and a folder later moved into its place is not used.
 	OutDir string `json:"-"`
+
+	// Prompt, when set, answers croc's yes/no questions instead of reading
+	// stdin. It runs on a croc goroutine and must return when ctx ends. An
+	// error other than ctx's counts as no.
+	Prompt func(ctx context.Context, q Question) (bool, error) `json:"-"`
 }
 
 // TransportMode controls how a sender selects the file-data connection after
@@ -1241,6 +1246,10 @@ func GetFilesInfoWithExactExclusionsContext(ctx context.Context, fnames []string
 						return nil
 					}
 					if !info.IsDir() {
+						if isDirectoryLink(pathName, info) {
+							log.Debugf("skipping directory link %s", pathName)
+							return nil
+						}
 						fInfo := FileInfo{
 							Name:         info.Name(),
 							FolderRemote: remoteFolderPath(filepath.Dir(absPath), filepath.Dir(pathName), string(os.PathSeparator)),
@@ -1297,6 +1306,18 @@ func GetFilesInfoWithExactExclusionsContext(ctx context.Context, fnames []string
 		}
 	}
 	return
+}
+
+// isDirectoryLink reports whether info, from Lstat, is a link to a directory
+// that is not a symlink, such as an NTFS junction. Go reports these as
+// irregular files and filepath.Walk does not enter them; sent as files they
+// arrive empty, or fail to open (Documents\My Music denies reads).
+func isDirectoryLink(path string, info os.FileInfo) bool {
+	if info.Mode()&os.ModeIrregular == 0 {
+		return false
+	}
+	target, err := os.Stat(path)
+	return err == nil && target.IsDir()
 }
 
 // remoteFolderPath returns folderPath relative to parentDir, using forward
@@ -2514,6 +2535,12 @@ func (c *Client) extractReceivedArchives() error {
 	if c.stop != nil && c.stop.ctx != nil {
 		ctx = c.stop.ctx
 	}
+	if c.Options.Prompt != nil {
+		ctx = utils.WithOverwritePrompt(ctx, func(ctx context.Context, name string) (bool, error) {
+			choice, err := c.answer(ctx, Question{Kind: QuestionOverwrite, Name: name, Required: true})
+			return choice == "y", err
+		})
+	}
 	root, err := c.receiveFilesystem()
 	if err != nil {
 		return err
@@ -2679,7 +2706,8 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 		fname = "text message"
 		displayName = ""
 	}
-	if !c.Options.NoPrompt || c.Options.Ask || senderInfo.Ask {
+	required := !c.Options.NoPrompt || c.Options.Ask || senderInfo.Ask
+	if required {
 		output, colorEnabled := termui.Output(os.Stderr)
 		if displayName != "" {
 			fname = quotedFilename(displayName, colorEnabled)
@@ -2695,7 +2723,18 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 				fmt.Fprintf(output, "\r%s %s (%s)? %s ", action, fname, utils.ByteCountDecimal(totalSize), choicePrompt)
 			}
 		}
-		choice, errInput := utils.GetInputContext(c.clientContext(), "")
+	} else {
+		output, colorEnabled := termui.Output(os.Stderr)
+		if displayName != "" {
+			fname = quotedFilename(displayName, colorEnabled)
+		}
+		fmt.Fprintf(output, "\rReceiving %s (%s) \n", fname, utils.ByteCountDecimal(totalSize))
+	}
+	if required || c.Options.Prompt != nil {
+		choice, errInput := c.answer(c.clientContext(), Question{
+			Kind: QuestionAccept, Name: senderInfo.MachineID, Required: required,
+			Files: slices.Clone(c.FilesToTransfer), EmptyFolders: len(c.EmptyFoldersToTransfer),
+		})
 		choice = strings.ToLower(choice)
 		if errors.Is(errInput, context.Canceled) || errors.Is(errInput, context.DeadlineExceeded) {
 			return true, errInput
@@ -2710,12 +2749,6 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 			}
 			return true, fmt.Errorf("refused files")
 		}
-	} else {
-		output, colorEnabled := termui.Output(os.Stderr)
-		if displayName != "" {
-			fname = quotedFilename(displayName, colorEnabled)
-		}
-		fmt.Fprintf(output, "\rReceiving %s (%s) \n", fname, utils.ByteCountDecimal(totalSize))
 	}
 	output, _ := termui.Output(os.Stderr)
 	fmt.Fprintf(output, "\nReceiving (%s)\n", c.transferDirection())
@@ -2742,7 +2775,7 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 					termui.Warning("overwrite", colorEnabled),
 					termui.PromptChoices("(y/N)", colorEnabled),
 				)
-				choice, inputErr := utils.GetInputContext(c.clientContext(), "")
+				choice, inputErr := c.answer(c.clientContext(), Question{Kind: QuestionOverwrite, Name: c.EmptyFoldersToTransfer[i].FolderRemote, Required: true})
 				if errors.Is(inputErr, context.Canceled) || errors.Is(inputErr, context.DeadlineExceeded) {
 					return false, inputErr
 				}
@@ -3194,7 +3227,7 @@ func (c *Client) processMessage(payload []byte, attempt *transferAttemptState) (
 				remoteFile.MachineID,
 				termui.PromptChoices("(Y/n)", colorEnabled),
 			)
-			choice, errInput := utils.GetInputContext(c.clientContext(), "")
+			choice, errInput := c.answer(c.clientContext(), Question{Kind: QuestionSend, Name: remoteFile.MachineID, Required: true})
 			choice = strings.ToLower(choice)
 			if errors.Is(errInput, context.Canceled) || errors.Is(errInput, context.DeadlineExceeded) {
 				done = true
@@ -3522,7 +3555,7 @@ func (c *Client) hashReceiveFile(ctx context.Context, name string, algorithm str
 	return hash(ctx, f, algorithm, !c.Options.SendingText)
 }
 
-func askReceiveOverwrite(ctx context.Context, root *receivefs.Root, fileInfo FileInfo, resumable bool) (bool, error) {
+func (c *Client) askReceiveOverwrite(ctx context.Context, root *receivefs.Root, fileInfo FileInfo, resumable bool) (bool, error) {
 	action := "Overwrite"
 	promptDetail := ""
 	promptSpacing := " "
@@ -3560,7 +3593,13 @@ func askReceiveOverwrite(ctx context.Context, root *receivefs.Root, fileInfo Fil
 		styledChoice,
 		promptSpacing,
 	)
-	choice, inputErr := receiveOverwriteInput(ctx, "")
+	read := receiveOverwriteInput
+	if c.Options.Prompt != nil {
+		read = func(ctx context.Context, _ string) (string, error) {
+			return c.answer(ctx, Question{Kind: QuestionOverwrite, Name: destination, Required: true})
+		}
+	}
+	choice, inputErr := read(ctx, "")
 	if errors.Is(inputErr, context.Canceled) || errors.Is(inputErr, context.DeadlineExceeded) {
 		return false, inputErr
 	}

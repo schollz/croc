@@ -30,7 +30,7 @@ function Harness({ storeEnabled = true, restored = false } = {}) {
 
 describe("task launcher", () => {
   it.each([
-    ["Send live", "send", "#send-panel"],
+    ["Send files", "send", "#send-panel"],
     ["Store files", "store", "#store"],
     ["Receive files", "receive", "#receive"],
     ["Join SSH", "ssh", "#ssh"],
@@ -49,14 +49,14 @@ describe("task launcher", () => {
     window.history.replaceState({}, "", "/#store");
     render(<Harness storeEnabled={false} />);
     expect(screen.queryByRole("button", { name: "Store files" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send live" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Send files" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Receive files" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Join SSH" })).toBeVisible();
   });
 
   it("keeps an active task open when navigation is attempted", () => {
     render(<Harness />);
-    fireEvent.click(screen.getByRole("button", { name: "Send live" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send files" }));
     fireEvent.click(screen.getByRole("button", { name: "Start activity" }));
     expect(screen.getByRole("button", { name: "All tasks" })).toBeDisabled();
     act(() => {
