@@ -1238,6 +1238,10 @@ func GetFilesInfoWithExactExclusionsContext(ctx context.Context, fnames []string
 						return nil
 					}
 					if !info.IsDir() {
+						if isDirectoryLink(pathName, info) {
+							log.Debugf("skipping directory link %s", pathName)
+							return nil
+						}
 						fInfo := FileInfo{
 							Name:         info.Name(),
 							FolderRemote: remoteFolderPath(filepath.Dir(absPath), filepath.Dir(pathName), string(os.PathSeparator)),
@@ -1294,6 +1298,18 @@ func GetFilesInfoWithExactExclusionsContext(ctx context.Context, fnames []string
 		}
 	}
 	return
+}
+
+// isDirectoryLink reports whether info, from Lstat, is a link to a directory
+// that is not a symlink, such as an NTFS junction. Go reports these as
+// irregular files and filepath.Walk does not enter them; sent as files they
+// arrive empty, or fail to open (Documents\My Music denies reads).
+func isDirectoryLink(path string, info os.FileInfo) bool {
+	if info.Mode()&os.ModeIrregular == 0 {
+		return false
+	}
+	target, err := os.Stat(path)
+	return err == nil && target.IsDir()
 }
 
 // remoteFolderPath returns folderPath relative to parentDir, using forward
