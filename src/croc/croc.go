@@ -1797,7 +1797,7 @@ func (c *Client) reconnectRelayAttempt(handshake func(*comm.Comm) error) error {
 		c.setConnection(0, conn)
 		c.Options.RoomName = room
 		c.Options.RelayPorts = strings.Split(banner, ",")
-		if c.Options.NoMultiplexing {
+		if c.Options.NoMultiplexing && c.Options.IsSender {
 			c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
 		}
 		c.ExternalIP = ipaddr
@@ -2273,11 +2273,10 @@ func (c *Client) Receive() (err error) {
 	if err = c.connection(0).Send(handshakeRequest); err != nil {
 		log.Errorf("handshake send error: %v", err)
 	}
+	// The sender alone decides how many data connections carry chunks, and it
+	// starts a worker on every one it opens. A receiver that joins fewer rooms
+	// leaves the chunks sent into the others undelivered, so it joins them all.
 	c.Options.RelayPorts = strings.Split(banner, ",")
-	if c.Options.NoMultiplexing {
-		log.Debug("no multiplexing")
-		c.Options.RelayPorts = []string{c.Options.RelayPorts[0]}
-	}
 	log.Debug("exchanged header message")
 	c.setReceiveStatus(receiveStatusWaitingForSender)
 	err = c.transferWithReconnect(func(attempt int) error {
