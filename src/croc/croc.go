@@ -3668,7 +3668,9 @@ func (c *Client) updateState(attempt *transferAttemptState) (err error) {
 		c.markTransferStarted()
 		// setup the progressbar
 		c.setBar()
+		c.mutex.Lock()
 		c.TotalSent = 0
+		c.mutex.Unlock()
 		c.CurrentFileIsClosed = false
 		log.Debug("beginning sending comms")
 		pathToFile := path.Join(
