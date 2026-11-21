@@ -454,11 +454,18 @@ func MissingChunks(fname string, fsize int64, chunkSize int) (chunkRanges []int6
 		return
 	}
 	defer f.Close()
+	return MissingChunksFile(f, fsize, chunkSize)
+}
 
-	fstat, err := os.Stat(fname)
+// MissingChunksFile is MissingChunks for a file the caller already opened. It
+// reads from offset 0 without moving f's offset and leaves f open.
+func MissingChunksFile(f *os.File, fsize int64, chunkSize int) (chunkRanges []int64) {
+	fname := f.Name()
+	fstat, err := f.Stat()
 	if err != nil || fstat.Size() != fsize {
 		return
 	}
+	r := io.NewSectionReader(f, 0, fsize)
 
 	// Show progress bar for large files (> 10MB)
 	var bar *progressbar.ProgressBar
@@ -482,7 +489,7 @@ func MissingChunks(fname string, fsize int64, chunkSize int) (chunkRanges []int6
 		runCount = 0
 	}
 	for currentLocation < fsize {
-		bytesread, readErr := io.ReadFull(f, buffer)
+		bytesread, readErr := io.ReadFull(r, buffer)
 		if readErr != nil && readErr != io.ErrUnexpectedEOF && readErr != io.EOF {
 			return nil
 		}

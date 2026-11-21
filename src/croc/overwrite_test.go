@@ -44,7 +44,7 @@ func overwriteTestClient(t *testing.T, file FileInfo, options Options) *Client {
 func TestReceiveOverwritePromptHonorsCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	overwrite, err := (&Client{}).askReceiveOverwrite(ctx, FileInfo{Name: "payload", FolderRemote: "."}, false)
+	overwrite, err := (&Client{}).askReceiveOverwrite(ctx, nil, FileInfo{Name: "payload", FolderRemote: "."}, false)
 	if overwrite || !errors.Is(err, context.Canceled) {
 		t.Fatalf("askReceiveOverwrite() = (%v, %v), want (false, context.Canceled)", overwrite, err)
 	}

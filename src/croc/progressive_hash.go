@@ -78,7 +78,7 @@ func (c *Client) beginExactHash(index int, filename string) error {
 		c.clearExactHashPending(index)
 		return err
 	}
-	hash, err := utils.HashFileCtx(c.stop.ctx, filename, defaultHashAlgorithm, !c.Options.SendingText)
+	hash, err := c.hashReceiveFile(c.stop.ctx, filename, defaultHashAlgorithm, utils.HashOpenFileCtx)
 	if err != nil {
 		c.clearExactHashPending(index)
 		return err

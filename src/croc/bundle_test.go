@@ -589,7 +589,7 @@ func TestBundlePlanRechecksCompletedIndividualFile(t *testing.T) {
 	previousHash := receiveFileHash
 	t.Cleanup(func() { receiveFileHash = previousHash })
 	checked := 0
-	receiveFileHash = func(context.Context, string, string, ...bool) ([]byte, error) {
+	receiveFileHash = func(context.Context, *os.File, string, ...bool) ([]byte, error) {
 		checked++
 		return nil, verificationFailure
 	}

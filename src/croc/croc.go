@@ -2,6 +2,7 @@ package croc
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/cipher"
 	"crypto/rand"
@@ -133,6 +134,12 @@ type Options struct {
 	ExtendedClipboard bool
 	NoUpdateCheck     bool
 	Transport         TransportMode `json:",omitempty"`
+
+	// OutDir is the folder a receive writes into; empty means the working
+	// directory. Receive opens it once and resolves every receive read and
+	// write against that handle, so it never changes the process working
+	// directory and a folder later moved into its place is not used.
+	OutDir string `json:"-"`
 
 	// Prompt, when set, answers croc's yes/no questions instead of reading
 	// stdin. It runs on a croc goroutine and must return when ctx ends. An
@@ -873,13 +880,14 @@ func isEmptyFolder(folderPath string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	return isEmptyDir(f), nil
+}
 
-	_, err = f.Readdirnames(1)
-	if err == io.EOF {
-		return true, nil
-	}
-	return false, nil
+// isEmptyDir reports whether the open directory f has no entries, and closes it.
+func isEmptyDir(f *os.File) bool {
+	defer f.Close()
+	_, err := f.Readdirnames(1)
+	return err == io.EOF
 }
 
 func normalizeReceiveFolder(folder string) (string, error) {
@@ -989,7 +997,7 @@ func (c *Client) receiveFilesystem() (*receivefs.Root, error) {
 	if c.receiveRoot != nil {
 		return c.receiveRoot, nil
 	}
-	root, err := receivefs.OpenRoot(".")
+	root, err := receivefs.OpenRoot(cmp.Or(c.Options.OutDir, "."))
 	if err != nil {
 		return nil, err
 	}
@@ -2757,7 +2765,8 @@ func (c *Client) processSenderInfo(senderInfo SenderInfo) (done bool, err error)
 				return
 			}
 		} else {
-			isEmpty, _ := isEmptyFolder(c.EmptyFoldersToTransfer[i].FolderRemote)
+			dir, openErr := root.Open(c.EmptyFoldersToTransfer[i].FolderRemote)
+			isEmpty := openErr == nil && isEmptyDir(dir)
 			if !isEmpty {
 				log.Debug("asking to overwrite")
 				output, colorEnabled := termui.Output(os.Stderr)
@@ -3355,8 +3364,8 @@ func (c *Client) recipientInitializeFile() (err error) {
 		if !truncate {
 			// recipient requests the file and chunks (if empty, then should receive all chunks)
 			// TODO: determine the missing chunks
-			c.CurrentFileChunkRanges = utils.MissingChunks(
-				pathToFile,
+			c.CurrentFileChunkRanges = utils.MissingChunksFile(
+				c.CurrentFile,
 				c.FilesToTransfer[c.FilesToTransferCurrentNum].Size,
 				models.TCP_BUFFER_SIZE/2,
 			)
@@ -3527,19 +3536,35 @@ func (c *Client) receiverWroteFile(index int) bool {
 	return wrote
 }
 
-var receiveFileHash = utils.HashFileCtx
+var receiveFileHash = utils.HashOpenFileCtx
 var receiveOverwriteInput = utils.GetInputContext
 
-func (c *Client) askReceiveOverwrite(ctx context.Context, fileInfo FileInfo, resumable bool) (bool, error) {
+// hashReceiveFile hashes name, a path in the receive folder, through the
+// receive root, so it reads the same file croc writes even if the folder is
+// replaced on disk.
+func (c *Client) hashReceiveFile(ctx context.Context, name string, algorithm string, hash func(context.Context, *os.File, string, ...bool) ([]byte, error)) ([]byte, error) {
+	root, err := c.receiveFilesystem()
+	if err != nil {
+		return nil, err
+	}
+	f, err := root.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return hash(ctx, f, algorithm, !c.Options.SendingText)
+}
+
+func (c *Client) askReceiveOverwrite(ctx context.Context, root *receivefs.Root, fileInfo FileInfo, resumable bool) (bool, error) {
 	action := "Overwrite"
 	promptDetail := ""
 	promptSpacing := " "
 	if resumable {
-		missingRanges := utils.MissingChunks(
-			path.Join(fileInfo.FolderRemote, fileInfo.Name),
-			fileInfo.Size,
-			models.TCP_BUFFER_SIZE/2,
-		)
+		var missingRanges []int64 // nil counts every chunk as missing, as for a file that cannot be opened
+		if existing, err := root.Open(path.Join(fileInfo.FolderRemote, fileInfo.Name)); err == nil {
+			missingRanges = utils.MissingChunksFile(existing, fileInfo.Size, models.TCP_BUFFER_SIZE/2)
+			existing.Close()
+		}
 		missingBytes := utils.ChunkRangesBytes(
 			missingRanges,
 			fileInfo.Size,
