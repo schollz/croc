@@ -128,6 +128,21 @@ func WithRoomPairedCallback(callback func()) serverOptsFunc {
 	}
 }
 
+// WithRelayEventCallback reports admission and capacity events without peer or
+// room identifiers. The callback may run concurrently and must not block.
+func WithRelayEventCallback(callback func(string)) serverOptsFunc {
+	return func(s *server) error {
+		s.relayEvent = callback
+		return nil
+	}
+}
+
+func (s *server) reportRelayEvent(event string) {
+	if s.relayEvent != nil {
+		s.relayEvent(event)
+	}
+}
+
 // WithRoomProtocolCallback sets a callback invoked once when a paired room
 // advertises a recognized application protocol. The callback must not block.
 func WithRoomProtocolCallback(callback func(RoomProtocol)) serverOptsFunc {
