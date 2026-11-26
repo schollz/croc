@@ -1224,6 +1224,7 @@ func relay(c *cli.Context) (err error) {
 
 	var roomPaired func()
 	var roomProtocol func(tcp.RoomProtocol)
+	var relayEvent func(string)
 	umamiURL := strings.TrimSpace(os.Getenv("UMAMI_URL"))
 	umamiWebsiteID := strings.TrimSpace(os.Getenv("UMAMI_WEBSITE_ID"))
 	umamiSrc := strings.TrimSpace(os.Getenv("UMAMI_SRC"))
@@ -1247,6 +1248,9 @@ func relay(c *cli.Context) (err error) {
 				if protocol == tcp.RoomProtocolSSH {
 					reporter.Track(eventName("ssh-rendezvous"))
 				}
+			}
+			relayEvent = func(event string) {
+				reporter.Track(eventName(event))
 			}
 		}
 	}
@@ -1273,6 +1277,7 @@ func relay(c *cli.Context) (err error) {
 				tcp.WithHandshakeTimeout(handshakeTimeout),
 				tcp.WithAdmissionLimits(sourceJoinLimit, roomJoinLimit, joinLimitWindow),
 				tcp.WithFastAdmission(capabilitySet),
+				tcp.WithRelayEventCallback(relayEvent),
 				tcp.WithCtx(c.Context),
 			)
 			if err != nil {
@@ -1293,6 +1298,7 @@ func relay(c *cli.Context) (err error) {
 		tcp.WithHandshakeTimeout(handshakeTimeout),
 		tcp.WithAdmissionLimits(sourceJoinLimit, roomJoinLimit, joinLimitWindow),
 		tcp.WithFastAdmission(capabilitySet),
+		tcp.WithRelayEventCallback(relayEvent),
 		tcp.WithCtx(c.Context),
 		tcp.WithRoomPairedCallback(roomPaired),
 		tcp.WithRoomProtocolCallback(roomProtocol),

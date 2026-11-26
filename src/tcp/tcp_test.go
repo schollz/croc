@@ -257,7 +257,9 @@ func TestConcurrentRoomAdmissionRespectsWaitingRoomLimit(t *testing.T) {
 }
 
 func TestWaitingRoomCapacityDisconnectsOldestOccupant(t *testing.T) {
-	address, stopServer := startTestServer(t, 1)
+	events := make(chan string, 8)
+	_, address, stopServer := startConfiguredTestServer(t, WithMaxRoomsOpen(1),
+		WithRelayEventCallback(func(event string) { events <- event }))
 	defer stopServer()
 
 	oldest, _, _, err := ConnectToTCPServer(address, "pass123", "oldest")
@@ -273,6 +275,7 @@ func TestWaitingRoomCapacityDisconnectsOldestOccupant(t *testing.T) {
 	defer replacement.Close()
 
 	waitForConnectionClose(t, oldest)
+	assertRelayEvent(t, events, "relay-room-evicted")
 
 	peer, _, _, err := ConnectToTCPServer(address, "pass123", "replacement")
 	if err != nil {
@@ -298,9 +301,11 @@ func TestWaitingRoomCapacityDisconnectsOldestOccupant(t *testing.T) {
 }
 
 func TestPendingHandshakeLimitRejectsExcessConnections(t *testing.T) {
+	events := make(chan string, 8)
 	s, address, stopServer := startConfiguredTestServer(t,
 		WithMaxPendingHandshakes(2),
 		WithHandshakeTimeout(2*time.Second),
+		WithRelayEventCallback(func(event string) { events <- event }),
 	)
 	defer stopServer()
 
@@ -316,6 +321,7 @@ func TestPendingHandshakeLimitRejectsExcessConnections(t *testing.T) {
 	}
 	defer excess.Close()
 	waitForRawConnectionClose(t, excess)
+	assertRelayEvent(t, events, "relay-handshake-rejected")
 	pending, _ := pendingHandshakeCounts(s)
 	assert.Equal(t, 2, pending)
 	_, independent, stopIndependent := startConfiguredTestServer(t, WithMaxPendingHandshakes(1))
@@ -332,9 +338,11 @@ func TestPendingHandshakeLimitRejectsExcessConnections(t *testing.T) {
 }
 
 func TestPendingHandshakeDeadlineClosesIdleAndPartialConnections(t *testing.T) {
+	events := make(chan string, 8)
 	s, address, stopServer := startConfiguredTestServer(t,
 		WithMaxPendingHandshakes(1),
 		WithHandshakeTimeout(75*time.Millisecond),
+		WithRelayEventCallback(func(event string) { events <- event }),
 	)
 	defer stopServer()
 
@@ -344,12 +352,14 @@ func TestPendingHandshakeDeadlineClosesIdleAndPartialConnections(t *testing.T) {
 	}
 	waitForPendingHandshakes(t, s, 1)
 	waitForRawConnectionClose(t, idle)
+	assertRelayEvent(t, events, "relay-handshake-timeout")
 	idle.Close()
 	waitForPendingHandshakes(t, s, 0)
 
 	partial := openPartialHandshake(t, address)
 	waitForPendingHandshakes(t, s, 1)
 	waitForRawConnectionClose(t, partial)
+	assertRelayEvent(t, events, "relay-handshake-timeout")
 	partial.Close()
 	waitForPendingHandshakes(t, s, 0)
 
@@ -411,6 +421,16 @@ func TestServerCancellationClosesPendingHandshake(t *testing.T) {
 	pending, sources := pendingHandshakeCounts(s)
 	assert.Zero(t, pending)
 	assert.Empty(t, sources)
+}
+
+func assertRelayEvent(t *testing.T, events <-chan string, expected string) {
+	t.Helper()
+	select {
+	case event := <-events:
+		require.Equal(t, expected, event)
+	case <-time.After(time.Second):
+		t.Fatalf("missing %s event", expected)
+	}
 }
 
 func startTestServer(t *testing.T, maxRoomsOpen int) (string, func()) {

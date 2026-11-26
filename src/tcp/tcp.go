@@ -30,6 +30,7 @@ type server struct {
 	password     string
 	roomPaired   func()
 	roomProtocol func(RoomProtocol)
+	relayEvent   func(string)
 	rooms        roomMap
 	started      chan struct{}
 
@@ -287,6 +288,7 @@ func (s *server) serve(listener net.Listener) error {
 		}
 		releaseHandshake, rejection := s.pendingHandshakes.acquire(canonicalSource(connection.RemoteAddr()))
 		if rejection != "" {
+			s.reportRelayEvent("relay-handshake-rejected")
 			log.Debugf("rejecting client %s: %s", connection.RemoteAddr().String(), rejection)
 			connection.Close()
 			continue
@@ -312,6 +314,9 @@ func (s *server) serve(listener net.Listener) error {
 			if errCommunication != nil {
 				var netErr net.Error
 				if errors.As(errCommunication, &netErr) && netErr.Timeout() {
+					if s.stop.ctx.Err() == nil {
+						s.reportRelayEvent("relay-handshake-timeout")
+					}
 					log.Debugf("relay-%s: handshake timed out: %v", connection.RemoteAddr().String(), errCommunication)
 				} else {
 					log.Debugf("relay-%s: %s", connection.RemoteAddr().String(), errCommunication.Error())
@@ -593,7 +598,8 @@ func (s *server) clientCommunication(c *comm.Comm, handshake handshakeResult) (r
 	if s.admissionLimits == nil {
 		s.admissionLimits = newAdmissionLimiter(s.sourceJoinLimit, s.roomJoinLimit, s.joinLimitWindow)
 	}
-	if !s.admissionLimits.allow(canonicalSource(c.Connection().RemoteAddr()), room) {
+	if allowed, reason := s.admissionLimits.allowWithReason(canonicalSource(c.Connection().RemoteAddr()), room); !allowed {
+		s.reportRelayEvent(reason)
 		err = sendAdmission("rate limited")
 		if err != nil {
 			return room, err
@@ -603,6 +609,7 @@ func (s *server) clientCommunication(c *comm.Comm, handshake handshakeResult) (r
 
 	admission := s.admitToRoom(room, c)
 	if admission.evicted {
+		s.reportRelayEvent("relay-room-evicted")
 		log.Debug("evicting oldest waiting room at capacity")
 		if admission.evictedConnection != nil {
 			admission.evictedConnection.Close()

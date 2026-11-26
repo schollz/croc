@@ -63,8 +63,10 @@ func TestRoomDenialsStillConsumeTheSourceAllowance(t *testing.T) {
 
 func TestRelayAdmissionLimitsAreEnforcedOnTheWire(t *testing.T) {
 	t.Run("source", func(t *testing.T) {
+		events := make(chan string, 8)
 		_, address, stopServer := startConfiguredTestServer(t,
 			WithAdmissionLimits(1, 20, time.Minute),
+			WithRelayEventCallback(func(event string) { events <- event }),
 		)
 		defer stopServer()
 		first, _, _, err := ConnectToTCPServer(address, "pass123", "room-a")
@@ -79,11 +81,14 @@ func TestRelayAdmissionLimitsAreEnforcedOnTheWire(t *testing.T) {
 		if !errors.Is(err, ErrAdmissionLimited) {
 			t.Fatalf("second source join error = %v", err)
 		}
+		assertRelayEvent(t, events, "relay-source-limited")
 	})
 
 	t.Run("room", func(t *testing.T) {
+		events := make(chan string, 8)
 		_, address, stopServer := startConfiguredTestServer(t,
 			WithAdmissionLimits(20, 1, time.Minute),
+			WithRelayEventCallback(func(event string) { events <- event }),
 		)
 		defer stopServer()
 		first, _, _, err := ConnectToTCPServer(address, "pass123", "target")
@@ -98,7 +103,23 @@ func TestRelayAdmissionLimitsAreEnforcedOnTheWire(t *testing.T) {
 		if !errors.Is(err, ErrAdmissionLimited) {
 			t.Fatalf("second room join error = %v", err)
 		}
+		assertRelayEvent(t, events, "relay-room-limited")
 	})
+}
+
+func TestAdmissionLimiterRejectionReasons(t *testing.T) {
+	limiter := newAdmissionLimiter(1, 1, time.Minute)
+	for _, test := range []struct{ source, room, reason string }{
+		{"a", "room", ""},
+		{"a", "room", "relay-source-limited"}, // Source limit takes precedence.
+		{"b", "room", "relay-room-limited"},
+		{"b", "other", "relay-source-limited"}, // Room denial consumes a source join.
+	} {
+		allowed, reason := limiter.allowWithReason(test.source, test.room)
+		if reason != test.reason || allowed != (test.reason == "") {
+			t.Fatalf("join %s/%s: allowed=%v reason=%q; want %q", test.source, test.room, allowed, reason, test.reason)
+		}
+	}
 }
 
 func TestAdmissionLimiterIsSafeUnderConcurrentJoins(t *testing.T) {

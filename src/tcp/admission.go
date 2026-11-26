@@ -30,6 +30,11 @@ func newAdmissionLimiter(sourceLimit, roomLimit int, window time.Duration) *admi
 }
 
 func (l *admissionLimiter) allow(source, room string) bool {
+	allowed, _ := l.allowWithReason(source, room)
+	return allowed
+}
+
+func (l *admissionLimiter) allowWithReason(source, room string) (bool, string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := l.now()
@@ -38,12 +43,12 @@ func (l *admissionLimiter) allow(source, room string) bool {
 	roomEvents := pruneAdmissions(l.rooms[room], cutoff)
 	if len(sourceEvents) >= l.sourceLimit {
 		l.sources[source] = sourceEvents
-		return false
+		return false, "relay-source-limited"
 	}
 	l.sources[source] = append(sourceEvents, now)
 	if len(roomEvents) >= l.roomLimit {
 		l.rooms[room] = roomEvents
-		return false
+		return false, "relay-room-limited"
 	}
 	l.rooms[room] = append(roomEvents, now)
 	l.checks++
@@ -51,7 +56,7 @@ func (l *admissionLimiter) allow(source, room string) bool {
 		pruneAdmissionMap(l.sources, cutoff)
 		pruneAdmissionMap(l.rooms, cutoff)
 	}
-	return true
+	return true, ""
 }
 
 func pruneAdmissions(events []time.Time, cutoff time.Time) []time.Time {
