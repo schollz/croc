@@ -126,7 +126,7 @@ func TestGenerateLettersPropagatesErrorsWithoutPartialCode(t *testing.T) {
 }
 
 func TestGenerateLettersForRelay(t *testing.T) {
-	for index := 0; index < 4; index++ {
+	for index := range 4 {
 		code, err := GenerateLettersForRelay(index, 4)
 		require.NoError(t, err)
 		assert.Regexp(t, `^[a-z]{8}-[a-z]{8}-[a-z]{8}$`, code)

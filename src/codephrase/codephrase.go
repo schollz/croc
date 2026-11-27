@@ -187,7 +187,7 @@ func generate(reader io.Reader) (string, error) {
 
 func generateLetters(reader io.Reader) (string, error) {
 	var code strings.Builder
-	for i := 0; i < 24; i++ {
+	for i := range 24 {
 		if i > 0 && i%8 == 0 {
 			code.WriteByte('-')
 		}
