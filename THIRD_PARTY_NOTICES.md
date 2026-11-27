@@ -1,8 +1,8 @@
 # Third-Party Notices
 
-The in-tree Tailcat transport and its direct runtime dependencies are distributed
-under the licenses below. Transitive dependency notices remain available in
-their respective Go modules.
+The in-tree Tailcat transport, its direct runtime dependencies, and the
+vendored code word lists are distributed under the notices below. Transitive
+dependency notices remain available in their respective Go modules.
 
 ## Tailcat snapshot and tailscale.com v1.104.1
 
@@ -349,3 +349,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Google English code word list
+
+The generation list combines the medium and short US English no-swears lists
+from first20hours/google-10000-english commit
+`d0736d492489198e4f9d650c7ab4143bc14c1e9e`, filtered to unique lowercase
+ASCII entries of at least three letters. Sources and checksums are documented
+in `src/codephrase/wordlists/README.md`. The upstream `LICENSE.md` notice follows
+verbatim; it is also preserved in `src/codephrase/wordlists/google-LICENSE.md`.
+
+Data files are derived from the *Google Web Trillion Word Corpus*, as described by [Thorsten Brants and Alex Franz](http://googleresearch.blogspot.com/2006/08/all-our-n-gram-are-belong-to-you.html), and distributed by the [Linguistic Data Consortium](http://www.ldc.upenn.edu/Catalog/CatalogEntry.jsp?catalogId=LDC2006T13). Subsets of this corpus distributed by [Peter Novig](http://norvig.com/ngrams/). Corpus editing and cleanup by Josh Kaufman.
+
+Educational and personal/research use of this data is permitted under the LDC license, Norvig's MIT license for his contributions, and US fair use doctrine. I do not recommend using this data for commercial purposes without licensing it from the Linguistic Data Consortium.

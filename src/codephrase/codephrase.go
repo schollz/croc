@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	codeWordCount        = 7223
 	effWordCount         = 1296
 	roomHashSuffix       = "croc"
 	sshRoomHashSuffix    = "croc-ssh-v1"
@@ -67,10 +68,27 @@ type SSHComponents struct {
 //go:embed wordlists/eff-short-wordlist-1.txt
 var effWordList string
 
+//go:embed wordlists/google-english-no-swears.txt
+var codeWordList string
+
 var (
+	codeWords   = mustLoadCodeWords(codeWordList)
+	codeWordSet = makeWordSet(codeWords)
+
+	// Retain the EFF list to parse older invitations, including "yo-yo".
 	effWords   = mustLoadWords("EFF Short Wordlist #1", effWordList, effWordCount)
 	effWordSet = makeWordSet(effWords)
 )
+
+func mustLoadCodeWords(contents string) []string {
+	words := mustLoadWords("Google English", contents, codeWordCount)
+	for _, word := range words {
+		if len(word) < 3 || !isLowercaseWord(word) {
+			panic(fmt.Sprintf("Google English word list contains invalid word %q", word))
+		}
+	}
+	return words
+}
 
 func mustLoadWords(name, contents string, expected int) []string {
 	// Git may check out the embedded text with CRLF on Windows. Normalize only
@@ -101,9 +119,20 @@ func makeWordSet(words []string) map[string]struct{} {
 	return set
 }
 
-// Generate returns a cryptographically random three-word EFF code.
+// Generate returns a cryptographically random three-word code.
 func Generate() (string, error) {
 	return generate(rand.Reader)
+}
+
+// GenerateLetters returns three groups of eight cryptographically random
+// lowercase ASCII letters, separated by hyphens.
+func GenerateLetters() (string, error) {
+	return generateLetters(rand.Reader)
+}
+
+// GenerateLettersForRelay returns a letter code assigned to relayIndex.
+func GenerateLettersForRelay(relayIndex, relayCount int) (string, error) {
+	return generateForRelay(relayIndex, relayCount, GenerateLetters)
 }
 
 // GenerateSSH returns a cryptographically random six-word SSH invitation.
@@ -111,7 +140,7 @@ func GenerateSSH() (string, error) {
 	return generateWords(rand.Reader, SSHCodeWordCount)
 }
 
-// GenerateForRelay returns a normal three-word EFF code assigned to relayIndex
+// GenerateForRelay returns a normal three-word code assigned to relayIndex
 // by RelayIndex. On average it generates relayCount candidates.
 func GenerateForRelay(relayIndex, relayCount int) (string, error) {
 	return generateForRelay(relayIndex, relayCount, Generate)
@@ -156,28 +185,46 @@ func generate(reader io.Reader) (string, error) {
 	return generateWords(reader, 3)
 }
 
+func generateLetters(reader io.Reader) (string, error) {
+	var code strings.Builder
+	for i := 0; i < 24; i++ {
+		if i > 0 && i%8 == 0 {
+			code.WriteByte('-')
+		}
+		index, err := rand.Int(reader, big.NewInt(26))
+		if err != nil {
+			return "", fmt.Errorf("generate croc code letter %d: %w", i+1, err)
+		}
+		code.WriteByte('a' + byte(index.Int64()))
+	}
+	return code.String(), nil
+}
+
 func generateWords(reader io.Reader, count int) (string, error) {
 	if count <= 0 {
 		return "", errors.New("code word count must be positive")
 	}
 	words := make([]string, count)
 	for i := range words {
-		index, err := rand.Int(reader, big.NewInt(int64(len(effWords))))
+		index, err := rand.Int(reader, big.NewInt(int64(len(codeWords))))
 		if err != nil {
 			return "", fmt.Errorf("generate croc code word %d: %w", i+1, err)
 		}
-		words[i] = effWords[index.Int64()]
+		words[i] = codeWords[index.Int64()]
 	}
 	return strings.Join(words, "-"), nil
 }
 
 // ParseSSH resolves a six-word SSH invitation into its relay room and PAKE
-// password. Only words from croc's embedded EFF list are accepted, which keeps
-// parsing unambiguous even though one list entry ("yo-yo") contains a hyphen.
+// password. New codes use the Google English list; older EFF invitations
+// remain accepted, including the hyphenated word "yo-yo".
 func ParseSSH(secret string) (SSHComponents, error) {
-	words, ok := effWordSequence(secret, SSHCodeWordCount)
+	words, ok := codeWordSequence(secret, SSHCodeWordCount)
 	if !ok {
-		return SSHComponents{}, fmt.Errorf("invalid SSH code: expected %d EFF words", SSHCodeWordCount)
+		words, ok = effWordSequence(secret, SSHCodeWordCount)
+	}
+	if !ok {
+		return SSHComponents{}, fmt.Errorf("invalid SSH code: expected %d words from croc's word lists", SSHCodeWordCount)
 	}
 	roomSelector := strings.Join(words[:sshCodeRoomWordCount], "-")
 	digest := sha256.Sum256([]byte(roomSelector + sshRoomHashSuffix))
@@ -221,10 +268,23 @@ func Parse(secret string) (Components, error) {
 	}, nil
 }
 
-// threeEFFWords recognizes generated codes even though the EFF list contains
+// threeEFFWords recognizes older codes even though the EFF list contains
 // the word "yo-yo", which uses the same hyphen as croc's word separator.
 func threeEFFWords(secret string) ([]string, bool) {
 	return effWordSequence(secret, 3)
+}
+
+func codeWordSequence(secret string, count int) ([]string, bool) {
+	words, ok := lowercaseWords(secret, count)
+	if !ok {
+		return nil, false
+	}
+	for _, word := range words {
+		if _, ok := codeWordSet[word]; !ok {
+			return nil, false
+		}
+	}
+	return words, true
 }
 
 func effWordSequence(secret string, count int) ([]string, bool) {

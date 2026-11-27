@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/schollz/croc/v11/internal/cli"
+	"github.com/schollz/croc/v11/src/codephrase"
 	"github.com/schollz/croc/v11/src/croc"
 	"github.com/schollz/croc/v11/src/models"
 	"github.com/schollz/croc/v11/src/publicrelay"
@@ -741,6 +742,67 @@ func TestParseRelayPorts(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSendCodeGenerators(t *testing.T) {
+	for _, letters := range []bool{false, true} {
+		for _, public := range []bool{false, true} {
+			code, err := generateSendCode(letters, 1, public)
+			require.NoError(t, err)
+			if letters {
+				require.Regexp(t, `^[a-z]{8}-[a-z]{8}-[a-z]{8}$`, code)
+			} else {
+				// All generated words must belong to a supported word list.
+				_, err = codephrase.ParseSSH(code + "-" + code)
+				require.NoError(t, err)
+			}
+			if public {
+				index, err := codephrase.RelayIndex(code, len(publicrelay.Relays()))
+				require.NoError(t, err)
+				require.Equal(t, 1, index)
+			}
+		}
+	}
+}
+
+func TestLettersFlagPreservesSuppliedCode(t *testing.T) {
+	for _, test := range []struct {
+		name, argument, env, remembered, want string
+	}{
+		{name: "environment", env: "env-secret", argument: "argument-secret", want: "env-secret"},
+		{name: "explicit", argument: "argument-secret", remembered: "remembered-secret", want: "argument-secret"},
+		{name: "remembered", remembered: "remembered-secret", want: "remembered-secret"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			app := newApp()
+			for _, command := range app.Commands {
+				if command.Name != "send" {
+					continue
+				}
+				command.Action = func(ctx *cli.Context) error {
+					require.True(t, ctx.Bool("letters"))
+					options := croc.Options{SharedSecret: ctx.String("code")}
+					applyRememberedSendOptions(ctx, &options, croc.Options{SharedSecret: test.remembered})
+					secret := resolveSendSharedSecret(options.SharedSecret, test.env)
+					require.Equal(t, test.want, secret)
+					return nil
+				}
+			}
+			args := []string{"croc", "send", "--letters"}
+			if test.argument != "" {
+				args = append(args, "--code", test.argument)
+			}
+			require.NoError(t, app.Run(args))
+		})
+	}
+}
+
+func TestLettersRejectsStoredMode(t *testing.T) {
+	t.Setenv("CROC_SECRET", "")
+	err := newApp().Run([]string{"croc", "--ignore-stdin", "send", "--store", "--letters", "unused"})
+	require.ErrorContains(t, err, "--letters applies to live-transfer codes")
+	err = newApp().Run([]string{"croc", "--ignore-stdin", "send", "--store", "--letters=false"})
+	require.ErrorContains(t, err, "must specify file")
 }
 
 func TestResolveSendSharedSecret(t *testing.T) {

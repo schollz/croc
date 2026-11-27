@@ -74,6 +74,9 @@ func newApp() *cli.App {
    Send a file with a custom code:
       croc send --code secret-code file.txt
 
+   Send a file with a random letter code:
+      croc send --letters file.txt
+
    Receive a file using code:
       croc secret-code
 
@@ -94,6 +97,7 @@ func newApp() *cli.App {
 			Flags: append([]cli.Flag{
 				&cli.BoolFlag{Name: "zip", Usage: "zip folder before sending"},
 				&cli.StringFlag{Name: "code", Aliases: []string{"c"}, Usage: "codephrase used to connect to relay (at least 6 characters)"},
+				&cli.BoolFlag{Name: "letters", Usage: "generate three groups of eight random lowercase letters when no code is supplied"},
 				&cli.StringFlag{Name: "transport", Value: string(croc.TransportAuto), Usage: "sender file data transport (auto, derp, relay)"},
 				&cli.StringFlag{Name: "hash", Value: "xxhash", Usage: "hash algorithm (xxhash, imohash, md5, highway)"},
 				&cli.StringFlag{Name: "text", Aliases: []string{"t"}, Usage: "send some text"},
@@ -404,6 +408,19 @@ func resolveSendSharedSecret(sharedSecret, envSecret string) string {
 	return sharedSecret
 }
 
+func generateSendCode(letters bool, relayIndex int, publicRelayMode bool) (string, error) {
+	if publicRelayMode {
+		if letters {
+			return codephrase.GenerateLettersForRelay(relayIndex, len(publicrelay.Relays()))
+		}
+		return codephrase.GenerateForRelay(relayIndex, len(publicrelay.Relays()))
+	}
+	if letters {
+		return codephrase.GenerateLetters()
+	}
+	return codephrase.Generate()
+}
+
 func usesPublicRelay(c *cli.Context, options croc.Options) bool {
 	return !c.IsSet("relay") &&
 		!c.IsSet("relay6") &&
@@ -618,6 +635,9 @@ func send(c *cli.Context) (err error) {
 		return errors.New("--transport must be auto for stored transfers")
 	}
 	if stored {
+		if c.Bool("letters") {
+			return errors.New("--letters applies to live-transfer codes and cannot be combined with --store")
+		}
 		return sendStored(c)
 	}
 
@@ -773,21 +793,21 @@ Or you can go back to the classic croc behavior by enabling classic mode:
 
 	generatedPublicCode := len(crocOptions.SharedSecret) == 0 && publicRelayMode
 	if len(crocOptions.SharedSecret) == 0 {
+		var relayIndex int
 		if publicRelayMode {
-			var relayIndex int
 			relayIndex, err = selectPublicRelay(c.Context, tcp.MeasureServerLatencyContext)
 			if err != nil {
 				return err
 			}
-			crocOptions.SharedSecret, err = codephrase.GenerateForRelay(relayIndex, len(publicrelay.Relays()))
-			if err == nil {
-				err = assignPublicRelay(&crocOptions, relayIndex)
-			}
-		} else {
-			crocOptions.SharedSecret, err = codephrase.Generate()
 		}
+		crocOptions.SharedSecret, err = generateSendCode(c.Bool("letters"), relayIndex, publicRelayMode)
 		if err != nil {
 			return fmt.Errorf("could not generate code phrase: %w", err)
+		}
+		if publicRelayMode {
+			if err = assignPublicRelay(&crocOptions, relayIndex); err != nil {
+				return err
+			}
 		}
 	} else if publicRelayMode {
 		if err = assignPublicRelayForCode(&crocOptions); err != nil {

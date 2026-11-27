@@ -303,6 +303,9 @@ describe("Go ↔ native protocol", () => {
     for (const code of [
       "1234-abcd",
       "abc-def-ghi",
+      "about-search-other",
+      "the-and-laos",
+      "qjvmpxza-rktnbywe-hsfucold",
       "alpha-beta-gamma-delta",
       "yo-yo-yo-yo-yo-yo",
       "apple-yo-yo-zebra",
@@ -318,10 +321,26 @@ describe("Go ↔ native protocol", () => {
           await oracle("relay", { Code: code, Count: count }),
         );
     }
-    const code = "apple-yo-yo-zebra-apple-yo-yo-zebra";
-    expect(await sshCodeComponents(code)).toEqual(
-      await oracle("sshCode", { Code: code }),
-    );
+    for (const code of [
+      "about-search-other-the-and-laos",
+      "acid-acorn-acre-acts-ahead-alien",
+      "apple-yo-yo-zebra-apple-yo-yo-zebra",
+      "yo-yo-yo-yo-yo-yo-yo-yo-yo-yo-yo-yo",
+    ]) {
+      expect(await sshCodeComponents(code)).toEqual(
+        await oracle("sshCode", { Code: code }),
+      );
+    }
+    for (const code of [
+      "about-search-other-the-and-zzzznotaword",
+      "about-search-other-the-and-ab",
+      "about-search-other-the-and-YOU",
+      "about-search-other-the-and",
+      "about-search-other-the-and-laos-extra",
+    ]) {
+      await expect(sshCodeComponents(code)).rejects.toThrow("invalid SSH code");
+      await expect(oracle("sshCode", { Code: code })).rejects.toThrow("invalid SSH code");
+    }
   });
   it("rejects wrong passwords through confirmation", async () => {
     const a = new Pake(password, 0, "p256", "peer-transfer", "room");
