@@ -919,12 +919,8 @@ func normalizeReceiveFilePath(folder, name string) (string, string, error) {
 }
 
 func validateReceiveSymlinkTarget(folder, target string) error {
-	cleanTarget, err := receivefs.Normalize(target, false)
-	if err != nil {
-		return fmt.Errorf("symlink target must be a local path: %w", err)
-	}
-	if _, err = receivefs.Normalize(path.Join(folder, cleanTarget), false); err != nil {
-		return fmt.Errorf("symlink target escapes receive directory: %w", err)
+	if _, err := receivefs.NormalizeSymlinkTarget(folder, target); err != nil {
+		return fmt.Errorf("symlink target must stay inside the receive directory: %w", err)
 	}
 	return nil
 }

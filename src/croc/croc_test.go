@@ -542,6 +542,33 @@ func TestHostilePortableDestinationNamesRejected(t *testing.T) {
 	}
 }
 
+func TestReceiveSymlinkTargetParentComponents(t *testing.T) {
+	tests := []struct {
+		folder, target string
+		ok             bool
+	}{
+		{folder: "d/sub", target: "../real.txt", ok: true},
+		{folder: "d/node_modules/.bin", target: "../pkg/bin/cli.js", ok: true},
+		{folder: "d/sub", target: "../../real.txt", ok: true},
+		{folder: "d/sub", target: "../../../x"},
+		{folder: ".", target: "../x"},
+		{folder: "d/sub", target: "a/../../x"},
+		{folder: "d/sub", target: "sub/up/../.."},
+		{folder: "d/sub", target: "../.ssh/authorized_keys"},
+		{folder: "d/sub", target: "..//etc/hosts"},
+		{folder: "d/sub", target: "/etc/hosts"},
+	}
+	for _, tt := range tests {
+		files := []FileInfo{{Name: "link", FolderRemote: tt.folder, Symlink: tt.target}}
+		_, _, err := validateReceiveMetadata(files, nil)
+		if tt.ok {
+			assert.NoError(t, err, "folder %q target %q", tt.folder, tt.target)
+		} else {
+			assert.Error(t, err, "folder %q target %q", tt.folder, tt.target)
+		}
+	}
+}
+
 func TestMarkedArchiveRequiresCompleteValidationBeforeExtraction(t *testing.T) {
 	receiveDirectory := t.TempDir()
 	t.Chdir(receiveDirectory)

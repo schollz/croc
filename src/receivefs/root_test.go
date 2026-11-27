@@ -99,6 +99,31 @@ func TestRootWriteResistsParentReplacement(t *testing.T) {
 	}
 }
 
+func TestRootSymlinkParentTarget(t *testing.T) {
+	if runtime.GOOS == "windows" || runtime.GOOS == "js" {
+		t.Skip("symlink creation requires privileges or differs")
+	}
+	directory := t.TempDir()
+	root, err := OpenRoot(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	if err = root.MkdirAll("d/sub", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err = root.Symlink("../real.txt", "d/sub/link"); err != nil {
+		t.Fatal(err)
+	}
+	target, err := root.Readlink("d/sub/link")
+	if err != nil || target != "../real.txt" {
+		t.Fatalf("Readlink = %q, %v", target, err)
+	}
+	if err = root.Symlink("../../../x", "d/sub/escape"); !errors.Is(err, ErrUnsafePath) {
+		t.Fatalf("escaping target error = %v", err)
+	}
+}
+
 func TestRootRenameReplacesFinalSymlinkNotTarget(t *testing.T) {
 	if runtime.GOOS == "js" {
 		t.Skip("symlink behavior differs on js")

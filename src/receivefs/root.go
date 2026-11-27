@@ -170,11 +170,15 @@ func (r *Root) Symlink(target, name string) error {
 	if err != nil {
 		return err
 	}
-	cleanTarget, err := Normalize(target, false)
+	slashName, err := Normalize(name, false)
+	if err != nil {
+		return err
+	}
+	cleanTarget, err := NormalizeSymlinkTarget(path.Dir(slashName), target)
 	if err != nil {
 		return fmt.Errorf("unsafe symlink target: %w", err)
 	}
-	if err = r.RejectSymlinkPath(path.Dir(name)); err != nil {
+	if err = r.RejectSymlinkPath(path.Dir(slashName)); err != nil {
 		return err
 	}
 	return r.root.Symlink(filepath.FromSlash(cleanTarget), cleanName)
