@@ -87,6 +87,35 @@ func Normalize(name string, allowRoot bool) (string, error) {
 	return strings.Join(normalized, "/"), nil
 }
 
+// NormalizeSymlinkTarget validates the target of a symlink stored in linkDir.
+// A target may start with ".." as long as it stays inside the receive root.
+// ".." after another component is rejected, because that component may itself
+// be a symlink and lexical resolution would not match the filesystem.
+func NormalizeSymlinkTarget(linkDir, target string) (string, error) {
+	cleanDir, err := Normalize(linkDir, true)
+	if err != nil {
+		return "", err
+	}
+	depth := 0
+	if cleanDir != "." {
+		depth = len(splitPath(cleanDir))
+	}
+	rest := strings.ReplaceAll(target, "\\", "/")
+	parents := 0
+	for strings.HasPrefix(rest, "../") {
+		rest = strings.TrimPrefix(rest, "../")
+		parents++
+	}
+	if parents > depth {
+		return "", fmt.Errorf("%w: %q escapes the receive directory", ErrUnsafePath, target)
+	}
+	clean, err := Normalize(rest, false)
+	if err != nil {
+		return "", err
+	}
+	return strings.Repeat("../", parents) + clean, nil
+}
+
 // ForbiddenComponent reports whether a normalized path component names a
 // sensitive receiver-owned directory. Matching uses the same portable Unicode
 // collision key as manifest duplicate detection. Git metadata is allowed so
