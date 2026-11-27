@@ -766,6 +766,22 @@ select:disabled {
   white-space: nowrap;
 }
 
+.send-code-format {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.send-code-format input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--foreground);
+}
+
 .send-code-value {
   min-width: 0;
   color: var(--foreground);
@@ -3812,6 +3828,10 @@ body:has(.relay-settings-modal[open]) {
     grid-row: 2;
     width: 48px;
     height: 48px;
+  }
+
+  .send-code-value[data-format="letters"] {
+    font-size: clamp(12px, 3.6vw, 14px);
   }
 
   .direct-share-row .secondary-button {

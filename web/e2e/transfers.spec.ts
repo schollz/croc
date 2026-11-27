@@ -873,6 +873,106 @@ for (const secret of [
   });
 }
 
+test("CLI --letters → Web transfers and verifies multiple files", async ({ page }, info) => {
+  const fixtures = await createFixtures(info);
+  const config = info.outputPath("letters-sender-config");
+  await fs.mkdir(config, { recursive: true });
+  await configurePage(page);
+  const sender = runCroc(
+    [...commonCLIArgs(), "send", "--letters", "--no-local", ...fixtures.paths],
+    "",
+    config,
+    crocBinary,
+    { CROC_NO_UPDATE_CHECK: "1" },
+  );
+  try {
+    const pattern = /[a-z]{8}-[a-z]{8}-[a-z]{8}/;
+    await expect.poll(() => sender.output().match(pattern)?.[0]).toMatch(pattern);
+    const panel = await connectWebReceiver(page, sender.output().match(pattern)![0]);
+    const downloads = await acceptAsDownloads(page, panel);
+    await expect(panel).toContainText("All files received and verified", { timeout: transferTimeout });
+    await sender.done;
+    await expectDownloads(downloads, fixtures);
+  } finally {
+    sender.stop();
+    await sender.done.catch(() => undefined);
+  }
+});
+
+for (const content of ["files", "text"] as const) {
+  test(`Web letters → CLI switches waiting codes and sends ${content}`, async ({ page }, info) => {
+    const fixtures = await createFixtures(info);
+    const destination = info.outputPath("letters-received");
+    const config = info.outputPath("letters-receiver-config");
+    await Promise.all([
+      fs.mkdir(destination, { recursive: true }),
+      fs.mkdir(config, { recursive: true }),
+    ]);
+    await configurePage(page);
+    const panel = page.locator(".send-panel");
+    const text = "letter-code text\nhttps://example.com/🐊\nfinal line";
+    if (content === "text") {
+      await panel.getByRole("button", { name: "Send text instead" }).click();
+      await panel.getByLabel("Text to send").fill(text);
+      await panel.getByRole("button", { name: "Send text", exact: true }).click();
+    } else {
+      await prepareWebSender(page, fixtures);
+      await panel.getByRole("button", { name: "Send 3 files" }).click();
+    }
+    const toggle = panel.getByRole("checkbox", { name: "Use letters instead" });
+    await expect(toggle).toBeEnabled();
+    const original = await readGeneratedSecret(panel);
+    await toggle.check();
+    const code = panel.getByLabel("Croc code", { exact: true });
+    await expect(code).toHaveText(/^[a-z]{8}-[a-z]{8}-[a-z]{8}$/);
+    await expect(toggle).toBeEnabled();
+    const firstLetters = await readGeneratedSecret(panel);
+    await toggle.uncheck();
+    await expect(toggle).toBeEnabled();
+    await expect(code).not.toHaveText(firstLetters);
+    await toggle.check();
+    await expect(toggle).toBeEnabled();
+    const secret = await readGeneratedSecret(panel);
+    expect(secret).toMatch(/^[a-z]{8}-[a-z]{8}-[a-z]{8}$/);
+    expect(secret).not.toBe(original);
+    expect(secret).not.toBe(firstLetters);
+    expect(new URL(await panel.getByLabel("Browser link", { exact: true }).inputValue()).searchParams.get("code")).toBe(secret);
+    await panel.getByRole("button", { name: "Show QR code" }).click();
+    await expect(panel.getByRole("region", { name: "Receiver QR code" })).toBeVisible();
+
+    for (const width of [320, 390, 1280]) {
+      await page.setViewportSize({ width, height: 844 });
+      expect(await code.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+      const [codeBox, copyBox] = await Promise.all([
+        code.boundingBox(),
+        panel.getByRole("button", { name: "Copy code", exact: true }).boundingBox(),
+      ]);
+      expect(codeBox!.x + codeBox!.width).toBeLessThanOrEqual(copyBox!.x);
+      expect(copyBox!.x + copyBox!.width).toBeLessThanOrEqual(width);
+    }
+    await page.screenshot({ path: info.outputPath("letter-code-desktop.png") });
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.screenshot({ path: info.outputPath("letter-code-mobile.png") });
+
+    const receiver = runCroc(
+      [...commonCLIArgs(), ...(content === "text" ? ["--quiet"] : ["--out", destination])],
+      secret,
+      config,
+    );
+    try {
+      await expect(toggle).toBeDisabled();
+      await expect(panel).toContainText(content === "text" ? "Text arrived safely" : "All files arrived safely", { timeout: transferTimeout });
+      await receiver.done;
+      if (content === "text") expect(receiver.output()).toBe(text);
+      else await expectDirectory(destination, fixtures);
+      await expect(toggle).toBeChecked();
+    } finally {
+      receiver.stop();
+      await receiver.done.catch(() => undefined);
+    }
+  });
+}
+
 test("CLI → Web preserves nested directory destinations and empty folders", async ({
   page,
 }, info) => {

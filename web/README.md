@@ -32,13 +32,15 @@ never downloaded or placed in temporary storage. Text payloads are limited to
 Direct protocol operations use a lazily started TypeScript module worker:
 
 - PAKE over exactly pinned `@noble/curves` 2.4.0, with all five Go curves
-- lossless Go-compatible PAKE JSON through `lossless-json` 4.3.3
+- lossless Go-compatible PAKE JSON through `lossless-json` 4.3.4
 - Web Crypto PBKDF2-SHA-256, identity-bound HKDF using HMAC, mutual confirmation,
   and AES-GCM with reusable imported keys per transfer
 - browser Compression Streams for raw DEFLATE with bounded decompression
 - incremental zero-seed XXH64 using paired 32-bit words
 
-Code generation uses the existing EFF list and `crypto.getRandomValues`.
+Code generation uses the same vendored 7,223-word Google English list as the
+CLI and `crypto.getRandomValues`. Entries are unique lowercase ASCII words of
+at least three letters, without hyphens. Older EFF codes remain accepted.
 Code parsing and SHA-256 relay selection do not start the protocol worker.
 Files/text require current evergreen browsers on HTTPS or localhost with Web
 Crypto and raw DEFLATE Compression Streams. Missing capabilities produce an
@@ -60,6 +62,9 @@ Active sends and receives show total and per-file progress, measured bytes per
 second, and an ETA calculated with `arrival-time`.
 
 ## Local development
+
+Use Node.js 22.22.2+, 24.15.0+, or 26+ to match the build and test tools.
+CI uses Node.js 24.
 
 From this directory:
 

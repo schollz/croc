@@ -122,7 +122,9 @@ emulator before the host replays retained output.
 
 ## Protocol and trust model
 
-Each invitation contains six EFF words. The first two derive an opaque relay
+Each invitation contains six words drawn uniformly from the vendored
+7,223-word Google English list. Older EFF invitations remain accepted.
+The first two words derive an opaque relay
 room identifier; the remaining four are the PAKE secret. The host and guest run
 purpose- and room-bound PAKE with mutual key confirmation over a normal croc
 relay room. Relay keepalives are transport frames and are ignored by this

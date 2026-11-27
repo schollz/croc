@@ -117,6 +117,7 @@ export interface FileProgress {
 }
 
 export interface TransferCallbacks {
+  onConnectionPhase?(phase: "waiting" | "connected"): void;
   onStatus?(status: string): void;
   onProgress?(progress: FileProgress): void;
   onFileComplete?(fileName: string): void;

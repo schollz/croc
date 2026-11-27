@@ -26,6 +26,7 @@ import {
   transferEvents,
 } from "./analytics";
 import { errorMessage, formatBytes } from "./protocol/bytes";
+import { generateCode, generateLetterCode } from "./codephrase";
 import {
   FileHashCache,
   type FileHashAlgorithm,
@@ -691,6 +692,8 @@ export function App() {
   );
   const [sshActive, setSSHActive] = useState(false);
   const [sendCode, setSendCode] = useState("");
+  const [sendLetters, setSendLetters] = useState(false);
+  const [canSwitchSendCode, setCanSwitchSendCode] = useState(false);
   const [sendDetailsVisible, setSendDetailsVisible] = useState(false);
   const [sendActivity, setSendActivity] = useState<Activity>(restoredStoredUpload ? "done" : "idle");
   const [sendStatus, setSendStatus] = useState("");
@@ -723,6 +726,9 @@ export function App() {
   >(undefined);
 
   const sendAbort = useRef<AbortController>(undefined);
+  const sendRun = useRef<Promise<void>>(undefined);
+  const sendAttempt = useRef(0);
+  const sendConnectionPhase = useRef<"waiting" | "connected" | undefined>(undefined);
   const receiveAbort = useRef<AbortController>(undefined);
   const sendProgressStartedAt = useRef<number>(undefined);
   const receiveProgressStartedAt = useRef<number>(undefined);
@@ -831,6 +837,7 @@ export function App() {
         window.clearTimeout(directLinkCopyReset.current);
       if (receivedTextCopyReset.current !== undefined)
         window.clearTimeout(receivedTextCopyReset.current);
+      sendAttempt.current++;
       sendAbort.current?.abort();
       receiveAbort.current?.abort();
       fileHashes.clear();
@@ -915,9 +922,12 @@ export function App() {
     value: string,
     setState: (state: CopyState) => void,
     reset: { current: number | undefined },
+    current: () => boolean = () => true,
   ) {
     if (reset.current !== undefined) window.clearTimeout(reset.current);
-    setState((await copyValue(value)) ? "copied" : "error");
+    const copied = await copyValue(value);
+    if (!current()) return;
+    setState(copied ? "copied" : "error");
     reset.current = window.setTimeout(() => {
       setState("idle");
       reset.current = undefined;
@@ -992,26 +1002,36 @@ export function App() {
     rememberStoredUpload(result);
   }
 
-  async function sendDirect(signal: AbortSignal) {
+  async function sendDirect(
+    signal: AbortSignal,
+    letters: boolean,
+    active: () => boolean,
+  ) {
+    const onStatus = (status: string) => {
+      if (active()) setSendStatus(status);
+    };
     const relayIndex = await relayPreloader.select(settings, {
       signal,
       onCacheState: (cached) =>
-        setSendStatus(cached ? "Using saved relay…" : "Finding fastest relay…"),
+        onStatus(cached ? "Using saved relay…" : "Finding fastest relay…"),
     });
     const code = await generateCodeForRelay(
       relayIndex,
       settings.relayAddresses.length,
+      letters ? generateLetterCode : generateCode,
     );
+    if (!active()) return;
     setSendCode(code);
     const sendingText = sendContent === "text";
     const prepared = sendingText
-      ? await prepareText(sendText, { onStatus: setSendStatus }, signal)
+      ? await prepareText(sendText, { onStatus }, signal)
       : await prepareFiles(
           selectedFiles,
-          { onStatus: setSendStatus },
+          { onStatus },
           signal,
           (file) => fileHashes.hash(file, "xxhash"),
         );
+    if (!active()) return;
     try {
       await sendFiles({
         files: prepared,
@@ -1020,23 +1040,42 @@ export function App() {
         settings,
         signal,
         callbacks: {
-          onStatus: setSendStatus,
-          onProgress: updateSendProgress,
-          onFileComplete: (name) =>
-            setCompletedSend((current) => [...current, name]),
+          onConnectionPhase: (phase) => {
+            if (!active()) return;
+            sendConnectionPhase.current = phase;
+            setCanSwitchSendCode(phase === "waiting");
+          },
+          onStatus,
+          onProgress: (progress) => {
+            if (active()) updateSendProgress(progress);
+          },
+          onFileComplete: (name) => {
+            if (active()) setCompletedSend((current) => [...current, name]);
+          },
         },
       });
     } catch (error) {
-      if (clearBestRelayOnConnectionError(error)) relayPreloader.clear();
+      if (active() && clearBestRelayOnConnectionError(error)) relayPreloader.clear();
       throw error;
     }
   }
 
-  async function startSend() {
+  async function startSend(letters = sendLetters) {
+    const previous = sendRun.current;
+    const attempt = ++sendAttempt.current;
     sendAbort.current?.abort();
     const controller = new AbortController();
+    const current = () => sendAttempt.current === attempt;
+    const active = () => current() && !controller.signal.aborted;
     const currentSendMode = sendMode;
+    sendConnectionPhase.current = undefined;
+    setCanSwitchSendCode(false);
     if (currentSendMode === "direct") {
+      if (codeCopyReset.current !== undefined) {
+        window.clearTimeout(codeCopyReset.current);
+        codeCopyReset.current = undefined;
+      }
+      setCodeCopyState("idle");
       if (directLinkCopyReset.current !== undefined) {
         window.clearTimeout(directLinkCopyReset.current);
         directLinkCopyReset.current = undefined;
@@ -1057,32 +1096,56 @@ export function App() {
     sendProgressSampledAt.current = undefined;
     setCompletedSend([]);
     setStoredUpload(undefined);
-    try {
-      await (currentSendMode === "stored"
-        ? sendStored(controller.signal)
-        : sendDirect(controller.signal));
-      trackTransferEvent(
-        currentSendMode === "stored"
-          ? transferEvents.sendWithStorage
-          : transferEvents.sendDirect,
-      );
-      setSendActivity("done");
-      setSendStatus(
-        currentSendMode === "stored"
-          ? "Encrypted upload ready to share"
-          : sendContent === "text"
-            ? "Text arrived safely"
-            : "All files arrived safely",
-      );
-    } catch (error) {
-      if (controller.signal.aborted) {
-        setSendActivity("idle");
-        setSendStatus("Transfer cancelled");
-      } else {
-        setSendActivity("error");
-        setSendStatus(errorMessage(error));
+    const pending = (async () => {
+      try {
+        // A replacement must wait for the old session's sockets and crypto
+        // contexts to close before joining its new room.
+        await previous;
+        if (controller.signal.aborted) throw controller.signal.reason;
+        if (!current()) return;
+        await (currentSendMode === "stored"
+          ? sendStored(controller.signal)
+          : sendDirect(controller.signal, letters, active));
+        if (!active()) return;
+        trackTransferEvent(
+          currentSendMode === "stored"
+            ? transferEvents.sendWithStorage
+            : transferEvents.sendDirect,
+        );
+        setSendActivity("done");
+        setSendStatus(
+          currentSendMode === "stored"
+            ? "Encrypted upload ready to share"
+            : sendContent === "text"
+              ? "Text arrived safely"
+              : "All files arrived safely",
+        );
+      } catch (error) {
+        if (!current()) return;
+        if (controller.signal.aborted) {
+          setSendActivity("idle");
+          setSendStatus("Transfer cancelled");
+        } else {
+          setSendActivity("error");
+          setSendStatus(errorMessage(error));
+        }
+      } finally {
+        if (current()) {
+          sendConnectionPhase.current = undefined;
+          setCanSwitchSendCode(false);
+        }
       }
-    }
+    })();
+    sendRun.current = pending;
+    await pending;
+  }
+
+  function switchSendCode(letters: boolean) {
+    // Check the ref too: a recipient may have connected before React has
+    // rendered the disabled checkbox.
+    if (sendConnectionPhase.current !== "waiting") return;
+    setSendLetters(letters);
+    void startSend(letters);
   }
 
   function receiveCallbacks(signal: AbortSignal): ReceiveCallbacks {
@@ -1470,6 +1533,7 @@ export function App() {
                 <span className="send-code-label">Use this code:</span>
                 <code
                   className={`send-code-value ${codeCopyState}`}
+                  data-format={sendLetters ? "letters" : "words"}
                   aria-label="Croc code"
                 >
                   {sendCode}
@@ -1479,13 +1543,15 @@ export function App() {
                   type="button"
                   aria-label={codeCopyState === "copied" ? "Code copied" : "Copy code"}
                   disabled={!sendCode}
-                  onClick={() =>
+                  onClick={() => {
+                    const attempt = sendAttempt.current;
                     void copyWithFeedback(
                       sendCode,
                       setCodeCopyState,
                       codeCopyReset,
-                    )
-                  }
+                      () => sendAttempt.current === attempt,
+                    );
+                  }}
                 >
                   {codeCopyState === "copied" ? <Check /> : <Copy />}
                 </button>
@@ -1501,6 +1567,15 @@ export function App() {
                       : ""}
                 </span>
               </div>
+              <label className="send-code-format">
+                <input
+                  type="checkbox"
+                  checked={sendLetters}
+                  disabled={!canSwitchSendCode}
+                  onChange={(event) => switchSendCode(event.target.checked)}
+                />
+                Use letters instead
+              </label>
               {sendCode.trim().length >= 6 && (
                 <div className="direct-share-link">
                   <label htmlFor="direct-browser-link">Browser link</label>
@@ -1520,13 +1595,15 @@ export function App() {
                             ? "Browser link copy failed"
                             : "Copy browser link"
                       }
-                      onClick={() =>
+                      onClick={() => {
+                        const attempt = sendAttempt.current;
                         void copyWithFeedback(
                           directReceiveURL,
                           setDirectLinkCopyState,
                           directLinkCopyReset,
-                        )
-                      }
+                          () => sendAttempt.current === attempt,
+                        );
+                      }}
                     >
                       {directLinkCopyState === "copied" ? <Check /> : <Copy />}
                       <span role="status" aria-live="polite">

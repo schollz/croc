@@ -1,6 +1,24 @@
 import effWordList from "../../src/codephrase/wordlists/eff-short-wordlist-1.txt?raw";
+import codeWordList from "../../src/codephrase/wordlists/google-english-no-swears.txt?raw";
 
-export const effWords = effWordList.trimEnd().split("\n");
+const effWords = effWordList
+  .replace(/\r\n/g, "\n")
+  .replace(/\n$/, "")
+  .split("\n");
+export const codeWords = codeWordList
+  .replace(/\r\n/g, "\n")
+  .replace(/\n$/, "")
+  .split("\n");
+
+if (
+  codeWords.length !== 7223 ||
+  new Set(codeWords).size !== codeWords.length ||
+  codeWords.some((word) => !/^[a-z]{3,}$/.test(word))
+) {
+  throw new Error(
+    "Google English word list must contain 7223 unique lowercase words of at least three letters",
+  );
+}
 
 if (effWords.length !== 1296) {
   throw new Error(`EFF word list has ${effWords.length} entries; want 1296`);
@@ -25,11 +43,29 @@ export function generateCode(
 ) {
   return Array.from(
     { length: 3 },
-    () => effWords[selectIndex(effWords.length)],
+    () => codeWords[selectIndex(codeWords.length)],
+  ).join("-");
+}
+
+export function generateLetterCode(
+  selectIndex: (upperBound: number) => number = secureRandomIndex,
+) {
+  return Array.from({ length: 3 }, () =>
+    Array.from({ length: 8 }, () =>
+      String.fromCharCode(97 + selectIndex(26)),
+    ).join(""),
   ).join("-");
 }
 
 const effWordSet = new Set(effWords);
+const codeWordSet = new Set(codeWords);
+function codeSequence(secret: string, count: number): string[] | undefined {
+  const words = secret.split("-");
+  if (words.length === count && words.every((word) => codeWordSet.has(word))) {
+    return words;
+  }
+}
+
 function effSequence(secret: string, count: number): string[] | undefined {
   const parts = secret.split("-");
   if (parts.length < count || parts.length > count * 2) return;
@@ -82,8 +118,9 @@ export async function codeComponents(secret: string) {
   return { room: await digestHex(roomBytes), passphrase, format };
 }
 export async function sshCodeComponents(secret: string) {
-  const words = effSequence(secret, 6);
-  if (!words) throw new Error("invalid SSH code: expected 6 EFF words");
+  const words = codeSequence(secret, 6) ?? effSequence(secret, 6);
+  if (!words)
+    throw new Error("invalid SSH code: expected 6 words from croc's word lists");
   return {
     room: await digestHex(
       new TextEncoder().encode(words.slice(0, 2).join("-") + "croc-ssh-v1"),

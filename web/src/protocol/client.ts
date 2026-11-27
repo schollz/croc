@@ -428,7 +428,10 @@ export async function sendFiles(options: {
     );
     control = relay.socket;
     callbacks.onStatus?.("Waiting for recipient…");
+    callbacks.onConnectionPhase?.("waiting");
     await waitForHandshake(control, room, passphrase, signal);
+    checkAbort(signal);
+    callbacks.onConnectionPhase?.("connected");
 
     const peerPake = await receiveControl(control);
     if (peerPake.t !== "pake" || !peerPake.b || !peerPake.b2) {

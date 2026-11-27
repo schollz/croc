@@ -324,6 +324,19 @@ croc --classic
 
 #### Custom Code Phrase
 
+Default codes contain three words selected uniformly from a vendored list of
+7,223 unique lowercase English entries, each at least three letters long and
+without hyphens. The list combines the Google English no-swears medium and
+short lists; [sources and checksums](src/codephrase/wordlists/README.md) are
+included in the repository. Existing EFF codes remain accepted.
+
+To generate a code with three groups of eight random lowercase letters instead
+of words:
+
+```bash
+croc send --letters [file(s)-or-folder]
+```
+
 You can send with your own code phrase (must be at least 6 characters):
 
 ```bash
@@ -332,7 +345,7 @@ croc send --code [code-phrase] [file(s)-or-folder]
 
 For default public transfers, SHA-256 of the exact code modulo the ordered
 three-relay pool determines which deployment both peers use. An automatically
-generated sender probes all three relays and generates a normal EFF code that
+generated sender probes all three relays and generates a normal three-word code that
 maps to the first healthy one to respond. A custom code maps directly without probing
 or fallback. `--relay`, `CROC_RELAY`, `--ip`, and local-only transfers bypass
 this public routing rule. The generated sender caches the winning address in
